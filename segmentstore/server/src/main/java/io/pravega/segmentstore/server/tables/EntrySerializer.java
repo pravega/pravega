@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
@@ -43,6 +44,7 @@ import lombok.val;
  * requires us to read the whole thing before retrieving anything.
  */
 public class EntrySerializer {
+    @VisibleForTesting
     public static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
     static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
     /**
@@ -82,7 +84,8 @@ public class EntrySerializer {
      * @param entries A Collection of {@link TableEntry} to serialize.
      * @return A {@link BufferView} representing the serialization of the given entries.
      */
-    BufferView serializeUpdate(@NonNull Collection<TableEntry> entries) {
+    @VisibleForTesting
+    public BufferView serializeUpdate(@NonNull Collection<TableEntry> entries) {
         return serializeUpdate(entries, e -> TableKey.NO_VERSION);
     }
 
@@ -138,7 +141,8 @@ public class EntrySerializer {
      * @param keys A Collection of {@link TableKey} to serialize for removals.
      * @return A {@link BufferView} representing the serialization of the given keys.
      */
-    BufferView serializeRemoval(@NonNull Collection<TableKey> keys) {
+    @VisibleForTesting
+    public BufferView serializeRemoval(@NonNull Collection<TableKey> keys) {
         val builder = BufferView.builder(keys.size() * 2);
         keys.forEach(k -> serializeRemoval(k, builder::add));
         return builder.build();

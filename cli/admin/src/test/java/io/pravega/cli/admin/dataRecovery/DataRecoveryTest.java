@@ -17,14 +17,18 @@ package io.pravega.cli.admin.dataRecovery;
 
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.CompositeByteArraySegment;
+import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.tables.TableEntry;
+import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.server.tables.EntrySerializer;
 import io.pravega.test.integration.utils.LocalServiceStarter;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.io.FileHelpers;
-import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.CompositeByteArraySegment;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
@@ -67,9 +71,11 @@ import org.mockito.Mockito;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -80,6 +86,7 @@ import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * Tests Data recovery commands.
@@ -910,8 +917,44 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         pravegaProperties.setProperty("bookkeeper.ledger.path", "/pravega/bookkeeper/ledgers0");
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
+        // Create the data to test.
+        File testDataDir = Files.createTempDirectory("test-data-table-segment-recovery").toFile().getAbsoluteFile();
+        File pravegaStorageDir = Files.createTempDirectory("table-segment-recovery-command").toFile().getAbsoluteFile();
+
+        List<TableEntry> tableSegmentPuts = List.of(
+                TableEntry.unversioned(new ByteArraySegment("k1".getBytes()), new ByteArraySegment("v1".getBytes())),
+                TableEntry.unversioned(new ByteArraySegment("k2".getBytes()), new ByteArraySegment("v2".getBytes())),
+                TableEntry.unversioned(new ByteArraySegment("k3".getBytes()), new ByteArraySegment("v3".getBytes())),
+                TableEntry.unversioned(new ByteArraySegment("k4".getBytes()), new ByteArraySegment("v4".getBytes()))); // This is a delete operation on k1.
+
+        List<TableKey> tableSegmentRemovals = List.of(TableKey.unversioned(new ByteArraySegment("k1".getBytes())));
+
+        EntrySerializer entrySerializer = new EntrySerializer();
+        BufferView serializedEntries = BufferView.builder().add(entrySerializer.serializeUpdate(tableSegmentPuts))
+                                                           .add(entrySerializer.serializeRemoval(tableSegmentRemovals))
+                                                           .build();
+        InputStream serializedEntriesReader = serializedEntries.getReader();
+
+        Path p1 = Files.createTempFile(testDataDir.toPath(), "chunk-1", ".txt");
+        Path p2 = Files.createTempFile(testDataDir.toPath(), "chunk-2", ".txt");
+        Files.write(p1, serializedEntriesReader.readNBytes(serializedEntries.getLength() / 2), StandardOpenOption.WRITE);
+        Files.write(p2, serializedEntriesReader.readAllBytes(), StandardOpenOption.WRITE);
+
         // Command under test
-        TestUtils.executeCommand("data-recovery tableSegment-recovery /home/raul/Downloads/PRAVEGA-2145/batch24/test test", STATE.get());
+        TestUtils.executeCommand("data-recovery tableSegment-recovery " + testDataDir.getAbsolutePath() + " test " + pravegaStorageDir, STATE.get());
         Assert.assertNotNull(TableSegmentRecoveryCommand.descriptor());
+
+        // After that, we need to check that the storage data chunk in Pravega instance is the same as the one generated in the test.
+        File[] potentialFiles = new File(pravegaStorageDir.toString()).listFiles();
+        assert potentialFiles != null;
+        List<File> listOfFiles = Arrays.stream(potentialFiles)
+                .filter(File::isFile)
+                .filter(f -> !f.getName().contains("$attributes.index")) // We are interested in the data, not the attribute segments.
+                .sorted()
+                .collect(Collectors.toList());
+        // There should one only one data chunk for this Table Segment.
+        Assert.assertEquals(1, listOfFiles.size());
+        // The contents of the test data chunks and the contents of the Pravega Table Segment data chunks should be the same.
+        Assert.assertArrayEquals(Files.readAllBytes(Paths.get(pravegaStorageDir.toString(), listOfFiles.get(0).getName())), serializedEntries.getCopy());
     }
 }

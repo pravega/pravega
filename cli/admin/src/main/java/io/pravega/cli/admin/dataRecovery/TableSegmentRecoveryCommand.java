@@ -18,7 +18,6 @@ package io.pravega.cli.admin.dataRecovery;
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
-import io.pravega.common.io.SerializationException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -32,12 +31,14 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.segmentstore.server.tables.EntrySerializer;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
+import lombok.AccessLevel;
 import lombok.Cleanup;
 import lombok.Getter;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,11 +70,12 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
     private final static int DEFAULT_ROLLOVER_SIZE = 32 * 1024 * 1024; // Default rollover size for Table Segment attribute chunks.
     private final static int NUM_CONTAINERS = 1; // We need just one Container in the local Pravega instance.
     private static final String ATTRIBUTE_SUFFIX = "$attributes.index"; // We need main Segment chunks, not attribute chunks.
-    private static final String LTS_DIR_BASE_NAME = "table-segment-recovery";
     private final static Duration TIMEOUT = Duration.ofSeconds(10);
 
     private ScheduledExecutorService executor;
     private LocalServiceStarter.PravegaRunner pravegaRunner = null;
+    @Getter(AccessLevel.PACKAGE)
+    private Path pravegaStorageDir;
 
     /**
      * Creates a new instance of the DataRecoveryCommand class.
@@ -86,9 +88,10 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
 
     @Override
     public void execute() throws Exception {
-        ensureArgCount(2);
+        ensureArgCount(3);
         String tableSegmentDataChunksPath = getArg(0);
         String newTableSegmentName = getArg(1);
+        String pravegaStorageDir = getArg(2);
 
         // STEP 1: Get all the segment chunks related to the main Segment in order.
         File[] potentialFiles = new File(tableSegmentDataChunksPath).listFiles();
@@ -101,6 +104,7 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
 
         // STEP 2: Start a Pravega instance that is able to write data to tier 2.
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "table-segment-repair-command");
+        this.pravegaStorageDir = Path.of(pravegaStorageDir);
         setupStorageEnabledLocalPravegaCluster();
 
         byte[] partialEntryFromLastChunk = null;
@@ -132,10 +136,9 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
      * Start a local Pravega cluster with SLTS enabled, so we can use the resulting Table Segment index chunks.
      */
     private void setupStorageEnabledLocalPravegaCluster() throws Exception {
-        File baseDir = Files.createTempDirectory(LTS_DIR_BASE_NAME).toFile().getAbsoluteFile();
-        output("Storage directory for this cluster is: " + baseDir.getAbsolutePath());
+        output("Storage directory for this cluster is: " + this.pravegaStorageDir);
         FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
-                .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
+                .with(FileSystemStorageConfig.ROOT, this.pravegaStorageDir.toString())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
         StorageFactory storageFactory = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, adapterConfig, this.executor);
@@ -190,10 +193,11 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
                 ByteArraySegment slice = byteArraySegment.slice(processedBytes, byteArraySegment.getLength() - processedBytes);
                 EntrySerializer.Header header = serializer.readHeader(slice.getBufferViewReader());
                 // If the header has been parsed correctly, then we can proceed.
-                int totalEntryLength = EntrySerializer.HEADER_LENGTH + header.getKeyLength() + header.getValueLength();
-                byte[] keyBytes = slice.slice(EntrySerializer.HEADER_LENGTH, EntrySerializer.HEADER_LENGTH + header.getKeyLength())
+                int valueLength = header.getValueLength() < 0 ? 0 : header.getValueLength(); // In case of a removal, us 0 instead of -1.
+                int totalEntryLength = EntrySerializer.HEADER_LENGTH + header.getKeyLength() + valueLength;
+                byte[] keyBytes = slice.slice(EntrySerializer.HEADER_LENGTH, header.getKeyLength())
                         .getReader().readNBytes(header.getKeyLength());
-                byte[] valueBytes = slice.slice(EntrySerializer.HEADER_LENGTH + header.getKeyLength(), totalEntryLength)
+                byte[] valueBytes = valueLength == 0 ? new byte[0] : slice.slice(EntrySerializer.HEADER_LENGTH + header.getKeyLength(), header.getValueLength())
                         .getReader().readNBytes(header.getValueLength());
                 // Add operation to the list of operations to replay later on (PUT or DELETE).
                 tableSegmentOperations.add(valueBytes.length == 0 ?
@@ -207,10 +211,10 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
                 if (tableSegmentOperations.size() % 100 == 0) {
                     output("Progress of scanning data chunk: " + ((processedBytes * 100.0) / byteArraySegment.getLength()));
                 }
-            } catch (IOException e) {
+            } catch (IOException | RuntimeException e) {
                 processedBytes++;
                 unprocessedBytesFromLastChunk++;
-                outputError("Exception while processing data. Unprocessed bytes: " + unprocessedBytesFromLastChunk);
+                outputError("Exception while processing data. Unprocessed bytes: " + unprocessedBytesFromLastChunk, e);
             }
         }
 
@@ -272,6 +276,7 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
         return new CommandDescriptor(COMPONENT, "tableSegment-recovery", "Allows to repair a Table Segment being damaged/corrupted.",
                 new ArgDescriptor("segment-chunks-location", "Location of main Segment chunks."),
                 new ArgDescriptor("new-table-segment-name", "Name of the new (hash-based) Table Segment were operations " +
-                        "from the damaged one will be stored at."));
+                        "from the damaged one will be stored at."),
+                new ArgDescriptor("pravega-local-storage-dir", "Location in the local machine to be used as Storage dir for Pravega."));
     }
 }
