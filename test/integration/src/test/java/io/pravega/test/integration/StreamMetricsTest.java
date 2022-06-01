@@ -196,6 +196,7 @@ public class StreamMetricsTest {
         controllerWrapper.getControllerService().updateStream(scopeName, streamName,
                 StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build(), 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
+        assertTrue(getTimerMillis(MetricsNames.UPDATE_STREAM_EVENT_LATENCY) > 0);
 
         final String subscriber = "subscriber1";
         CreateReaderGroupResponse createRGStatus = controllerWrapper.getControllerService().createReaderGroup(
@@ -221,6 +222,9 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
 
         assertTrue(getTimerMillis(MetricsNames.SEAL_STREAM_EVENT_LATENCY) > 0);
+
+        controllerWrapper.getControllerService().truncateStream(scopeName, streamName, streamCut1,0l).get();
+        assertTrue(getTimerMillis(MetricsNames.TRUNCATE_STREAM_EVENT_LATENCY) > 0);
 
         // Delete the Stream and Scope and check for the respective metrics.
         controllerWrapper.getControllerService().deleteStream(scopeName, streamName, 0L).get();

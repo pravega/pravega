@@ -20,56 +20,7 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.pravega.shared.MetricsNames.CREATE_SCOPE;
-import static io.pravega.shared.MetricsNames.CREATE_SCOPE_FAILED;
-import static io.pravega.shared.MetricsNames.CREATE_SCOPE_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_STREAM;
-import static io.pravega.shared.MetricsNames.CREATE_STREAM_FAILED;
-import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.DELETE_SCOPE;
-import static io.pravega.shared.MetricsNames.DELETE_SCOPE_FAILED;
-import static io.pravega.shared.MetricsNames.DELETE_SCOPE_LATENCY;
-import static io.pravega.shared.MetricsNames.DELETE_SCOPE_RECURSIVE_FAILED;
-import static io.pravega.shared.MetricsNames.DELETE_STREAM;
-import static io.pravega.shared.MetricsNames.DELETE_STREAM_FAILED;
-import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
-import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
-import static io.pravega.shared.MetricsNames.SEAL_STREAM;
-import static io.pravega.shared.MetricsNames.SEAL_STREAM_FAILED;
-import static io.pravega.shared.MetricsNames.SEAL_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.SEGMENTS_COUNT;
-import static io.pravega.shared.MetricsNames.SEGMENTS_MERGES;
-import static io.pravega.shared.MetricsNames.SEGMENTS_SPLITS;
-import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM;
-import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_FAILED;
-import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.UPDATE_STREAM;
-import static io.pravega.shared.MetricsNames.UPDATE_STREAM_FAILED;
-import static io.pravega.shared.MetricsNames.UPDATE_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_KVTABLE;
-import static io.pravega.shared.MetricsNames.KVTABLE_SEGMENTS_COUNT;
-import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_FAILED;
-import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_LATENCY;
-import static io.pravega.shared.MetricsNames.DELETE_KVTABLE;
-import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_FAILED;
-import static io.pravega.shared.MetricsNames.CREATE_READER_GROUP_LATENCY;
-import static io.pravega.shared.MetricsNames.DELETE_READER_GROUP_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_READER_GROUP;
-import static io.pravega.shared.MetricsNames.CREATE_READER_GROUP_FAILED;
-import static io.pravega.shared.MetricsNames.DELETE_READER_GROUP;
-import static io.pravega.shared.MetricsNames.DELETE_READER_GROUP_FAILED;
-import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER;
-import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER_FAILED;
-import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER_LATENCY;
-import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP_LATENCY;
-import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP;
-import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP_FAILED;
-import static io.pravega.shared.MetricsNames.DELETE_STREAM_EVENT_LATENCY;
-import static io.pravega.shared.MetricsNames.SEAL_STREAM_EVENT_LATENCY;
-
-import static io.pravega.shared.MetricsNames.globalMetricName;
+import static io.pravega.shared.MetricsNames.*;
 import static io.pravega.shared.MetricsTags.streamTags;
 import static io.pravega.shared.MetricsTags.readerGroupTags;
 
@@ -84,7 +35,9 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger deleteStreamLatency;
     private final OpStatsLogger sealStreamLatency;
     private final OpStatsLogger deleteStreamEventLatency;
+    private final OpStatsLogger updateStreamEventLatency;
     private final OpStatsLogger sealStreamEventLatency;
+    private final OpStatsLogger truncateStreamEventLatency;
     private final OpStatsLogger updateStreamLatency;
     private final OpStatsLogger addReaderGroupLatency;
     private final OpStatsLogger truncateStreamLatency;
@@ -101,7 +54,9 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
         deleteStreamLatency = STATS_LOGGER.createStats(DELETE_STREAM_LATENCY);
         deleteStreamEventLatency = STATS_LOGGER.createStats(DELETE_STREAM_EVENT_LATENCY);
+        updateStreamEventLatency = STATS_LOGGER.createStats(UPDATE_STREAM_EVENT_LATENCY);
         sealStreamEventLatency = STATS_LOGGER.createStats(SEAL_STREAM_EVENT_LATENCY);
+        truncateStreamEventLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_EVENT_LATENCY);
         sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
         updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
         truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
@@ -252,19 +207,37 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     /**
      * This method reports the latency of delete Stream event processing.
      *
-     * @param latency       Latency of the deleteStream operation.
+     * @param latency       Latency of the deleteStreamEvent operation.
      */
     public void deleteStreamEvent(Duration latency) {
         deleteStreamEventLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
+     * This method reports the latency of update Stream event processing.
+     *
+     * @param latency       Latency of the updateStreamEvent operation.
+     */
+    public void updateStreamEvent(Duration latency) {
+        updateStreamEventLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
      * This method reports the latency of Seal Stream event processing.
      *
-     * @param latency       Latency of the deleteStream operation.
+     * @param latency       Latency of the sealStreamEvent operation.
      */
     public void sealStreamEvent(Duration latency) {
         sealStreamEventLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of Truncate Stream event processing.
+     *
+     * @param latency       Latency of the truncateStreamEvent operation.
+     */
+    public void truncateStreamEvent(Duration latency) {
+        truncateStreamEventLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
