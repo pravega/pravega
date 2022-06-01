@@ -220,7 +220,6 @@ public class StreamMetricsTest {
         // Seal the Stream.
         controllerWrapper.getControllerService().sealStream(scopeName, streamName, 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
-
         assertTrue(getTimerMillis(MetricsNames.SEAL_STREAM_EVENT_LATENCY) > 0);
 
         controllerWrapper.getControllerService().truncateStream(scopeName, streamName, streamCut1, 0L).get();
