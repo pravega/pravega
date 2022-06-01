@@ -43,6 +43,7 @@ import lombok.val;
  * We can't use VersionedSerializer here because in most cases we need to read only key and not the value. VersionedSerializer
  * requires us to read the whole thing before retrieving anything.
  */
+@VisibleForTesting
 public class EntrySerializer {
     @VisibleForTesting
     public static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
@@ -168,6 +169,7 @@ public class EntrySerializer {
      * @return The Entry Header.
      * @throws SerializationException If an invalid header was detected.
      */
+    @VisibleForTesting
     public Header readHeader(@NonNull BufferView.Reader input) throws SerializationException {
         byte version = input.readByte();
         int keyLength = input.readInt();
@@ -195,6 +197,7 @@ public class EntrySerializer {
     /**
      * Defines a serialized Entry's Header.
      */
+    @VisibleForTesting
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public static class Header {
         private final byte serializationVersion;
