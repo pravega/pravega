@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -135,6 +136,7 @@ public abstract class AbstractService implements Service {
                 .put("longtermStorage", tier2Spec())
                 .put("segmentStoreJVMOptions", getSegmentStoreJVMOptions())
                 .put("controllerjvmOptions", getControllerJVMOptions())
+                .put("segmentStorePodAffinity", getSegmentStoreAntiAffinityPolicy())
                 .build();
 
         final Map<String, Object> staticTlsSpec = ImmutableMap.<String, Object>builder()
@@ -157,6 +159,20 @@ public abstract class AbstractService implements Service {
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
                 .put("spec", buildPravegaClusterSpecWithBookieUri(zkLocation, pravegaSpec, tlsSpec, authGenericSpec))
                 .build();
+    }
+
+    private Object getSegmentStoreAntiAffinityPolicy() {
+        return ImmutableMap.of("podAntiAffinity",
+                ImmutableMap.of("requiredDuringSchedulingIgnoredDuringExecution", Arrays.asList(
+                        ImmutableMap.<String, Object>builder()
+                                .put("labelSelector", ImmutableMap.builder()
+                                        .put("matchLabels", ImmutableMap.builder()
+                                                .put("key", "app")
+                                                .put("value", "zookeeper")
+                                                .build())
+                                        .build())
+                                .put("topologyKey", "kubernetes.io/hostname")
+                                .build())));
     }
 
     protected Map<String, Object> buildPravegaClusterSpecWithBookieUri(String zkLocation, Map<String, Object> pravegaSpec,
