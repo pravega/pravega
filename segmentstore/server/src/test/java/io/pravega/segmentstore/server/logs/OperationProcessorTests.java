@@ -90,7 +90,10 @@ import org.junit.rules.Timeout;
 import org.mockito.Mockito;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 /**
  * Unit tests for OperationProcessor class.
