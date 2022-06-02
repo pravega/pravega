@@ -13,9 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-<span id="_Toc506543504" class="anchor"><span id="_Toc506545512" class="anchor"></span></span> Retention in Pravega Streams
-===========================================================================================================================
-
 # Pravega Stream Retention
 
 ## Motivation
