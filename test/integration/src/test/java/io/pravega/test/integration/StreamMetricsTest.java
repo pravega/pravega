@@ -221,7 +221,6 @@ public class StreamMetricsTest {
 
         // Truncate stream
         controllerWrapper.getControllerService().truncateStream(scopeName, streamName, streamCut1, 0L).get();
-        log.info("CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY : {}",getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY));
         assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY) > 0);
 
         // Seal the Stream.
