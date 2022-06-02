@@ -140,15 +140,15 @@ To enable consumption-based retention the following must hold:
      
    - None – A non-subscriber Reader Group.
      
-A Reader Group can be converted from a subscriber to non-subscriber or vice versa by changing the corresponding value of the retention policy in the reader group configuration.
+   A Reader Group can be converted from a subscriber to non-subscriber or vice versa by changing the corresponding value of the retention policy in the reader group configuration.
 
 #### Acknowledging Consumed Positions Using Checkpoints
 
    There are two ways for an application to acknowledge its consumed position: automatically via checkpoints or explicitly by generating a Stream Cut and publishing to the Controller.
-  - Automatically Publish Acknowledgement Stream Cuts
+  - Automatically Publish Acknowledgement Stream Cuts:
     Reader groups checkpoint either automatically or via explicit API calls. A checkpoint consists of coordinating the position across all readers in the group and all segments they are reading from, at checkpoint time. Once a reader learns of an ongoing checkpoint (internally via shared reader group state), it emits a checkpoint event. The checkpoint event for a given reader in the group separates the data events before the checkpoint and events after the checkpoint. Reading a data event after the checkpoint event indicates that the corresponding reader has read and consumed all events before the checkpoint. Once all readers read beyond their corresponding checkpoint events, the Stream Cut corresponding to the position of the checkpoint is published to the Controller as an acknowledgement for the consumed position of this Reader Group.
 
-  - Explicit Publishing of Acknowledgement Stream Cuts by the Application
+  - Explicit Publishing of Acknowledgement Stream Cuts by the Application:
     Alternatively, checkpoints can be generated on the Stream by the user application. The application can choose to publish the Stream Cut corresponding to this checkpoint to the Controller, once it determines that it does not need data in the Stream prior to this checkpoint position.
 
 #### Consumption Based Retention Sequence Diagram
