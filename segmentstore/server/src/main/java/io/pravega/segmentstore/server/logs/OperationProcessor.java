@@ -68,7 +68,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
     private static final int MAX_COMMIT_QUEUE_SIZE = 50;
-    private static final Duration PROCESSOR_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration PROCESSOR_TIMEOUT = Duration.ofSeconds(5);
 
     private final UpdateableContainerMetadata metadata;
     private final MemoryStateUpdater stateUpdater;
@@ -432,7 +432,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      *
      * @param causingException The exception to fail with. If null, it will default to ObjectClosedException.
      */
-    private void closeQueue(Throwable causingException) {
+    @VisibleForTesting
+    void closeQueue(Throwable causingException) {
         // Close the operation queue and extract any outstanding Operations from it.
         Collection<CompletableOperation> remainingOperations = this.operationQueue.close();
         if (remainingOperations != null && remainingOperations.size() > 0) {
