@@ -130,21 +130,21 @@ To enable consumption-based retention the following must hold:
 
 #### Creating a Subscriber Reader Group
 
-A `Retention Type` field in the Reader Group configuration indicates that a Reader Group is either a subscriber or non-subscriber. 
+   A `Retention Type` field in the Reader Group configuration indicates that a Reader Group is either a subscriber or non-subscriber. 
 
-A `Retention Type` field can have the following values:
+   A `Retention Type` field can have the following values:
 
-   - Auto_Publish_At_Last_Checkpoint - A Subscriber Reader Group would automatically publish the Stream Cut corresponding to the last read checkpoint to Controller.
+   - Auto Publish At Last Checkpoint - A Subscriber Reader Group would automatically publish the Stream Cut corresponding to the last read checkpoint to Controller.
 
-   - Manual_Publish_Stream_Cut – A Subscriber Reader Group would not automatically
-publish Stream Cuts to Controller but instead the user application would need to explicitly invoke readerGroup.updateTruncationStreamCut() and provide the acknowledgement Stream Cut to be updated to Controller.
+   - Manual Publish Stream Cut – A Subscriber Reader Group would not automatically publish Stream Cuts to Controller but instead the user application would need to explicitly invoke readerGroup.updateTruncationStreamCut() and provide the acknowledgement Stream Cut to be updated to Controller.
      
    - None – A non-subscriber Reader Group.
      
 A Reader Group can be converted from a subscriber to non-subscriber or vice versa by changing the corresponding value of the retention policy in the reader group configuration.
 
 #### Acknowledging Consumed Positions Using Checkpoints
-There are two ways for an application to acknowledge its consumed position: automatically via checkpoints or explicitly by generating a Stream Cut and publishing to the Controller.
+
+   There are two ways for an application to acknowledge its consumed position: automatically via checkpoints or explicitly by generating a Stream Cut and publishing to the Controller.
   - Automatically Publish Acknowledgement Stream Cuts
     Reader groups checkpoint either automatically or via explicit API calls. A checkpoint consists of coordinating the position across all readers in the group and all segments they are reading from, at checkpoint time. Once a reader learns of an ongoing checkpoint (internally via shared reader group state), it emits a checkpoint event. The checkpoint event for a given reader in the group separates the data events before the checkpoint and events after the checkpoint. Reading a data event after the checkpoint event indicates that the corresponding reader has read and consumed all events before the checkpoint. Once all readers read beyond their corresponding checkpoint events, the Stream Cut corresponding to the position of the checkpoint is published to the Controller as an acknowledgement for the consumed position of this Reader Group.
 
