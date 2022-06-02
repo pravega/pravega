@@ -105,7 +105,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                                     }
                                 } else {
                                     return processUpdate(scope, stream, versionedMetadata, versionedState, context, requestId)
-                                            .thenAccept(v -> StreamMetrics.getInstance().updateStreamEvent(timer.getElapsed()));
+                                            .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorUpdateStreamEvent(timer.getElapsed()));
                                 }
                             });
                 });

@@ -104,7 +104,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                     } else {
                         return notifySealed(scope, stream, context, activeSegments, requestId);
                     }
-                }).thenAccept(v -> StreamMetrics.getInstance().sealStreamEvent(timer.getElapsed()));
+                }).thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorSealStreamEvent(timer.getElapsed()));
     }
 
     /**

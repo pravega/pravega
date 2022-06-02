@@ -85,7 +85,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
                     return deleteAssociatedStreams(scope, stream, requestId)
                             .thenCompose(v -> removeTagsFromIndex(context, scope, stream, requestId))
                             .thenCompose(v -> notifyAndDelete(context, scope, stream, requestId))
-                            .thenAccept(v -> StreamMetrics.getInstance().deleteStreamEvent(timer.getElapsed()));
+                            .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorDeleteStreamEvent(timer.getElapsed()));
                 }, executor)
                 .exceptionally(e -> {
                     if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {

@@ -95,7 +95,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                                     }
                                 } else {
                                     return processTruncate(scope, stream, versionedMetadata, versionedState, context, requestId)
-                                            .thenAccept(v -> StreamMetrics.getInstance().truncateStreamEvent(timer.getElapsed()));
+                                            .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorTruncateStreamEvent(timer.getElapsed()));
                                 }
                             });
                 });

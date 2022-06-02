@@ -297,10 +297,10 @@ public final class MetricsNames {
     public static final String SEAL_STREAM_FAILED = PREFIX + "controller.stream.seal_failed";                // Counter and Per-stream Counter
     public static final String DELETE_STREAM = PREFIX + "controller.stream.deleted";                         // Counter
     public static final String DELETE_STREAM_LATENCY = PREFIX + "controller.stream.deleted_latency_ms";      // Histogram
-    public static final String DELETE_STREAM_EVENT_LATENCY = PREFIX + "controller.stream.event.deleted_latency_ms";      // Histogram
-    public static final String UPDATE_STREAM_EVENT_LATENCY = PREFIX + "controller.stream.event.updated_latency_ms";      // Histogram
-    public static final String SEAL_STREAM_EVENT_LATENCY = PREFIX + "controller.stream.event.sealed_latency_ms";      // Histogram
-    public static final String TRUNCATE_STREAM_EVENT_LATENCY = PREFIX + "controller.stream.event.sealed_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_DELETE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.deleteStream.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_UPDATE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.updateStream.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_SEAL_STREAM_LATENCY = PREFIX + "controller.eventProcessors.sealStream.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.truncateStream.write_latency_ms";      // Histogram
     public static final String DELETE_STREAM_FAILED = PREFIX + "controller.stream.delete_failed";            // Counter and Per-stream Counter
     public static final String UPDATE_STREAM = PREFIX + "controller.stream.updated";                         // Counter and Per-stream Counter
     public static final String UPDATE_STREAM_LATENCY = PREFIX + "controller.stream.updated_latency_ms";      // Histogram

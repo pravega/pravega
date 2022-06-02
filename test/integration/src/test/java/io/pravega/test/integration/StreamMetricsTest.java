@@ -72,7 +72,9 @@ import org.junit.runner.RunWith;
 
 import static io.pravega.shared.MetricsTags.readerGroupTags;
 import static io.pravega.shared.MetricsTags.streamTags;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @Slf4j
 @RunWith(SerializedClassRunner.class)
@@ -196,7 +198,7 @@ public class StreamMetricsTest {
         controllerWrapper.getControllerService().updateStream(scopeName, streamName,
                 StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build(), 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
-        assertTrue(getTimerMillis(MetricsNames.UPDATE_STREAM_EVENT_LATENCY) > 0);
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_STREAM_LATENCY) > 0);
 
         final String subscriber = "subscriber1";
         CreateReaderGroupResponse createRGStatus = controllerWrapper.getControllerService().createReaderGroup(
@@ -217,13 +219,15 @@ public class StreamMetricsTest {
                 rgConfig.getReaderGroupId().toString(), 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.DELETE_READER_GROUP)).count());
 
+        // Truncate stream
+        controllerWrapper.getControllerService().truncateStream(scopeName, streamName, streamCut1, 0L).get();
+        log.info("CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY : {}",getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY));
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY) > 0);
+
         // Seal the Stream.
         controllerWrapper.getControllerService().sealStream(scopeName, streamName, 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
-        assertTrue(getTimerMillis(MetricsNames.SEAL_STREAM_EVENT_LATENCY) > 0);
-
-        controllerWrapper.getControllerService().truncateStream(scopeName, streamName, streamCut1, 0L).get();
-        assertTrue(getTimerMillis(MetricsNames.TRUNCATE_STREAM_EVENT_LATENCY) > 0);
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_SEAL_STREAM_LATENCY) > 0);
 
         // Delete the Stream and Scope and check for the respective metrics.
         controllerWrapper.getControllerService().deleteStream(scopeName, streamName, 0L).get();
@@ -231,7 +235,7 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
 
-        assertTrue(getTimerMillis(MetricsNames.DELETE_STREAM_EVENT_LATENCY) > 0);
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_STREAM_LATENCY) > 0);
 
         String failedScope = "failedScope";
         String failedStream = "failedStream";
