@@ -147,7 +147,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 .loop(this::isRunning,
                         () -> getThrottler().throttle()
                                 .thenComposeAsync(v -> this.operationQueue.take(getFetchCount(), PROCESSOR_TIMEOUT, this.executor), this.executor)
-                                .handleAsync((items, ex) -> handleProcessItems(items, this::processOperations, ex), this.executor),
+                                .handleAsync((items, ex) -> handleProcessItems(items, this::processOperations, ex, "queueProcessor"), this.executor),
                         this.executor);
 
         // The CommitProcessor is responsible for the processing of those Operations that have already been committed to
@@ -155,9 +155,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // As opposed from the QueueProcessor, this needs to process all pending commits and not discard them, even when
         // we receive a stop signal (from doStop()), otherwise we could be left with an inconsistent in-memory state.
         val commitProcessor = Futures
-                .loop(() -> (isRunning() && !queueProcessor.isCompletedExceptionally()) || this.commitQueue.size() > 0,
+                .loop(() -> (isRunning() && !queueProcessor.isDone()) || this.commitQueue.size() > 0,
                         () -> this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE, PROCESSOR_TIMEOUT, this.executor)
-                                .handleAsync((items, ex) -> handleProcessItems(items, this::processCommits, ex), this.executor),
+                                .handleAsync((items, ex) -> handleProcessItems(items, this::processCommits, ex, "commitProcessor"), this.executor),
                         this.executor)
                 .whenComplete((r, ex) -> {
                     log.info("{}: Completing and closing commitProcessor. Is OperationProcessor running? {}", this.traceObjectId, isRunning());
@@ -177,12 +177,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     }
 
     @SneakyThrows
-    private <T> Void handleProcessItems(T items, Consumer<T> callback, Throwable ex) {
+    private <T> Void handleProcessItems(T items, Consumer<T> callback, Throwable ex, String processorName) {
         // Check if there is an exception from taking elements from commitQueue. If we get a TimeoutException, it is
         // expected, so do nothing. If any other exception comes form the commitQueue, then re-throw.
         if (ex != null && Exceptions.unwrap(ex) instanceof TimeoutException) {
             return null;
         } else if (ex != null && !(Exceptions.unwrap(ex) instanceof TimeoutException)) {
+            log.warn("Unexpected exception in OperationProcessor while processing items for {}, rethrowing.", processorName, ex);
             throw ex;
         }
         // No exceptions and we got some elements to process.

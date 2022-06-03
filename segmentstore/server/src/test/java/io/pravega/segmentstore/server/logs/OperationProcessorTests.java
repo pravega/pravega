@@ -26,6 +26,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
@@ -693,7 +694,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Make sure that we get an ObjectClosedException when attempting to add an operation to process.
         AssertExtensions.assertFutureThrows("Expected ObjectClosedException when adding new operation.",
-                operationProcessor.process(mock(Operation.class), OperationPriority.Critical), ex -> ex instanceof ObjectClosedException);
+                operationProcessor.process(mock(Operation.class), OperationPriority.Critical),
+                ex -> ex instanceof ObjectClosedException || ex instanceof IllegalContainerStateException);
 
         // Check that eventually the OperationProcessor is unblocked and shuts down.
         AssertExtensions.assertEventuallyEquals(false, operationProcessor::isRunning, 6000);
