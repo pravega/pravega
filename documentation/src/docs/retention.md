@@ -52,20 +52,20 @@ The retention workflow performs the following for each Stream `S`:
  - Compute the current size of the Stream from Head Stream Cut `HSC` to `TSC`.
  - Based on size of the Stream, arrive at a truncation Stream Cut using the following algorithm:
    - If the size of `S` is less than min limit, then do nothing.
-   - If size of `S` is greater than min limit and max limit is not set, find a Stream Cut SC closest to but greater than the min limit, such that truncating at SC leaves more data in `S` than min limit.
-   - If a max limit is set, and the size of `S` is greater than the max limit, find a Stream Cut SC in the retention set closest to but smaller than the max limit, such that truncating at SC leaves less data than the max limit but more data than the min limit in S.
-   - If there is a max limit set and the size of `S` is between the max and the min limits, then attempt to truncate `S` at a Stream Cut SC closest to its min limit.
+   - If size of `S` is greater than min limit and max limit is not set, find a Stream Cut `SC` closest to but greater than the min limit, such that truncating at `SC` leaves more data in `S` than min limit.
+   - If a max limit is set, and the size of `S` is greater than the max limit, find a Stream Cut `SC` in the retention set closest to but smaller than the max limit, such that truncating at `SC` leaves less data than the max limit but more data than the min limit in `S`.
+   - If there is a max limit set and the size of `S` is between the max and the min limits, then attempt to truncate `S` at a Stream Cut `SC` closest to its min limit.
 
      ![Stream truncation](img/Figure1.png)
 
-Stream S with Segments `S1` to `S12` and Stream Cuts `SC1`, `SC2`, `SC3`, `SC4`, `SC5`, `SC6`.
+Stream `S` with Segments `S1` to `S12` and Stream Cuts `SC1`, `SC2`, `SC3`, `SC4`, `SC5`, `SC6`.
 
 ### Consumption Based Retention
 
 #### Need
 
 Size and time based retention policies are suitable for applications that need to store data over the longer term (archival). 
-In some scenarios, however, streaming data is transient (short-lived), or storage space is at a premium; consequently, reclaiming storage space as soon as applications no longer need the data is highly desirable in such scenarios.
+In some scenarios, however, streaming data is transient (short-lived), or storage space is at a premium. Consequently, reclaiming storage space as soon as applications no longer need the data is highly desirable in such scenarios.
 Use cases that require such space reclamation include but are not limited to the following:
 1. A message queue - When using a Pravega Stream as a message queue, events in the queue can be deleted after consumption by all subscribers.
 2. Deployments with limited storage capacity - The storage available on small-footprint environments like edge devices (gateways) is typically constrained. Once data is no longer needed, perhaps because it has moved out of the edge to a core data center or to the cloud, it can be deleted to create space for more incoming data.
@@ -82,7 +82,7 @@ It retains data for as long as at least one consuming application has not consum
 Like the other two retention policies, it relies on Stream cuts to determine positions to truncate the Stream.
 
 For a given Stream `S`, each application consuming data from `S` regularly publishes a Stream Cut `SC` corresponding to its consumed position to the Controller. 
-The Stream Cut `SC` serves as an acknowledgement that all data prior to this position in the Stream has been consumed and the application no longer needs that data. We call `SC` an Acknowledgement Stream Cut. Upon receiving published Stream cuts, the Controller stores them with the metadata of `S`. The controller periodically runs a workflow to find streams that are eligible for truncation. When running this workflow, if the metadata of S has an acknowledgement Stream Cut from at least one application, the workflow truncates this Stream according to consumption. Otherwise, it falls back to any configured space or time-based policy.
+The Stream Cut `SC` serves as an acknowledgement that all data prior to this position in the Stream has been consumed and the application no longer needs that data. We call `SC` an acknowledgement Stream Cut. Upon receiving published Stream cuts, the Controller stores them with the metadata of `S`. The controller periodically runs a workflow to find streams that are eligible for truncation. When running this workflow, if the metadata of `S` has an acknowledgement Stream Cut from at least one application, the workflow truncates this Stream according to consumption. Otherwise, it falls back to any configured space or time-based policy.
 
 The acknowledgement Stream Cut for each subscriber reader group is stored with the Stream metadata.
 The Controller stores only the most recent Stream Cut for each Subscriber.
