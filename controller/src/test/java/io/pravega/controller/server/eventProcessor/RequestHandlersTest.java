@@ -210,7 +210,6 @@ public abstract class RequestHandlersTest {
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.startWithoutExporting();
-
     }
 
     abstract StreamMetadataStore getStore();
