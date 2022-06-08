@@ -268,8 +268,8 @@ public class StreamMetricsTest {
     }
 
     private long getTimerMillis(String timerName) {
-        val t = MetricRegistryUtils.getTimer(timerName);
-        return (long) t.totalTime(TimeUnit.MILLISECONDS);
+        val timer = MetricRegistryUtils.getTimer(timerName);
+        return (long) timer.totalTime(TimeUnit.MILLISECONDS);
     }
 
     @Test(timeout = 30000)
