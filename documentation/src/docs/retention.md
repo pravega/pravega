@@ -79,7 +79,7 @@ Use cases that require such space reclamation include but are not limited to the
 #### How it works
 Consumption-Based Retention aims to reclaim space occupied by consumed data in a Stream. 
 It retains data for as long as at least one consuming application has not consumed it. 
-Like the other two retention policies, it relies on Stream cuts to determine positions to truncate the Stream.
+Like the other two retention policies, it relies on Stream cuts to determine positions at which to truncate the Stream.
 
 For a given Stream `S`, each application consuming data from `S` regularly publishes a Stream Cut `SC` corresponding to its consumed position to the Controller. 
 The Stream Cut `SC` serves as an acknowledgement that all data prior to this position in the Stream has been consumed and the application no longer needs that data. We call `SC` an acknowledgement Stream Cut. Upon receiving published Stream cuts, the Controller stores them with the metadata of `S`. The controller periodically runs a workflow to find streams that are eligible for truncation. When running this workflow, if the metadata of `S` has an acknowledgement Stream Cut from at least one application, the workflow truncates this Stream according to consumption. Otherwise, it falls back to any configured space or time-based policy.
@@ -92,33 +92,29 @@ The Controller stores only the most recent Stream Cut for each Subscriber.
 When the retention workflow runs, and a Stream `S` has a retention policy set, we first check if the metadata table for `S` has any subscriber Stream Cuts.
 1. If no entries are found, the Stream is truncated based on space or time limits, depending on the retention policy configuration for the Stream.
 2. If only a single subscriber Stream Cut is present, we consider this Stream Cut as the subscriber lower bound Stream Cut.
-3. If the acknowledgement Stream cuts for multiple subscribers are present, we compute a subscriber lower bound Stream Cut based on Stream cuts of all subscribers. The subscriber lower bound is computed such that truncating at this Stream Cut ensures that no subscriber loses any unconsumed data. The algorithm for arriving at a subscriber lower bound Stream Cut is out of scope for this document.
-   1. On Controller, the truncation process, happens as follows:
-
-         a. Compute a subscriber lower bound Stream Cut, using acknowledgement Stream cuts of all consuming applications. 
-         Truncating the Stream at this point would ensure no application loses unconsumed data. 
-         Once we have a subscriber lower bound Stream Cut, the Stream can be truncated based on the following:
-
-         i. Subscriber lower bound Stream Cut is within min & max limits: If truncating at the subscriber lower bound Stream Cut leaves more data in the Stream than the configured minimum limit, but less data than the configured maximum limit, as per the Stream retention policy, we choose to truncate the Stream at the subscriber lower bound Stream Cut.
-
+3. If Stream Cuts for multiple subscribers are present, we compute a subscriber lower bound Stream Cut based on Stream Cuts of all subscribers. 
+   The subscriber lower bound is computed such that truncating at this Stream Cut ensures that no subscriber loses any unconsumed data.
+   The algorithm for arriving at a subscriber lower bound Stream Cut is out of scope for this document.
+   On Controller, we compute a subscriber lower bound Stream Cut, using acknowledgement Stream cuts of all consuming applications. The Stream is then truncated based on the following:
+    i. Subscriber lower bound Stream Cut is within min & max limits: If truncating at the subscriber lower bound Stream Cut leaves more data in the Stream than the configured minimum limit, but less data than the configured maximum limit, as per the Stream retention policy, we choose to truncate the Stream at the subscriber lower bound Stream Cut.
          ![CBR truncate at SLB](img/Figure3.png)
          
-         ii. Subscriber lower bound is less than Min Limit: If truncating at the subscriber lower bound, leaves less data in the Stream than required by the min limit in the retention policy, then we discard the subscriber lower bound. We find another Stream Cut closest to but greater than the min limit, such that truncating at this would leave more data in the Stream than the min limit.
 
+   ii. Subscriber lower bound is less than Min Limit: If truncating at the subscriber lower bound, leaves less data in the Stream than required by the min limit in the retention policy, then we discard the subscriber lower bound. We find another Stream Cut closest to but greater than the min limit, such that truncating at this would leave more data in the Stream than the min limit.
          ![CBR truncate Min Limit](img/Figure4.png)  
          
-         iii. Subscriber lower bound is greater than Max Limit: If truncating at the subscriber lower bound would leave more data in the Stream than max limit, we discard subscriber lower bound. Instead, we find a Stream Cut closest to the max limit, such that truncating at this Stream Cut would leave less data in the Stream than the max limit.
 
-         ![CBR truncate Max Limit](img/Figure5.png)
+   iii. Subscriber lower bound is greater than Max Limit: If truncating at the subscriber lower bound would leave more data in the Stream than max limit, we discard subscriber lower bound. Instead, we find a Stream Cut closest to the max limit, such that truncating at this Stream Cut would leave less data in the Stream than the max limit.
+        ![CBR truncate Max Limit](img/Figure5.png)
 
-         iv. Subscriber lower bound Overlaps with Min Limit: In this case, we choose to truncate the Stream at the first non-overlapping Stream Cut preceding the subscriber lower bound Stream Cut from the tail. This way we may leave a little more
+
+   iv. Subscriber lower bound Overlaps with Min Limit: In this case, we choose to truncate the Stream at the first non-overlapping Stream Cut preceding the subscriber lower bound Stream Cut from the tail. This way we may leave a little more
          data in the Stream than is required by Consumption Based Retention, but we guarantee that we satisfy the minimum limit specified by the retention policy.
+        ![CBR truncate Overlap Min Limit](img/Figure6.png)
 
-         ![CBR truncate Overlap Min Limit](img/Figure6.png)
 
-         v. Subscriber lower bound Overlaps with Max Limit: In this case, we choose to truncate the Stream at the first non-overlapping Stream Cut immediately succeeding the subscriber lower bound Stream Cut from the head.
-
-         ![CBR truncate Overlap Max Limit](img/Figure7.png)
+   v. Subscriber lower bound Overlaps with Max Limit: In this case, we choose to truncate the Stream at the first non-overlapping Stream Cut immediately succeeding the subscriber lower bound Stream Cut from the head.
+        ![CBR truncate Overlap Max Limit](img/Figure7.png)
 
 **Note**: Stream truncation happens asynchronously and eventually based on the truncation Stream-Cuts published by all Subscribers and min/max limits set in the Retention Policy.
 
