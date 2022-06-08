@@ -91,6 +91,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatu
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
@@ -105,6 +106,10 @@ import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.metrics.MetricRegistryUtils;
+import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
@@ -123,6 +128,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -131,6 +137,7 @@ import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.Getter;
+import lombok.val;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -187,6 +194,8 @@ public abstract class StreamMetadataTasksTest {
     private KVTableMetadataStore kvtStore;
     @Mock
     private TableMetadataTasks kvtMetadataTasks;
+
+    private StatsProvider statsProvider = null;
 
     @Before
     public void setup() throws Exception {
@@ -266,6 +275,17 @@ public abstract class StreamMetadataTasksTest {
 
         streamStorePartialMock.createStream(SCOPE, stream3, configuration1, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+
+        // Start Metrics service
+        MetricsConfig metricsConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
+                .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
+                .build();
+        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(60));
+
+        MetricsProvider.initialize(metricsConfig);
+        statsProvider = MetricsProvider.getMetricsProvider();
+        statsProvider.startWithoutExporting();
     }
 
     abstract StreamMetadataStore getStore();
@@ -285,6 +305,10 @@ public abstract class StreamMetadataTasksTest {
         StreamMetrics.reset();
         TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
+        if (this.statsProvider != null) {
+            statsProvider.close();
+            statsProvider = null;
+        }
     }
 
     @Test(timeout = 30000)
@@ -703,6 +727,14 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(subscriberToNonSubscriberConfig.getAutomaticCheckpointIntervalMillis(), responseRG3.getConfig().getAutomaticCheckpointIntervalMillis());
         assertEquals(subscriberToNonSubscriberConfig.getStartingStreamCuts().size(), responseRG3.getConfig().getStartingStreamCutsCount());
         assertEquals(subscriberToNonSubscriberConfig.getEndingStreamCuts().size(), responseRG3.getConfig().getEndingStreamCutsCount());
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_STREAM_LATENCY) > 0);
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_STREAM_LATENCY) > 0);
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_STREAM_LATENCY) > 0);
+    }
+
+    private long getTimerMillis(String timerName) {
+        val timer = MetricRegistryUtils.getTimer(timerName);
+        return (long) timer.totalTime(TimeUnit.MILLISECONDS);
     }
 
     @Test(timeout = 30000)
@@ -960,6 +992,8 @@ public abstract class StreamMetadataTasksTest {
                 .createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor);
         CreateStreamResponse.CreateStatus s = streamResponse.get().getStatus();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, streamResponse.get().getStatus());
+
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY) > 0);
     }
 
     @Test(timeout = 30000)

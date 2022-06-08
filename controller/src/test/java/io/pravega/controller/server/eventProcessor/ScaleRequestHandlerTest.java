@@ -55,17 +55,23 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.metrics.MetricRegistryUtils;
+import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -78,8 +84,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import lombok.val;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -124,6 +133,7 @@ public abstract class ScaleRequestHandlerTest {
     private ConnectionFactory connectionFactory;
 
     private RequestTracker requestTracker = new RequestTracker(true);
+    private StatsProvider statsProvider = null;
 
     @Before
     public void setup() throws Exception {
@@ -177,6 +187,17 @@ public abstract class ScaleRequestHandlerTest {
         streamStore.startUpdateConfiguration(scope, stream, config, null, executor).join();
         VersionedMetadata<StreamConfigurationRecord> configRecord = streamStore.getConfigurationRecord(scope, stream, null, executor).join();
         streamStore.completeUpdateConfiguration(scope, stream, configRecord, null, executor).join();
+
+        //Start Metrics service
+        MetricsConfig metricsConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
+                .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
+                .build();
+        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(60));
+
+        MetricsProvider.initialize(metricsConfig);
+        statsProvider = MetricsProvider.getMetricsProvider();
+        statsProvider.startWithoutExporting();
     }
 
     @After
@@ -191,6 +212,10 @@ public abstract class ScaleRequestHandlerTest {
         StreamMetrics.reset();
         TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
+        if (this.statsProvider != null) {
+            statsProvider.close();
+            statsProvider = null;
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -290,6 +315,12 @@ public abstract class ScaleRequestHandlerTest {
         assertTrue(activeSegments.size() == 3);
 
         assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID(), 11L), () -> false)));
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_AUTO_SCALE_STREAM_LATENCY) > 0);
+    }
+
+    private long getTimerMillis(String timerName) {
+        val timer = MetricRegistryUtils.getTimer(timerName);
+        return (long) timer.totalTime(TimeUnit.MILLISECONDS);
     }
 
     @Test(timeout = 30000)
