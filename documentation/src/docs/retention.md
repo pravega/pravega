@@ -84,9 +84,7 @@ Like the other two retention policies, it relies on Stream cuts to determine pos
 For a given Stream `S`, each application consuming data from `S` regularly publishes a Stream Cut `SC` corresponding to its consumed position to the Controller. 
 The Stream Cut `SC` serves as an acknowledgement that all data prior to this position in the Stream has been consumed and the application no longer needs that data. We call `SC` an acknowledgement Stream Cut. Upon receiving published Stream cuts, the Controller stores them with the metadata of `S`. The controller periodically runs a workflow to find streams that are eligible for truncation. When running this workflow, if the metadata of `S` has an acknowledgement Stream Cut from at least one application, the workflow truncates this Stream according to consumption. Otherwise, it falls back to any configured space or time-based policy.
 
-The acknowledgement Stream Cut for each subscriber reader group is stored with the Stream metadata.
-The Controller stores only the most recent Stream Cut for each Subscriber.
-
+The acknowledgement Stream Cut for each subscriber reader group is stored with the Stream metadata. The Controller stores only the most recent Stream Cut for each Subscriber.
 ![Stream Metadata](img/figure-table.png)
 
 When the retention workflow runs, and a Stream `S` has a retention policy set, we first check if the metadata table for `S` has any subscriber Stream Cuts.
