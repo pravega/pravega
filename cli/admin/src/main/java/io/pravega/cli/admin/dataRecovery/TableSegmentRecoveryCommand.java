@@ -52,7 +52,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
- * Attempts to repair an already corrupted Attribute Index in Storage of a Hash-Based Table Segment (see
+ * Attempts to repair an already corrupted Attribute Index in Storage related to a Hash-Based Table Segment (see
  * SegmentAttributeBTreeIndex, BTreeIndex). The command works in three steps:
  *    1. It scans the main Segment data chunks (i.e., the ones that contain PUT or DELETE operations). This yields that
  *       the user of the command should provide this data in a folder so the CLI command can process it.
@@ -60,10 +60,10 @@ import java.util.stream.Collectors;
  *    3. All the processed PUT/DELETE operations from the original main Segment of the Table Segment are written to the
  *       local Pravega instance, so it reconstructs the Attribute Index in Storage for the original data.
  *
- * The generated Attribute Index chunks in Storage should be stored in the original cluster replacing the corrupted index.
- * This operation requires additional steps in terms of modifying the Container and Storage Metadata of the original
- * Table Segment, so it can work with the new generated data.
- *
+ * The generated Attribute Index chunks in Storage should be stored back in the original cluster replacing the corrupted
+ * index. This operation requires additional steps in terms of modifying the Container and Storage Metadata of the
+ * original Table Segment, so it can work with the new generated data. The procedure to do so is available in the admin
+ * section of https://cncf.pravega.io/docs/nightly/.
  */
 public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
 
@@ -99,7 +99,7 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
         List<File> listOfFiles = Arrays.stream(potentialFiles)
                 .filter(File::isFile)
                 .filter(f -> !f.getName().contains(ATTRIBUTE_SUFFIX)) // We are interested in the data, not the attribute segments.
-                .sorted()
+                .sorted() // We need to process PUT/REMOVE operations in the right order.
                 .collect(Collectors.toList());
 
         // STEP 2: Start a Pravega instance that is able to write data to tier 2.
@@ -110,8 +110,8 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
         byte[] partialEntryFromLastChunk = null;
         int unprocessedBytesFromLastChunk = 0;
         for (File f : listOfFiles) {
-            // STEP 3: Identify the PUT operations for this Segment, which are the ones that will be needed to reconstruct
-            // the BTreeIndex.
+            // STEP 3: Identify the PUT/REMOVE operations for this Segment, which are the ones that will be needed to
+            // reconstruct the BTreeIndex.
             Preconditions.checkState((unprocessedBytesFromLastChunk > 0 && partialEntryFromLastChunk != null)
                     || (unprocessedBytesFromLastChunk == 0 && partialEntryFromLastChunk == null));
             ByteArraySegment chunkData = new ByteArraySegment(getBytesToProcess(partialEntryFromLastChunk, f));
@@ -176,8 +176,8 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
 
     /**
      * Given an input {@link ByteArraySegment}, this method scans it for valid Table Segment operations (e.g., PUT, DELETE).
-     * The method returns the amount of bytes that have not been able to be processed (e.g., TableEntry split within a
-     * chunk rollover), so it can be used in the processing of the next chunk.
+     * It returns the amount of unprocessed bytes from the input byteArraySegment (e.g., TableEntry split within a chunk
+     * rollover), so it can be used when processing the next chunk.
      *
      * @param byteArraySegment Contents of a main Segment data chunk with Table Entries.
      * @param tableSegmentOperations List to be filled with {@link TableSegmentOperation} objects according to the Table
@@ -193,13 +193,13 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
                 ByteArraySegment slice = byteArraySegment.slice(processedBytes, byteArraySegment.getLength() - processedBytes);
                 EntrySerializer.Header header = serializer.readHeader(slice.getBufferViewReader());
                 // If the header has been parsed correctly, then we can proceed.
-                int valueLength = header.getValueLength() < 0 ? 0 : header.getValueLength(); // In case of a removal, us 0 instead of -1.
+                int valueLength = header.getValueLength() < 0 ? 0 : header.getValueLength(); // In case of a removal, use 0 instead of -1.
                 int totalEntryLength = EntrySerializer.HEADER_LENGTH + header.getKeyLength() + valueLength;
                 byte[] keyBytes = slice.slice(EntrySerializer.HEADER_LENGTH, header.getKeyLength())
                         .getReader().readNBytes(header.getKeyLength());
                 byte[] valueBytes = valueLength == 0 ? new byte[0] : slice.slice(EntrySerializer.HEADER_LENGTH + header.getKeyLength(), header.getValueLength())
                         .getReader().readNBytes(header.getValueLength());
-                // Add operation to the list of operations to replay later on (PUT or DELETE).
+                // Add the operation to the list of operations to replay later on (PUT or DELETE).
                 tableSegmentOperations.add(valueBytes.length == 0 ?
                         new DeleteOperation(TableSegmentEntry.versioned(keyBytes, valueBytes, header.getEntryVersion())) :
                         new PutOperation(TableSegmentEntry.versioned(keyBytes, valueBytes, header.getEntryVersion())));
