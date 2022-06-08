@@ -401,5 +401,5 @@ Pravega supports the following Retention Policies:
 
  - **Consumption-based Retention**: Attempts to retain only unconsumed data in the Stream.
 
-For details about retention policies and their working, please refer to [Pravega Stream Retention](retention.md)
+For details about retention policies and their working, please refer to [Pravega Stream Retention](retention.md).
  

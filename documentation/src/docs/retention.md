@@ -84,7 +84,7 @@ Like the other two retention policies, it relies on Stream cuts to determine pos
 For a given Stream `S`, each application consuming data from `S` regularly publishes a Stream Cut `SC` corresponding to its consumed position to the Controller. 
 The Stream Cut `SC` serves as an acknowledgement that all data prior to this position in the Stream has been consumed and the application no longer needs that data. We call `SC` an acknowledgement Stream Cut. Upon receiving published Stream cuts, the Controller stores them with the metadata of `S`. The controller periodically runs a workflow to find streams that are eligible for truncation. When running this workflow, if the metadata of `S` has an acknowledgement Stream Cut from at least one application, the workflow truncates this Stream according to consumption. Otherwise, it falls back to any configured space or time-based policy.
 
-The acknowledgement Stream Cut for each subscriber reader group is stored with the Stream metadata. The Controller stores only the most recent Stream Cut for each Subscriber.
+The acknowledgement Stream Cut for each subscriber Reader Group is stored with the Stream metadata. The Controller stores only the most recent Stream Cut for each Subscriber.
 
   ![Stream Metadata](img/figure-table.png)
 
@@ -130,26 +130,26 @@ To enable consumption-based retention the following must hold:
 
    A `Retention Type` field can have the following values:
 
-   - Auto Publish At Last Checkpoint - A Subscriber Reader Group would automatically publish the Stream Cut corresponding to the last checkpoint to Controller.
+   - Auto Publish At Last Checkpoint - A Subscriber Reader Group would automatically publish the Stream Cut corresponding to the last Checkpoint to Controller.
 
    - Manual Publish Stream Cut – A Subscriber Reader Group would not automatically publish Stream Cuts to Controller but instead the user application would need to explicitly invoke `readerGroup.updateTruncationStreamCut()` API and provide a Stream Cut to Controller.
      
    - None – A non-subscriber Reader Group. This Reader Group is not expected to publish Stream Cuts to Controller as its read positions do not impact data retention on the Stream.
      
-   A Reader Group can be converted from a subscriber to non-subscriber or vice versa by changing the corresponding value of the retention policy in the reader group configuration.
+   A Reader Group can be converted from a subscriber to non-subscriber or vice versa by changing the value of the retention type in the Reader Group configuration.
 
 #### Acknowledging Consumed Positions Using Checkpoints
 
    There are two ways for an application to acknowledge its consumed position: automatically via checkpoints or explicitly by generating a Stream Cut and publishing it to the Controller.
   - Automatically Publish Acknowledgement Stream Cuts:
-    Reader groups checkpoint either automatically or via explicit API calls. A checkpoint consists of coordinating the position across all readers in the group and all segments they are reading from, at checkpoint time. Once a reader learns of an ongoing checkpoint (internally via shared reader group state), it emits a checkpoint event. The checkpoint event for a given reader in the group separates the data events before the checkpoint and events after the checkpoint. Reading a data event after the checkpoint event indicates that the corresponding reader has read and consumed all events before the checkpoint. Once all readers read beyond their corresponding checkpoint events, the Stream Cut corresponding to the position of the checkpoint is published to the Controller as an acknowledgement for the consumed position of this Reader Group.
+    Reader Groups Checkpoint either automatically or via explicit API calls. A Checkpoint consists of coordinating the position across all readers in the group and all segments they are reading from, at Checkpoint time. Once a Reader learns of an ongoing Checkpoint (internally via shared Reader Group state), it emits a Checkpoint event. The Checkpoint event for a given Reader in the group separates the data events before the Checkpoint and events after the Checkpoint. Reading a data event after the Checkpoint event indicates that the corresponding Reader has read and consumed all events before the Checkpoint. Once all readers read beyond their corresponding Checkpoint events, the Stream Cut corresponding to the position of the Checkpoint is published to the Controller as an acknowledgement for the consumed position of this Reader Group.
 
   - Explicit Publishing of Acknowledgement Stream Cuts by the Application:
-    Alternatively, checkpoints can be generated on the Stream by the user application. The application can choose to publish the Stream Cut corresponding to this checkpoint to the Controller, once it determines that it does not need data in the Stream prior to this checkpoint position.
+    Alternatively, checkpoints can be generated on the Stream by the user application. The application can choose to publish the Stream Cut corresponding to this Checkpoint to the Controller, once it determines that it does not need data in the Stream prior to this Checkpoint position.
 
 #### Consumption Based Retention Sequence Diagram
 
    ![Consumption Based Retention](img/sequence_diagram.png)
 
    Above Figure shows the interaction among various Pravega components for executing Consumption based retention. 
-   In this figure, `RG1` and `RG2` are 2 different subscriber reader groups reading from Stream `S1` and these publish Stream cuts `SC1` and `SC2` respectively to indicate their consumed positions in the Stream.
+   In this figure, `RG1` and `RG2` are 2 different subscriber Reader Groups reading from Stream `S1` and these publish Stream cuts `SC1` and `SC2` respectively to indicate their consumed positions in the Stream.
