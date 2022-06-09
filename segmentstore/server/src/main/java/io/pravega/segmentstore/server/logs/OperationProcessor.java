@@ -183,7 +183,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         if (ex != null && Exceptions.unwrap(ex) instanceof TimeoutException) {
             return null;
         } else if (ex != null && !(Exceptions.unwrap(ex) instanceof TimeoutException)) {
-            log.warn("Unexpected exception in OperationProcessor while processing items for {}, rethrowing.", processorName, ex);
+            log.warn("{}: Unexpected exception in OperationProcessor while processing items for {}, rethrowing.", this.traceObjectId, processorName, ex);
             throw ex;
         }
         // No exceptions and we got some elements to process.
