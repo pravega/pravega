@@ -92,10 +92,10 @@ public class AutoScaleTask {
 
             if (request.getDirection() == AutoScaleEvent.UP) {
                 return policyFuture.thenComposeAsync(policy -> processScaleUp(request, policy, context)
-                        .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorAutoScaleStreamEvent(timer.getElapsed()) ), executor);
+                        .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorAutoScaleStreamEvent(timer.getElapsed())), executor);
             } else {
                 return policyFuture.thenComposeAsync(policy -> processScaleDown(request, policy, context)
-                        .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorAutoScaleStreamEvent(timer.getElapsed()) ), executor);
+                        .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorAutoScaleStreamEvent(timer.getElapsed())), executor);
             }
         }, executor);
     }

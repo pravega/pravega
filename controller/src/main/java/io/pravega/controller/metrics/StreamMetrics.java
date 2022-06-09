@@ -20,14 +20,6 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_AUTO_SCALE_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY;
-import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY;
-import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY;
-import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY;
-import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY;
-import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY;
 import static io.pravega.shared.MetricsNames.CREATE_SCOPE;
 import static io.pravega.shared.MetricsNames.CREATE_SCOPE_FAILED;
 import static io.pravega.shared.MetricsNames.CREATE_SCOPE_LATENCY;
@@ -78,6 +70,14 @@ import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_S
 import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_SEAL_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_AUTO_SCALE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY;
 
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;

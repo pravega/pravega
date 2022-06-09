@@ -330,6 +330,7 @@ public final class MetricsNames {
     public static final String CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.scaleStream.write_latency_ms";      // Histogram
     public static final String CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY = PREFIX + "controller.eventProcessors.createTable.write_latency_ms";      // Histogram
     public static final String CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY = PREFIX + "controller.eventProcessors.deleteTable.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_LATENCY = PREFIX + "controller.eventProcessors.transactions.commit.write_latency_ms";      // Histogram
 
     // Transaction request Operations
     public static final String CREATE_TRANSACTION = PREFIX + "controller.transactions.created";                                         // Counter and Per-stream Counter
@@ -348,7 +349,6 @@ public final class MetricsNames {
     public static final String ABORT_TRANSACTION_FAILED = PREFIX + "controller.transactions.abort_failed";                              // Counter, Per-stream Counter, Per-transaction Counter
     public static final String OPEN_TRANSACTIONS = PREFIX + "controller.transactions.opened";                                           // Per-stream Gauge
     public static final String TIMEDOUT_TRANSACTIONS = PREFIX + "controller.transactions.timedout";                                     // Per-stream Counter
-    public static final String CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_LATENCY = PREFIX + "controller.eventProcessors.transactions.commit.write_latency_ms";      // Histogram
 
     // Host metrics
     public static final String SEGMENT_STORE_HOST_NUMBER = PREFIX + "controller.hosts.count";                    // Gauge
