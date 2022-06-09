@@ -949,7 +949,7 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             return new ChunkSanityChecked(requestId);
         }
@@ -1006,7 +1006,7 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             return new MetaDataCacheEvicted(requestId);
         }
@@ -1063,7 +1063,7 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             return new ReadIndexCacheEvicted(requestId);
         }
@@ -1123,7 +1123,7 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             return new ReadIndexCacheEvictedForSegment(requestId);
         }

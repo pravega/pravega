@@ -133,17 +133,17 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void metaDataCacheEvicted(WireCommands.MetaDataCacheEvicted metaDataCacheEvicted) {
-        throw new InvalidMessageException("Unexpected operation: " + metaDataCacheEvicted);
+        throw new IllegalStateException("Unexpected operation: " + metaDataCacheEvicted);
     }
 
     @Override
     public void readIndexCacheEvicted(WireCommands.ReadIndexCacheEvicted readIndexCacheEvicted) {
-        throw new InvalidMessageException("Unexpected operation: " + readIndexCacheEvicted);
+        throw new IllegalStateException("Unexpected operation: " + readIndexCacheEvicted);
     }
 
     @Override
     public void readIndexCacheEvictedForSegment(WireCommands.ReadIndexCacheEvictedForSegment readIndexCacheEvictedForSegment) {
-        throw new InvalidMessageException("Unexpected operation: " + readIndexCacheEvictedForSegment);
+        throw new IllegalStateException("Unexpected operation: " + readIndexCacheEvictedForSegment);
     }
 
     @Override
