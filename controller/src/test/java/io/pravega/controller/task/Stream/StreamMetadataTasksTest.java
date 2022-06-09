@@ -727,9 +727,9 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(subscriberToNonSubscriberConfig.getAutomaticCheckpointIntervalMillis(), responseRG3.getConfig().getAutomaticCheckpointIntervalMillis());
         assertEquals(subscriberToNonSubscriberConfig.getStartingStreamCuts().size(), responseRG3.getConfig().getStartingStreamCutsCount());
         assertEquals(subscriberToNonSubscriberConfig.getEndingStreamCuts().size(), responseRG3.getConfig().getEndingStreamCutsCount());
-        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_STREAM_LATENCY) > 0);
-        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_STREAM_LATENCY) > 0);
-        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_STREAM_LATENCY) > 0);
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY) > 0);
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY) > 0);
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY) > 0);
     }
 
     private long getTimerMillis(String timerName) {

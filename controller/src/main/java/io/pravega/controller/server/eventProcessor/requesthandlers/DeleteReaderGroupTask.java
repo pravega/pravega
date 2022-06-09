@@ -102,7 +102,7 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
                                                         .thenCompose(z -> streamMetadataTasks.deleteStream(scope,
                                                                 rgStreamContext, streamContext));
                           }).thenCompose(v1 -> streamMetadataStore.deleteReaderGroup(scope, readerGroup, context, executor))
-                          .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorDeleteReaderGroupStreamEvent(timer.getElapsed()));
+                          .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorDeleteReaderGroupEvent(timer.getElapsed()));
               });
 
     }

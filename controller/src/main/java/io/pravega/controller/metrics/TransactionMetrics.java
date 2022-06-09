@@ -31,7 +31,7 @@ import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_FAILED;
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_LATENCY;
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_SEGMENTS_LATENCY;
-import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_LATENCY;
 import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION;
 import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_FAILED;
 import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_LATENCY;
@@ -55,7 +55,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger abortTransactionLatency;
     private final OpStatsLogger abortTransactionSegmentsLatency;
     private final OpStatsLogger abortingTransactionLatency;
-    private final OpStatsLogger controllerEventProcessorCommitTransactionStreamLatency;
+    private final OpStatsLogger controllerEventProcessorCommitTransactionLatency;
 
     private TransactionMetrics() {
         createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
@@ -66,7 +66,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
         abortTransactionSegmentsLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_SEGMENTS_LATENCY);
         abortingTransactionLatency = STATS_LOGGER.createStats(ABORTING_TRANSACTION_LATENCY);
-        controllerEventProcessorCommitTransactionStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_STREAM_LATENCY);
+        controllerEventProcessorCommitTransactionLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_LATENCY);
     }
 
     /**
@@ -209,12 +209,12 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method reports the latency of ControllerEventProcessor commitTransaction Stream event processing.
+     * This method reports the latency of ControllerEventProcessor commitTransaction event processing.
      *
-     * @param latency       Latency of the controllerEventProcessorCommitTransactionStreamLatency event operation.
+     * @param latency       Latency of the controllerEventProcessorCommitTransactionLatency event operation.
      */
-    public void controllerEventProcessorCommitTransactionStreamLatency(Duration latency) {
-        controllerEventProcessorCommitTransactionStreamLatency.reportSuccessValue(latency.toMillis());
+    public void controllerEventProcessorCommitTransactionLatency(Duration latency) {
+        controllerEventProcessorCommitTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
@@ -239,7 +239,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
             old.abortTransactionLatency.close();
             old.abortTransactionSegmentsLatency.close();
             old.abortingTransactionLatency.close();
-            old.controllerEventProcessorCommitTransactionStreamLatency.close();
+            old.controllerEventProcessorCommitTransactionLatency.close();
         }
         INSTANCE.set(new TransactionMetrics());
     }

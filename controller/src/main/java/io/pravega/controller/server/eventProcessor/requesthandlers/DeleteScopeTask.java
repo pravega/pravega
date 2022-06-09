@@ -98,7 +98,7 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
             return streamMetadataStore.isScopeSealed(scope, context, executor).thenCompose(scopeSealed -> {
                 if (scopeSealed) {
                     return deleteScopeContent(scope, context, requestId)
-                            .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorDeleteScopeStreamEvent(timer.getElapsed()));
+                            .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorDeleteScopeEvent(timer.getElapsed()));
                 } else {
                     log.info(requestId, "Skipping processing delete scope recursive for scope {} as scope" +
                             " does not exist in deleting table", scope);

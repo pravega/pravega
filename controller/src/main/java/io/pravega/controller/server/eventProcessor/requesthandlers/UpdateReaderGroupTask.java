@@ -118,11 +118,11 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
                                        return CompletableFuture.completedFuture(null);
                                    })
                                    .thenCompose(v -> streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor))
-                                           .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorUpdateReaderGroupStreamEvent(timer.getElapsed()));
+                                           .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorUpdateReaderGroupEvent(timer.getElapsed()));
                                }
                                // We get here for non-transition updates
                                return streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor)
-                                       .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorUpdateReaderGroupStreamEvent(timer.getElapsed()));
+                                       .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorUpdateReaderGroupEvent(timer.getElapsed()));
                            }
                            return CompletableFuture.completedFuture(null);
                        });

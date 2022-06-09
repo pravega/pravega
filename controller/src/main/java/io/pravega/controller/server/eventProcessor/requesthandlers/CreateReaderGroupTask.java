@@ -87,7 +87,7 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                                                 config, request.getCreateTimeStamp(), context));
                                     }
                                     return CompletableFuture.completedFuture(null);
-                                }).thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorCreateReaderGroupStreamEvent(timer.getElapsed()));
+                                }).thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorCreateReaderGroupEvent(timer.getElapsed()));
                     }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
         });
     }

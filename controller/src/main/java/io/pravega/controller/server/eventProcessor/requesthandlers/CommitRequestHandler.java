@@ -149,7 +149,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                         if (r >= 0) {
                             log.info(requestId, "Successfully committed transactions on epoch {} on stream {}/{}", r, 
                                     scope, stream);
-                            TransactionMetrics.getInstance().controllerEventProcessorCommitTransactionStreamLatency(timer.getElapsed());
+                            TransactionMetrics.getInstance().controllerEventProcessorCommitTransactionLatency(timer.getElapsed());
                         } else {
                             log.info(requestId, "No transactions found in committing state on stream {}/{}",
                                     scope, stream);

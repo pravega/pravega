@@ -343,7 +343,7 @@ public class StreamMetricsTest {
         AssertExtensions.assertEventuallyEquals(true, () -> transaction.checkStatus().equals(Transaction.Status.COMMITTED), 10000);
         AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getCounter(MetricsNames.COMMIT_TRANSACTION, streamTags(txScopeName, txStreamName)) != null, 10000);
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.COMMIT_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
-        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_STREAM_LATENCY) > 0);
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_LATENCY) > 0);
 
         Transaction<String> transaction2 = writer.beginTxn();
         transaction2.writeEvent("Test");

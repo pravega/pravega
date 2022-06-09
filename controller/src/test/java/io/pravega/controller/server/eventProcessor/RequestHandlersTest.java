@@ -961,7 +961,7 @@ public abstract class RequestHandlersTest {
         DeleteScopeEvent event = new DeleteScopeEvent(testScope, 123L, scopeId);
         CompletableFuture<Void> future = requestHandler.execute(event);
         future.join();
-        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_STREAM_LATENCY) > 0);
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY) > 0);
     }
 
     private long getTimerMillis(String timerName) {
