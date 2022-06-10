@@ -42,7 +42,7 @@ The Attribute Index Segment is basically a BTree Index of the data (key/value pa
      The above issue has been seen in conjuntion with a CacheFullException. That is we see a cacheFullException first and couple of minutes later is when we see the DataCorruptionException described above.That is the BTree index      pages accessed are also cached in Pravega's internal cache. And trying to access these pages when the cache is full could have led to some wrong data being read at some arbritrary offsets, inturn leading to malformed footers     being written to storage.
 
   -  Corruption at the Tier-2 storage level:
-     It could also be an issue pertaining to the underlying tier-2 storage that Pravega uses. That is some kind of data corruption or loss  having occured in the storage system that Pravega uses that could have caused such an exc     eption.
+     It could also be an issue pertaining to the underlying Tier-2 storage that Pravega uses. That is some kind of data corruption or loss  having occured in the storage system that Pravega uses that could have caused such an exc     eption.
 
 
 # Repair Procedure
@@ -51,7 +51,7 @@ The repair procedure aims at recovering Pravega from such a situation. Here is w
 
 In a nutshell, the recovery procedure of a Table Segment Attribute Index involves re-reading the key/value pairs in the primary Table Segment and feeding them to a local in-process Pravega cluster. Doing so would result in an Table Segment Attribute Index generated in the storage directory of that local in-process Pravega cluster. To do so, we need to collect, for the corrupted Table Segment Attribute Index, all the primary chunks from the Pravega cluster to repair. Then, we use the Admin CLI `dataRecovery tableSegment-recovery` command (see #6753) to re-create locally the new Table Segment Attribute Index. Finally, we need to replace the newly generated Table Segment Attribute Index by the corrupted one in the Pravega cluster to repair.
 
-In the next section we look at the detailed set of steps about carrying out the procedure. Also please note that the below described procedure assumes the use of "File System" as tier-2 storage. Other storage interfaces used in place of "File System" as tier-2 storage, would only differ in the way we would access the resources (like objects in case of Dell EMC ECS) and not the actual steps.
+In the next section we look at the detailed set of steps about carrying out the procedure. Also please note that the below described procedure assumes the use of "File System" as Tier-2 storage. Other storage interfaces used in place of "File System" as Tier-2 storage, would only differ in the way we would access the resources (like objects in case of Dell EMC ECS) and not the actual steps.
 
 # Detailed Steps
 
@@ -96,7 +96,7 @@ Ex:-
 data-recovery tableSegment-recovery /foo/bar completedTransactionsBatch-0 /bar/foo/bar
 ```
 
-5) Copy these generated Table Segment Attribute Index chunks back to the tier-2 directory we identified in step 2.
+5) Copy these generated Table Segment Attribute Index chunks back to the Tier-2 directory we identified in step 2.
 
 6) Edit the metadata of the Segments to reflect these chunks.
 
@@ -104,7 +104,7 @@ data-recovery tableSegment-recovery /foo/bar completedTransactionsBatch-0 /bar/f
  
                `13003178 Jun  3 02:55 completedTransactionsBatch-0$attributes.index.E-1-O-0.09cb6598-da98-43ad-8d9c-44ca6d523c4b`
 
-    b)  Copy this chunk to the tier-2 directory i.e `/mnt/tier2/_system/_tables/`
+    b)  Copy this chunk to the Tier-2 directory i.e `/mnt/tier2/_system/_tables/`
 
 
     c)  Remove the older set of chunks. That is from the above "ls" listed files above, one would remove:-
