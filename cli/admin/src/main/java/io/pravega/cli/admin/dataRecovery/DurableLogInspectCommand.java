@@ -42,7 +42,7 @@ import java.util.function.Predicate;
  * 5. The backed-up data for the originally damaged DurableLog can be reused to create a new Repair Log or discarded if
  * the Segment Container recovers as expected.
  */
-public class DurableLogInspectCommand extends DataRecoveryCommand {
+public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
 
     private final static Duration TIMEOUT = Duration.ofSeconds(10);
 
@@ -71,12 +71,6 @@ public class DurableLogInspectCommand extends DataRecoveryCommand {
         // Open the Original Log in read-only mode.
         @Cleanup
         val originalDataLog = dataLogFactory.createDebugLogWrapper(containerId);
-
-        // Check if the Original Log is disabled.
-        if (originalDataLog.fetchMetadata().isEnabled()) {
-            output("Original DurableLog is enabled. Repairs can only be done on disabled logs, exiting.");
-            return;
-        }
 
         // Make sure that the reserved id for Backup log is free before making any further progress.
         boolean createNewBackupLog = true;
@@ -209,7 +203,7 @@ public class DurableLogInspectCommand extends DataRecoveryCommand {
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "durableLog-inspect", "Allows to repair DurableLog " +
+        return new CommandDescriptor(COMPONENT, "durableLog-inspect", "Allows to inspect DurableLog " +
                 "damaged/corrupted Operations.",
                 new ArgDescriptor("container-id", "Id of the Container to inspect."));
     }
