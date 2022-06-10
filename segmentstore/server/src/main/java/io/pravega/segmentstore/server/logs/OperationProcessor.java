@@ -49,6 +49,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -67,7 +68,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
     private static final int MAX_COMMIT_QUEUE_SIZE = 50;
-    private static final Duration COMMIT_PROCESSOR_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration PROCESSOR_TIMEOUT = Duration.ofSeconds(5);
 
     private final UpdateableContainerMetadata metadata;
     private final MemoryStateUpdater stateUpdater;
@@ -145,18 +146,18 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         val queueProcessor = Futures
                 .loop(this::isRunning,
                         () -> getThrottler().throttle()
-                                .thenComposeAsync(v -> this.operationQueue.take(getFetchCount()), this.executor)
-                                .thenAcceptAsync(this::processOperations, this.executor),
+                                .thenComposeAsync(v -> this.operationQueue.take(getFetchCount(), PROCESSOR_TIMEOUT, this.executor), this.executor)
+                                .handleAsync((items, ex) -> handleProcessItems(items, this::processOperations, ex, "queueProcessor"), this.executor),
                         this.executor);
 
-        // The CommitProcessor is responsible with the processing of those Operations that have already been committed to
+        // The CommitProcessor is responsible for the processing of those Operations that have already been committed to
         // DurableDataLog and now need to be added to the in-memory State.
         // As opposed from the QueueProcessor, this needs to process all pending commits and not discard them, even when
         // we receive a stop signal (from doStop()), otherwise we could be left with an inconsistent in-memory state.
         val commitProcessor = Futures
-                .loop(() -> (isRunning() && !queueProcessor.isCompletedExceptionally()) || this.commitQueue.size() > 0,
-                        () -> this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE, COMMIT_PROCESSOR_TIMEOUT, this.executor)
-                                .handleAsync(this::handleProcessCommits, this.executor),
+                .loop(() -> (isRunning() && !queueProcessor.isDone()) || this.commitQueue.size() > 0,
+                        () -> this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE, PROCESSOR_TIMEOUT, this.executor)
+                                .handleAsync((items, ex) -> handleProcessItems(items, this::processCommits, ex, "commitProcessor"), this.executor),
                         this.executor)
                 .whenComplete((r, ex) -> {
                     log.info("{}: Completing and closing commitProcessor. Is OperationProcessor running? {}", this.traceObjectId, isRunning());
@@ -176,16 +177,17 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     }
 
     @SneakyThrows
-    private Void handleProcessCommits(Queue<List<CompletableOperation>> items, Throwable ex) {
+    private <T> Void handleProcessItems(T items, Consumer<T> callback, Throwable ex, String processorName) {
         // Check if there is an exception from taking elements from commitQueue. If we get a TimeoutException, it is
         // expected, so do nothing. If any other exception comes form the commitQueue, then re-throw.
         if (ex != null && Exceptions.unwrap(ex) instanceof TimeoutException) {
             return null;
         } else if (ex != null && !(Exceptions.unwrap(ex) instanceof TimeoutException)) {
+            log.warn("{}: Unexpected exception in OperationProcessor while processing items for {}, rethrowing.", this.traceObjectId, processorName, ex);
             throw ex;
         }
         // No exceptions and we got some elements to process.
-        processCommits(items);
+        callback.accept(items);
         return null;
     }
 
@@ -431,7 +433,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      *
      * @param causingException The exception to fail with. If null, it will default to ObjectClosedException.
      */
-    private void closeQueue(Throwable causingException) {
+    @VisibleForTesting
+    void closeQueue(Throwable causingException) {
         // Close the operation queue and extract any outstanding Operations from it.
         Collection<CompletableOperation> remainingOperations = this.operationQueue.close();
         if (remainingOperations != null && remainingOperations.size() > 0) {
@@ -472,7 +475,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 || ex instanceof CacheFullException;
     }
 
-    private void processCommits(Collection<List<CompletableOperation>> items) {
+    private void processCommits(Queue<List<CompletableOperation>> items) {
         try {
             do {
                 Timer memoryCommitTimer = new Timer();
