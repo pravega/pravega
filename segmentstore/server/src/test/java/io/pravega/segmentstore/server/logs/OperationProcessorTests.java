@@ -26,6 +26,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
@@ -92,6 +93,7 @@ import org.mockito.Mockito;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 /**
@@ -668,6 +670,35 @@ public class OperationProcessorTests extends OperationLogTestBase {
         Assert.assertEquals("OperationProcessor is not in a failed state after ObjectClosedException detected.",
                 Service.State.FAILED, operationProcessor.state());
         Assert.assertFalse("OperationProcessor running when it should not.", operationProcessor.isRunning());
+    }
+
+    /**
+     * Tests the behavior of the OperationProcessor when the operationQueue is unexpectedly closed.
+     */
+    @Test
+    public void testOperationProcessorShutsDownIfQueueClosed() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // Setup an OperationProcessor and start it.
+        @Cleanup
+        TestDurableDataLog dataLog = spy(TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService()));
+        dataLog.initialize(TIMEOUT);
+        @Cleanup
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService());
+        operationProcessor.startAsync().awaitRunning();
+
+        // Close the queue, simulating that some error unexpectedly close it.
+        operationProcessor.closeQueue(new CompletionException(new IntentionalException("")));
+
+        // Make sure that we get an ObjectClosedException when attempting to add an operation to process.
+        AssertExtensions.assertFutureThrows("Expected ObjectClosedException when adding new operation.",
+                operationProcessor.process(mock(Operation.class), OperationPriority.Critical),
+                ex -> ex instanceof ObjectClosedException || ex instanceof IllegalContainerStateException);
+
+        // Check that eventually the OperationProcessor is unblocked and shuts down.
+        AssertExtensions.assertEventuallyEquals(false, operationProcessor::isRunning, 6000);
     }
 
     private List<OperationWithCompletion> processOperations(Collection<Operation> operations, OperationProcessor operationProcessor) {
