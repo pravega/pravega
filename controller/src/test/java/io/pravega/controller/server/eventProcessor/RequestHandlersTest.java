@@ -200,7 +200,6 @@ public abstract class RequestHandlersTest {
         // create a stream
         streamStore.createScope(scope, null, executor).get();
 
-        // Start Metrics service
         MetricsConfig metricsConfig = MetricsConfig.builder()
                 .with(MetricsConfig.ENABLE_STATISTICS, true)
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
