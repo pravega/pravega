@@ -322,12 +322,12 @@ public final class MetricsNames {
     public static final String CONTROLLER_EVENT_PROCESSOR_UPDATE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.updateStream.write_latency_ms";      // Histogram
     public static final String CONTROLLER_EVENT_PROCESSOR_SEAL_STREAM_LATENCY = PREFIX + "controller.eventProcessors.sealStream.write_latency_ms";      // Histogram
     public static final String CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.truncateStream.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.scaleStream.write_latency_ms";      // Histogram
     public static final String CONTROLLER_EVENT_PROCESSOR_AUTO_SCALE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.autoScale.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY = PREFIX + "controller.eventProcessors.deleteScope.write_latency_ms";      // Histogram
     public static final String CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY = PREFIX + "controller.eventProcessors.createReaderGroup.write_latency_ms";      // Histogram
     public static final String CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY = PREFIX + "controller.eventProcessors.deleteReaderGroup.write_latency_ms";      // Histogram
     public static final String CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY = PREFIX + "controller.eventProcessors.updateReaderGroup.write_latency_ms";      // Histogram
-    public static final String CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY = PREFIX + "controller.eventProcessors.deleteScope.write_latency_ms";      // Histogram
-    public static final String CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.scaleStream.write_latency_ms";      // Histogram
     public static final String CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY = PREFIX + "controller.eventProcessors.createTable.write_latency_ms";      // Histogram
     public static final String CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY = PREFIX + "controller.eventProcessors.deleteTable.write_latency_ms";      // Histogram
     public static final String CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_LATENCY = PREFIX + "controller.eventProcessors.transactions.commit.write_latency_ms";      // Histogram

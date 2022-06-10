@@ -109,12 +109,12 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger controllerEventProcessorUpdateStreamLatency;
     private final OpStatsLogger controllerEventProcessorSealStreamLatency;
     private final OpStatsLogger controllerEventProcessorTruncateStreamLatency;
+    private final OpStatsLogger controllerEventProcessorScaleStreamLatency;
     private final OpStatsLogger controllerEventProcessorAutoScaleStreamLatency;
+    private final OpStatsLogger controllerEventProcessorDeleteScopeLatency;
     private final OpStatsLogger controllerEventProcessorCreateReaderGroupLatency;
     private final OpStatsLogger controllerEventProcessorDeleteReaderGroupLatency;
     private final OpStatsLogger controllerEventProcessorUpdateReaderGroupLatency;
-    private final OpStatsLogger controllerEventProcessorDeleteScopeLatency;
-    private final OpStatsLogger controllerEventProcessorScaleStreamLatency;
     private final OpStatsLogger controllerEventProcessorCreateTableLatency;
     private final OpStatsLogger controllerEventProcessorDeleteTableLatency;
 
@@ -137,12 +137,12 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         controllerEventProcessorUpdateStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_UPDATE_STREAM_LATENCY);
         controllerEventProcessorSealStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_SEAL_STREAM_LATENCY);
         controllerEventProcessorTruncateStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY);
+        controllerEventProcessorScaleStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY);
         controllerEventProcessorAutoScaleStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_AUTO_SCALE_STREAM_LATENCY);
+        controllerEventProcessorDeleteScopeLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY);
         controllerEventProcessorCreateReaderGroupLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY);
         controllerEventProcessorDeleteReaderGroupLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY);
         controllerEventProcessorUpdateReaderGroupLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY);
-        controllerEventProcessorDeleteScopeLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY);
-        controllerEventProcessorScaleStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY);
         controllerEventProcessorCreateTableLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY);
         controllerEventProcessorDeleteTableLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY);
     }
