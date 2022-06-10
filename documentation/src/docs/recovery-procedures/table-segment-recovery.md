@@ -56,45 +56,45 @@ In the next section we look at the detailed set of steps about carrying out the 
 # Detailed Steps
 
 1) From the error, first determine the Table Segment name:-
-```
-Caused by: io.pravega.common.util.IllegalDataFormatException: [AttributeIndex[3-423]] Wrong footer information. RootPage Offset (3842188288) + Length (142858) exceeds Footer Offset (15007837).
-```
-Here `AttributeIndex[3-423]` indicates Container 3 and Segment id 423.
+    ```
+      Caused by: io.pravega.common.util.IllegalDataFormatException: [AttributeIndex[3-423]] Wrong footer information. RootPage Offset (3842188288) + Length (142858) exceeds Footer Offset (15007837).
+    ```
+    Here `AttributeIndex[3-423]` indicates Container 3 and Segment id 423.
 
-Find out from the logs what is the name of the Table Segment with id 423. To do so one can grep "MapStreamSegmentId" and pick the one, for the Table Segment id in question.
+    Find out from the logs what is the name of the Table Segment with id 423. To do so one can grep "MapStreamSegmentId" and pick the one, for the Table Segment id in question.
 
 2) Go to the Tier-2 directory having the Segment chunks. Usually the root of this directory is `/mnt/tier-2`. And the Table Segment Chunks can be found under `/mnt/tier2/_system/_tables`.
 
 3) Copy over the main Table Segment Chunks to a directory of your choice.
 
-  Here is an example of a listing of the said directoty.
+    Here is an example of a listing of the said directoty.
 
-```
-drwxrwxr-x 12 osboxes osboxes    4096 Jun  2 11:45  ..
--rw-r--r--  1 osboxes osboxes      77 Jun  2 11:46  scopes.E-1-O-0.0708cef5-1dd4-4b60-9a95-3db4319f1024
--rw-r--r--  1 osboxes osboxes     124 Jun  2 11:46 'scopes$attributes.index.E-1-O-0.2cb32bde-bd7e-4419-b6e8-9ddfe2519bfe'
-drwxrwxr-x  4 osboxes osboxes    4096 Jun  2 11:46  test
--rw-r--r--  1 osboxes osboxes      18 Jun  2 11:46  completedTransactionsBatches.E-1-O-0.8ee9c66c-dc15-4f7a-bac8-beeeff916233
--rw-r--r--  1 osboxes osboxes      50 Jun  2 11:46 'completedTransactionsBatches$attributes.index.E-1-O-0.08af4870-c96b-4d66-a08e-c8cbed51d26f'
--rw-r--r--  1 osboxes osboxes  331331 Jun  2 14:02  completedTransactionsBatch-0.E-1-O-0.b29fcb2f-e71f-4971-bc43-5c0a801c35e7
--rw-r--r--  1 osboxes osboxes  986804 Jun  3 01:49  completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9
--rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101208573.10e6a6e8-8665-4e57-bfe4-085eee5cf46b'
--rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101337340.a2e5cf79-914e-4a01-9c35-b390a6f61f4a'
--rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-102496243.b032e528-589b-421b-8977-178d72128dcf'
--rw-r--r--  1 osboxes osboxes 2241876 Jun  3 04:41  completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad
-```
+    ```
+	-drwxrwxr-x 12 osboxes osboxes    4096 Jun  2 11:45  ..
+	-rw-r--r--  1 osboxes osboxes      77 Jun  2 11:46  scopes.E-1-O-0.0708cef5-1dd4-4b60-9a95-3db4319f1024
+	-rw-r--r--  1 osboxes osboxes     124 Jun  2 11:46 'scopes$attributes.index.E-1-O-0.2cb32bde-bd7e-4419-b6e8-9ddfe2519bfe'
+	drwxrwxr-x  4 osboxes osboxes    4096 Jun  2 11:46  test
+	-rw-r--r--  1 osboxes osboxes      18 Jun  2 11:46  completedTransactionsBatches.E-1-O-0.8ee9c66c-dc15-4f7a-bac8-beeeff916233
+	-rw-r--r--  1 osboxes osboxes      50 Jun  2 11:46 'completedTransactionsBatches$attributes.index.E-1-O-0.08af4870-c96b-4d66-a08e-c8cbed51d26f'
+	-rw-r--r--  1 osboxes osboxes  331331 Jun  2 14:02  completedTransactionsBatch-0.E-1-O-0.b29fcb2f-e71f-4971-bc43-5c0a801c35e7
+	-rw-r--r--  1 osboxes osboxes  986804 Jun  3 01:49  completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9
+	-rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101208573.10e6a6e8-8665-4e57-bfe4-085eee5cf46b'
+	-rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101337340.a2e5cf79-914e-4a01-9c35-b390a6f61f4a'
+	-rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-102496243.b032e528-589b-421b-8977-178d72128dcf'
+	-rw-r--r--  1 osboxes osboxes 2241876 Jun  3 04:41  completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad
+    ```
 
-Lets say the affected Table Segment name that you find out from step 1 is "completedTransactionsBatch-0". One would copy over the chunks of this Segment (note that they are main Table Segment chunks and they do not have "attributes.index" string in their name). So one would copy over `completedTransactionsBatch-0.E-1-O-0.b29fcb2f-e71f-4971-bc43-5c0a801c35e7`, 
-`completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9` and `completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad` to a directory of your choice.
+    Lets say the affected Table Segment name that you find out from step 1 is "completedTransactionsBatch-0". One would copy over the chunks of this Segment (note that they are main Table Segment chunks and they do not have "attr    ibutes.index" string in their name). So one would copy over `completedTransactionsBatch-0.E-1-O-0.b29fcb2f-e71f-4971-bc43-5c0a801c35e7`, 
+    `completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9` and `completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad` to a directory of your choice.
 
 4) Start the Pravega Admin Cli (assuming its configured correctly to run) and enter the below command.
 
-```
-data-recovery tableSegment-recovery <directory_where_you_copied to in step 3> <Table Segment name> <directory where you want to copy the output chunks to>
+    ```
+      data-recovery tableSegment-recovery <directory_where_you_copied to in step 3> <Table Segment name> <directory where you want to copy the output chunks to>
 
-Ex:-
-data-recovery tableSegment-recovery /foo/bar completedTransactionsBatch-0 /bar/foo/bar
-```
+      Ex:-
+        data-recovery tableSegment-recovery /foo/bar completedTransactionsBatch-0 /bar/foo/bar
+    ```
 
 5) Copy these generated Table Segment Attribute Index chunks back to the Tier-2 directory we identified in step 2.
 
@@ -102,7 +102,7 @@ data-recovery tableSegment-recovery /foo/bar completedTransactionsBatch-0 /bar/f
 
     a)  For example, lets say the chunk generated by the command in the folder is :-
  
-               `13003178 Jun  3 02:55 completedTransactionsBatch-0$attributes.index.E-1-O-0.09cb6598-da98-43ad-8d9c-44ca6d523c4b`
+               13003178 Jun  3 02:55 completedTransactionsBatch-0$attributes.index.E-1-O-0.09cb6598-da98-43ad-8d9c-44ca6d523c4b
 
     b)  Copy this chunk to the Tier-2 directory i.e `/mnt/tier2/_system/_tables/`
 
@@ -110,8 +110,8 @@ data-recovery tableSegment-recovery /foo/bar completedTransactionsBatch-0 /bar/f
     c)  Remove the older set of chunks. That is from the above "ls" listed files above, one would remove:-
 
            -rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101208573.10e6a6e8-8665-4e57-bfe4-085eee5cf46b'
-	   -rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101337340.a2e5cf79-914e-4a01-9c35-b390a6f61f4a'
-	   -rw-r--r--  1 osboxes osboxes  19876  Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-102496243.b032e528-589b-421b-8977-178d72128dcf'
+           -rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101337340.a2e5cf79-914e-4a01-9c35-b390a6f61f4a'
+           -rw-r--r--  1 osboxes osboxes  19876  Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-102496243.b032e528-589b-421b-8977-178d72128dcf'
           
 
     d) Perform a get on the Attribute Index Segment in the CLI:
