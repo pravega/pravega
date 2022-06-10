@@ -168,11 +168,11 @@ data-recovery tableSegment-recovery /foo/bar completedTransactionsBatch-0 /bar/f
 
              One would enter the following fields to create the metadata:-
 
-		--key=chunk file name
-		--version= a random long number can be put in
-		--name = chunk file name
-		--length = length of the chunk file
-		--nextChunk = null (as there is only one chunk)
+                --key=chunk file name
+                --version= a random long number can be put in
+                --name = chunk file name
+                --length = length of the chunk file
+                --nextChunk = null (as there is only one chunk)
              
              Note: In case of multiple chunks, one would have to create a "put"  for each chunk after identifying the sequence of chunks based on the offsets in their name.
 
