@@ -60,8 +60,5 @@ public class WriterConfigTest {
 
         Assert.assertEquals(10 * 1000L, (long) WriterConfig.SHUTDOWN_TIMEOUT_MILLIS.getDefaultValue());
         Assert.assertEquals("shutDown.timeout.milliseconds", WriterConfig.SHUTDOWN_TIMEOUT_MILLIS.getName());
-
-        Assert.assertEquals(134217728L, (long) WriterConfig.MAX_ROLLOVER_SIZE.getDefaultValue());
-        Assert.assertEquals("rollover.size.bytes.max", WriterConfig.MAX_ROLLOVER_SIZE.getName());
     }
 }
