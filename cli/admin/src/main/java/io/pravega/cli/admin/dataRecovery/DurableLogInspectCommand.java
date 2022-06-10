@@ -109,13 +109,13 @@ public class DurableLogInspectCommand extends DataRecoveryCommand {
 
         int backupLogReadOperations = validateBackupLog(dataLogFactory, containerId, originalDataLog, createNewBackupLog);
 
-        output("Total reads original:"+ backupLogReadOperations);
+        output("Total reads original:" + backupLogReadOperations);
         // Get user input of operations to skip, replace, or delete.
         Predicate<String> durableLogPredicates = getConditionTypeFromUser();
 
         backupLogReadOperations = filterResult(dataLogFactory, durableLogPredicates);
         // Show the edits to be committed to the original durable log so the user can confirm.
-        output("Total reads :"+ backupLogReadOperations);
+        output("Total reads :" + backupLogReadOperations);
 
         // Output as per the predicates present
 
@@ -129,12 +129,11 @@ public class DurableLogInspectCommand extends DataRecoveryCommand {
         @Cleanup
         val validationBackupDataLogReadOnly = validationBackupDataLog.asReadOnly();
         readDurableDataLogWithCustomCallback((a, b) -> {
-                    if(predicate.test(a.toString())){
+                    if (predicate.test(a.toString())) {
                         output(a.toString());
                         res.getAndIncrement();
                     }
-                }
-                , dataLogFactory.getBackupLogId(), validationBackupDataLogReadOnly);
+                }, dataLogFactory.getBackupLogId(), validationBackupDataLogReadOnly);
         return res.get();
     }
 
@@ -154,7 +153,7 @@ public class DurableLogInspectCommand extends DataRecoveryCommand {
         String clause = "";
         while (!finishInputCommands) {
             try {
-                if(next){
+                if (next) {
                     clause = getStringUserInput("Select conditional operator: [and/or]");
                 }
                 final String operationTpe = getStringUserInput("Select condition type to display the output: [OperationType/SequenceNumber/SegmentId/Offset/Length/Attributes]");
@@ -163,33 +162,33 @@ public class DurableLogInspectCommand extends DataRecoveryCommand {
                         String op = getStringUserInput("Enter valid operation type: [DeleteSegmentOperation|MergeSegmentOperation|MetadataCheckpointOperation|\" +\n" +
                                 "                \"StorageMetadataCheckpointOperation|StreamSegmentAppendOperation|StreamSegmentMapOperation|\" +\n" +
                                 "                \"StreamSegmentSealOperation|StreamSegmentTruncateOperation|UpdateAttributesOperation]");
-                        predicates.add((a) -> a.contains(op));
+                        predicates.add( a -> a.contains(op));
                         break;
                     case "SequenceNumber":
                         long in = getLongUserInput("Valid Sequence Number: ");
-                        predicates.add((a) -> a.contains(Long.toString(in)));
+                        predicates.add( a -> a.contains(Long.toString(in)));
                         break;
                     case "SegmentId":
                         in = getLongUserInput("Valid segmentId to search: ");
-                        predicates.add((a) -> a.contains(Long.toString(in)));
+                        predicates.add( a -> a.contains(Long.toString(in)));
                         break;
                     case "Offset":
                         in = getLongUserInput("IValid offset to seach: ");
-                        predicates.add((a) -> a.contains(Long.toString(in)));
+                        predicates.add( a -> a.contains(Long.toString(in)));
                         break;
                     case "Length":
                         in = getLongUserInput("IValid length to seach: ");
-                        predicates.add((a) -> a.contains(Long.toString(in)));
+                        predicates.add( a -> a.contains(Long.toString(in)));
                         break;
                     case "Attributes":
                         in = getLongUserInput("Valid number of attributes to seach: ");
-                        predicates.add((a) -> a.contains(Long.toString(in)));
+                        predicates.add( a -> a.contains(Long.toString(in)));
                         break;
                     default:
                         output("Invalid operation, please select one of [delete|add|replace]");
                 }
-                predicate = clause.equals("and")==true ?
-                        predicates.stream().reduce(Predicate::and).orElse(x->true) : predicates.stream().reduce(Predicate::or).orElse(x->false);
+                predicate = clause.equals("and") ?
+                        predicates.stream().reduce(Predicate::and).orElse( x -> true) : predicates.stream().reduce(Predicate::or).orElse( x -> false);
             } catch (NumberFormatException ex) {
                 outputError("Wrong input argument.");
                 outputException(ex);
@@ -205,7 +204,7 @@ public class DurableLogInspectCommand extends DataRecoveryCommand {
             finishInputCommands = !confirmContinue();
             next = !finishInputCommands;
         }
-        output("Value of predicates is : "+ predicates.toString());
+        output("Value of predicates is : " + predicates);
         return predicate;
     }
 
