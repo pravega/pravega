@@ -17,7 +17,6 @@ limitations under the License.
 # Table Segment Recovery
 
 * [Issue](#issue)
-* [Possible Root Cause](#root-cause)
 * [Repair Procedure](#repair-procedure)
 
 
@@ -29,20 +28,9 @@ io.pravega.segmentstore.server.DataCorruptionException: BTreeIndex operation fai
 ...
 Caused by: io.pravega.common.util.IllegalDataFormatException: [AttributeIndex[3-423]] Wrong footer information. RootPage Offset (3842188288) + Length (142858) exceeds Footer Offset (15007837).
 ```
-The original issue filed can be found here:- https://github.com/pravega/pravega/issues/6712
+The original issue filed can be found [here] (https://github.com/pravega/pravega/issues/6712)
 
-The Attribute Index Segment is basically a BTree Index of the data (key/value pair) that goes in its associated main Table Segment. It is internally a B+Tree (existing on Pravega Segment), and is organized as as set of Pages written to storage (https://cncf.pravega.io/blog/2019/11/21/segment-attributes). Each Page can be an index Page or leaf Page (holding data entries) having tree nodes. Each write of Pages to Storage ends with a footer, which is a pointer to the latest location of the root node in the tree. The above error indicates that the footer for the last write of Pages to Storage has been corrupted, as it contains inconsistent information. The issue having happened so, indicates some kind of corruption in the underlying Attribute Index Segment.
-
-
-# Possible Root Causes
-
-  We do not as yet know the exact reason behind what could have caused such a data corruption, which is why this recovery procedure exists today but we suspect below possible reasons:-
-
-  -  Writing a malformed footer/Page to Storage:
-     The above issue has been seen in conjuntion with a CacheFullException. That is we see a cacheFullException first and couple of minutes later is when we see the DataCorruptionException described above.That is the BTree index      pages accessed are also cached in Pravega's internal cache. And trying to access these pages when the cache is full could have led to some wrong data being read at some arbritrary offsets, inturn leading to malformed footers     being written to storage.
-
-  -  Corruption at the Tier-2 storage level:
-     It could also be an issue pertaining to the underlying Tier-2 storage that Pravega uses. That is some kind of data corruption or loss  having occured in the storage system that Pravega uses that could have caused such an exc     eption.
+The Attribute Index Segment is basically a BTree Index of the data (key/value pair) that goes in its associated main Table Segment. It is internally a B+Tree (existing on Pravega Segment), and is organized as as set of Pages written to storage (see this [blog post] (https://cncf.pravega.io/blog/2019/11/21/segment-attributes) here). Each Page can be an index Page or leaf Page (holding data entries) having tree nodes. Each write of Pages to Storage ends with a footer, which is a pointer to the latest location of the root node in the tree. The above error indicates that the footer for the last write of Pages to Storage has been corrupted, as it contains inconsistent information. The issue having happened so, indicates some kind of corruption in the underlying Attribute Index Segment.
 
 
 # Repair Procedure
@@ -63,11 +51,11 @@ In the next section we look at the detailed set of steps about carrying out the 
 
     Find out from the logs what is the name of the Table Segment with id 423. To do so one can grep "MapStreamSegmentId" and pick the one, for the Table Segment id in question.
 
-2) Go to the Tier-2 directory having the Segment chunks. Usually the root of this directory is `/mnt/tier-2`. And the Table Segment Chunks can be found under `/mnt/tier2/_system/_tables`.
+2) Go to the Tier-2 directory having the Segment chunks. Usually the root of this directory is `/mnt/tier-2`. And many Table Segment Chunks can be found under `/mnt/tier2/_system/_tables`.
 
 3) Copy over the main Table Segment Chunks to a directory of your choice.
 
-    Here is an example of a listing of the said directoty.
+    Here is an example of a listing of the said directory.
 
     ```
 	-drwxrwxr-x 12 osboxes osboxes    4096 Jun  2 11:45  ..
@@ -93,21 +81,37 @@ In the next section we look at the detailed set of steps about carrying out the 
       data-recovery tableSegment-recovery <directory_where_you_copied to in step 3> <Table Segment name> <directory where you want to copy the output chunks to>
 
       Ex:-
-        data-recovery tableSegment-recovery /foo/bar completedTransactionsBatch-0 /bar/foo/bar
+        data-recovery tableSegment-recovery /copied/chunk/directory completedTransactionsBatch-0 /output/chunk/directory
     ```
 
-5) Copy these generated Table Segment Attribute Index chunks back to the Tier-2 directory we identified in step 2.
+5) Copy the generated Table Segment Attribute Index chunks back to the Tier-2 directory we identified in step 2.
+   Here is how a listing of the output directory would look like after running the above recovery command:
+   ```
+        total 20
+          drwxr-xr-x 41 osboxes osboxes 4096 Jun 12 07:17  ..
+          drwxrwxr-x 12 osboxes osboxes 4096 Jun 12 07:28  _system 
+          -rw-r--r--  1 osboxes osboxes 1638 Jun 12 07:28  completedTransactionsBatch-0.E-1-O-0.d6b78ba6-6876-4f7d-80cd-0a3082883120
+          drwxrwxr-x  3 osboxes osboxes 4096 Jun 12 07:28  .
+          -rw-r--r--  1 osboxes osboxes  458 Jun 12 07:28 'completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149'
+   ```
 
-6) Edit the metadata of the Segments to reflect these chunks.
+6) Perform the following edits, to reflect the chunk listed in step 5 above:
 
-    a)  For example, lets say the chunk generated by the command in the folder is :-
+    a)  Set the Serializer before executing any table-segment commands.For the edits to be performed we would be setting the Serializer to `slts` since we are dealing with `slts` metadata here.The command would look like below:
+
+            ```
+                table-segment set-serializer slts
+            ```
+
+    b)  Copy the Attribute Index chunk listed in step 5 to the configured Tier-2 directory path which had the original corrupted chunk (`/mnt/tier-2/_system/_tables` based on example above).
+        i.e the chunk file to be copied would be:
  
-               13003178 Jun  3 02:55 completedTransactionsBatch-0$attributes.index.E-1-O-0.09cb6598-da98-43ad-8d9c-44ca6d523c4b
+            ```
+                -rw-r--r--  1 osboxes osboxes  458 Jun 12 07:28 'completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149'
+            ```
 
-    b)  Copy this chunk to the Tier-2 directory i.e `/mnt/tier2/_system/_tables/`
 
-
-    c)  Remove the older set of chunks. That is from the above "ls" listed files above, one would remove:-
+    c)  Remove the older set of chunks. That is from the above "ls" listed files in step 3, one would remove:
 
            -rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101208573.10e6a6e8-8665-4e57-bfe4-085eee5cf46b'
            -rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101337340.a2e5cf79-914e-4a01-9c35-b390a6f61f4a'
@@ -121,7 +125,6 @@ In the next section we look at the detailed set of steps about carrying out the 
 
     e) Lets say one gets the below details by performing "get" above.
 
-       
           > table-segment get _system/containers/storage_metadata_3 _system/_tables/completedTransactionsBatch-0$attributes.index 127.0.1.1
 		For the given key: _system/_tables/completedTransactionsBatch-0$attributes.index
 		SLTS metadata info: 
@@ -142,31 +145,29 @@ In the next section we look at the detailed set of steps about carrying out the 
 		ownerEpoch = 5;
 
        
-        One would edit the following fields to update the metadata to reflect the chunk properties we have in step 5a).
+        One would edit the following fields to update the metadata to reflect the chunk properties we have in step 6b).
 
-              
                 - Increment the version.
-                - Update the length to reflect the cumulative length of chunk(s). In the case above we would update it to 13003178.
-                - Update the chunk count. in the case above it is 1, since there is just one chunk generated in step 5a.
+                - Update the length to reflect the cumulative length of chunk(s). In our example since there is just one Attribute chunk as seen in listing of step 5 we would update it length which is 458 (bytes).
+                - Update the chunk count. in the case above it is 1, since there is just one chunk generated by the command in step 4.
                 - Update the startOffset to 0.
-                - Update the firstChunk to _system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.09cb6598-da98-43ad-8d9c-44ca6d523c4b
-                - Update the lastChunk to the same as there is only one chunk. 
+                - Update the firstChunk to the one generated in step 4, which is `completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149`
+                - Update the lastChunk to the same as firstChunk there is only one chunk. 
                 - Update the firstChunkStartOffset to 0. Derived from "E-1-[O]-0" part in file name.
                 - Update the lastChunkStartOffset to 0. (first and last chunks are same.)
-              
 
 
      f) We have updated the Attribute Index Segment metadata with the chunk files and their other attributes. Next step is to create the Chunk Metadata itself.
 
             Perform a put for the Attribute Index chunk we have in 6a.
             
-            This is how the put/create command would look:-
+            This is how the put/create command would look:
                
               
                 table-segment put _system/_containers/storage_metadata_3 _system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.09cb6598-da98-43ad-8d9c-44ca6d523c4b key=_system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.09cb6598-da98-43ad-8d9c-44ca6d523c4b;version=1654199182158;metadataType=ChunkMetadata;name=_system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.09cb6598-da98-43ad-8d9c-44ca6d523c4b;length=13003178;nextChunk=null;status=1
               
 
-             One would enter the following fields to create the metadata:-
+             One would enter the following fields to create the metadata:
 
                 --key=chunk file name
                 --version= a random long number can be put in
