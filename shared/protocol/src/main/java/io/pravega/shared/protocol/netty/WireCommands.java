@@ -362,6 +362,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.INVALID_EVENT_NUMBER;
         final UUID writerId;
         final long eventNumber;
+        final long requestId;
         final String serverStackTrace;
 
         @Override
@@ -374,14 +375,16 @@ public final class WireCommands {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
+            out.writeLong(requestId);
             out.writeUTF(serverStackTrace);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
+            long requestId = in.readLong();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
-            return new InvalidEventNumber(writerId, eventNumber, serverStackTrace);
+            return new InvalidEventNumber(writerId, eventNumber, requestId, serverStackTrace);
         }
 
         @Override
@@ -396,7 +399,7 @@ public final class WireCommands {
 
         @Override
         public long getRequestId() {
-            return eventNumber;
+            return requestId;
         }
     }
 
