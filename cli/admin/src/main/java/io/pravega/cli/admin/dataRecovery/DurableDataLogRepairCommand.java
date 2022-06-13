@@ -259,7 +259,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      *
      * @param dataLogFactory Factory to instantiate {@link DurableDataLog} instances.
      * @return Whether there is metadata for an existing Backup Log.
-     * @throws DataLogInitializationException If there is an error initializing the {@link DurableDataLog}.
+     * @throws Exception If there is an error initializing the {@link DurableDataLog}.
      */
     protected boolean existsBackupLog(DurableDataLogFactory dataLogFactory) throws Exception {
         try (DebugDurableDataLogWrapper backupDataLogDebugLogWrapper = dataLogFactory.createDebugLogWrapper(dataLogFactory.getBackupLogId())) {
