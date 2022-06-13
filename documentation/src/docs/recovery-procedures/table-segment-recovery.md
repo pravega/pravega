@@ -99,16 +99,13 @@ In the next section we look at the detailed set of steps about carrying out the 
 
     a)  Set the Serializer before executing any table-segment commands.For the edits to be performed we would be setting the Serializer to `slts` since we are dealing with `slts` metadata here.The command would look like below:
 
-            ```
                 table-segment set-serializer slts
-            ```
+
 
     b)  Copy the Attribute Index chunk listed in step 5 to the configured Tier-2 directory path which had the original corrupted chunk (`/mnt/tier-2/_system/_tables` based on example above).
         i.e the chunk file to be copied would be:
  
-            ```
                 -rw-r--r--  1 osboxes osboxes  458 Jun 12 07:28 'completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149'
-            ```
 
 
     c)  Remove the older set of chunks. That is from the above "ls" listed files in step 3, one would remove:
