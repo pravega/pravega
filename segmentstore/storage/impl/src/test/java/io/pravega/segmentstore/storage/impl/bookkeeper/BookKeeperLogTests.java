@@ -71,6 +71,7 @@ import org.apache.zookeeper.data.Stat;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -334,6 +335,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
      * Tests the ability of BookKeeperLog to automatically remove empty ledgers during initialization.
      */
     @Test
+    @Ignore
     public void testRemoveEmptyLedgers() throws Exception {
         final int count = 100;
         final int writeEvery = count / 10;
