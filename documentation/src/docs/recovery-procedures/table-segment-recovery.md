@@ -35,11 +35,11 @@ The Attribute Index Segment is basically a BTree Index of the data (key/value pa
 
 # Repair Procedure
 
-The repair procedure aims at recovering Pravega from such a situation. Here is what the recovery procedure aims to do. Recall that the corruption that we see occurs at the Attribute Index Segment level, which is just an index built by Pravega in the background of the data that exists in the associated primary Table Segment. This index helps associate "keys" with "offsets" in the primary Table Segment where "values" actually reside. The main assumption ofthis recovery procedure is this primary Table Segment is perfectly fine and the corruption happens only at the index level.
+The repair procedure aims at recovering Pravega from such a situation. Here is what the recovery procedure aims to do. Recall that the corruption that we see occurs at the Attribute Index Segment level, which is just an index built by Pravega in the background of the data that exists in the associated primary Table Segment. This index helps associate "keys" with "offsets" in the primary Table Segment where "values" actually reside. The main assumption of this recovery procedure is this primary Table Segment is perfectly fine and the corruption happens only at the index level.
 
-In a nutshell, the recovery procedure of a Table Segment Attribute Index involves re-reading the key/value pairs in the primary Table Segment and feeding them to a local in-process Pravega cluster. Doing so would result in an Table Segment Attribute Index generated in the storage directory of that local in-process Pravega cluster. To do so, we need to collect, for the corrupted Table Segment Attribute Index, all the primary chunks from the Pravega cluster to repair. Then, we use the Admin CLI `dataRecovery tableSegment-recovery` command (see #6753) to re-create locally the new Table Segment Attribute Index. Finally, we need to replace the newly generated Table Segment Attribute Index by the corrupted one in the Pravega cluster to repair.
+In a nutshell, the recovery procedure of a Table Segment Attribute Index involves re-reading the key/value pairs in the primary Table Segment and feeding them to a local in-process Pravega cluster. Doing so would result in an Table Segment Attribute Index generated in the storage directory of that local in-process Pravega cluster. To do so, we need to collect, for the corrupted Table Segment Attribute Index, all the primary chunks from the Pravega cluster to repair. Then, we use the Admin CLI `dataRecovery tableSegment-recovery` command (see [#6753] (https://github.com/pravega/pravega/pull/6753)) to re-create locally the new Table Segment Attribute Index. Finally, we need to replace the newly generated Table Segment Attribute Index by the corrupted one in the Pravega cluster to repair.
 
-In the next section we look at the detailed set of steps about carrying out the procedure. Also please note that the below described procedure assumes the use of "File System" as Tier-2 storage. Other storage interfaces used in place of "File System" as Tier-2 storage, would only differ in the way we would access the resources (like objects in case of Dell EMC ECS) and not the actual steps.
+In the next section, we look at the detailed set of steps about carrying out the procedure. Also please note that the below described procedure assumes the use of "File System" as Tier-2 storage. Other storage interfaces used in place of "File System" as Tier-2 storage, would only differ in the way we would access the resources (like objects in case of Dell EMC ECS) and not the actual steps.
 
 # Detailed Steps
 
@@ -49,31 +49,39 @@ In the next section we look at the detailed set of steps about carrying out the 
     ```
     Here `AttributeIndex[3-423]` indicates Container 3 and Segment id 423.
 
-    Find out from the logs what is the name of the Table Segment with id 423. To do so one can grep "MapStreamSegmentId" and pick the one, for the Table Segment id in question.
+    Find out from the logs what is the name of the Table Segment with id 423. To do so one can grep "MapStreamSegment" and pick the one, for the Table Segment id in question.
+    One can expect to see log line like below on running a search:
+    ```
+         INFO i.p.s.s.c.StreamSegmentContainerMetadata - SegmentContainer[3]: MapStreamSegment SegmentId = 423, Name = '_system/_RGcommitStreamReaders/0.#epoch.0', Active = 14
+    ```
+
 
 2) Go to the Tier-2 directory having the Segment chunks. Usually the root of this directory is `/mnt/tier-2`. And many Table Segment Chunks can be found under `/mnt/tier2/_system/_tables`.
+
 
 3) Copy over the main Table Segment Chunks to a directory of your choice.
 
     Here is an example of a listing of the said directory.
 
     ```
-	-drwxrwxr-x 12 osboxes osboxes    4096 Jun  2 11:45  ..
-	-rw-r--r--  1 osboxes osboxes      77 Jun  2 11:46  scopes.E-1-O-0.0708cef5-1dd4-4b60-9a95-3db4319f1024
-	-rw-r--r--  1 osboxes osboxes     124 Jun  2 11:46 'scopes$attributes.index.E-1-O-0.2cb32bde-bd7e-4419-b6e8-9ddfe2519bfe'
-	drwxrwxr-x  4 osboxes osboxes    4096 Jun  2 11:46  test
-	-rw-r--r--  1 osboxes osboxes      18 Jun  2 11:46  completedTransactionsBatches.E-1-O-0.8ee9c66c-dc15-4f7a-bac8-beeeff916233
-	-rw-r--r--  1 osboxes osboxes      50 Jun  2 11:46 'completedTransactionsBatches$attributes.index.E-1-O-0.08af4870-c96b-4d66-a08e-c8cbed51d26f'
-	-rw-r--r--  1 osboxes osboxes  331331 Jun  2 14:02  completedTransactionsBatch-0.E-1-O-0.b29fcb2f-e71f-4971-bc43-5c0a801c35e7
-	-rw-r--r--  1 osboxes osboxes  986804 Jun  3 01:49  completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9
-	-rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101208573.10e6a6e8-8665-4e57-bfe4-085eee5cf46b'
-	-rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101337340.a2e5cf79-914e-4a01-9c35-b390a6f61f4a'
-	-rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-102496243.b032e528-589b-421b-8977-178d72128dcf'
-	-rw-r--r--  1 osboxes osboxes 2241876 Jun  3 04:41  completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad
+    -drwxrwxr-x 12 root root    4096 Jun  2 11:45  ..
+    -rw-r--r--  1 root root      77 Jun  2 11:46  scopes.E-1-O-0.0708cef5-1dd4-4b60-9a95-3db4319f1024
+    -rw-r--r--  1 root root     124 Jun  2 11:46 'scopes$attributes.index.E-1-O-0.2cb32bde-bd7e-4419-b6e8-9ddfe2519bfe'
+    drwxrwxr-x  4 root root    4096 Jun  2 11:46  test
+    -rw-r--r--  1 root root      18 Jun  2 11:46  completedTransactionsBatches.E-1-O-0.8ee9c66c-dc15-4f7a-bac8-beeeff916233
+    -rw-r--r--  1 root root      50 Jun  2 11:46 'completedTransactionsBatches$attributes.index.E-1-O-0.08af4870-c96b-4d66-a08e-c8cbed51d26f'
+    -rw-r--r--  1 root root  331331 Jun  2 14:02  completedTransactionsBatch-0.E-1-O-0.b29fcb2f-e71f-4971-bc43-5c0a801c35e7
+    -rw-r--r--  1 root root  986804 Jun  3 01:49  completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9
+    -rw-r--r--  1 root root  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101208573.10e6a6e8-8665-4e57-bfe4-085eee5cf46b'
+    -rw-r--r--  1 root root  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101337340.a2e5cf79-914e-4a01-9c35-b390a6f61f4a'
+    -rw-r--r--  1 root root  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-102496243.b032e528-589b-421b-8977-178d72128dcf'
+    -rw-r--r--  1 root root 2241876 Jun  3 04:41  completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad
     ```
 
-    Lets say the affected Table Segment name that you find out from step 1 is "completedTransactionsBatch-0". One would copy over the chunks of this Segment (note that they are main Table Segment chunks and they do not have "attr    ibutes.index" string in their name). So one would copy over `completedTransactionsBatch-0.E-1-O-0.b29fcb2f-e71f-4971-bc43-5c0a801c35e7`, 
+    Lets say the affected Table Segment name that you find out from step 1 is "completedTransactionsBatch-0". One would copy over the chunks of this Segment (note that they are main Table Segment chunks and they do not have 
+    "attributes.index" string in their name). So one would copy over `completedTransactionsBatch-0.E-1-O-0.b29fcb2f-e71f-4971-bc43-5c0a801c35e7`, 
     `completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9` and `completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad` to a directory of your choice.
+
 
 4) Start the Pravega Admin CLI (assuming its configured correctly to run. See [docs] (https://github.com/pravega/pravega/blob/master/cli/admin/README.md)) and enter the below command.
 
@@ -84,64 +92,72 @@ In the next section we look at the detailed set of steps about carrying out the 
         data-recovery tableSegment-recovery /copied/chunk/directory completedTransactionsBatch-0 /output/chunk/directory
     ```
 
+
 5) Copy the generated Table Segment Attribute Index chunks back to the Tier-2 directory we identified in step 2.
    Here is how a listing of the output directory would look like after running the above recovery command:
    ```
         total 20
-          drwxr-xr-x 41 osboxes osboxes 4096 Jun 12 07:17  ..
-          drwxrwxr-x 12 osboxes osboxes 4096 Jun 12 07:28  _system 
-          -rw-r--r--  1 osboxes osboxes 1638 Jun 12 07:28  completedTransactionsBatch-0.E-1-O-0.d6b78ba6-6876-4f7d-80cd-0a3082883120
-          drwxrwxr-x  3 osboxes osboxes 4096 Jun 12 07:28  .
-          -rw-r--r--  1 osboxes osboxes  458 Jun 12 07:28 'completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149'
+          drwxr-xr-x 41 root root 4096 Jun 12 07:17  ..
+          drwxrwxr-x 12 root root 4096 Jun 12 07:28  _system 
+          -rw-r--r--  1 root root 1638 Jun 12 07:28  completedTransactionsBatch-0.E-1-O-0.d6b78ba6-6876-4f7d-80cd-0a3082883120
+          drwxrwxr-x  3 root root 4096 Jun 12 07:28  .
+          -rw-r--r--  1 root root  458 Jun 12 07:28 'completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149'
    ```
+
 
 6) Perform the following edits, to reflect the chunk listed in step 5 above:
 
-    a)  Set the Serializer before executing any table-segment commands.For the edits to be performed we would be setting the Serializer to `slts` since we are dealing with `slts` metadata here.The command would look like below:
+    a)  Set the Serializer before executing any `table-segment` commands. For edits to be performed, we would be setting the Serializer to `slts` since we are dealing with `slts` metadata here. The command would look like below:
 
-                table-segment set-serializer slts
-
+    ```
+              table-segment set-serializer slts
+    ```
 
     b)  Copy the Attribute Index chunk listed in step 5 to the configured Tier-2 directory path which had the original corrupted chunk (`/mnt/tier-2/_system/_tables` based on example above).
         i.e the chunk file to be copied would be:
- 
-                -rw-r--r--  1 osboxes osboxes  458 Jun 12 07:28 'completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149'
 
+    ``` 
+                -rw-r--r--  1 root root  458 Jun 12 07:28 'completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149'
+    ```
 
     c)  Remove the older set of chunks. That is from the above "ls" listed files in step 3, one would remove:
 
-           -rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101208573.10e6a6e8-8665-4e57-bfe4-085eee5cf46b'
-           -rw-r--r--  1 osboxes osboxes  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101337340.a2e5cf79-914e-4a01-9c35-b390a6f61f4a'
-           -rw-r--r--  1 osboxes osboxes  19876  Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-102496243.b032e528-589b-421b-8977-178d72128dcf'
-          
+    ```
+             -rw-r--r--  1 root root  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101208573.10e6a6e8-8665-4e57-bfe4-085eee5cf46b'
+             -rw-r--r--  1 root root  128767 Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-101337340.a2e5cf79-914e-4a01-9c35-b390a6f61f4a'
+             -rw-r--r--  1 root root  19876  Jun  3 04:41 'completedTransactionsBatch-0$attributes.index.E-5-O-102496243.b032e528-589b-421b-8977-178d72128dcf'
+    ```
 
     d) Perform a get on the Attribute Index Segment in the CLI:
 
-       table-segment get _system/containers/storage_metadata_<owning Container ID here> <segmentName>$attributes.index <SS_Pod_IP_OWNING_THE_CONTAINER>
-
+    ```
+               table-segment get _system/containers/storage_metadata_<owning Container ID here> <segmentName>$attributes.index <SS_Pod_IP_OWNING_THE_CONTAINER>
+               Ex:
+                 table-segment get _system/containers/storage_metadata_3 _system/_tables/completedTransactionsBatch-0$attributes.index 127.0.1.1
+    ```
 
     e) Lets say one gets the below details by performing "get" above.
 
+     ```
           > table-segment get _system/containers/storage_metadata_3 _system/_tables/completedTransactionsBatch-0$attributes.index 127.0.1.1
-		For the given key: _system/_tables/completedTransactionsBatch-0$attributes.index
-		SLTS metadata info: 
-		key = _system/_tables/completedTransactionsBatch-0$attributes.index;
-		version = 1654241463251;
-		metadataType = SegmentMetadata;
-		name = _system/_tables/completedTransactionsBatch-0$attributes.index;
-		length = 13488706;
-		chunkCount = 3;
-		startOffset = 13135328;
-		status = 1;
-		maxRollingLength = 128767;
-		firstChunk = _system/_tables/completedTransactionsBatch-0$attributes.index.E-5-O-13131945.29bd2254-2e77-4338-a41a-f9c2af07b913;
-		lastChunk = _system/_tables/completedTransactionsBatch-0$attributes.index.E-5-O-13389479.5779f8d5-89ad-4bc6-87fe-3f99480a7271;
-		lastModified = 0;
-		firstChunkStartOffset = 13131945;
-		lastChunkStartOffset = 13389479;
-		ownerEpoch = 5;
+        For the given key: _system/_tables/completedTransactionsBatch-0$attributes.index
+        SLTS metadata info: 
+        key = _system/_tables/completedTransactionsBatch-0$attributes.index;
+        version = 1654241463251;
+        metadataType = SegmentMetadata;
+        name = _system/_tables/completedTransactionsBatch-0$attributes.index;
+        length = 13488706;
+        chunkCount = 3;
+        startOffset = 13135328;
+        status = 1;
+        maxRollingLength = 128767;
+        firstChunk = _system/_tables/completedTransactionsBatch-0$attributes.index.E-5-O-13131945.29bd2254-2e77-4338-a41a-f9c2af07b913;
+        lastChunk = _system/_tables/completedTransactionsBatch-0$attributes.index.E-5-O-13389479.5779f8d5-89ad-4bc6-87fe-3f99480a7271;
+        lastModified = 0;
+        firstChunkStartOffset = 13131945;
+        lastChunkStartOffset = 13389479;
+        ownerEpoch = 5;
 
-       
         One would edit the following fields to update the metadata to reflect the chunk properties we have in step 6b).
 
                 - Increment the version.
@@ -153,32 +169,34 @@ In the next section we look at the detailed set of steps about carrying out the 
                 - Update the firstChunkStartOffset to 0. Derived from "E-1-[O]-0" part in file name.
                 - Update the lastChunkStartOffset to 0. (first and last chunks are same.)
 
+        This is how the resulting put command would look like:
+        
+        table-segment put _system/containers/storage_metadata_3 127.0.1.1 _system/_tables/completedTransactionsBatch-0$attributes.index key=_system/_tables/completedTransactionsBatch-0$attributes.index;version=1654241463251;metadataType=SegmentMetadata;name=_system/_tables/completedTransactionsBatch-0$attributes.index;length=458;chunkCount=1;startOffset=0;status=1;maxRollingLength=128767;firstChunk=_system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149;lastChunk=_system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149;lastModified=0;firstChunkStartOffset=0;lastChunkStartOffset=0;ownerEpoch=1
+     ```
 
      f) We have updated the Attribute Index Segment metadata with the chunk files and their other attributes. Next step is to create the Chunk Metadata itself.
-
-            Perform a put for the Attribute Index chunk we have in 6a.
-            
-            This is how the put/create command would look:
-               
+        Perform a put for the Attribute Index chunk we have in 6a.
+        This is how the put/create command would look:
               
-                table-segment put _system/_containers/storage_metadata_3 _system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.09cb6598-da98-43ad-8d9c-44ca6d523c4b key=_system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.09cb6598-da98-43ad-8d9c-44ca6d523c4b;version=1654199182158;metadataType=ChunkMetadata;name=_system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.09cb6598-da98-43ad-8d9c-44ca6d523c4b;length=13003178;nextChunk=null;status=1
+     ```
+                table-segment put <qualified-table-segment-name> <segmentstore-endpoint> <key> <value>      
+              
+                table-segment put _system/containers/storage_metadata_3 _system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149 key=_system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149;version=1654199182158;metadataType=ChunkMetadata;name=_system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149;length=13003178;nextChunk=null;status=1
               
 
-             One would enter the following fields to create the metadata:
-
-                --key=chunk file name
-                --version= a random long number can be put in
-                --name = chunk file name
-                --length = length of the chunk file
-                --nextChunk = null (as there is only one chunk)
+                One would enter the following fields to create the metadata:
+ 
+                   --key = chunk file name
+                   --version = a random long number can be put in
+                   --name = chunk file name
+                   --length = length of the chunk file
+                   --nextChunk = null (as there is only one chunk)
              
-             Note: In case of multiple chunks, one would have to create a "put"  for each chunk after identifying the sequence of chunks based on the offsets in their name.
+                Note: In case of multiple chunks, one would have to create a "put"  for each chunk after identifying the sequence of chunks based on the offsets in their name.
+     ```
 
 
-
-7) Restart Segment Store. Upon restarting one should not see a "DataCorruptionException" in the Segment Store logs. One can even perform a Table Segment `get-info` command and check if the number of keys increase to see if the writes after ther repair are going through.
-
-
+7) Restart Segment Store. Upon restarting one should not see a "DataCorruptionException" in the Segment Store logs. One can even perform a Table Segment `get-info` command and check if the number of keys increase to see if the writes after the repair are going through.
 
 
 
