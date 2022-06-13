@@ -75,7 +75,7 @@ In the next section we look at the detailed set of steps about carrying out the 
     Lets say the affected Table Segment name that you find out from step 1 is "completedTransactionsBatch-0". One would copy over the chunks of this Segment (note that they are main Table Segment chunks and they do not have "attr    ibutes.index" string in their name). So one would copy over `completedTransactionsBatch-0.E-1-O-0.b29fcb2f-e71f-4971-bc43-5c0a801c35e7`, 
     `completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9` and `completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad` to a directory of your choice.
 
-4) Start the Pravega Admin Cli (assuming its configured correctly to run) and enter the below command.
+4) Start the Pravega Admin CLI (assuming its configured correctly to run. See [docs] (https://github.com/pravega/pravega/blob/master/cli/admin/README.md)) and enter the below command.
 
     ```
       data-recovery tableSegment-recovery <directory_where_you_copied to in step 3> <Table Segment name> <directory where you want to copy the output chunks to>
