@@ -249,7 +249,7 @@ class BookKeeperLog implements DurableDataLog {
             log.info("{}: Created Ledger {}.", this.traceObjectId, newLedger.getId());
 
             // Update Metadata with new Ledger and persist to ZooKeeper.
-            newMetadata = updateMetadata(oldMetadata, newLedger, true);
+            newMetadata = updateMetadata(oldMetadata, newLedger);
             LedgerMetadata ledgerMetadata = newMetadata.getLedger(newLedger.getId());
             assert ledgerMetadata != null : "cannot find newly added ledger metadata";
             this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
@@ -774,26 +774,12 @@ class BookKeeperLog implements DurableDataLog {
      *
      * @param currentMetadata   The current metadata.
      * @param newLedger         The newly added Ledger.
-     * @param clearEmptyLedgers If true, the new metadata will not not contain any pointers to empty Ledgers. Setting this
-     *                          to true will not remove a pointer to the last few ledgers in the Log (controlled by
-     *                          Ledgers.MIN_FENCE_LEDGER_COUNT), even if they are indeed empty (this is so we don't interfere
-     *                          with any ongoing fencing activities as another instance of this Log may not have yet been
-     *                          fenced out).
      * @return A new instance of the LogMetadata, which includes the new ledger.
      * @throws DurableDataLogException If an Exception occurred.
      */
-    private LogMetadata updateMetadata(LogMetadata currentMetadata, WriteHandle newLedger, boolean clearEmptyLedgers) throws DurableDataLogException {
+    private LogMetadata updateMetadata(LogMetadata currentMetadata, WriteHandle newLedger) throws DurableDataLogException {
         boolean create = currentMetadata == null;
-        if (create) {
-            // This is the first ledger ever in the metadata.
-            currentMetadata = new LogMetadata(newLedger.getId());
-        } else {
-            currentMetadata = currentMetadata.addLedger(newLedger.getId());
-            if (clearEmptyLedgers) {
-                // Remove those ledgers from the metadata that are empty.
-                currentMetadata = currentMetadata.removeEmptyLedgers(Ledgers.MIN_FENCE_LEDGER_COUNT);
-            }
-        }
+        currentMetadata = create ? new LogMetadata(newLedger.getId()) : currentMetadata.addLedger(newLedger.getId());
 
         try {
             persistMetadata(currentMetadata, create);
@@ -952,7 +938,7 @@ class BookKeeperLog implements DurableDataLog {
 
             // Update the metadata.
             LogMetadata metadata = getLogMetadata();
-            metadata = updateMetadata(metadata, newLedger, false);
+            metadata = updateMetadata(metadata, newLedger);
             LedgerMetadata ledgerMetadata = metadata.getLedger(newLedger.getId());
             assert ledgerMetadata != null : "cannot find newly added ledger metadata";
             log.debug("{}: Rollover: updated metadata '{}.", this.traceObjectId, metadata);
