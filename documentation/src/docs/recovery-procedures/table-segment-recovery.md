@@ -181,6 +181,7 @@ In the next section, we look at the detailed set of steps about carrying out the
      ```
                 table-segment put <qualified-table-segment-name> <segmentstore-endpoint> <key> <value>      
               
+                Ex:
                 table-segment put _system/containers/storage_metadata_3 _system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149 key=_system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149;version=1654199182158;metadataType=ChunkMetadata;name=_system/_tables/completedTransactionsBatch-0$attributes.index.E-1-O-0.7a9a16d4-cab6-4e5d-9173-d441d9656149;length=13003178;nextChunk=null;status=1
               
 
