@@ -31,23 +31,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 /**
- * This command provides an administrator with the basic primitives to manipulate a DurableLog with damaged entries.
+ * This command provides an administrator with the basic primitives to inspect a DurableLog.
  * The workflow of this command is as follows:
  * 1. Checks if the Original Log is disabled (exit otherwise).
  * 2. Reads the original damaged DurableLog and creates a backup copy of it for safety reasons.
- * 3. Validate and buffer all the edits from admin to be done on the original DurableLog data (i.e., skip, delete,
- * replace operations). All these changes are then written on a Repair Log (i.e., original DurableLog data + admin changes).
- * 4. With the desired updates written in the Repair Log, the admin can replace the original DurableLog metadata by the
- * Repair Log's one. This will make the DurableLog for the Segment Container under repair to point to the Repair Log data.
- * 5. The backed-up data for the originally damaged DurableLog can be reused to create a new Repair Log or discarded if
- * the Segment Container recovers as expected.
+ * 3. User input for conditions to inspect.
+ * 4. Result list is saved in a text file.
  */
 public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
 
     private final static Duration TIMEOUT = Duration.ofSeconds(10);
 
     /**
-     * Creates a new instance of the DurableLogRepairCommand class.
+     * Creates a new instance of the DurableLogInspectCommand class.
      *
      * @param args The arguments for the command.
      */
