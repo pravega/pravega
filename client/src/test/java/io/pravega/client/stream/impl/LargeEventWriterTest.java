@@ -357,7 +357,7 @@ public class LargeEventWriterTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 ConditionalBlockEnd argument = (ConditionalBlockEnd) invocation.getArgument(0);
                 failed.set(true);
-                connectionFactory.getProcessor(location).process(new InvalidEventNumber(argument.getWriterId(), argument.getEventNumber(), "stacktrace"));
+                connectionFactory.getProcessor(location).process(new InvalidEventNumber(argument.getWriterId(), argument.getEventNumber(), argument.getRequestId(), "stacktrace"));
                 return null;
             }
         }).doAnswer(new Answer<Void>() {
