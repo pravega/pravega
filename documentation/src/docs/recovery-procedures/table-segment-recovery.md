@@ -28,16 +28,16 @@ io.pravega.segmentstore.server.DataCorruptionException: BTreeIndex operation fai
 ...
 Caused by: io.pravega.common.util.IllegalDataFormatException: [AttributeIndex[3-423]] Wrong footer information. RootPage Offset (3842188288) + Length (142858) exceeds Footer Offset (15007837).
 ```
-The original issue filed can be found [here] (https://github.com/pravega/pravega/issues/6712)
+The original issue filed can be found [here](https://github.com/pravega/pravega/issues/6712)
 
-The Attribute Index Segment is basically a BTree Index of the data (key/value pair) that goes in its associated main Table Segment. It is internally a B+Tree (existing on Pravega Segment), and is organized as as set of Pages written to storage (see this [blog post] (https://cncf.pravega.io/blog/2019/11/21/segment-attributes) here). Each Page can be an index Page or leaf Page (holding data entries) having tree nodes. Each write of Pages to Storage ends with a footer, which is a pointer to the latest location of the root node in the tree. The above error indicates that the footer for the last write of Pages to Storage has been corrupted, as it contains inconsistent information. The issue having happened so, indicates some kind of corruption in the underlying Attribute Index Segment.
+The Attribute Index Segment is basically a BTree Index of the data (key/value pair) that goes in its associated main Table Segment. It is internally a B+Tree (existing on Pravega Segment), and is organized as as set of Pages written to storage (see this [blog post](https://cncf.pravega.io/blog/2019/11/21/segment-attributes) here). Each Page can be an index Page or leaf Page (holding data entries) having tree nodes. Each write of Pages to Storage ends with a footer, which is a pointer to the latest location of the root node in the tree. The above error indicates that the footer for the last write of Pages to Storage has been corrupted, as it contains inconsistent information. The issue having happened so, indicates some kind of corruption in the underlying Attribute Index Segment.
 
 
 # Repair Procedure
 
 The repair procedure aims at recovering Pravega from such a situation. Here is what the recovery procedure aims to do. Recall that the corruption that we see occurs at the Attribute Index Segment level, which is just an index built by Pravega in the background of the data that exists in the associated primary Table Segment. This index helps associate "keys" with "offsets" in the primary Table Segment where "values" actually reside. The main assumption of this recovery procedure is this primary Table Segment is perfectly fine and the corruption happens only at the index level.
 
-In a nutshell, the recovery procedure of a Table Segment Attribute Index involves re-reading the key/value pairs in the primary Table Segment and feeding them to a local in-process Pravega cluster. Doing so would result in an Table Segment Attribute Index generated in the storage directory of that local in-process Pravega cluster. To do so, we need to collect, for the corrupted Table Segment Attribute Index, all the primary chunks from the Pravega cluster to repair. Then, we use the Admin CLI `dataRecovery tableSegment-recovery` command (see [#6753] (https://github.com/pravega/pravega/pull/6753)) to re-create locally the new Table Segment Attribute Index. Finally, we need to replace the newly generated Table Segment Attribute Index by the corrupted one in the Pravega cluster to repair.
+In a nutshell, the recovery procedure of a Table Segment Attribute Index involves re-reading the key/value pairs in the primary Table Segment and feeding them to a local in-process Pravega cluster. Doing so would result in an Table Segment Attribute Index generated in the storage directory of that local in-process Pravega cluster. To do so, we need to collect, for the corrupted Table Segment Attribute Index, all the primary chunks from the Pravega cluster to repair. Then, we use the Admin CLI `dataRecovery tableSegment-recovery` command (see [#6753](https://github.com/pravega/pravega/pull/6753)) to re-create locally the new Table Segment Attribute Index. Finally, we need to replace the newly generated Table Segment Attribute Index by the corrupted one in the Pravega cluster to repair.
 
 In the next section, we look at the detailed set of steps about carrying out the procedure. Also please note that the below described procedure assumes the use of "File System" as Tier-2 storage. Other storage interfaces used in place of "File System" as Tier-2 storage, would only differ in the way we would access the resources (like objects in case of Dell EMC ECS) and not the actual steps.
 
@@ -83,7 +83,7 @@ In the next section, we look at the detailed set of steps about carrying out the
     `completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9` and `completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad` to a directory of your choice.
 
 
-4) Start the Pravega Admin CLI (assuming its configured correctly to run. See [docs] (https://github.com/pravega/pravega/blob/master/cli/admin/README.md)) and enter the below command.
+4) Start the Pravega Admin CLI (assuming its configured correctly to run. See [docs](https://github.com/pravega/pravega/blob/master/cli/admin/README.md)) and enter the below command.
 
     ```
       data-recovery tableSegment-recovery <directory_where_you_copied to in step 3> <Table Segment name> <directory where you want to copy the output chunks to>
