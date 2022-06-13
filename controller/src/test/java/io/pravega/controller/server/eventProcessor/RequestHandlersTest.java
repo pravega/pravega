@@ -70,6 +70,7 @@ import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.controller.MetricsTestUtil;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.CommitEvent;
@@ -79,14 +80,10 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
-import io.pravega.shared.metrics.MetricRegistryUtils;
-import io.pravega.shared.metrics.MetricsConfig;
-import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
-import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
@@ -99,7 +96,6 @@ import org.junit.Test;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -111,7 +107,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -200,14 +195,7 @@ public abstract class RequestHandlersTest {
         // create a stream
         streamStore.createScope(scope, null, executor).get();
 
-        MetricsConfig metricsConfig = MetricsConfig.builder()
-                .with(MetricsConfig.ENABLE_STATISTICS, true)
-                .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
-                .build();
-        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(60));
-
-        MetricsProvider.initialize(metricsConfig);
-        statsProvider = MetricsProvider.getMetricsProvider();
+        statsProvider = MetricsTestUtil.getInitialisedStatsProvider();
         statsProvider.startWithoutExporting();
 
     }
@@ -960,12 +948,7 @@ public abstract class RequestHandlersTest {
         DeleteScopeEvent event = new DeleteScopeEvent(testScope, 123L, scopeId);
         CompletableFuture<Void> future = requestHandler.execute(event);
         future.join();
-        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY) > 0);
-    }
-
-    private long getTimerMillis(String timerName) {
-        val timer = MetricRegistryUtils.getTimer(timerName);
-        return (long) timer.totalTime(TimeUnit.MILLISECONDS);
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY) > 0);
     }
 
     @Test

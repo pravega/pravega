@@ -38,26 +38,21 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableSt
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.task.EventHelper;
+import io.pravega.controller.MetricsTestUtil;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.metrics.MetricRegistryUtils;
-import io.pravega.shared.metrics.MetricsConfig;
-import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.Data;
 import lombok.Getter;
-import lombok.val;
 import org.apache.commons.lang3.NotImplementedException;
 import org.junit.After;
 import org.junit.Assert;
@@ -105,15 +100,7 @@ public abstract class TableMetadataTasksTest {
                                                             new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
                                                             this.kvtStore, executor);
 
-        // log.info("Initializing metrics provider ...");
-        MetricsConfig metricsConfig = MetricsConfig.builder()
-                .with(MetricsConfig.ENABLE_STATISTICS, true)
-                .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
-                .build();
-        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(60));
-
-        MetricsProvider.initialize(metricsConfig);
-        statsProvider = MetricsProvider.getMetricsProvider();
+        statsProvider = MetricsTestUtil.getInitialisedStatsProvider();
         statsProvider.startWithoutExporting();
     }
 
@@ -144,7 +131,7 @@ public abstract class TableMetadataTasksTest {
 
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
         assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
-        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY) > 0);
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY) > 0);
         List<KVTSegmentRecord> segmentsList = kvtStore.getActiveSegments(SCOPE, kvtable1, null, executor).get();
         assertEquals(segmentsList.size(), kvtConfig.getPartitionCount());
 
@@ -162,11 +149,6 @@ public abstract class TableMetadataTasksTest {
         AssertExtensions.assertFutureThrows("addIndexAndSubmitTask throws exception",
                 kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime, 0L),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
-    }
-
-    private long getTimerMillis(String timerName) {
-        val timer = MetricRegistryUtils.getTimer(timerName);
-        return (long) timer.totalTime(TimeUnit.MILLISECONDS);
     }
 
     @Test(timeout = 30000)
@@ -188,7 +170,7 @@ public abstract class TableMetadataTasksTest {
         assertTrue(kvtMetadataTasks.isDeleted(SCOPE, kvtable1, null).join());
         assertFalse(kvtStore.checkTableExists(SCOPE, kvtable1, null, executor).join());
         assertFalse(kvtStore.isScopeSealed("testScope", null, executor).join());
-        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY) > 0);
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY) > 0);
     }
 
     private CompletableFuture<Void> processEvent(TableMetadataTasksTest.WriterMock requestEventWriter) throws InterruptedException {
