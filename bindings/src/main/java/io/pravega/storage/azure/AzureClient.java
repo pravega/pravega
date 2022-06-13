@@ -15,14 +15,13 @@
  */
 package io.pravega.storage.azure;
 
-import io.pravega.common.util.Property;
-import lombok.Builder;
+import com.azure.storage.blob.models.AppendBlobItem;
 
-@Builder
-public class AzureStorageConfig {
+import java.io.InputStream;
 
-    public static final Property<String> CONFIGURI = Property.named("connect.config.uri", "", "configUri");
-    public static final Property<String> CONTAINER = Property.named("container", "");
-    public static final Property<String> ACCESS_KEY = Property.named("connect.config.access.key", "");
-
+public interface AzureClient extends AutoCloseable {
+    AppendBlobItem create (String blobName);
+    boolean exists (String blobName);
+    void delete (String blobName);
+    InputStream getInputStream (String blobName, long offSet, long length);
 }

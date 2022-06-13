@@ -1,10 +1,49 @@
+/**
+ * Copyright Pravega Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.pravega.storage.azure;
 
+import com.emc.object.s3.S3Client;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.storage.chunklayer.*;
+import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
+import lombok.val;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.InputStream;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AzureChunkStorage extends BaseChunkStorage {
+    private final AzureStorageConfig config;
+    private final AzureClient client;
+    private final boolean shouldClose;
+    private final AtomicBoolean closed;
+    private final boolean supportsAppend;
+
+    public AzureChunkStorage(AzureClient client, AzureStorageConfig config, Executor executor, boolean supportsAppend, boolean shouldClose) {
+        super(executor);
+        this.config = Preconditions.checkNotNull(config, "config");
+        this.client = Preconditions.checkNotNull(client, "client");
+        this.closed = new AtomicBoolean(false);
+        this.shouldClose = shouldClose;
+        this.supportsAppend = supportsAppend;
+
+    }
     @Override
     public boolean supportsTruncation() {
         return false;
@@ -12,7 +51,7 @@ public class AzureChunkStorage extends BaseChunkStorage {
 
     @Override
     public boolean supportsAppend() {
-        return false;
+        return supportsAppend;
     }
 
     @Override
@@ -27,32 +66,49 @@ public class AzureChunkStorage extends BaseChunkStorage {
 
     @Override
     protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException {
-        return null;
+        val blobItem = this.client.create(chunkName);
+        return ChunkHandle.writeHandle(chunkName);
     }
 
     @Override
     protected boolean checkExists(String chunkName) throws ChunkStorageException {
-        return false;
+        return client.exists(chunkName);
     }
 
     @Override
     protected void doDelete(ChunkHandle handle) throws ChunkStorageException {
-
+        try {
+            client.delete(handle.getChunkName());
+        }catch (Exception e) {
+            throw convertException(handle.getChunkName(), "doDelete", e);
+        }
     }
 
     @Override
     protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException {
-        return null;
+        if (!checkExists(chunkName)) {
+            throw new ChunkNotFoundException(chunkName, "doOpenRead");
+        }
+        return ChunkHandle.readHandle(chunkName);
     }
 
     @Override
     protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException {
-        return null;
+        if (!checkExists(chunkName)) {
+            throw new ChunkNotFoundException(chunkName, "doOpenWrite");
+        }
+        return new ChunkHandle(chunkName, false);
     }
 
     @Override
     protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException {
-        return 0;
+        try  {
+            try (val inputStream = client.getInputStream(handle.getChunkName(), fromOffset, length)) {
+                return StreamHelpers.readAll(inputStream, buffer, bufferOffset, length);
+            }
+        } catch (Exception e) {
+                throw convertException(handle.getChunkName(), "doRead", e);
+        }
     }
 
     @Override
@@ -68,5 +124,25 @@ public class AzureChunkStorage extends BaseChunkStorage {
     @Override
     protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException {
 
+    }
+
+    private ChunkStorageException convertException(String chunkName, String message, Exception e) {
+        ChunkStorageException retValue = null;
+        if (e instanceof ChunkStorageException) {
+            return (ChunkStorageException) e;
+        }
+//        if (e instanceof AzureException) {
+//            AzureException azureException = (AzureException) e;
+//            String errorCode = Strings.nullToEmpty(azureException.awsErrorDetails().errorCode());
+//
+//            if (errorCode.equals(NO_SUCH_KEY)) {
+//                retValue = new ChunkNotFoundException(chunkName, message, e);
+//            }
+//
+//            if (errorCode.equals(PRECONDITION_FAILED)) {
+//                retValue = new ChunkAlreadyExistsException(chunkName, message, e);
+//            }
+//        }
+        return retValue;
     }
 }
