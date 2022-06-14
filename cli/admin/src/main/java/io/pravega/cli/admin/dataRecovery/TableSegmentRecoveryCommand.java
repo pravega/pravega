@@ -145,7 +145,6 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
         output("Storage directory for this cluster is: " + this.pravegaStorageDir);
         FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
                 .with(FileSystemStorageConfig.ROOT, this.pravegaStorageDir.toString())
-                .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
         StorageFactory storageFactory = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, adapterConfig, this.executor);
         this.pravegaRunner = new LocalServiceStarter.PravegaRunner(1, NUM_CONTAINERS);
