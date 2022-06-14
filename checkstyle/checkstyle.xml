@@ -135,5 +135,10 @@
       <property name="ignoreMethodNamesRegex" value="^has.*$"/> <!-- accessor for boolean e.g. hasVersion -->
       <property name="suppressLoadErrors" value="false"/>
     </module>
+    <module name="RegexpSinglelineJava">
+  	  <property name="format" value="Collections\.synchronizedList"/>
+  	  <property name="message" value="Collections.synchronizedList is an anti-pattern. This is because it synchronizes get/put accesses it does not synchronize iteration. If it is treated as a iterable without knowlege of this, it leads to a race."/>
+  	  <property name="ignoreComments" value="true"/>
+    </module>   
   </module>
 </module>

@@ -23,9 +23,8 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -181,7 +180,7 @@ public class AsyncReadResultProcessor implements AutoCloseable {
     private static class ProcessAllHandler implements AsyncReadResultHandler {
         @Getter
         private final Duration requestContentTimeout;
-        private final List<BufferView> parts = Collections.synchronizedList(new ArrayList<>());
+        private final List<BufferView> parts = new Vector<>();
         private final CompletableFuture<BufferView> result = new CompletableFuture<>();
 
         @Override
