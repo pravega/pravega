@@ -16,12 +16,17 @@
 package io.pravega.storage.azure;
 
 import com.azure.storage.blob.models.AppendBlobItem;
+import com.azure.storage.blob.models.BlobProperties;
+import com.azure.storage.blob.specialized.BlobOutputStream;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 
 public interface AzureClient extends AutoCloseable {
     AppendBlobItem create (String blobName);
     boolean exists (String blobName);
     void delete (String blobName);
     InputStream getInputStream (String blobName, long offSet, long length);
+    AppendBlobItem appendBlock (String blobName, long offSet, long length, InputStream inputStream);
+    BlobProperties getBlobProperties (String blobName, long length);
 }

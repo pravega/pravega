@@ -15,6 +15,8 @@
  */
 package io.pravega.storage.azure;
 
+import com.azure.storage.blob.specialized.AppendBlobClient;
+import com.emc.object.Range;
 import com.emc.object.s3.S3Client;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -24,7 +26,9 @@ import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
 import lombok.val;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -113,7 +117,16 @@ public class AzureChunkStorage extends BaseChunkStorage {
 
     @Override
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
-        return 0;
+        try {
+            val metadata = client.getBlobProperties(handle.getChunkName(), length);
+            if (metadata.getBlobSize() != offset) {
+                throw new InvalidOffsetException(handle.getChunkName(), metadata.getBlobSize(), offset, "doWrite");
+            }
+            client.appendBlock(handle.getChunkName(), offset, length, data);
+            return length;
+        } catch (Exception e) {
+            throw convertException(handle.getChunkName(), "doWrite", e);
+        }
     }
 
     @Override

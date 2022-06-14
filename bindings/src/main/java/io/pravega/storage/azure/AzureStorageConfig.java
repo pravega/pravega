@@ -17,6 +17,7 @@ package io.pravega.storage.azure;
 
 import io.pravega.common.util.Property;
 import lombok.Builder;
+import lombok.Getter;
 
 @Builder
 public class AzureStorageConfig {
@@ -24,5 +25,8 @@ public class AzureStorageConfig {
     public static final Property<String> CONFIGURI = Property.named("connect.config.uri", "", "configUri");
     public static final Property<String> CONTAINER = Property.named("container", "");
     public static final Property<String> ACCESS_KEY = Property.named("connect.config.access.key", "");
+
+    @Getter
+    private final String container;
 
 }

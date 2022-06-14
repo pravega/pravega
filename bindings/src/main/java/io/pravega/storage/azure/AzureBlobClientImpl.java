@@ -19,14 +19,17 @@ import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.blob.implementation.AzureBlobStorageImplBuilder;
-import com.azure.storage.blob.models.AppendBlobItem;
-import com.azure.storage.blob.models.BlobRange;
-import com.azure.storage.blob.models.BlobRequestConditions;
+import com.azure.storage.blob.models.*;
 import com.azure.storage.blob.specialized.AppendBlobClient;
 import com.azure.storage.blob.specialized.BlobClientBase;
+import com.azure.storage.blob.specialized.BlobOutputStream;
 import com.azure.storage.common.StorageSharedKeyCredential;
+import io.pravega.shared.protocol.netty.Append;
+import lombok.Cleanup;
+import lombok.val;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 
 public class AzureBlobClientImpl implements AzureClient {
     private final BlobContainerClient blobContainerClient;
@@ -36,12 +39,14 @@ public class AzureBlobClientImpl implements AzureClient {
         this.config = config;
         String endpoint = "https://ajadhav9.blob.core.windows.net";
         String connectionString = "DefaultEndpointsProtocol=https;AccountName=ajadhav9;AccountKey=0DuaCG/7yEpHQCE7lS/hkxHtQa1oqg2E7NSXSLCPGjTvBrGHDdn8zxiYaA1iPn84ntErNXX0AMYB+AStK7xMCA==;EndpointSuffix=core.windows.net";
-        String containerName = "test1";
+        String containerName = "test1" + System.currentTimeMillis();
         BlobServiceClient storageClient = new BlobServiceClientBuilder()
                 .endpoint(endpoint)
                 .credential(StorageSharedKeyCredential.fromConnectionString(connectionString))
                 .buildClient();
         this.blobContainerClient = storageClient.getBlobContainerClient(containerName);
+        //Only for tests.
+        blobContainerClient.create();
     }
 
     @Override
@@ -66,6 +71,20 @@ public class AzureBlobClientImpl implements AzureClient {
     public InputStream getInputStream(String blobName, long offSet, long length) {
         BlobClientBase blobClientBase = blobContainerClient.getBlobClient(blobName);
         return blobClientBase.openInputStream(new BlobRange(offSet, length), new BlobRequestConditions());
+    }
+
+    @Override
+    public AppendBlobItem appendBlock(String blobName, long offSet, long length, InputStream inputStream) {
+        AppendBlobClient appendBlobClient = blobContainerClient.getBlobClient(blobName).getAppendBlobClient();
+        val conditions = new AppendBlobRequestConditions();
+        conditions.setAppendPosition(offSet);
+        return appendBlobClient.appendBlock(inputStream, length);
+    }
+
+    @Override
+    public BlobProperties getBlobProperties(String blobName, long length) {
+        val appendBlobClient = blobContainerClient.getBlobClient(blobName);
+        return appendBlobClient.getProperties();
     }
 
     @Override
