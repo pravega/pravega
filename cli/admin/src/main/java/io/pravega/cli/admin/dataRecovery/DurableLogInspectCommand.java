@@ -17,18 +17,41 @@ package io.pravega.cli.admin.dataRecovery;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.segmentstore.server.containers.ContainerConfig;
+import io.pravega.segmentstore.server.logs.DataFrameRecord;
+import io.pravega.segmentstore.server.logs.DebugRecoveryProcessor;
+import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationInspectInfo;
+import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
+import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
+import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
+import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import lombok.Cleanup;
 import lombok.val;
 
+import java.io.FileWriter;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+
+import static io.pravega.cli.admin.utils.FileHelper.createFileAndDirectory;
 
 /**
  * This command provides an administrator with the basic primitives to inspect a DurableLog.
@@ -68,65 +91,118 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         @Cleanup
         val originalDataLog = dataLogFactory.createDebugLogWrapper(containerId);
 
-        // Make sure that the reserved id for Backup log is free before making any further progress.
-        boolean createNewBackupLog = true;
-        if (existsBackupLog(dataLogFactory)) {
-            output("We found data in the Backup log, probably from a previous repair operation (or someone else running the same command at the same time). " +
-                    "You have three options: 1) Delete existing Backup Log and start a new repair process, " +
-                    "2) Keep existing Backup Log and re-use it for the current repair (i.e., skip creating a new Backup Log), " +
-                    "3) Quit.");
-            switch (getIntUserInput("Select an option: [1|2|3]")) {
-                case 1:
-                    // Delete everything related to the old Backup Log.
-                    try (DebugDurableDataLogWrapper backupDataLogDebugLogWrapper = dataLogFactory.createDebugLogWrapper(dataLogFactory.getBackupLogId())) {
-                        backupDataLogDebugLogWrapper.deleteDurableLogMetadata();
-                    }
-                    break;
-                case 2:
-                    // Keeping existing Backup Log, so not creating a new one.
-                    createNewBackupLog = false;
-                    break;
-                default:
-                    output("Not doing anything with existing Backup Log this time.");
-                    return;
-            }
-        }
+        int durableLogReadOperations = readDurableDataLog( containerId, originalDataLog);
 
-        // Create a new Backup Log if there wasn't any or if we removed the existing one.
-        if (createNewBackupLog) {
-            createBackupLog(dataLogFactory, containerId, originalDataLog);
-        }
+        output("Total reads original:" + durableLogReadOperations);
 
-        int backupLogReadOperations = validateBackupLog(dataLogFactory, containerId, originalDataLog, createNewBackupLog);
+        Predicate<OperationInspectInfo> durableLogPredicates = getConditionTypeFromUser();
 
-        output("Total reads original:" + backupLogReadOperations);
-        // Get user input of operations to skip, replace, or delete.
-        Predicate<String> durableLogPredicates = getConditionTypeFromUser();
-
-        backupLogReadOperations = filterResult(dataLogFactory, durableLogPredicates);
+        durableLogReadOperations = filterResult(durableLogPredicates, containerId, originalDataLog);
         // Show the edits to be committed to the original durable log so the user can confirm.
-        output("Total reads :" + backupLogReadOperations);
+        output("Total reads matching conditions :" + durableLogReadOperations);
 
         // Output as per the predicates present
 
-        output("Process completed successfully! (You still need to enable the Durable Log so Pravega can use it)");
+        output("Process completed successfully!!");
     }
 
-    private int filterResult(DurableDataLogFactory dataLogFactory, Predicate<String> predicate) throws Exception {
+    protected int readDurableDataLog(int containerId, DebugDurableDataLogWrapper originalDataLog) throws Exception {
+
+        int operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback((a, b) ->  {
+            output("Reading: " + getActualOperation(a));
+            }, containerId, originalDataLog.asReadOnly());
+        return operationsReadFromOriginalLog;
+    }
+
+    private OperationInspectInfo getActualOperation(Operation op) {
+        OperationInspectInfo res = null;
+        if (op instanceof StreamSegmentAppendOperation) {
+            res = new OperationInspectInfo(op.getSequenceNumber(), op.getClass().getSimpleName(), op.getCacheLength(),
+                    ((StreamSegmentAppendOperation) op).getStreamSegmentId(), ((StreamSegmentAppendOperation) op).getStreamSegmentOffset(),
+                    ((StreamSegmentAppendOperation) op).getAttributeUpdates().size());
+        } else if (op instanceof StreamSegmentSealOperation) {
+            res = new OperationInspectInfo(op.getSequenceNumber(), op.getClass().getSimpleName(), op.getCacheLength(),
+                    ((StreamSegmentSealOperation) op).getStreamSegmentId(), ((StreamSegmentSealOperation) op).getStreamSegmentOffset(),
+                    OperationInspectInfo.DEFAULT_ABSENT_VALUE);
+        } else if (op instanceof MergeSegmentOperation) {
+            res = new OperationInspectInfo(op.getSequenceNumber(), op.getClass().getSimpleName(), op.getCacheLength(),
+                    ((MergeSegmentOperation) op).getStreamSegmentId(), ((MergeSegmentOperation) op).getStreamSegmentOffset(),
+                    ((MergeSegmentOperation) op).getAttributeUpdates().size());
+        } else if (op instanceof UpdateAttributesOperation) {
+            res = new OperationInspectInfo(op.getSequenceNumber(), op.getClass().getSimpleName(), op.getCacheLength(),
+                    ((UpdateAttributesOperation) op).getStreamSegmentId(), OperationInspectInfo.DEFAULT_ABSENT_VALUE,
+                    OperationInspectInfo.DEFAULT_ABSENT_VALUE);
+        } else if (op instanceof StreamSegmentTruncateOperation) {
+            res = new OperationInspectInfo(op.getSequenceNumber(), op.getClass().getSimpleName(), op.getCacheLength(),
+                    ((StreamSegmentTruncateOperation) op).getStreamSegmentId(), ((StreamSegmentTruncateOperation) op).getStreamSegmentOffset(),
+                    OperationInspectInfo.DEFAULT_ABSENT_VALUE);
+        } else if (op instanceof DeleteSegmentOperation) {
+            res = new OperationInspectInfo(op.getSequenceNumber(), op.getClass().getSimpleName(), op.getCacheLength(),
+                    ((DeleteSegmentOperation) op).getStreamSegmentId(), ((DeleteSegmentOperation) op).getStreamSegmentOffset(),
+                    OperationInspectInfo.DEFAULT_ABSENT_VALUE);
+        } else if (op instanceof MetadataCheckpointOperation) {
+            res = new OperationInspectInfo(op.getSequenceNumber(), op.getClass().getSimpleName(), op.getCacheLength(),
+                    OperationInspectInfo.DEFAULT_ABSENT_VALUE, OperationInspectInfo.DEFAULT_ABSENT_VALUE, OperationInspectInfo.DEFAULT_ABSENT_VALUE);
+        } else if (op instanceof StorageMetadataCheckpointOperation) {
+            res = new OperationInspectInfo(op.getSequenceNumber(), op.getClass().getSimpleName(), op.getCacheLength(),
+                    OperationInspectInfo.DEFAULT_ABSENT_VALUE, OperationInspectInfo.DEFAULT_ABSENT_VALUE, OperationInspectInfo.DEFAULT_ABSENT_VALUE);
+        } else if (op instanceof StreamSegmentMapOperation) {
+            res = new OperationInspectInfo(op.getSequenceNumber(), op.getClass().getSimpleName(), op.getCacheLength(),
+                    ((StreamSegmentMapOperation) op).getStreamSegmentId(), OperationInspectInfo.DEFAULT_ABSENT_VALUE, OperationInspectInfo.DEFAULT_ABSENT_VALUE);
+        }
+        return res;
+    }
+
+    private int filterResult(Predicate<OperationInspectInfo> predicate, int containerId, DebugDurableDataLogWrapper originalDataLog) throws Exception {
         AtomicInteger res = new AtomicInteger();
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yy.HH-mm-ss");
+        Date date = new Date();
         @Cleanup
-        val validationBackupDataLog = dataLogFactory.createDebugLogWrapper(dataLogFactory.getBackupLogId());
-        @Cleanup
-        val validationBackupDataLogReadOnly = validationBackupDataLog.asReadOnly();
+        FileWriter writer = new FileWriter(createFileAndDirectory("DurableLogInspectResult" + dateFormat.format(date)));
+
         readDurableDataLogWithCustomCallback((a, b) -> {
-                    if (predicate.test(a.toString())) {
+                    if (predicate.test(getActualOperation(a))) {
                         output(a.toString());
+                        try {
+                            writer.write(a.toString());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
                         res.getAndIncrement();
                     }
-                }, dataLogFactory.getBackupLogId(), validationBackupDataLogReadOnly);
+                }, containerId, originalDataLog.asReadOnly());
+        writer.flush();
         return res.get();
     }
 
+    /**
+     * Reads a {@link DurableDataLog} associated with a container id and runs the callback on each {@link Operation}
+     * read from the log.
+     *
+     * @param callback Callback to be run upon each {@link Operation} read.
+     * @param containerId Container id to read from.
+     * @param durableDataLog {@link DurableDataLog} of the Container to be read.
+     * @return Number of {@link Operation}s read.
+     * @throws Exception If there is a problem reading the {@link DurableDataLog}.
+     */
+    @VisibleForTesting
+    int readDurableDataLogWithCustomCallback(BiConsumer<Operation, List<DataFrameRecord.EntryInfo>> callback,
+                                             int containerId, DurableDataLog durableDataLog) throws Exception {
+        val logReaderCallbacks = new DebugRecoveryProcessor.OperationCallbacks(
+                callback,
+                op -> false, // We are not interested on doing actual recovery, just reading the operations.
+                null,
+                null);
+        val containerConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(ContainerConfig::builder);
+        val readIndexConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(ReadIndexConfig::builder);
+        @Cleanup
+        val rp = DebugRecoveryProcessor.create(containerId, durableDataLog,
+                containerConfig, readIndexConfig, getCommandArgs().getState().getExecutor(), logReaderCallbacks, false);
+        int operationsRead = rp.performRecovery();
+        //output("Number of operations read from DurableLog: " + operationsRead);
+        return operationsRead;
+    }
 
     /**
      * Guides the users to a set of options for creating predicates that will eventually modify the
@@ -135,9 +211,9 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
      * @return List of predicates.
      */
     @VisibleForTesting
-    Predicate<String> getConditionTypeFromUser() {
-        Predicate<String> predicate = null;
-        List<Predicate<String>> predicates = new ArrayList<>();
+    Predicate<OperationInspectInfo> getConditionTypeFromUser() {
+        Predicate<OperationInspectInfo> predicate = null;
+        List<Predicate<OperationInspectInfo>> predicates = new ArrayList<>();
         boolean finishInputCommands = false;
         boolean next = false;
         String clause = "";
@@ -150,29 +226,29 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
                 switch (operationTpe) {
                     case "OperationType":
                         String op = getStringUserInput("Enter valid operation type: [DeleteSegmentOperation|MergeSegmentOperation|MetadataCheckpointOperation|\" +\n" +
-                                "                \"StorageMetadataCheckpointOperation|StreamSegmentAppendOperation|StreamSegmentMapOperation|\" +\n" +
-                                "                \"StreamSegmentSealOperation|StreamSegmentTruncateOperation|UpdateAttributesOperation]");
-                        predicates.add( a -> a.contains(op));
+                                " \"StorageMetadataCheckpointOperation|StreamSegmentAppendOperation|StreamSegmentMapOperation|\" +\n" +
+                                " \"StreamSegmentSealOperation|StreamSegmentTruncateOperation|UpdateAttributesOperation]");
+                        predicates.add(a -> a.getOperationTypeString().equals(op));
                         break;
                     case "SequenceNumber":
                         long in = getLongUserInput("Valid Sequence Number: ");
-                        predicates.add( a -> a.contains(Long.toString(in)));
+                        predicates.add( a -> a.getSequenceNumber() == in);
                         break;
                     case "SegmentId":
                         in = getLongUserInput("Valid segmentId to search: ");
-                        predicates.add( a -> a.contains(Long.toString(in)));
+                        predicates.add( a -> a.getSegmentId() == in);
                         break;
                     case "Offset":
-                        in = getLongUserInput("IValid offset to seach: ");
-                        predicates.add( a -> a.contains(Long.toString(in)));
+                        in = getLongUserInput("Valid offset to seach: ");
+                        predicates.add( a -> a.getOffset() == in);
                         break;
                     case "Length":
-                        in = getLongUserInput("IValid length to seach: ");
-                        predicates.add( a -> a.contains(Long.toString(in)));
+                        in = getLongUserInput("Valid length to seach: ");
+                        predicates.add( a -> a.getCacheLength() == in);
                         break;
                     case "Attributes":
                         in = getLongUserInput("Valid number of attributes to seach: ");
-                        predicates.add( a -> a.contains(Long.toString(in)));
+                        predicates.add( a -> a.getAttributes() == in );
                         break;
                     default:
                         output("Invalid operation, please select one of [delete|add|replace]");
