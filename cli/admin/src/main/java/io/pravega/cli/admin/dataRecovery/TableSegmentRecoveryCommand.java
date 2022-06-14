@@ -67,7 +67,6 @@ import java.util.stream.Collectors;
  */
 public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
 
-    private final static int DEFAULT_ROLLOVER_SIZE = 32 * 1024 * 1024; // Default rollover size for Table Segment attribute chunks.
     private final static int NUM_CONTAINERS = 1; // We need just one Container in the local Pravega instance.
     private static final String ATTRIBUTE_SUFFIX = "$attributes.index"; // We need main Segment chunks, not attribute chunks.
     private final static Duration TIMEOUT = Duration.ofSeconds(10);
@@ -76,6 +75,7 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
     private LocalServiceStarter.PravegaRunner pravegaRunner = null;
     @Getter(AccessLevel.PACKAGE)
     private Path pravegaStorageDir;
+    private long indexChunkRollingSize;
 
     /**
      * Creates a new instance of the DataRecoveryCommand class.
@@ -92,6 +92,10 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
         String tableSegmentDataChunksPath = getArg(0);
         String newTableSegmentName = getArg(1);
         String pravegaStorageDir = getArg(2);
+
+        // Set the rolling size of index chunks.
+        this.indexChunkRollingSize = this.getAttributeIndexConfig().getAttributeSegmentRollingPolicy().getMaxLength();
+        Preconditions.checkState(this.indexChunkRollingSize > 0);
 
         // STEP 1: Get all the segment chunks related to the main Segment in order.
         File[] potentialFiles = new File(tableSegmentDataChunksPath).listFiles();
@@ -116,6 +120,7 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
                     || (unprocessedBytesFromLastChunk == 0 && partialEntryFromLastChunk == null));
             ByteArraySegment chunkData = new ByteArraySegment(getBytesToProcess(partialEntryFromLastChunk, f));
             List<TableSegmentOperation> tableSegmentOperations = new ArrayList<>();
+            output("Start scanning file: " + f.getName());
             unprocessedBytesFromLastChunk = scanAllEntriesInTableSegmentChunks(chunkData, tableSegmentOperations);
             partialEntryFromLastChunk = unprocessedBytesFromLastChunk > 0 ?
                     chunkData.getReader(chunkData.getLength() - unprocessedBytesFromLastChunk, unprocessedBytesFromLastChunk).readAllBytes() : null;
@@ -126,6 +131,7 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
 
         // STEP 5: Make sure that we flush all the data to Storage before closing the Pravega instance.
         flushDataToStorage();
+        output("Command correctly executed.");
 
         // Close resources.
         ExecutorServiceHelpers.shutdown(this.executor);
@@ -161,7 +167,7 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
                 .setEndpoint("localhost")
                 .setPort(this.pravegaRunner.getSegmentStoreRunner().getServicePort())
                 .build();
-        segmentHelper.createTableSegment(tableSegment, "", 0, false, 0, DEFAULT_ROLLOVER_SIZE, nodeUri).join();
+        segmentHelper.createTableSegment(tableSegment, "", 0, false, 0, this.indexChunkRollingSize, nodeUri).join();
         PravegaNodeUri pravegaNodeUri = new PravegaNodeUri("localhost", this.pravegaRunner.getSegmentStoreRunner().getServicePort());
         for (TableSegmentOperation operation : tableSegmentOperations) {
             if (operation instanceof PutOperation) {

@@ -83,6 +83,7 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
+import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 
 import java.io.PrintStream;
@@ -168,6 +169,13 @@ public abstract class AdminCommand {
      */
     protected CLIConfig getCLIControllerConfig() {
         return getCommandArgs().getState().getConfigBuilder().build().getConfig(CLIConfig::builder);
+    }
+
+    /**
+     * Creates a new instance of the AttributeIndexConfig class from the shared AdminCommandState passed in via the Constructor.
+     */
+    protected AttributeIndexConfig getAttributeIndexConfig() {
+        return getCommandArgs().getState().getConfigBuilder().build().getConfig(AttributeIndexConfig::builder);
     }
 
     /**
