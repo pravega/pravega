@@ -504,6 +504,7 @@ project ('bindings') {
         implementation group: 'com.google.inject.extensions', name: 'guice-assistedinject', version: guiceVersion
         implementation group: 'com.google.inject.extensions', name: 'guice-servlet', version: guiceVersion
         implementation group: 'com.google.inject', name: 'guice', version: guiceVersion
+        implementation group: 'com.google.cloud', name: 'google-cloud-storage', version: gcpSdkVersion
 
         compile project(':common')
         compile project(':segmentstore:storage')
