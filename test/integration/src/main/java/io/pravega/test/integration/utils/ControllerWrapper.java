@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.test.integration.demo;
+package io.pravega.test.integration.utils;
 
 import io.pravega.shared.NameUtils;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
@@ -213,23 +213,12 @@ public class ControllerWrapper implements AutoCloseable {
         controllerServiceMain.startAsync();
     }
 
-
-    public boolean awaitTasksModuleInitialization(long timeout, TimeUnit timeUnit) {
-        return Exceptions.handleInterruptedCall(() -> {
-            return this.controllerServiceMain.awaitServiceStarting().awaitTasksModuleInitialization(timeout, timeUnit);
-        });
-    }
-
     public ControllerService getControllerService() {
-        return Exceptions.handleInterruptedCall(() -> {
-            return this.controllerServiceMain.awaitServiceStarting().getControllerService();
-        });
+        return Exceptions.handleInterruptedCall(() -> this.controllerServiceMain.awaitServiceStarting().getControllerService());
     }
 
     public Controller getController() {
-        return Exceptions.handleInterruptedCall(() -> {
-            return this.controllerServiceMain.awaitServiceStarting().getController();
-        });
+        return Exceptions.handleInterruptedCall(() -> this.controllerServiceMain.awaitServiceStarting().getController());
     }
 
     @SneakyThrows

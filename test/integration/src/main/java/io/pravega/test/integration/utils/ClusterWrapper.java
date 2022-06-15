@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.test.integration.demo;
+package io.pravega.test.integration.utils;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;

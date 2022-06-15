@@ -118,6 +118,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
      */
     @Override
     public CompletableFuture<Void> execute(CommitEvent event) {
+        Timer timer = new Timer();
         String scope = event.getScope();
         String stream = event.getStream();
         long requestId = streamMetadataTasks.getRequestId(null);
@@ -148,6 +149,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                         if (r >= 0) {
                             log.info(requestId, "Successfully committed transactions on epoch {} on stream {}/{}", r, 
                                     scope, stream);
+                            TransactionMetrics.getInstance().controllerEventProcessorCommitTransactionLatency(timer.getElapsed());
                         } else {
                             log.info(requestId, "No transactions found in committing state on stream {}/{}",
                                     scope, stream);
