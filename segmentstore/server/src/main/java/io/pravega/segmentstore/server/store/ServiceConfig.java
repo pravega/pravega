@@ -70,7 +70,7 @@ public class ServiceConfig {
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY, "dataLogImplementation");
     public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS.name(), "storageImplementation");
-    public static final Property<StorageLayoutType> STORAGE_LAYOUT = Property.named("storage.layout", StorageLayoutType.ROLLING_STORAGE);
+    public static final Property<StorageLayoutType> STORAGE_LAYOUT = Property.named("storage.layout", StorageLayoutType.CHUNKED_STORAGE);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnly.enable", false, "readOnlySegmentStore");
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cache.size.max", 4L * 1024 * 1024 * 1024, "cacheMaxSize");
     public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cache.utilization.percent.target", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION), "cacheTargetUtilizationPercent");

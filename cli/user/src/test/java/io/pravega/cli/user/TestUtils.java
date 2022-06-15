@@ -17,7 +17,7 @@ package io.pravega.cli.user;
 
 import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.integration.demo.ClusterWrapper;
+import io.pravega.test.integration.utils.ClusterWrapper;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
