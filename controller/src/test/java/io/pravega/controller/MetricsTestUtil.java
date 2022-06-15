@@ -48,8 +48,8 @@ public class MetricsTestUtil {
 
     /**
      * Get time in milliseconds.
-     * @param timerName     The timerName.
-     * @return              The time in millis.
+     * @param timerName    The timerName.
+     * @return             The time in millis.
      */
     public static long getTimerMillis(String timerName) {
         val timer = MetricRegistryUtils.getTimer(timerName);
