@@ -19,8 +19,10 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -67,6 +69,7 @@ public class AutoScaleTask {
     }
 
     public CompletableFuture<Void> execute(final AutoScaleEvent request) {
+        Timer timer = new Timer();
         if (!(request.getTimestamp() + REQUEST_VALIDITY_PERIOD > System.currentTimeMillis())) {
             // request no longer valid. Ignore.
             // log, because a request was fetched from the stream after its validity expired.
@@ -88,9 +91,11 @@ public class AutoScaleTask {
                     .thenApply(StreamConfiguration::getScalingPolicy);
 
             if (request.getDirection() == AutoScaleEvent.UP) {
-                return policyFuture.thenComposeAsync(policy -> processScaleUp(request, policy, context), executor);
+                return policyFuture.thenComposeAsync(policy -> processScaleUp(request, policy, context)
+                        .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorAutoScaleStreamEvent(timer.getElapsed())), executor);
             } else {
-                return policyFuture.thenComposeAsync(policy -> processScaleDown(request, policy, context), executor);
+                return policyFuture.thenComposeAsync(policy -> processScaleDown(request, policy, context)
+                        .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorAutoScaleStreamEvent(timer.getElapsed())), executor);
             }
         }, executor);
     }

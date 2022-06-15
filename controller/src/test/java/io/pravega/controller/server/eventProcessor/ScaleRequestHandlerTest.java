@@ -55,12 +55,15 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.controller.MetricsTestUtil;
+import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 
@@ -80,6 +83,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -124,6 +128,7 @@ public abstract class ScaleRequestHandlerTest {
     private ConnectionFactory connectionFactory;
 
     private RequestTracker requestTracker = new RequestTracker(true);
+    private StatsProvider statsProvider = null;
 
     @Before
     public void setup() throws Exception {
@@ -177,6 +182,9 @@ public abstract class ScaleRequestHandlerTest {
         streamStore.startUpdateConfiguration(scope, stream, config, null, executor).join();
         VersionedMetadata<StreamConfigurationRecord> configRecord = streamStore.getConfigurationRecord(scope, stream, null, executor).join();
         streamStore.completeUpdateConfiguration(scope, stream, configRecord, null, executor).join();
+
+        statsProvider = MetricsTestUtil.getInitializedStatsProvider();
+        statsProvider.startWithoutExporting();
     }
 
     @After
@@ -191,6 +199,10 @@ public abstract class ScaleRequestHandlerTest {
         StreamMetrics.reset();
         TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
+        if (this.statsProvider != null) {
+            statsProvider.close();
+            statsProvider = null;
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -290,6 +302,7 @@ public abstract class ScaleRequestHandlerTest {
         assertTrue(activeSegments.size() == 3);
 
         assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID(), 11L), () -> false)));
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_AUTO_SCALE_STREAM_LATENCY) > 0);
     }
 
     @Test(timeout = 30000)
