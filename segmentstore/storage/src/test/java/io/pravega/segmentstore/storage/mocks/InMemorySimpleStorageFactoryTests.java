@@ -94,8 +94,8 @@ public class InMemorySimpleStorageFactoryTests {
         val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
         @Cleanup
         val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
-
-        Assert.assertEquals(s1.getChunkStorage(), s2.getChunkStorage());
+        Assert.assertNotEquals("Storage should not be equal", s1, s2);
+        Assert.assertEquals("ChunkStorage should be equal", s1.getChunkStorage(), s2.getChunkStorage());
     }
 
     @Test
@@ -108,8 +108,8 @@ public class InMemorySimpleStorageFactoryTests {
         val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
         @Cleanup
         val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
-
-        Assert.assertNotEquals(s1.getChunkStorage(), s2.getChunkStorage());
+        Assert.assertNotEquals("Storage should not be equal", s1, s2);
+        Assert.assertNotEquals("ChunkStorage should not be equal", s1.getChunkStorage(), s2.getChunkStorage());
     }
 
     @Test
