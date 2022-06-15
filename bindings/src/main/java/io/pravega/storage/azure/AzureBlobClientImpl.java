@@ -37,14 +37,11 @@ public class AzureBlobClientImpl implements AzureClient {
 
     public AzureBlobClientImpl(AzureStorageConfig config) {
         this.config = config;
-        String endpoint = "https://ajadhav9.blob.core.windows.net";
-        String connectionString = "DefaultEndpointsProtocol=https;AccountName=ajadhav9;AccountKey=0DuaCG/7yEpHQCE7lS/hkxHtQa1oqg2E7NSXSLCPGjTvBrGHDdn8zxiYaA1iPn84ntErNXX0AMYB+AStK7xMCA==;EndpointSuffix=core.windows.net";
-        String containerName = "test1" + System.currentTimeMillis();
         BlobServiceClient storageClient = new BlobServiceClientBuilder()
-                .endpoint(endpoint)
-                .credential(StorageSharedKeyCredential.fromConnectionString(connectionString))
+                .endpoint(config.getEndpoint())
+                .credential(StorageSharedKeyCredential.fromConnectionString(config.getConnectionString()))
                 .buildClient();
-        this.blobContainerClient = storageClient.getBlobContainerClient(containerName);
+        this.blobContainerClient = storageClient.getBlobContainerClient(config.getContainerName());
         //Only for tests.
         blobContainerClient.create();
     }

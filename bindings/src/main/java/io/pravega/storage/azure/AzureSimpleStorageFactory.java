@@ -90,9 +90,9 @@ public class AzureSimpleStorageFactory implements SimpleStorageFactory {
 
 
 
-//    private static void setSystemProperties(S3StorageConfig config) {
+    private static void setSystemProperties(AzureStorageConfig config) {
 //        System.setProperty(AWS_ACCESS_KEY_ID, config.getAccessKey());
 //        System.setProperty(AWS_SECRET_ACCESS_KEY, config.getSecretKey());
 //        System.setProperty(AWS_REGION, config.getRegion());
-//    }
+    }
 }

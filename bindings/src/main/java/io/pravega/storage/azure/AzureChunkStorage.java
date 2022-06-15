@@ -158,4 +158,8 @@ public class AzureChunkStorage extends BaseChunkStorage {
 //        }
         return retValue;
     }
+
+    private String getObjectPath(String objectName) {
+        return config.getPrefix() + objectName;
+    }
 }

@@ -43,15 +43,14 @@ public class AzureTestContext {
             this.configUri = "https://localhost";
             String bucketName = "test-bucket";
             String prefix = BUCKET_NAME_PREFIX + UUID.randomUUID();
-            this.adapterConfig = AzureStorageConfig.builder().build();
-            azureClient = new AzureBlobClientImpl(adapterConfig);
-//            this.adapterConfig = S3StorageConfig.builder()
-//                    .with(S3StorageConfig.CONFIGURI, configUri)
+            this.adapterConfig = AzureStorageConfig.builder()
+                    .with(AzureStorageConfig.CONTAINER, "test1" + System.currentTimeMillis())
 //                    .with(S3StorageConfig.BUCKET, bucketName)
 //                    .with(S3StorageConfig.PREFIX, prefix)
 //                    .with(S3StorageConfig.ACCESS_KEY, "access")
 //                    .with(S3StorageConfig.SECRET_KEY, "secret")
-//                    .build();
+                    .build();
+            azureClient = new AzureBlobClientImpl(adapterConfig);
 //            s3Mock = new S3Mock();
 //            s3Client = new S3ClientMock(this.s3Mock);
         } catch (Exception e) {

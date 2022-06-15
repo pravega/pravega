@@ -30,13 +30,13 @@ public class AzureStorageFactoryCreator implements StorageFactoryCreator {
         Preconditions.checkNotNull(setup, "setup");
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkArgument(storageFactoryInfo.getName().equals("Azure"));
-//        if (storageFactoryInfo.getStorageLayoutType().equals(StorageLayoutType.CHUNKED_STORAGE)) {
-//            return new AzureSimpleStorageFactory(setup.getConfig(ChunkedSegmentStorageConfig::builder),
-////                    setup.getConfig(AzureStorageConfig::builder),
-//                    executor);
-//        } else {
+        if (storageFactoryInfo.getStorageLayoutType().equals(StorageLayoutType.CHUNKED_STORAGE)) {
+            return new AzureSimpleStorageFactory(setup.getConfig(ChunkedSegmentStorageConfig::builder),
+                    setup.getConfig(AzureStorageConfig::builder),
+                    executor);
+        } else {
             throw new UnsupportedOperationException("S3StorageFactoryCreator only supports CHUNKED_STORAGE.");
-//        }
+        }
     }
 
     @Override
