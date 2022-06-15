@@ -23,9 +23,16 @@ import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import lombok.val;
 
+/**
+ * A Utility class having metrics related helping methods.
+ */
 public class MetricsTestUtil {
 
-    public static  StatsProvider getInitialisedStatsProvider() {
+    /**
+     * Initialize MetricsConfig.
+     * @return  StatsProvider.
+     */
+    public static  StatsProvider getInitializedStatsProvider() {
         //Start Metrics service
         StatsProvider statsProvider = null;
         MetricsConfig metricsConfig = MetricsConfig.builder()
@@ -39,10 +46,13 @@ public class MetricsTestUtil {
         return statsProvider;
     }
 
+    /**
+     * Get time in milliseconds.
+     * @param timerName     The timerName.
+     * @return              The time in millis.
+     */
     public static long getTimerMillis(String timerName) {
         val timer = MetricRegistryUtils.getTimer(timerName);
         return (long) timer.totalTime(TimeUnit.MILLISECONDS);
     }
-
-
 }

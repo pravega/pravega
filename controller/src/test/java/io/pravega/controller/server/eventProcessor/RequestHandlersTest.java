@@ -147,7 +147,7 @@ public abstract class RequestHandlersTest {
     private EventStreamClientFactory clientFactory;
     private ConnectionFactory connectionFactory;
     private SegmentHelper segmentHelper;
-    private StatsProvider statsProvider = null;
+    private StatsProvider statsProvider;
     @Before
     public void setup() throws Exception {
         StreamMetrics.initialize();
@@ -195,7 +195,7 @@ public abstract class RequestHandlersTest {
         // create a stream
         streamStore.createScope(scope, null, executor).get();
 
-        statsProvider = MetricsTestUtil.getInitialisedStatsProvider();
+        statsProvider = MetricsTestUtil.getInitializedStatsProvider();
         statsProvider.startWithoutExporting();
 
     }

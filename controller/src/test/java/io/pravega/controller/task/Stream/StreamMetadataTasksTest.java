@@ -272,7 +272,7 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.createStream(SCOPE, stream3, configuration1, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
 
-        statsProvider = MetricsTestUtil.getInitialisedStatsProvider();
+        statsProvider = MetricsTestUtil.getInitializedStatsProvider();
         statsProvider.startWithoutExporting();
     }
 

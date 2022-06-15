@@ -100,7 +100,7 @@ public abstract class TableMetadataTasksTest {
                                                             new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
                                                             this.kvtStore, executor);
 
-        statsProvider = MetricsTestUtil.getInitialisedStatsProvider();
+        statsProvider = MetricsTestUtil.getInitializedStatsProvider();
         statsProvider.startWithoutExporting();
     }
 

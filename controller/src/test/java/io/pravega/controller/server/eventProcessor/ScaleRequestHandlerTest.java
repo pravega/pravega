@@ -183,7 +183,7 @@ public abstract class ScaleRequestHandlerTest {
         VersionedMetadata<StreamConfigurationRecord> configRecord = streamStore.getConfigurationRecord(scope, stream, null, executor).join();
         streamStore.completeUpdateConfiguration(scope, stream, configRecord, null, executor).join();
 
-        statsProvider = MetricsTestUtil.getInitialisedStatsProvider();
+        statsProvider = MetricsTestUtil.getInitializedStatsProvider();
         statsProvider.startWithoutExporting();
     }
 
