@@ -50,7 +50,7 @@ import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Arrays;

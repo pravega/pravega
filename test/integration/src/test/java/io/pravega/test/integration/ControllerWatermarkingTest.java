@@ -42,7 +42,7 @@ import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map.Entry;
