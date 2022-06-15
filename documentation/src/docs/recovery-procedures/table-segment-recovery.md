@@ -30,18 +30,29 @@ Caused by: io.pravega.common.util.IllegalDataFormatException: [AttributeIndex[3-
 ```
 The original issue filed can be found [here](https://github.com/pravega/pravega/issues/6712)
 
-The Attribute Index Segment is basically a BTree Index of the data (key/value pair) that goes in its associated main Table Segment. It is internally a B+Tree (existing on Pravega Segment), and is organized as as set of Pages written to storage (see this [blog post](https://cncf.pravega.io/blog/2019/11/21/segment-attributes) here). Each Page can be an index Page or leaf Page (holding data entries) having tree nodes. Each write of Pages to Storage ends with a footer, which is a pointer to the latest location of the root node in the tree. The above error indicates that the footer for the last write of Pages to Storage has been corrupted, as it contains inconsistent information. The issue having happened so, indicates some kind of corruption in the underlying Attribute Index Segment.
+The Attribute Index Segment is basically a BTree Index of the data (key/value pair) that goes in its associated main Table Segment. 
+It is internally a B+Tree (existing on Pravega Segment), and is organized as as set of Pages written to storage (see this [blog post](https://cncf.pravega.io/blog/2019/11/21/segment-attributes) here). 
+Each Page can be an index Page or leaf Page (holding data entries) having tree nodes. Each write of Pages to Storage ends with a footer, which is a pointer to the latest location of the root node in the tree. 
+The above error indicates that the footer for the last write of Pages to Storage has been corrupted, as it contains inconsistent information. 
+The issue having happened so, indicates some kind of corruption in the underlying Attribute Index Segment.
 
 
 # Repair Procedure
 
-The repair procedure aims at recovering Pravega from such a situation. Here is what the recovery procedure aims to do. Recall that the corruption that we see occurs at the Attribute Index Segment level, which is just an index built by Pravega in the background of the data that exists in the associated primary Table Segment. This index helps associate "keys" with "offsets" in the primary Table Segment where "values" actually reside. The main assumption of this recovery procedure is this primary Table Segment is perfectly fine and the corruption happens only at the index level.
+The repair procedure aims at recovering Pravega from such a situation. Here is what the recovery procedure aims to do. 
+Recall that the corruption that we see occurs at the Attribute Index Segment level, which is just an index built by Pravega in the background of the data that exists in the associated primary Table Segment. 
+This index helps associate "keys" with "offsets" in the primary Table Segment where "values" actually reside. The main assumption of this recovery procedure is this primary Table Segment is perfectly fine and the corruption happens only at the index level.
 
-In a nutshell, the recovery procedure of a Table Segment Attribute Index involves re-reading the key/value pairs in the primary Table Segment and feeding them to a local in-process Pravega cluster. Doing so would result in an Table Segment Attribute Index generated in the storage directory of that local in-process Pravega cluster. To do so, we need to collect, for the corrupted Table Segment Attribute Index, all the primary chunks from the Pravega cluster to repair. Then, we use the Admin CLI `dataRecovery tableSegment-recovery` command (see [#6753](https://github.com/pravega/pravega/pull/6753)) to re-create locally the new Table Segment Attribute Index. Finally, we need to replace the newly generated Table Segment Attribute Index by the corrupted one in the Pravega cluster to repair.
+In a nutshell, the recovery procedure of a Table Segment Attribute Index involves re-reading the key/value pairs in the primary Table Segment and feeding them to a local in-process Pravega cluster. 
+Doing so would result in an Table Segment Attribute Index generated in the storage directory of that local in-process Pravega cluster. 
+To do so, we need to collect, for the corrupted Table Segment Attribute Index, all the primary chunks from the Pravega cluster to repair. 
+Then, we use the Admin CLI `dataRecovery tableSegment-recovery` command (see [#6753](https://github.com/pravega/pravega/pull/6753)) to re-create locally the new Table Segment Attribute Index. 
+Finally, we need to replace the newly generated Table Segment Attribute Index by the corrupted one in the Pravega cluster to repair.
 
-In the next section, we look at the detailed set of steps about carrying out the procedure. Also please note that the below described procedure assumes the use of "File System" as Tier-2 storage. Other storage interfaces used in place of "File System" as Tier-2 storage, would only differ in the way we would access the resources (like objects in case of Dell EMC ECS) and not the actual steps.
+In the next section, we look at the detailed set of steps about carrying out the procedure. 
+Also please note that the below described procedure assumes the use of "File System" as Tier-2 storage. Other storage interfaces used in place of "File System" as Tier-2 storage, would only differ in the way we would access the resources (like objects in case of Dell EMC ECS) and not the actual steps.
 
-# Detailed Steps
+## Detailed Steps
 
 1) From the error, first determine the Table Segment name:-
     ```
@@ -59,7 +70,7 @@ In the next section, we look at the detailed set of steps about carrying out the
 2) Go to the Tier-2 directory having the Segment chunks. Usually the root of this directory is `/mnt/tier-2`. And many Table Segment Chunks can be found under `/mnt/tier2/_system/_tables`.
 
 
-3) Copy over the main Table Segment Chunks to a directory of your choice.
+3) Copy over the main Table Segment Chunks to a directory of your choice as described below:
 
     Here is an example of a listing of the said directory.
 
@@ -78,12 +89,44 @@ In the next section, we look at the detailed set of steps about carrying out the
     -rw-r--r--  1 root root 2241876 Jun  3 04:41  completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad
     ```
 
-    Lets say the affected Table Segment name that you find out from step 1 is "completedTransactionsBatch-0". One would copy over the chunks of this Segment (note that they are main Table Segment chunks and they do not have 
-    "attributes.index" string in their name). So one would copy over `completedTransactionsBatch-0.E-1-O-0.b29fcb2f-e71f-4971-bc43-5c0a801c35e7`, 
-    `completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9` and `completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad` to a directory of your choice.
+    Lets say the affected Table Segment name that you find out from step 1 is "completedTransactionsBatch-0".
+    To find out which chunks of this main Table Segment are to be copied, one can run the below commands to determine the active chunks:-
+
+    ```
+         1) Set the Serializer to `slts`:
+            table-segment set-serializer slts      
+         
+         2) Run the `table-segment get` command:
+            table-segment get _system/containers/storage_metadata_<container_id> <table segment name> <IP of SegmentStore owning the container>
+   
+            Example:
+            > table-segment get _system/containers/storage_metadata_3 _system/_tables/completedTransactionsBatch-0 127.0.1.1
+            For the given key: _system/_tables/completedTransactionsBatch-0
+            SLTS metadata info:
+            key = _system/_tables/completedTransactionsBatch-0;
+            version = 1654145042472;
+            metadataType = SegmentMetadata;
+            name = _system/_tables/completedTransactionsBatch-0;
+            length = 1342135;
+            chunkCount = 2;
+            startOffset = 341331;
+            status = 1;
+            maxRollingLength = 16777216;
+            firstChunk = _system/_tables/completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9;
+            lastChunk = _system/_tables/completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad;
+            lastModified = 0;
+            firstChunkStartOffset = 331331;
+            lastChunkStartOffset = 1318135;
+            ownerEpoch = 1;
+    ```
+   One can see from the output above, that this main Table Segment has two chunks (chunkCount = 2). One can know what is the starting chunk from `firstChunk` and the ending chunk from `lastChunk`. 
+   Any chunks that fall in between can be determined from the epoch numbers (for example the epoch in `_system/_tables/completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9` is the digit after the letter E which is `2`) 
+   and the start offset numbers (for example in `_system/_tables/completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9` the start offset is `331331`). These numbers would be in the range of the `firstChunk` and `lastChunk`.
+   In this specific case the `_system/_tables/completedTransactionsBatch-0.E-2-O-331331.71afe323-ae99-4f3d-a1f0-af4db475fef9` and `_system/_tables/completedTransactionsBatch-0.E-5-O-1318135.8c0d3e40-bea7-4fbe-96ca-ac76c80283ad` are the two chunks 
+   that form the main Table Segment and those are the two chunks we would be copying over to a directory of our choice.
 
 
-4) Start the Pravega Admin CLI (assuming its configured correctly to run. See [docs](https://github.com/pravega/pravega/blob/master/cli/admin/README.md)) and enter the below command.
+4) Start the Pravega Admin CLI (assuming its configured correctly to run, as appears in the [docs](https://github.com/pravega/pravega/blob/master/cli/admin/README.md)) and enter the below command.
 
     ```
       data-recovery tableSegment-recovery <directory_where_you_copied to in step 3> <Table Segment name> <directory where you want to copy the output chunks to>
