@@ -274,7 +274,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
 
     private Predicate<OperationInspectInfo> valueOrRangeInput(String conditionTpe) {
         List<Predicate<OperationInspectInfo>> predicates = new ArrayList<>();
-        Predicate<OperationInspectInfo> predicate = a -> a.equals(a);
+        Predicate<OperationInspectInfo> predicate = null;
         String clause = "and";
         boolean finish = false, next = false;
         while (!finish) {
