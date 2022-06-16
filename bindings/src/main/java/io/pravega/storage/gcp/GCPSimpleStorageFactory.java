@@ -32,7 +32,7 @@ import java.util.Date;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Factory for S3 {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link GCPChunkStorage}.
+ * Factory for GCP {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link GCPChunkStorage}.
  */
 @RequiredArgsConstructor
 public class GCPSimpleStorageFactory implements SimpleStorageFactory {
@@ -71,8 +71,8 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
 
     @Override
     public ChunkStorage createChunkStorage() {
-        StorageOptions storageOptions = createStorageOptions(this.config);
-        return new GCPChunkStorage(storageOptions, this.config, this.executor, true);
+        com.google.cloud.storage.Storage storage = createStorageOptions(this.config).getService();
+        return new GCPChunkStorage(storage, this.config, this.executor, true);
     }
 
     /**

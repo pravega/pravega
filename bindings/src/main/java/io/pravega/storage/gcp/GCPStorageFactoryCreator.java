@@ -41,7 +41,7 @@ public class GCPStorageFactoryCreator implements StorageFactoryCreator {
     public StorageFactoryInfo[] getStorageFactories() {
         return new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
-                        .name("S3")
+                        .name("GCP")
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build()
         };

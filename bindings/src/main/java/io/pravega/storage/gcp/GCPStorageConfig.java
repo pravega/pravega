@@ -25,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.regions.Region;
 
 /**
- * Configuration for the ExtendedS3 Storage component.
+ * Configuration for the GCP Storage component.
  */
 @Slf4j
 public class GCPStorageConfig {
@@ -48,25 +48,25 @@ public class GCPStorageConfig {
     //region Members
 
     /**
-     *  The S3 complete client config of the S3 REST interface
+     *  The GCP complete client config of the GCP REST interface
      */
     @Getter
-    private final String s3Config;
+    private final String gcpConfig;
 
     /**
-     *  The S3 region to use
+     *  The GCP region to use
      */
     @Getter
     private final String region;
 
     /**
-     *  The S3 access key id - this is equivalent to the user
+     *  The GCP access key id - this is equivalent to the user
      */
     @Getter
     private final String accessKey;
 
     /**
-     *  The S3 secret key associated with the accessKey
+     *  The GCP secret key associated with the accessKey
      */
     @Getter
     private final String secretKey;
@@ -78,7 +78,7 @@ public class GCPStorageConfig {
     private final String bucket;
 
     /**
-     * Prefix of the Pravega owned S3 path under the assigned buckets. All the objects under this path will be
+     * Prefix of the Pravega owned GCP path under the assigned buckets. All the objects under this path will be
      * exclusively owned by Pravega.
      */
     @Getter
@@ -113,13 +113,13 @@ public class GCPStorageConfig {
     //region Constructor
 
     /**
-     * Creates a new instance of the S3StorageConfigConfig class.
+     * Creates a new instance of the GCPStorageConfigConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
      */
     private GCPStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.shouldOverrideUri = properties.getBoolean(OVERRIDE_CONFIGURI);
-        this.s3Config = Preconditions.checkNotNull(properties.get(CONFIGURI), "configUri");
+        this.gcpConfig = Preconditions.checkNotNull(properties.get(CONFIGURI), "configUri");
         this.region = Preconditions.checkNotNull(properties.get(REGION), "region");
         this.accessKey = Preconditions.checkNotNull(properties.get(ACCESS_KEY), "accessKey");
         this.secretKey = Preconditions.checkNotNull(properties.get(SECRET_KEY), "secretKey");

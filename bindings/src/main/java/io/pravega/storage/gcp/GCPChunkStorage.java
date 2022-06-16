@@ -52,17 +52,17 @@ public class GCPChunkStorage extends BaseChunkStorage {
 
     //region members
     private final GCPStorageConfig config;
-    private final StorageOptions storageOptions;
+    private final Storage storage;
     private final boolean shouldCloseClient;
     private final AtomicBoolean closed;
 
     //endregion
 
     //region constructor
-    public GCPChunkStorage(StorageOptions storageOptions, GCPStorageConfig config, Executor executor, boolean shouldCloseClient) {
+    public GCPChunkStorage(Storage storage, GCPStorageConfig config, Executor executor, boolean shouldCloseClient) {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
-        this.storageOptions = Preconditions.checkNotNull(storageOptions, "client");
+        this.storage = Preconditions.checkNotNull(storage, "client");
         this.closed = new AtomicBoolean(false);
         this.shouldCloseClient = shouldCloseClient;
     }
@@ -108,7 +108,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
 
     @Override
     protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException {
-        try (ReadChannel readChannel = this.storageOptions.getService().reader(this.config.getBucket(), getObjectPath(handle.getChunkName()))) {
+        try (ReadChannel readChannel = this.storage.reader(this.config.getBucket(), getObjectPath(handle.getChunkName()))) {
             try {
                 readChannel.seek(fromOffset);
                 readChannel.setChunkSize(length);
@@ -132,22 +132,16 @@ public class GCPChunkStorage extends BaseChunkStorage {
 
     @Override
     protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) {
-        // read only bucket
-        // 1 hr retention period
-        Long retentionPeriod = 60 * 60L;
-        BucketInfo bucketInfo = BucketInfo.newBuilder(this.config.getBucket()).setRetentionPeriod(retentionPeriod).build();
-        this.storageOptions.getService().update(bucketInfo);
-
         // read only object
         // During object holds you can not delete or replace the object, but you can update metadata.
         BlobId blobId = BlobId.of(this.config.getBucket(), getObjectPath(handle.getChunkName()));
-        this.storageOptions.getService().update(BlobInfo.newBuilder(blobId).setEventBasedHold(isReadOnly).build());
+        this.storage.update(BlobInfo.newBuilder(blobId).setEventBasedHold(isReadOnly).build());
     }
 
     @Override
     protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException {
         try {
-            Blob blob = this.storageOptions.getService().get(this.config.getBucket(), chunkName, Storage.BlobGetOption.fields(Storage.BlobField.SIZE));
+            Blob blob = this.storage.get(this.config.getBucket(), chunkName, Storage.BlobGetOption.fields(Storage.BlobField.SIZE));
             return ChunkInfo.builder()
                     .name(chunkName)
                     .length(blob.getSize())
@@ -169,7 +163,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
         byte[] bytes;
         try (InputStream inputStream = data){
             bytes = inputStream.readAllBytes();
-            this.storageOptions.getService().create(blobInfo, bytes);
+            this.storage.create(blobInfo, bytes);
             return ChunkHandle.writeHandle(chunkName);
         } catch (IOException e) {
             throw convertException(chunkName, "doCreateWithContent", e);
@@ -178,14 +172,14 @@ public class GCPChunkStorage extends BaseChunkStorage {
 
     @Override
     protected boolean checkExists(String chunkName) {
-        Page<Blob> blobs = this.storageOptions.getService().list(this.config.getBucket(), Storage.BlobListOption.prefix(getObjectPath(chunkName)), Storage.BlobListOption.pageSize(1));
+        Page<Blob> blobs = this.storage.list(this.config.getBucket(), Storage.BlobListOption.prefix(getObjectPath(chunkName)), Storage.BlobListOption.pageSize(1));
         return blobs.getValues().iterator().hasNext();
     }
 
     @Override
     protected void doDelete(ChunkHandle handle) throws ChunkStorageException {
         try {
-            this.storageOptions.getService().delete(this.config.getBucket(), getObjectPath(handle.getChunkName()));
+            this.storage.delete(this.config.getBucket(), getObjectPath(handle.getChunkName()));
         } catch (Exception e) {
             throw convertException(handle.getChunkName(), "doDelete", e);
         }
