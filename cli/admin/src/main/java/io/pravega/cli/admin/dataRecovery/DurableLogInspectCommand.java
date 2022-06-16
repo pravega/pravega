@@ -24,7 +24,6 @@ import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.logs.operations.OperationInspectInfo;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
@@ -43,7 +42,6 @@ import lombok.val;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -57,14 +55,22 @@ import static io.pravega.cli.admin.utils.FileHelper.createFileAndDirectory;
  * This command provides an administrator with the basic primitives to inspect a DurableLog.
  * The workflow of this command is as follows:
  * 1. Checks if the Original Log is disabled (exit otherwise).
- * 2. Reads the original damaged DurableLog and creates a backup copy of it for safety reasons.
+ * 2. Reads the original DurableLog
  * 3. User input for conditions to inspect.
  * 4. Result list is saved in a text file.
  */
 public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
 
-    private final static Duration TIMEOUT = Duration.ofSeconds(10);
-
+    private static final String SEQUENCE_NUMBER = "SequenceNumber";
+    private static final String SEGMENT_ID = "SegmentId";
+    private static final String OFFSET = "Offset";
+    private static final String LENGTH = "Length";
+    private static final String ATTRIBUTES = "Attributes";
+    private static final String LESS_THAN = "<";
+    private static final String GREATER_THAN = ">";
+    private static final String LESS_THAN_EQUAL_TO = "<=";
+    private static final String GREATER_THAN_EQUAL_TO = ">=";
+    private static final String NOT_EQUAL_TO = "!=";
     /**
      * Creates a new instance of the DurableLogInspectCommand class.
      *
@@ -91,17 +97,17 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         @Cleanup
         val originalDataLog = dataLogFactory.createDebugLogWrapper(containerId);
 
+        // Print the operations for the selected durableLog
         int durableLogReadOperations = readDurableDataLog( containerId, originalDataLog);
 
         output("Total reads original:" + durableLogReadOperations);
 
+        //Get user input
         Predicate<OperationInspectInfo> durableLogPredicates = getConditionTypeFromUser();
 
         durableLogReadOperations = filterResult(durableLogPredicates, containerId, originalDataLog);
-        // Show the edits to be committed to the original durable log so the user can confirm.
+        // Show the number of operations matched the user condition
         output("Total reads matching conditions :" + durableLogReadOperations);
-
-        // Output as per the predicates present
 
         output("Process completed successfully!!");
     }
@@ -109,7 +115,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
     protected int readDurableDataLog(int containerId, DebugDurableDataLogWrapper originalDataLog) throws Exception {
 
         int operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback((a, b) ->  {
-            output("Reading: " + getActualOperation(a));
+            output("Reading: " + a);
             }, containerId, originalDataLog.asReadOnly());
         return operationsReadFromOriginalLog;
     }
@@ -159,7 +165,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yy.HH-mm-ss");
         Date date = new Date();
         @Cleanup
-        FileWriter writer = new FileWriter(createFileAndDirectory("DurableLogInspectResult" + dateFormat.format(date)));
+        FileWriter writer = new FileWriter(createFileAndDirectory("/tmp/inspect/DurableLogInspectResult" + dateFormat.format(date)));
 
         readDurableDataLogWithCustomCallback((a, b) -> {
                     if (predicate.test(getActualOperation(a))) {
@@ -200,13 +206,12 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         val rp = DebugRecoveryProcessor.create(containerId, durableDataLog,
                 containerConfig, readIndexConfig, getCommandArgs().getState().getExecutor(), logReaderCallbacks, false);
         int operationsRead = rp.performRecovery();
-        //output("Number of operations read from DurableLog: " + operationsRead);
         return operationsRead;
     }
 
     /**
-     * Guides the users to a set of options for creating predicates that will eventually modify the
-     * contents of the Original Log.
+     * Guides the users to a set of options for creating predicates for printing
+     * operations of durable Log .
      *
      * @return List of predicates.
      */
@@ -218,59 +223,95 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         boolean next = false;
         String clause = "";
         while (!finishInputCommands) {
+            boolean showMessage = true;
             try {
                 if (next) {
                     clause = getStringUserInput("Select conditional operator: [and/or]");
                 }
-                final String operationTpe = getStringUserInput("Select condition type to display the output: [OperationType/SequenceNumber/SegmentId/Offset/Length/Attributes]");
-                switch (operationTpe) {
+                final String conditionTpe = getStringUserInput("Select condition type to display the output: [OperationType/SequenceNumber/SegmentId/Offset/Length/Attributes]");
+                switch (conditionTpe) {
                     case "OperationType":
                         String op = getStringUserInput("Enter valid operation type: [DeleteSegmentOperation|MergeSegmentOperation|MetadataCheckpointOperation|\" +\n" +
                                 " \"StorageMetadataCheckpointOperation|StreamSegmentAppendOperation|StreamSegmentMapOperation|\" +\n" +
                                 " \"StreamSegmentSealOperation|StreamSegmentTruncateOperation|UpdateAttributesOperation]");
                         predicates.add(a -> a.getOperationTypeString().equals(op));
                         break;
-                    case "SequenceNumber":
-                        long in = getLongUserInput("Valid Sequence Number: ");
-                        predicates.add( a -> a.getSequenceNumber() == in);
-                        break;
-                    case "SegmentId":
-                        in = getLongUserInput("Valid segmentId to search: ");
-                        predicates.add( a -> a.getSegmentId() == in);
-                        break;
-                    case "Offset":
-                        in = getLongUserInput("Valid offset to seach: ");
-                        predicates.add( a -> a.getOffset() == in);
-                        break;
-                    case "Length":
-                        in = getLongUserInput("Valid length to seach: ");
-                        predicates.add( a -> a.getCacheLength() == in);
-                        break;
-                    case "Attributes":
-                        in = getLongUserInput("Valid number of attributes to seach: ");
-                        predicates.add( a -> a.getAttributes() == in );
+                    case SEQUENCE_NUMBER:
+                    case SEGMENT_ID:
+                    case OFFSET:
+                    case LENGTH:
+                    case ATTRIBUTES:
+                        op = getStringUserInput("Search operation based on: [value/range]");
+                        if (op.equals("value")) {
+                            long in = getLongUserInput("Enter valid " + conditionTpe);
+                            predicates.add(a -> a.getSequenceNumber() == in);
+                        } else {
+                            predicates.add(valueOrRangeInput(conditionTpe));
+                        }
                         break;
                     default:
-                        output("Invalid operation, please select one of [delete|add|replace]");
+                        showMessage = false;
+                        output("Invalid operation, please select one of [OperationType/SequenceNumber/SegmentId/Offset/Length/Attributes]");
                 }
                 predicate = clause.equals("and") ?
                         predicates.stream().reduce(Predicate::and).orElse( x -> true) : predicates.stream().reduce(Predicate::or).orElse( x -> false);
             } catch (NumberFormatException ex) {
                 outputError("Wrong input argument.");
                 outputException(ex);
-            } catch (IllegalStateException ex) {
-                // Last input was incorrect, so remove it.
-                output("Last Log Inspect Operation did not pass the checks, removing it from list.");
-                //durableLogEdits.remove(durableLogEdits.size() - 1);
             } catch (Exception ex) {
                 outputError("Some problem has happened.");
                 outputException(ex);
             }
-            output("You can continue adding conditions for inspect.");
+            if (showMessage) {
+                output("You can continue adding conditions for inspect.");
+            }
             finishInputCommands = !confirmContinue();
             next = !finishInputCommands;
         }
         output("Value of predicates is : " + predicates);
+        return predicate;
+    }
+
+    private Predicate<OperationInspectInfo> valueOrRangeInput(String conditionTpe) {
+        List<Predicate<OperationInspectInfo>> predicates = new ArrayList<>();
+        Predicate<OperationInspectInfo> predicate = a -> a.equals(a);
+        String clause = "and";
+        boolean finish = false, next = false;
+        while (!finish) {
+            if (next) {
+                clause = getStringUserInput("Select conditional operator: [and/or]");
+            }
+            final String input = getStringUserInput("Select operator : [</>/<=/>=/!=]");
+            switch (input) {
+                case LESS_THAN:
+                    long in = getLongUserInput("Enter range " + conditionTpe);
+                    predicates.add(a -> a.getSequenceNumber() < in);
+                    break;
+                case GREATER_THAN:
+                    in = getLongUserInput("Enter range " + conditionTpe);
+                    predicates.add(a -> a.getSequenceNumber() > in);
+                    break;
+                case LESS_THAN_EQUAL_TO:
+                     in = getLongUserInput("Enter range " + conditionTpe);
+                    predicates.add(a -> a.getSequenceNumber() <= in);
+                    break;
+                case GREATER_THAN_EQUAL_TO:
+                    in = getLongUserInput("Enter range " + conditionTpe);
+                    predicates.add(a -> a.getSequenceNumber() >= in);
+                    break;
+                case NOT_EQUAL_TO:
+                    in = getLongUserInput("Enter range " + conditionTpe);
+                    predicates.add(a -> a.getSequenceNumber() != in);
+                    break;
+                default:
+                    output("Invalid input please select valid operator : [</>/<=/>=/!=]");
+            }
+            predicate = clause.equals("and") ?
+                    predicates.stream().reduce(Predicate::and).orElse( x -> true) : predicates.stream().reduce(Predicate::or).orElse( x -> false);
+            output("You can continue adding range operators for inspect.");
+            finish = !confirmContinue();
+            next = !finish;
+        }
         return predicate;
     }
 

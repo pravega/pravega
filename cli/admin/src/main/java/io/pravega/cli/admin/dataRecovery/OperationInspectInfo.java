@@ -13,7 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.segmentstore.server.logs.operations;
+package io.pravega.cli.admin.dataRecovery;
+import io.pravega.segmentstore.server.logs.operations.Operation;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -21,11 +22,11 @@ import lombok.Setter;
 @Setter
 public class OperationInspectInfo extends Operation {
     public static final long DEFAULT_ABSENT_VALUE = Long.MIN_VALUE + 1;
-    private String operationTypeString;
-    private long length;
-    private long segmentId;
-    private long offset;
-    private long attributes;
+    private final String operationTypeString;
+    private final long length;
+    private final long segmentId;
+    private final long offset;
+    private final long attributes;
 
     public OperationInspectInfo(long sequenceNumber, String operationTypeString, long length, long segmentId, long offset, long attributes) {
         super();
