@@ -188,7 +188,7 @@ public class TestUtils {
 
     /**
      * Prepares a list of password auth handler user account database file entries. The
-     * {@link io.pravega.test.integration.demo.ClusterWrapper} accepts entries in the returned format.
+     * {@link ClusterWrapper} accepts entries in the returned format.
      *
      * @param entries ACLs by user
      * @param password the plaintext password for each user

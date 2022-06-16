@@ -17,7 +17,9 @@ package io.pravega.controller.server.eventProcessor.requesthandlers.kvtable;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.CreateKVTableResponse;
@@ -60,6 +62,7 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final CreateTableEvent request) {
+        Timer timer = new Timer();
         String scope = request.getScopeName();
         String kvt = request.getKvtName();
         int partitionCount = request.getPartitionCount();
@@ -116,7 +119,7 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                                             });
                                 }
                                 return CompletableFuture.completedFuture(null);
-                            }, executor);
+                            }, executor).thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorCreateTableEvent(timer.getElapsed()));
                 });
              }
                         }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
