@@ -872,10 +872,10 @@ project('cli:admin') {
         compile project(':shared:cluster')
         compile project(":shared:security")
         compile project(':test:testcommon')
+        compile project(':test:integration')
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        testCompile project(':test:integration')
         testCompile group: 'junit', name: 'junit', version: '4.12'
         testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion, classifier: 'tests'
         testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, classifier: 'tests'

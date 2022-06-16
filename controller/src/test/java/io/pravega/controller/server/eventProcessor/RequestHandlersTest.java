@@ -70,6 +70,8 @@ import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.controller.MetricsTestUtil;
+import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.DeleteScopeEvent;
@@ -78,6 +80,7 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -144,6 +147,7 @@ public abstract class RequestHandlersTest {
     private EventStreamClientFactory clientFactory;
     private ConnectionFactory connectionFactory;
     private SegmentHelper segmentHelper;
+    private StatsProvider statsProvider;
     @Before
     public void setup() throws Exception {
         StreamMetrics.initialize();
@@ -190,6 +194,10 @@ public abstract class RequestHandlersTest {
         // mock pravega
         // create a stream
         streamStore.createScope(scope, null, executor).get();
+
+        statsProvider = MetricsTestUtil.getInitializedStatsProvider();
+        statsProvider.startWithoutExporting();
+
     }
 
     abstract StreamMetadataStore getStore();
@@ -208,6 +216,10 @@ public abstract class RequestHandlersTest {
         StreamMetrics.reset();
         TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
+        if (this.statsProvider != null) {
+            statsProvider.close();
+            statsProvider = null;
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -936,6 +948,7 @@ public abstract class RequestHandlersTest {
         DeleteScopeEvent event = new DeleteScopeEvent(testScope, 123L, scopeId);
         CompletableFuture<Void> future = requestHandler.execute(event);
         future.join();
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY) > 0);
     }
 
     @Test

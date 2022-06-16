@@ -18,9 +18,11 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -61,6 +63,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final ScaleOpEvent request) {
+        Timer timer = new Timer();
         CompletableFuture<Void> result = new CompletableFuture<>();
 
         long requestId = request.getRequestId();
@@ -89,6 +92,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                     } else {
                         log.info(requestId, "scale request for {}/{} segments {} to new ranges {} completed successfully.",
                                 request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
+                        StreamMetrics.getInstance().controllerEventProcessorScaleStreamEvent(timer.getElapsed());
 
                         result.complete(null);
                     }

@@ -380,6 +380,17 @@ public class SegmentHelper implements AutoCloseable {
                                                       final long rolloverSizeBytes) {
 
         final Controller.NodeUri uri = getTableUri(tableName);
+        return createTableSegment(tableName, delegationToken, clientRequestId, sortedTableSegment, keyLength, rolloverSizeBytes, uri);
+    }
+
+    public CompletableFuture<Void> createTableSegment(final String tableName,
+                                                      String delegationToken,
+                                                      final long clientRequestId,
+                                                      final boolean sortedTableSegment,
+                                                      final int keyLength,
+                                                      final long rolloverSizeBytes,
+                                                      final Controller.NodeUri uri) {
+
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
 
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
@@ -527,6 +538,14 @@ public class SegmentHelper implements AutoCloseable {
                                                    String delegationToken,
                                                    final long clientRequestId) {
         final Controller.NodeUri uri = getTableUri(tableName);
+        return removeTableKeys(tableName, uri, keys, delegationToken, clientRequestId);
+    }
+
+    public CompletableFuture<Void> removeTableKeys(final String tableName,
+                                                   Controller.NodeUri uri,
+                                                   final List<TableSegmentKey> keys,
+                                                   String delegationToken,
+                                                   final long clientRequestId) {
         final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
         List<WireCommands.TableKey> keyList = keys.stream().map(x -> {
             WireCommands.TableKey key = convertToWireCommand(x);

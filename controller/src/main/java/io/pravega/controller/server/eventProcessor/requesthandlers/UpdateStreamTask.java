@@ -18,8 +18,10 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -74,6 +76,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
     @Override
     public CompletableFuture<Void> execute(final UpdateStreamEvent request) {
 
+        Timer timer = new Timer();
         String scope = request.getScope();
         String stream = request.getStream();
         long requestId = request.getRequestId();
@@ -101,7 +104,8 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                                         return CompletableFuture.completedFuture(null);
                                     }
                                 } else {
-                                    return processUpdate(scope, stream, versionedMetadata, versionedState, context, requestId);
+                                    return processUpdate(scope, stream, versionedMetadata, versionedState, context, requestId)
+                                            .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorUpdateStreamEvent(timer.getElapsed()));
                                 }
                             });
                 });

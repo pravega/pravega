@@ -59,7 +59,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;

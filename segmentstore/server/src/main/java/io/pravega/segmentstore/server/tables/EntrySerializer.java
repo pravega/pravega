@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
@@ -42,8 +43,10 @@ import lombok.val;
  * We can't use VersionedSerializer here because in most cases we need to read only key and not the value. VersionedSerializer
  * requires us to read the whole thing before retrieving anything.
  */
-class EntrySerializer {
-    static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
+@VisibleForTesting
+public class EntrySerializer {
+    @VisibleForTesting
+    public static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
     static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
     /**
      * Maximum size allowed for any single Table Segment Update (update or removal).
@@ -82,7 +85,8 @@ class EntrySerializer {
      * @param entries A Collection of {@link TableEntry} to serialize.
      * @return A {@link BufferView} representing the serialization of the given entries.
      */
-    BufferView serializeUpdate(@NonNull Collection<TableEntry> entries) {
+    @VisibleForTesting
+    public BufferView serializeUpdate(@NonNull Collection<TableEntry> entries) {
         return serializeUpdate(entries, e -> TableKey.NO_VERSION);
     }
 
@@ -138,7 +142,8 @@ class EntrySerializer {
      * @param keys A Collection of {@link TableKey} to serialize for removals.
      * @return A {@link BufferView} representing the serialization of the given keys.
      */
-    BufferView serializeRemoval(@NonNull Collection<TableKey> keys) {
+    @VisibleForTesting
+    public BufferView serializeRemoval(@NonNull Collection<TableKey> keys) {
         val builder = BufferView.builder(keys.size() * 2);
         keys.forEach(k -> serializeRemoval(k, builder::add));
         return builder.build();
@@ -164,7 +169,8 @@ class EntrySerializer {
      * @return The Entry Header.
      * @throws SerializationException If an invalid header was detected.
      */
-    Header readHeader(@NonNull BufferView.Reader input) throws SerializationException {
+    @VisibleForTesting
+    public Header readHeader(@NonNull BufferView.Reader input) throws SerializationException {
         byte version = input.readByte();
         int keyLength = input.readInt();
         int valueLength = input.readInt();
@@ -191,8 +197,9 @@ class EntrySerializer {
     /**
      * Defines a serialized Entry's Header.
      */
+    @VisibleForTesting
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    static class Header {
+    public static class Header {
         private final byte serializationVersion;
         @Getter
         private final int keyLength;
