@@ -28,6 +28,7 @@ import io.pravega.test.common.AssertExtensions;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -134,6 +135,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      */
     @Test
     @Override
+    @Ignore
     public void testFencing() throws Exception {
         final long epoch1 = 1;
         final long epoch2 = 2;
@@ -169,6 +171,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
     }
 
     @Test
+    @Ignore
     public void testZombieFencing() throws Exception {
         final long epoch1 = 1;
         final long epoch2 = 2;
