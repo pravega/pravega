@@ -17,11 +17,14 @@ package io.pravega.storage.gcp;
 
 import com.google.api.gax.paging.Page;
 import com.google.cloud.ReadChannel;
-import com.google.cloud.storage.*;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.spi.v1.StorageRpc;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.segmentstore.storage.chunklayer.*;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpStatus;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -30,7 +33,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * {@link ChunkStorage} for GCP based storage.
@@ -53,8 +55,6 @@ public class GCPChunkStorage extends BaseChunkStorage {
     //region members
     private final GCPStorageConfig config;
     private final Storage storage;
-    private final boolean shouldCloseClient;
-    private final AtomicBoolean closed;
 
     //endregion
 
@@ -63,8 +63,6 @@ public class GCPChunkStorage extends BaseChunkStorage {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.storage = Preconditions.checkNotNull(storage, "client");
-        this.closed = new AtomicBoolean(false);
-        this.shouldCloseClient = shouldCloseClient;
     }
     //endregion
 
@@ -72,7 +70,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
 
     @Override
     public boolean supportsConcat() {
-        return true;
+        return false;
     }
 
     @Override
@@ -108,11 +106,14 @@ public class GCPChunkStorage extends BaseChunkStorage {
 
     @Override
     protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException {
+
+        //Blob blob = this.storage.get(this.config.getBucket(), getObjectPath(chunkName), Storage.BlobGetOption.fields(Storage.BlobField.SIZE));
+        //try (ReadChannel readChannel = this.storage.reader(this.config.getBucket(), getObjectPath(handle.getChunkName()), new Storage.BlobSourceOption(StorageRpc.Option.START_OFF_SET, StorageRpc.Option.END_OFF_SET.value()))) {
         try (ReadChannel readChannel = this.storage.reader(this.config.getBucket(), getObjectPath(handle.getChunkName()))) {
             try {
                 readChannel.seek(fromOffset);
-                readChannel.setChunkSize(length);
-                return readChannel.read(ByteBuffer.wrap(buffer));
+                readChannel.limit(fromOffset + length);
+                return readChannel.read(ByteBuffer.wrap(buffer, bufferOffset, length));
             } catch (IOException e) {
                 throw convertException(handle.getChunkName(), "doRead", e);
             }
@@ -125,9 +126,8 @@ public class GCPChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    public int doConcat(ConcatArgument[] chunks) throws ChunkStorageException {
-        int totalBytesConcatenated = 0;
-        return totalBytesConcatenated;
+    public int doConcat(ConcatArgument[] chunks) {
+        return 0;
     }
 
     @Override
@@ -141,7 +141,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
     @Override
     protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException {
         try {
-            Blob blob = this.storage.get(this.config.getBucket(), chunkName, Storage.BlobGetOption.fields(Storage.BlobField.SIZE));
+            Blob blob = this.storage.get(this.config.getBucket(), getObjectPath(chunkName), Storage.BlobGetOption.fields(Storage.BlobField.SIZE));
             return ChunkInfo.builder()
                     .name(chunkName)
                     .length(blob.getSize())
@@ -158,12 +158,14 @@ public class GCPChunkStorage extends BaseChunkStorage {
 
     @Override
     protected ChunkHandle doCreateWithContent(String chunkName, int length, InputStream data) throws ChunkStorageException {
-        BlobId blobId = BlobId.of(getObjectPath(this.config.getBucket()), getObjectPath(chunkName));
+        BlobId blobId = BlobId.of(this.config.getBucket(), getObjectPath(chunkName));
         BlobInfo blobInfo = BlobInfo.newBuilder(blobId).setContentType("application/octet-stream").build();
         byte[] bytes;
         try (InputStream inputStream = data){
-            bytes = inputStream.readAllBytes();
-            this.storage.create(blobInfo, bytes);
+            //bytes = inputStream.readAllBytes();
+           // this.storage.create(blobInfo, bytes);
+            this.storage.createFrom(blobInfo, data);
+            //this.storage.create(blobInfo, data);
             return ChunkHandle.writeHandle(chunkName);
         } catch (IOException e) {
             throw convertException(chunkName, "doCreateWithContent", e);
@@ -183,22 +185,6 @@ public class GCPChunkStorage extends BaseChunkStorage {
         } catch (Exception e) {
             throw convertException(handle.getChunkName(), "doDelete", e);
         }
-    }
-
-    @Override
-    @SneakyThrows
-    public void close() {
-        if (shouldCloseClient && !this.closed.getAndSet(true)) {
-            //this.client.close();
-        }
-        super.close();
-    }
-
-    /**
-     * Create formatted string for range.
-     */
-    private String getRangeWithLength(long fromOffset, long length) {
-        return String.format("bytes=%d-%d", fromOffset, fromOffset + length - 1);
     }
 
     private ChunkStorageException convertException(String chunkName, String message, Exception e) {

@@ -16,6 +16,7 @@
 package io.pravega.storage.gcp;
 
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import com.google.cloud.storage.testing.RemoteStorageHelper;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.test.common.TestUtils;
@@ -37,7 +38,7 @@ public class GCPTestContext {
     public GCPTestContext() {
             this.port = TestUtils.getAvailableListenPort();
             this.configUri = "https://localhost";
-            String bucketName = "test-bucket";
+            String bucketName = "";
             String prefix = BUCKET_NAME_PREFIX + UUID.randomUUID();
             this.adapterConfig = GCPStorageConfig.builder()
                     .with(GCPStorageConfig.CONFIGURI, configUri)
@@ -46,7 +47,8 @@ public class GCPTestContext {
                     .with(GCPStorageConfig.ACCESS_KEY, "access")
                     .with(GCPStorageConfig.SECRET_KEY, "secret")
                     .build();
-            storage = RemoteStorageHelper.create().getOptions().getService();
+            //storage = RemoteStorageHelper.create().getOptions().getService();
+            storage = LocalStorageHelper.getOptions().getService();
     }
 
 }
