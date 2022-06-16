@@ -136,7 +136,7 @@ public class ZKHostStore implements HostControllerStore {
             log.debug("Found owning host: {} for containerId: {}", host.get(), containerId);
             return host.get();
         } else {
-            throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
+            throw new HostStoreException("Could not find host for container id: " + containerId);
         }
     }
 

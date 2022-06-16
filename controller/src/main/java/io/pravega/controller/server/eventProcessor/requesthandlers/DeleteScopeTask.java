@@ -27,6 +27,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.OperationContext;
@@ -83,6 +84,7 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final DeleteScopeEvent request) {
+        Timer timer = new Timer();
         String scope = request.getScope();
         long requestId = request.getRequestId();
         UUID scopeId = request.getScopeId();
@@ -95,7 +97,8 @@ public class DeleteScopeTask implements ScopeTask<DeleteScopeEvent> {
             }
             return streamMetadataStore.isScopeSealed(scope, context, executor).thenCompose(scopeSealed -> {
                 if (scopeSealed) {
-                    return deleteScopeContent(scope, context, requestId);
+                    return deleteScopeContent(scope, context, requestId)
+                            .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorDeleteScopeEvent(timer.getElapsed()));
                 } else {
                     log.info(requestId, "Skipping processing delete scope recursive for scope {} as scope" +
                             " does not exist in deleting table", scope);
