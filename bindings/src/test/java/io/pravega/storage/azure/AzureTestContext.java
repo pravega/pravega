@@ -28,25 +28,24 @@ import java.util.UUID;
  * Test context S3 tests.
  */
 public class AzureTestContext {
-    public static final String BUCKET_NAME_PREFIX = "pravega-unit-test/";
+    public static final String CONTAINER_NAME_PREFIX = "pravega-unit-test/";
     public final AzureStorageConfig adapterConfig;
 
     public final int port;
     public final String configUri;
     public final AzureClient azureClient;
-   // public final S3Mock s3Mock;
     public final ChunkedSegmentStorageConfig defaultConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
 
     public AzureTestContext() throws Exception {
         try {
             this.port = TestUtils.getAvailableListenPort();
             this.configUri = "https://localhost";
-            String bucketName = "test-bucket";
-            String prefix = BUCKET_NAME_PREFIX + UUID.randomUUID();
+            String prefix = CONTAINER_NAME_PREFIX + UUID.randomUUID();
             this.adapterConfig = AzureStorageConfig.builder()
+                    .with(AzureStorageConfig.ENDPOINT, "https://ajadhav9.blob.core.windows.net/")
+                    .with(AzureStorageConfig.CONNECTION_STRING, "DefaultEndpointsProtocol=https;AccountName=ajadhav9;AccountKey=0DuaCG/7yEpHQCE7lS/hkxHtQa1oqg2E7NSXSLCPGjTvBrGHDdn8zxiYaA1iPn84ntErNXX0AMYB+AStK7xMCA==;EndpointSuffix=core.windows.net")
                     .with(AzureStorageConfig.CONTAINER, "test1" + System.currentTimeMillis())
-//                    .with(S3StorageConfig.BUCKET, bucketName)
-//                    .with(S3StorageConfig.PREFIX, prefix)
+                    .with(AzureStorageConfig.PREFIX, "test")
 //                    .with(S3StorageConfig.ACCESS_KEY, "access")
 //                    .with(S3StorageConfig.SECRET_KEY, "secret")
                     .build();

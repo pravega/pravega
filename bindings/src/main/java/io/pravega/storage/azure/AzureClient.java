@@ -17,10 +17,13 @@ package io.pravega.storage.azure;
 
 import com.azure.storage.blob.models.AppendBlobItem;
 import com.azure.storage.blob.models.BlobProperties;
+import com.azure.storage.blob.options.AppendBlobCreateOptions;
 import com.azure.storage.blob.specialized.BlobOutputStream;
 
+import javax.naming.Context;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.time.Duration;
 
 public interface AzureClient extends AutoCloseable {
     AppendBlobItem create (String blobName);
