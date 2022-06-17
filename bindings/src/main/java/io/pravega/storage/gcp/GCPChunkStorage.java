@@ -114,7 +114,14 @@ public class GCPChunkStorage extends BaseChunkStorage {
                 readChannel.seek(fromOffset);
                 readChannel.limit(fromOffset + length);
                 ByteBuffer b = ByteBuffer.wrap(buffer, bufferOffset, length);
-                return readChannel.read(ByteBuffer.wrap(buffer, bufferOffset, length));
+                int val = readChannel.read(ByteBuffer.wrap(buffer, bufferOffset, length));
+                if (val == -1) {
+                    ChunkInfo info = doGetInfo(handle.getChunkName());
+                    if (fromOffset >= info.getLength() || (length + fromOffset) >= info.getLength()) {
+                        throw new IllegalArgumentException(handle.getChunkName());
+                    }
+                }
+                return val;
             } catch (IOException e) {
                 throw convertException(handle.getChunkName(), "doRead", e);
             } catch (Exception e) {
@@ -130,7 +137,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
 
     @Override
     public int doConcat(ConcatArgument[] chunks) {
-        return 0;
+        throw new UnsupportedOperationException("GCPChunkStorage does not concat.");
     }
 
     @Override
@@ -207,24 +214,9 @@ public class GCPChunkStorage extends BaseChunkStorage {
                 }
             }
         }
-        if (e instanceof StorageException) {
-            StorageException storageException = (StorageException) e;
-            String errorCode = "";
 
-            if (errorCode.equals(PRECONDITION_FAILED)) {
-                retValue = new ChunkAlreadyExistsException(chunkName, message, e);
-            }
-
-            if (errorCode.equals(INVALID_RANGE)
-                    || errorCode.equals(INVALID_ARGUMENT)
-                    || errorCode.equals(METHOD_NOT_ALLOWED)
-                    ) {
-                throw new IllegalArgumentException(chunkName, e);
-            }
-
-            if (errorCode.equals(ACCESS_DENIED)) {
-                retValue = new ChunkStorageException(chunkName, String.format("Access denied for chunk %s - %s.", chunkName, message), e);
-            }
+        if (e instanceof IllegalArgumentException) {
+            throw (IllegalArgumentException) e;
         }
 
         if (retValue == null) {

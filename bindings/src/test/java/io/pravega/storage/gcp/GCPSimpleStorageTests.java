@@ -115,7 +115,7 @@ public class GCPSimpleStorageTests extends SimpleStorageTests {
         public void testCapabilities() {
             assertFalse(getChunkStorage().supportsAppend());
             assertFalse(getChunkStorage().supportsTruncation());
-            assertTrue(getChunkStorage().supportsConcat());
+            assertFalse(getChunkStorage().supportsConcat());
         }
     }
 
