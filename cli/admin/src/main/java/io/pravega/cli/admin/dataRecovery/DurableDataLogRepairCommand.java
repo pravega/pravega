@@ -234,7 +234,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         return editedDurableLogOperations;
     }
 
-    protected int validateBackupLog(DurableDataLogFactory dataLogFactory, int containerId, DebugDurableDataLogWrapper originalDataLog,
+    private int validateBackupLog(DurableDataLogFactory dataLogFactory, int containerId, DebugDurableDataLogWrapper originalDataLog,
                                     boolean createNewBackupLog) throws Exception {
         // Validate that the Original and Backup logs have the same number of operations.
         int operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback((a, b) -> { }, containerId, originalDataLog.asReadOnly());
@@ -260,7 +260,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      * @return Whether there is metadata for an existing Backup Log.
      * @throws Exception If there is an error initializing the {@link DurableDataLog}.
      */
-    protected boolean existsBackupLog(DurableDataLogFactory dataLogFactory) throws Exception {
+    private boolean existsBackupLog(DurableDataLogFactory dataLogFactory) throws Exception {
         try (DebugDurableDataLogWrapper backupDataLogDebugLogWrapper = dataLogFactory.createDebugLogWrapper(dataLogFactory.getBackupLogId())) {
             return backupDataLogDebugLogWrapper.fetchMetadata() != null;
         }
@@ -274,7 +274,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      * @param originalDataLog Source log.
      * @throws Exception If there is an error during backing up process.
      */
-    protected void createBackupLog(DurableDataLogFactory dataLogFactory, int containerId, DebugDurableDataLogWrapper originalDataLog) throws Exception {
+    private void createBackupLog(DurableDataLogFactory dataLogFactory, int containerId, DebugDurableDataLogWrapper originalDataLog) throws Exception {
         // Create a new Backup Log to store the Original Log contents.
         @Cleanup
         DurableDataLog backupDataLog = dataLogFactory.createDurableDataLog(dataLogFactory.getBackupLogId());

@@ -37,6 +37,8 @@ import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import lombok.Cleanup;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.val;
 
 import java.io.FileWriter;
@@ -54,10 +56,9 @@ import static io.pravega.cli.admin.utils.FileHelper.createFileAndDirectory;
 /**
  * This command provides an administrator with the basic primitives to inspect a DurableLog.
  * The workflow of this command is as follows:
- * 1. Checks if the Original Log is disabled (exit otherwise).
- * 2. Reads the original DurableLog
- * 3. User input for conditions to inspect.
- * 4. Result list is saved in a text file.
+ * 1. Reads the original DurableLog
+ * 2. User input for conditions to inspect.
+ * 3. Lists the result and is saved in a text file at /tmp/inspect/
  */
 public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
 
@@ -71,6 +72,8 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
     private static final String LESS_THAN_EQUAL_TO = "<=";
     private static final String GREATER_THAN_EQUAL_TO = ">=";
     private static final String NOT_EQUAL_TO = "!=";
+    private static final String OPERATOR_AND = "and";
+
     /**
      * Creates a new instance of the DurableLogInspectCommand class.
      *
@@ -98,7 +101,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         val originalDataLog = dataLogFactory.createDebugLogWrapper(containerId);
 
         // Print the operations for the selected durableLog
-        int durableLogReadOperations = readDurableDataLog( containerId, originalDataLog);
+        int durableLogReadOperations = readDurableDataLog(containerId, originalDataLog);
 
         output("Total reads original:" + durableLogReadOperations);
 
@@ -106,7 +109,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         Predicate<OperationInspectInfo> durableLogPredicates = getConditionTypeFromUser();
 
         durableLogReadOperations = filterResult(durableLogPredicates, containerId, originalDataLog);
-        // Show the number of operations matched the user condition
+        //List the number of operations matched the user condition
         output("Total reads matching conditions :" + durableLogReadOperations);
 
         output("Process completed successfully!!");
@@ -158,6 +161,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         }
         return res;
     }
+
 
     private int filterResult(Predicate<OperationInspectInfo> predicate, int containerId, DebugDurableDataLogWrapper originalDataLog) throws Exception {
         AtomicInteger res = new AtomicInteger();
@@ -253,8 +257,8 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
                         showMessage = false;
                         output("Invalid operation, please select one of [OperationType/SequenceNumber/SegmentId/Offset/Length/Attributes]");
                 }
-                predicate = clause.equals("and") ?
-                        predicates.stream().reduce(Predicate::and).orElse( x -> true) : predicates.stream().reduce(Predicate::or).orElse( x -> false);
+                predicate = clause.equals(OPERATOR_AND) ?
+                        predicates.stream().reduce(Predicate::and).orElse(x -> true) : predicates.stream().reduce(Predicate::or).orElse(x -> false);
             } catch (NumberFormatException ex) {
                 outputError("Wrong input argument.");
                 outputException(ex);
@@ -272,10 +276,16 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         return predicate;
     }
 
+    /**
+     * Guides the users to a set of options for creating range for selected
+     * option by the user.
+     *
+     * @return Predicate<OperationInspectInfo>.
+     */
     private Predicate<OperationInspectInfo> valueOrRangeInput(String conditionTpe) {
         List<Predicate<OperationInspectInfo>> predicates = new ArrayList<>();
         Predicate<OperationInspectInfo> predicate = null;
-        String clause = "and";
+        String clause = OPERATOR_AND;
         boolean finish = false, next = false;
         while (!finish) {
             if (next) {
@@ -306,8 +316,8 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
                 default:
                     output("Invalid input please select valid operator : [</>/<=/>=/!=]");
             }
-            predicate = clause.equals("and") ?
-                    predicates.stream().reduce(Predicate::and).orElse( x -> true) : predicates.stream().reduce(Predicate::or).orElse( x -> false);
+            predicate = clause.equals(OPERATOR_AND) ?
+                    predicates.stream().reduce(Predicate::and).orElse(x -> true) : predicates.stream().reduce(Predicate::or).orElse(x -> false);
             output("You can continue adding range operators for inspect.");
             finish = !confirmContinue();
             next = !finish;
@@ -320,4 +330,37 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
                 "damaged/corrupted Operations.",
                 new ArgDescriptor("container-id", "Id of the Container to inspect."));
     }
+
+    @Getter
+    @Setter
+    class OperationInspectInfo extends Operation {
+        public static final long DEFAULT_ABSENT_VALUE = Long.MIN_VALUE + 1;
+        private final String operationTypeString;
+        private final long length;
+        private final long segmentId;
+        private final long offset;
+        private final long attributes;
+
+        public OperationInspectInfo(long sequenceNumber, String operationTypeString, long length, long segmentId, long offset, long attributes) {
+            super();
+            setSequenceNumber(sequenceNumber);
+            this.operationTypeString = operationTypeString;
+            this.length = length == DEFAULT_ABSENT_VALUE ? 0 : length;
+            this.segmentId = segmentId;
+            this.offset = offset;
+            this.attributes = attributes;
+        }
+
+        @Override
+        public String toString() {
+            return "{ " + operationTypeString +
+                    ", SequenceNumber=" + this.getSequenceNumber() +
+                    (length == DEFAULT_ABSENT_VALUE ? "" : ", Length=" + length) +
+                    (segmentId == DEFAULT_ABSENT_VALUE ? "" : ", SegmentId=" + segmentId) +
+                    (offset == DEFAULT_ABSENT_VALUE ? "" : ", Offset=" + offset) +
+                    (attributes == DEFAULT_ABSENT_VALUE ? "" : ", Attributes=" + attributes) +
+                    '}';
+        }
+    }
+
 }
