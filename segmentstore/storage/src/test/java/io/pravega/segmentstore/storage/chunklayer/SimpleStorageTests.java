@@ -135,7 +135,6 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      */
     @Test
     @Override
-    @Ignore
     public void testFencing() throws Exception {
         final long epoch1 = 1;
         final long epoch2 = 2;
@@ -171,7 +170,6 @@ public abstract class SimpleStorageTests extends StorageTestBase {
     }
 
     @Test
-    @Ignore
     public void testZombieFencing() throws Exception {
         final long epoch1 = 1;
         final long epoch2 = 2;
