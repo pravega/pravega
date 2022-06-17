@@ -79,7 +79,6 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -811,26 +810,6 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentDeleted(requestId, streamSegmentName));
         order.verifyNoMoreInteractions();
     }
-
-    // TODO: Ignore this test until PR https://github.com/pravega/pravega/pull/6735 is merged.
-    @Ignore
-    @Test(timeout = 20000)
-    public void testUnsupportedOperation() throws Exception {
-        // Set up PravegaRequestProcessor instance to execute requests against
-        String streamSegmentName = "scope/stream/testCreateSegment";
-        @Cleanup
-        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getReadOnlyBuilderConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        ServerConnection connection = mock(ServerConnection.class);
-        InOrder order = inOrder(connection);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
-
-        // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
-        processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
-        order.verify(connection).send(new WireCommands.OperationUnsupported(1, "createSegment", ""));
-    }
-
     //endregion
 
     //region Table Segments
