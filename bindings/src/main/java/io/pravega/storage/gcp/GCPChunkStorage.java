@@ -17,17 +17,12 @@ package io.pravega.storage.gcp;
 
 import com.google.api.gax.paging.Page;
 import com.google.cloud.ReadChannel;
-import com.google.cloud.storage.Blob;
-import com.google.cloud.storage.BlobId;
-import com.google.cloud.storage.BlobInfo;
-import com.google.cloud.storage.Storage;
-import com.google.cloud.storage.spi.v1.StorageRpc;
+import com.google.cloud.RetryHelper;
+import com.google.cloud.storage.*;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import io.pravega.segmentstore.storage.chunklayer.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpStatus;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,6 +39,11 @@ import java.util.concurrent.Executor;
 @Slf4j
 public class GCPChunkStorage extends BaseChunkStorage {
 
+    //GCP error codes
+    private static  final int FILE_NOT_FOUND = 404;
+
+
+//AWS error codes
     public static final String NO_SUCH_KEY = "NoSuchKey";
     public static final String PRECONDITION_FAILED = "PreconditionFailed";
     public static final String INVALID_RANGE = "InvalidRange";
@@ -113,8 +113,11 @@ public class GCPChunkStorage extends BaseChunkStorage {
             try {
                 readChannel.seek(fromOffset);
                 readChannel.limit(fromOffset + length);
+                ByteBuffer b = ByteBuffer.wrap(buffer, bufferOffset, length);
                 return readChannel.read(ByteBuffer.wrap(buffer, bufferOffset, length));
             } catch (IOException e) {
+                throw convertException(handle.getChunkName(), "doRead", e);
+            } catch (Exception e) {
                 throw convertException(handle.getChunkName(), "doRead", e);
             }
         }
@@ -131,7 +134,10 @@ public class GCPChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) {
+    protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkNotFoundException {
+        if (!checkExists(handle.getChunkName())) {
+            throw new ChunkNotFoundException(handle.getChunkName(), null, null);
+        }
         // read only object
         // During object holds you can not delete or replace the object, but you can update metadata.
         BlobId blobId = BlobId.of(this.config.getBucket(), getObjectPath(handle.getChunkName()));
@@ -139,16 +145,15 @@ public class GCPChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException {
-        try {
+    protected ChunkInfo doGetInfo(String chunkName) throws ChunkNotFoundException {
             Blob blob = this.storage.get(this.config.getBucket(), getObjectPath(chunkName), Storage.BlobGetOption.fields(Storage.BlobField.SIZE));
+            if (null == blob) {
+                throw new ChunkNotFoundException(chunkName, null, null);
+            }
             return ChunkInfo.builder()
                     .name(chunkName)
                     .length(blob.getSize())
                     .build();
-        } catch (Exception e) {
-            throw convertException(chunkName, "doGetInfo", e);
-        }
     }
 
     @Override
@@ -179,26 +184,32 @@ public class GCPChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected void doDelete(ChunkHandle handle) throws ChunkStorageException {
-        try {
-            this.storage.delete(this.config.getBucket(), getObjectPath(handle.getChunkName()));
-        } catch (Exception e) {
-            throw convertException(handle.getChunkName(), "doDelete", e);
+    protected void doDelete(ChunkHandle handle) throws ChunkNotFoundException {
+        boolean deleted = this.storage.delete(this.config.getBucket(), getObjectPath(handle.getChunkName()));
+        if (!deleted) {
+            throw new ChunkNotFoundException(handle.getChunkName(), null, null);
         }
     }
-
     private ChunkStorageException convertException(String chunkName, String message, Exception e) {
         ChunkStorageException retValue = null;
         if (e instanceof ChunkStorageException) {
             return (ChunkStorageException) e;
         }
-        if (e instanceof S3Exception) {
-            S3Exception s3Exception = (S3Exception) e;
-            String errorCode = Strings.nullToEmpty(s3Exception.awsErrorDetails().errorCode());
-
-            if (errorCode.equals(NO_SUCH_KEY)) {
-                retValue = new ChunkNotFoundException(chunkName, message, e);
+        if (e instanceof IOException) {
+            if (e.getCause() instanceof RetryHelper.RetryHelperException) {
+                RetryHelper.RetryHelperException retryHelperException = (RetryHelper.RetryHelperException) e.getCause();
+                if (retryHelperException.getCause() instanceof StorageException) {
+                    StorageException storageException = (StorageException) retryHelperException.getCause();
+                    int code = storageException.getCode();
+                    if (code == FILE_NOT_FOUND) {
+                        retValue = new ChunkNotFoundException(chunkName, message, e);
+                    }
+                }
             }
+        }
+        if (e instanceof StorageException) {
+            StorageException storageException = (StorageException) e;
+            String errorCode = "";
 
             if (errorCode.equals(PRECONDITION_FAILED)) {
                 retValue = new ChunkAlreadyExistsException(chunkName, message, e);
@@ -207,7 +218,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
             if (errorCode.equals(INVALID_RANGE)
                     || errorCode.equals(INVALID_ARGUMENT)
                     || errorCode.equals(METHOD_NOT_ALLOWED)
-                    || s3Exception.awsErrorDetails().sdkHttpResponse().statusCode() == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
+                    ) {
                 throw new IllegalArgumentException(chunkName, e);
             }
 
