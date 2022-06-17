@@ -28,7 +28,6 @@ import io.pravega.test.common.AssertExtensions;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
