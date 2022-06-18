@@ -29,6 +29,7 @@ import java.util.UUID;
  */
 public class AzureTestContext {
     public static final String CONTAINER_NAME_PREFIX = "pravega-unit-test/";
+
     public final AzureStorageConfig adapterConfig;
 
     public final int port;
@@ -42,16 +43,13 @@ public class AzureTestContext {
             this.configUri = "https://localhost";
             String prefix = CONTAINER_NAME_PREFIX + UUID.randomUUID();
             this.adapterConfig = AzureStorageConfig.builder()
-                    .with(AzureStorageConfig.ENDPOINT, "https://ajadhav9.blob.core.windows.net/")
+                    .with(AzureStorageConfig.ENDPOINT, "https://ajadhav9.blob.core.windows.net")
                     .with(AzureStorageConfig.CONNECTION_STRING, "DefaultEndpointsProtocol=https;AccountName=ajadhav9;AccountKey=0DuaCG/7yEpHQCE7lS/hkxHtQa1oqg2E7NSXSLCPGjTvBrGHDdn8zxiYaA1iPn84ntErNXX0AMYB+AStK7xMCA==;EndpointSuffix=core.windows.net")
                     .with(AzureStorageConfig.CONTAINER, "test1" + System.currentTimeMillis())
-                    .with(AzureStorageConfig.PREFIX, "test")
-//                    .with(S3StorageConfig.ACCESS_KEY, "access")
-//                    .with(S3StorageConfig.SECRET_KEY, "secret")
+                    .with(AzureStorageConfig.PREFIX, prefix)
+                    .with(AzureStorageConfig.ACCESS_KEY, "access")
                     .build();
             azureClient = new AzureBlobClientImpl(adapterConfig);
-//            s3Mock = new S3Mock();
-//            s3Client = new S3ClientMock(this.s3Mock);
         } catch (Exception e) {
             close();
             throw e;

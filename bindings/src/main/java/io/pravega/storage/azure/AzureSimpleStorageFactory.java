@@ -45,9 +45,6 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 @RequiredArgsConstructor
 public class AzureSimpleStorageFactory implements SimpleStorageFactory {
-//    private static final String AWS_ACCESS_KEY_ID = "aws.accessKeyId";
-//    private static final String AWS_SECRET_ACCESS_KEY = "aws.secretAccessKey";
-//    private static final String AWS_REGION = "aws.region";
 
     @NonNull
     @Getter
@@ -85,14 +82,6 @@ public class AzureSimpleStorageFactory implements SimpleStorageFactory {
     }
 
     private AzureClient createAzureClient(AzureStorageConfig config) {
-        return null;
-    }
-
-
-
-    private static void setSystemProperties(AzureStorageConfig config) {
-//        System.setProperty(AWS_ACCESS_KEY_ID, config.getAccessKey());
-//        System.setProperty(AWS_SECRET_ACCESS_KEY, config.getSecretKey());
-//        System.setProperty(AWS_REGION, config.getRegion());
+        return new AzureBlobClientImpl(config);
     }
 }

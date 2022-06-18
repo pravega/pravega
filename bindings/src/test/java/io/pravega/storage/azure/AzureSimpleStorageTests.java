@@ -16,8 +16,6 @@
 package io.pravega.storage.azure;
 
 import io.pravega.segmentstore.storage.chunklayer.*;
-import io.pravega.storage.s3.S3ChunkStorage;
-import io.pravega.storage.s3.S3TestContext;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -133,7 +131,7 @@ public class AzureSimpleStorageTests extends SimpleStorageTests {
     /**
      * {@link SystemJournalTests} tests for {@link AzureChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
      */
-    public static class S3ChunkStorageSystemJournalTests extends SystemJournalTests {
+    public static class AzureChunkStorageSystemJournalTests extends SystemJournalTests {
         private AzureTestContext testContext = null;
 
         @Override

@@ -29,7 +29,9 @@ public class AzureStorageConfig {
     public static final Property<String> CONNECTION_STRING = Property.named("connection.string", "", "connectionString");
     public static final Property<String> ENDPOINT = Property.named("endpoint", "", "endpoint");
     public static final Property<String> CONTAINER = Property.named("container", "");
+
     public static final Property<String> ACCESS_KEY = Property.named("connect.config.access.key", "");
+
     public static final Property<String> PREFIX = Property.named("prefix", "/");
     private static final String PATH_SEPARATOR = "/";
     private static final String COMPONENT_CODE = "azure";

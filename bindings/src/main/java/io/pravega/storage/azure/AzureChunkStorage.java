@@ -17,25 +17,13 @@ package io.pravega.storage.azure;
 
 import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobStorageException;
-import com.azure.storage.blob.specialized.AppendBlobClient;
-import com.emc.object.Range;
-import com.emc.object.s3.S3Client;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.storage.chunklayer.*;
-import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
+import lombok.SneakyThrows;
 import lombok.val;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 
-import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -73,9 +61,10 @@ public class AzureChunkStorage extends BaseChunkStorage {
     @Override
     protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException {
         try {
-            val objectPath = getObjectPath(chunkName);
+            val blobProperties = client.getBlobProperties(getObjectPath(chunkName));
             return ChunkInfo.builder()
                     .name(chunkName)
+                    .length(blobProperties.getBlobSize())
                     .build();
         } catch (Exception e) {
             throw convertException(chunkName, "doGetInfo", e);
@@ -85,7 +74,7 @@ public class AzureChunkStorage extends BaseChunkStorage {
     @Override
     protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException {
         try {
-            val blobItem = this.client.create(chunkName);
+            val blobItem = this.client.create(getObjectPath(chunkName));
             return ChunkHandle.writeHandle(chunkName);
         }catch (Exception e) {
             throw convertException(chunkName, "doCreate", e);
@@ -126,36 +115,53 @@ public class AzureChunkStorage extends BaseChunkStorage {
     protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException {
         try  {
             try (val inputStream = client.getInputStream(getObjectPath(handle.getChunkName()), fromOffset, length)) {
-                return StreamHelpers.readAll(inputStream, buffer, bufferOffset, length);
+                val retValue =  StreamHelpers.readAll(inputStream, buffer, bufferOffset, length);
+                if (retValue == 0){
+                    val blobProperties = client.getBlobProperties(getObjectPath(handle.getChunkName()));
+                    if (blobProperties.getBlobSize() <= fromOffset || blobProperties.getBlobSize() <= fromOffset+length){
+                        throw new IllegalArgumentException();
+                    }
+                }
+                return retValue;
             }
+        } catch (IllegalArgumentException e) {
+                throw e;
         } catch (Exception e) {
-                throw convertException(handle.getChunkName(), "doRead", e);
+            throw convertException(handle.getChunkName(), "doRead", e);
         }
     }
 
     @Override
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
-        val objectPath = getObjectPath(handle.getChunkName());
         try {
-            val metadata = client.getBlobProperties(objectPath, length);
+            val objectPath = getObjectPath(handle.getChunkName());
+            val metadata = client.getBlobProperties(objectPath);
             if (metadata.getBlobSize() != offset) {
-                throw new InvalidOffsetException(objectPath, metadata.getBlobSize(), offset, "doWrite");
+                throw new InvalidOffsetException(handle.getChunkName(), metadata.getBlobSize(), offset, "doWrite");
             }
             client.appendBlock(objectPath, offset, length, data);
             return length;
         } catch (Exception e) {
-            throw convertException(objectPath, "doWrite", e);
+            throw convertException(handle.getChunkName(), "doWrite", e);
         }
     }
 
     @Override
     protected int doConcat(ConcatArgument[] chunks) throws ChunkStorageException, UnsupportedOperationException {
-        return 0;
+        throw new UnsupportedOperationException("AzureChunkStorage does not support concat operation.");
     }
 
     @Override
     protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException {
+    }
 
+    @Override
+    @SneakyThrows
+    public void close() {
+        if (shouldClose && !this.closed.getAndSet(true)) {
+            this.client.close();
+        }
+        super.close();
     }
 
     private ChunkStorageException convertException(String chunkName, String message, Exception e) {
@@ -171,10 +177,19 @@ public class AzureChunkStorage extends BaseChunkStorage {
                 retValue = new ChunkNotFoundException(chunkName, message, e);
             }
 
-//            if (errorCode.equals(PRECONDITION_FAILED)) {
-//                retValue = new ChunkAlreadyExistsException(chunkName, message, e);
-//            }
+            if (errorCode.equals(BlobErrorCode.BLOB_ALREADY_EXISTS)) {
+                retValue = new ChunkAlreadyExistsException(chunkName, message, e);
+            }
+
+            if (errorCode.equals(BlobErrorCode.AUTHENTICATION_FAILED)) {
+                retValue =  new ChunkStorageException(chunkName, String.format("Authentication failed for chunk %s - %s.", chunkName, message), e);
+            }
         }
+
+        if (retValue == null) {
+            retValue = new ChunkStorageException(chunkName, message, e);
+        }
+
         return retValue;
     }
 

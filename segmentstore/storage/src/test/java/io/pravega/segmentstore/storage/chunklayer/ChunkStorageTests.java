@@ -556,7 +556,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                                     ConcatArgument.builder().name("NonExistent").length(1).build()
                             }
                     ),
-                    ex -> ex instanceof ChunkNotFoundException);
+                    ex -> ex instanceof ChunkNotFoundException || ex instanceof UnsupportedOperationException);
             AssertExtensions.assertFutureThrows(
                     " concat should throw ChunkNotFoundException.",
                     chunkStorage.concat(
@@ -565,7 +565,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                                     ConcatArgument.builder().name(existingChunkName).length(size).build(),
                             }
                     ),
-                    ex -> ex instanceof ChunkNotFoundException);
+                    ex -> ex instanceof ChunkNotFoundException || ex instanceof UnsupportedOperationException);
         } catch (Exception e) {
             val ex = Exceptions.unwrap(e);
             // The storage provider may not have native concat.

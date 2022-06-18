@@ -18,21 +18,13 @@ package io.pravega.storage.azure;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
-import com.azure.storage.blob.implementation.AzureBlobStorageImplBuilder;
 import com.azure.storage.blob.models.*;
-import com.azure.storage.blob.options.AppendBlobCreateOptions;
 import com.azure.storage.blob.specialized.AppendBlobClient;
 import com.azure.storage.blob.specialized.BlobClientBase;
-import com.azure.storage.blob.specialized.BlobOutputStream;
 import com.azure.storage.common.StorageSharedKeyCredential;
-import io.pravega.shared.protocol.netty.Append;
-import lombok.Cleanup;
 import lombok.val;
 
-import javax.naming.Context;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.time.Duration;
 
 public class AzureBlobClientImpl implements AzureClient {
     private final BlobContainerClient blobContainerClient;
@@ -82,7 +74,7 @@ public class AzureBlobClientImpl implements AzureClient {
     }
 
     @Override
-    public BlobProperties getBlobProperties(String blobName, long length) {
+    public BlobProperties getBlobProperties(String blobName) {
         val appendBlobClient = blobContainerClient.getBlobClient(blobName);
         return appendBlobClient.getProperties();
     }
