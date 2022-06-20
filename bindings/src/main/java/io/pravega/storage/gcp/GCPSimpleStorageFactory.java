@@ -82,7 +82,7 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
      */
     static StorageOptions createStorageOptions(GCPStorageConfig config) {
         GoogleCredentials credentials = GoogleCredentials.create(getAccessToken(config));
-        return StorageOptions.newBuilder().setCredentials(credentials).setProjectId("Pravega-SLTS").build();
+        return StorageOptions.newBuilder().setCredentials(credentials).setProjectId("pravega-amit").build();
     }
 
     private static AccessToken getAccessToken(GCPStorageConfig config) {

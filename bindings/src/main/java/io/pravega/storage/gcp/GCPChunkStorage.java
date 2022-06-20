@@ -22,7 +22,6 @@ import com.google.cloud.storage.*;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.chunklayer.*;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.http.HttpStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -181,6 +180,9 @@ public class GCPChunkStorage extends BaseChunkStorage {
             return ChunkHandle.writeHandle(chunkName);
         } catch (IOException e) {
             throw convertException(chunkName, "doCreateWithContent", e);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new ChunkStorageException(e.getMessage(), null, null);
         }
     }
 
@@ -229,7 +231,5 @@ public class GCPChunkStorage extends BaseChunkStorage {
     private String getObjectPath(String objectName) {
         return config.getPrefix() + objectName;
     }
-
     //endregion
-
 }
