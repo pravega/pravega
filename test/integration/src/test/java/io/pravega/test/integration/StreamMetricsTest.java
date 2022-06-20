@@ -50,7 +50,7 @@ import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Arrays;
@@ -59,8 +59,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -70,6 +73,7 @@ import org.junit.runner.RunWith;
 import static io.pravega.shared.MetricsTags.readerGroupTags;
 import static io.pravega.shared.MetricsTags.streamTags;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 @Slf4j
@@ -194,6 +198,7 @@ public class StreamMetricsTest {
         controllerWrapper.getControllerService().updateStream(scopeName, streamName,
                 StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build(), 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_STREAM_LATENCY) > 0);
 
         final String subscriber = "subscriber1";
         CreateReaderGroupResponse createRGStatus = controllerWrapper.getControllerService().createReaderGroup(
@@ -214,15 +219,22 @@ public class StreamMetricsTest {
                 rgConfig.getReaderGroupId().toString(), 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.DELETE_READER_GROUP)).count());
 
+        // Truncate stream
+        controllerWrapper.getControllerService().truncateStream(scopeName, streamName, streamCut1, 0L).get();
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY) > 0);
+
         // Seal the Stream.
         controllerWrapper.getControllerService().sealStream(scopeName, streamName, 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_SEAL_STREAM_LATENCY) > 0);
 
         // Delete the Stream and Scope and check for the respective metrics.
         controllerWrapper.getControllerService().deleteStream(scopeName, streamName, 0L).get();
         controllerWrapper.getControllerService().deleteScope(scopeName, 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
+
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_STREAM_LATENCY) > 0);
 
         String failedScope = "failedScope";
         String failedStream = "failedStream";
@@ -253,6 +265,11 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP_FAILED, failedRGTags).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP_FAILED, failedRGTags).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER_FAILED, streamTags(failedRG, failedRG)).count());
+    }
+
+    private long getTimerMillis(String timerName) {
+        val timer = MetricRegistryUtils.getTimer(timerName);
+        return (long) timer.totalTime(TimeUnit.MILLISECONDS);
     }
 
     @Test(timeout = 30000)
@@ -326,6 +343,7 @@ public class StreamMetricsTest {
         AssertExtensions.assertEventuallyEquals(true, () -> transaction.checkStatus().equals(Transaction.Status.COMMITTED), 10000);
         AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getCounter(MetricsNames.COMMIT_TRANSACTION, streamTags(txScopeName, txStreamName)) != null, 10000);
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.COMMIT_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
+        assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_LATENCY) > 0);
 
         Transaction<String> transaction2 = writer.beginTxn();
         transaction2.writeEvent("Test");

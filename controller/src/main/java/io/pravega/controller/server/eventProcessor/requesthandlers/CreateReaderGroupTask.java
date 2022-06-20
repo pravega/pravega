@@ -20,8 +20,10 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -60,6 +62,7 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
 
     @Override
     public CompletableFuture<Void> execute(final CreateReaderGroupEvent request) {
+        Timer timer = new Timer();
         String scope = request.getScope();
         String readerGroup = request.getRgName();
         UUID readerGroupId = request.getReaderGroupId();
@@ -84,7 +87,7 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                                                 config, request.getCreateTimeStamp(), context));
                                     }
                                     return CompletableFuture.completedFuture(null);
-                                });
+                                }).thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorCreateReaderGroupEvent(timer.getElapsed()));
                     }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
         });
     }
