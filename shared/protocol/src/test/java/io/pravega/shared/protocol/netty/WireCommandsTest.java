@@ -498,7 +498,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         InvalidEventNumberV5 commandV5 = new InvalidEventNumberV5(uuid, i, l);
         commandV5.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.InvalidEventNumber(uuid, i, l, ""));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.InvalidEventNumber(uuid, i, "", l));
     }
 
     @Data
@@ -763,7 +763,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testInvalidEventNumber() throws IOException {
-        testCommand(new WireCommands.InvalidEventNumber(uuid, i, l, "SomeException"));
+        testCommand(new WireCommands.InvalidEventNumber(uuid, i, "SomeException", l));
     }
 
     @Test

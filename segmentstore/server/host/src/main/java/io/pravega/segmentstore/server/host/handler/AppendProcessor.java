@@ -413,7 +413,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
             connection.send(new WrongHost(requestId, segment, "", clientReplyStackTrace));
         } else if (u instanceof BadAttributeUpdateException) {
             log.warn(requestId, "Bad attribute update by {} on segment {}.", writerId, segment, u);
-            connection.send(new InvalidEventNumber(writerId, eventNumber, requestId, clientReplyStackTrace));
+            connection.send(new InvalidEventNumber(writerId, requestId, clientReplyStackTrace, eventNumber));
             close();
         } else if (u instanceof TokenExpiredException) {
             log.warn(requestId, "Token expired for writer {} on segment {}.", writerId, segment, u);
