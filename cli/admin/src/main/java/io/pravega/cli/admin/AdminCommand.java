@@ -46,6 +46,7 @@ import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewReaderInfo
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
 import io.pravega.cli.admin.dataRecovery.DurableDataLogRepairCommand;
 import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
+import io.pravega.cli.admin.dataRecovery.TableSegmentRecoveryCommand;
 import io.pravega.cli.admin.password.PasswordFileCreatorCommand;
 import io.pravega.cli.admin.cluster.GetClusterNodesCommand;
 import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
@@ -85,6 +86,7 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
+import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 
 import java.io.PrintStream;
@@ -170,6 +172,13 @@ public abstract class AdminCommand {
      */
     protected CLIConfig getCLIControllerConfig() {
         return getCommandArgs().getState().getConfigBuilder().build().getConfig(CLIConfig::builder);
+    }
+
+    /**
+     * Creates a new instance of the AttributeIndexConfig class from the shared AdminCommandState passed in via the Constructor.
+     */
+    protected AttributeIndexConfig getAttributeIndexConfig() {
+        return getCommandArgs().getState().getConfigBuilder().build().getConfig(AttributeIndexConfig::builder);
     }
 
     /**
@@ -388,6 +397,7 @@ public abstract class AdminCommand {
                         .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)
                         .put(DurableLogRecoveryCommand::descriptor, DurableLogRecoveryCommand::new)
                         .put(DurableDataLogRepairCommand::descriptor, DurableDataLogRepairCommand::new)
+                        .put(TableSegmentRecoveryCommand::descriptor, TableSegmentRecoveryCommand::new)
                         .put(GetSegmentInfoCommand::descriptor, GetSegmentInfoCommand::new)
                         .put(ReadSegmentRangeCommand::descriptor, ReadSegmentRangeCommand::new)
                         .put(GetSegmentAttributeCommand::descriptor, GetSegmentAttributeCommand::new)

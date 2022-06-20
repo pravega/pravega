@@ -810,24 +810,6 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentDeleted(requestId, streamSegmentName));
         order.verifyNoMoreInteractions();
     }
-
-    @Test(timeout = 20000)
-    public void testUnsupportedOperation() throws Exception {
-        // Set up PravegaRequestProcessor instance to execute requests against
-        String streamSegmentName = "scope/stream/testCreateSegment";
-        @Cleanup
-        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getReadOnlyBuilderConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        ServerConnection connection = mock(ServerConnection.class);
-        InOrder order = inOrder(connection);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
-
-        // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
-        processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
-        order.verify(connection).send(new WireCommands.OperationUnsupported(1, "createSegment", ""));
-    }
-
     //endregion
 
     //region Table Segments

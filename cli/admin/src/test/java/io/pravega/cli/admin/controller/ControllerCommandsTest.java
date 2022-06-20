@@ -21,7 +21,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.test.integration.demo.ClusterWrapper;
+import io.pravega.test.integration.utils.ClusterWrapper;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import org.junit.AfterClass;
