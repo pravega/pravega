@@ -20,8 +20,6 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
-import io.pravega.storage.s3.S3StorageConfig;
-import lombok.Builder;
 import lombok.Getter;
 
 public class AzureStorageConfig {

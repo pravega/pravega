@@ -243,7 +243,8 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         // Simple Storage
         ConfigSetup configSetup1 = mock(ConfigSetup.class);
         val config = AzureStorageConfig.builder()
-                .with(AzureStorageConfig.CONNECTION_STRING, "DefaultEndpointsProtocol=https;AccountName=ajadhav9;AccountKey=0DuaCG/7yEpHQCE7lS/hkxHtQa1oqg2E7NSXSLCPGjTvBrGHDdn8zxiYaA1iPn84ntErNXX0AMYB+AStK7xMCA==;EndpointSuffix=core.windows.net")
+                .with(AzureStorageConfig.ENDPOINT, "")
+                .with(AzureStorageConfig.CONNECTION_STRING, "")
                 .with(AzureStorageConfig.CONTAINER, "container")
                 .with(AzureStorageConfig.PREFIX, "samplePrefix")
                 .build();

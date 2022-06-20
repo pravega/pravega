@@ -19,13 +19,22 @@ import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.StreamHelpers;
-import io.pravega.segmentstore.storage.chunklayer.*;
+import io.pravega.segmentstore.storage.chunklayer.BaseChunkStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
+import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
+import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
+import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkAlreadyExistsException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import lombok.SneakyThrows;
 import lombok.val;
 
+import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 
 public class AzureChunkStorage extends BaseChunkStorage {
     private final AzureStorageConfig config;
@@ -43,6 +52,7 @@ public class AzureChunkStorage extends BaseChunkStorage {
         this.supportsAppend = supportsAppend;
 
     }
+
     @Override
     public boolean supportsTruncation() {
         return false;
@@ -76,7 +86,7 @@ public class AzureChunkStorage extends BaseChunkStorage {
         try {
             val blobItem = this.client.create(getObjectPath(chunkName));
             return ChunkHandle.writeHandle(chunkName);
-        }catch (Exception e) {
+        } catch (Exception e) {
             throw convertException(chunkName, "doCreate", e);
         }
     }
@@ -90,7 +100,7 @@ public class AzureChunkStorage extends BaseChunkStorage {
     protected void doDelete(ChunkHandle handle) throws ChunkStorageException {
         try {
             client.delete(getObjectPath(handle.getChunkName()));
-        }catch (Exception e) {
+        } catch (Exception e) {
             throw convertException(handle.getChunkName(), "doDelete", e);
         }
     }
@@ -116,9 +126,9 @@ public class AzureChunkStorage extends BaseChunkStorage {
         try  {
             try (val inputStream = client.getInputStream(getObjectPath(handle.getChunkName()), fromOffset, length)) {
                 val retValue =  StreamHelpers.readAll(inputStream, buffer, bufferOffset, length);
-                if (retValue == 0){
+                if (retValue == 0) {
                     val blobProperties = client.getBlobProperties(getObjectPath(handle.getChunkName()));
-                    if (blobProperties.getBlobSize() <= fromOffset || blobProperties.getBlobSize() <= fromOffset+length){
+                    if (blobProperties.getBlobSize() <= fromOffset || blobProperties.getBlobSize() <= fromOffset + length) {
                         throw new IllegalArgumentException();
                     }
                 }
@@ -139,7 +149,7 @@ public class AzureChunkStorage extends BaseChunkStorage {
             if (metadata.getBlobSize() != offset) {
                 throw new InvalidOffsetException(handle.getChunkName(), metadata.getBlobSize(), offset, "doWrite");
             }
-            client.appendBlock(objectPath, offset, length, data);
+            client.appendBlock(objectPath, offset, length, new BufferedInputStream(data));
             return length;
         } catch (Exception e) {
             throw convertException(handle.getChunkName(), "doWrite", e);
@@ -147,12 +157,13 @@ public class AzureChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected int doConcat(ConcatArgument[] chunks) throws ChunkStorageException, UnsupportedOperationException {
+    protected int doConcat(ConcatArgument[] chunks) throws UnsupportedOperationException {
         throw new UnsupportedOperationException("AzureChunkStorage does not support concat operation.");
     }
 
     @Override
-    protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException {
+    protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws UnsupportedOperationException, ChunkStorageException {
+        throw new UnsupportedOperationException("AzureChunkStorage does not support setReadOnly operation.");
     }
 
     @Override

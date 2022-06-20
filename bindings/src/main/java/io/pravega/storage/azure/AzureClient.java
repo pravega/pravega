@@ -21,10 +21,15 @@ import com.azure.storage.blob.models.BlobProperties;
 import java.io.InputStream;
 
 public interface AzureClient extends AutoCloseable {
-    AppendBlobItem create (String blobName);
-    boolean exists (String blobName);
-    void delete (String blobName);
-    InputStream getInputStream (String blobName, long offSet, long length);
-    AppendBlobItem appendBlock (String blobName, long offSet, long length, InputStream inputStream);
-    BlobProperties getBlobProperties (String blobName);
+    AppendBlobItem create(String blobName);
+
+    boolean exists(String blobName);
+
+    void delete(String blobName);
+
+    InputStream getInputStream(String blobName, long offSet, long length);
+
+    AppendBlobItem appendBlock(String blobName, long offSet, long length, InputStream inputStream);
+
+    BlobProperties getBlobProperties(String blobName);
 }

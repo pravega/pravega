@@ -21,27 +21,15 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
-import io.pravega.storage.s3.S3ChunkStorage;
-import io.pravega.storage.s3.S3StorageConfig;
+
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.sts.StsClient;
-import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
-import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
-import java.net.URI;
-import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Factory for S3 {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link S3ChunkStorage}.
+ * Factory for Azure {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link AzureChunkStorage}.
  */
 @RequiredArgsConstructor
 public class AzureSimpleStorageFactory implements SimpleStorageFactory {

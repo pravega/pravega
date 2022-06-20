@@ -16,10 +16,12 @@
 package io.pravega.storage.azure;
 
 import com.google.common.base.Preconditions;
-import io.pravega.segmentstore.storage.*;
+import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.StorageFactoryCreator;
+import io.pravega.segmentstore.storage.StorageFactoryInfo;
+import io.pravega.segmentstore.storage.StorageLayoutType;
+import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
-import io.pravega.storage.s3.S3SimpleStorageFactory;
-import io.pravega.storage.s3.S3StorageConfig;
 
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -29,13 +31,13 @@ public class AzureStorageFactoryCreator implements StorageFactoryCreator {
         Preconditions.checkNotNull(storageFactoryInfo, "storageFactoryInfo");
         Preconditions.checkNotNull(setup, "setup");
         Preconditions.checkNotNull(executor, "executor");
-        Preconditions.checkArgument(storageFactoryInfo.getName().equals("Azure"));
+        Preconditions.checkArgument(storageFactoryInfo.getName().equals("AZURE"));
         if (storageFactoryInfo.getStorageLayoutType().equals(StorageLayoutType.CHUNKED_STORAGE)) {
             return new AzureSimpleStorageFactory(setup.getConfig(ChunkedSegmentStorageConfig::builder),
                     setup.getConfig(AzureStorageConfig::builder),
                     executor);
         } else {
-            throw new UnsupportedOperationException("S3StorageFactoryCreator only supports CHUNKED_STORAGE.");
+            throw new UnsupportedOperationException("AzureStorageFactoryCreator only supports CHUNKED_STORAGE.");
         }
     }
 

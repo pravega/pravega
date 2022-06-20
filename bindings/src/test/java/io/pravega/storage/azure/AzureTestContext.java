@@ -16,11 +16,7 @@
 package io.pravega.storage.azure;
 
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
-import io.pravega.storage.s3.S3ClientMock;
-import io.pravega.storage.s3.S3Mock;
-import io.pravega.storage.s3.S3StorageConfig;
 import io.pravega.test.common.TestUtils;
-import software.amazon.awssdk.services.s3.S3Client;
 
 import java.util.UUID;
 
@@ -43,8 +39,8 @@ public class AzureTestContext {
             this.configUri = "https://localhost";
             String prefix = CONTAINER_NAME_PREFIX + UUID.randomUUID();
             this.adapterConfig = AzureStorageConfig.builder()
-                    .with(AzureStorageConfig.ENDPOINT, "https://ajadhav9.blob.core.windows.net")
-                    .with(AzureStorageConfig.CONNECTION_STRING, "DefaultEndpointsProtocol=https;AccountName=ajadhav9;AccountKey=0DuaCG/7yEpHQCE7lS/hkxHtQa1oqg2E7NSXSLCPGjTvBrGHDdn8zxiYaA1iPn84ntErNXX0AMYB+AStK7xMCA==;EndpointSuffix=core.windows.net")
+                    .with(AzureStorageConfig.ENDPOINT, "")
+                    .with(AzureStorageConfig.CONNECTION_STRING, "")
                     .with(AzureStorageConfig.CONTAINER, "test1" + System.currentTimeMillis())
                     .with(AzureStorageConfig.PREFIX, prefix)
                     .with(AzureStorageConfig.ACCESS_KEY, "access")

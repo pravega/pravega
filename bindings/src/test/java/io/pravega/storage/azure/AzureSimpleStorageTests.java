@@ -15,7 +15,12 @@
  */
 package io.pravega.storage.azure;
 
-import io.pravega.segmentstore.storage.chunklayer.*;
+import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedRollingStorageTests;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageTests;
+import io.pravega.segmentstore.storage.chunklayer.SystemJournalTests;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
