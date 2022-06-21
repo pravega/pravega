@@ -26,7 +26,10 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 /**
  * {@link ChunkStorage} for GCP based storage.
@@ -41,16 +44,6 @@ public class GCPChunkStorage extends BaseChunkStorage {
     //GCP error codes
     private static  final int FILE_NOT_FOUND = 404;
 
-
-//AWS error codes
-    public static final String NO_SUCH_KEY = "NoSuchKey";
-    public static final String PRECONDITION_FAILED = "PreconditionFailed";
-    public static final String INVALID_RANGE = "InvalidRange";
-    public static final String INVALID_ARGUMENT = "InvalidArgument";
-    public static final String METHOD_NOT_ALLOWED = "MethodNotAllowed";
-    public static final String ACCESS_DENIED = "AccessDenied";
-    public static final String INVALID_PART = "InvalidPart";
-
     //region members
     private final GCPStorageConfig config;
     private final Storage storage;
@@ -58,7 +51,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
     //endregion
 
     //region constructor
-    public GCPChunkStorage(Storage storage, GCPStorageConfig config, Executor executor, boolean shouldCloseClient) {
+    public GCPChunkStorage(Storage storage, GCPStorageConfig config, Executor executor) {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.storage = Preconditions.checkNotNull(storage, "client");
@@ -69,7 +62,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
 
     @Override
     public boolean supportsConcat() {
-        return false;
+        return true;
     }
 
     @Override
@@ -106,8 +99,6 @@ public class GCPChunkStorage extends BaseChunkStorage {
     @Override
     protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException {
 
-        //Blob blob = this.storage.get(this.config.getBucket(), getObjectPath(chunkName), Storage.BlobGetOption.fields(Storage.BlobField.SIZE));
-        //try (ReadChannel readChannel = this.storage.reader(this.config.getBucket(), getObjectPath(handle.getChunkName()), new Storage.BlobSourceOption(StorageRpc.Option.START_OFF_SET, StorageRpc.Option.END_OFF_SET.value()))) {
         try (ReadChannel readChannel = this.storage.reader(this.config.getBucket(), getObjectPath(handle.getChunkName()))) {
             try {
                 readChannel.seek(fromOffset);
@@ -135,8 +126,17 @@ public class GCPChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    public int doConcat(ConcatArgument[] chunks) {
-        throw new UnsupportedOperationException("GCPChunkStorage does not concat.");
+    public int doConcat(ConcatArgument[] chunks) throws ChunkStorageException {
+        String targetObjectPath = getObjectPath(chunks[0].getName());
+        List<String> chunkNames = Arrays.stream(chunks).map(chunk -> getObjectPath(chunk.getName())).collect(Collectors.toList());
+        try {
+            Storage.ComposeRequest composeRequest = Storage.ComposeRequest.newBuilder().addSource(chunkNames)
+                    .setTarget(BlobInfo.newBuilder(this.config.getBucket(), targetObjectPath).build()).build();
+            return Math.toIntExact(this.storage.compose(composeRequest).getSize());
+        } catch (StorageException e) {
+            throw convertException(chunks[0].getName(), e.getMessage(), e);
+        }
+        //throw new UnsupportedOperationException("GCPChunkStorage does not concat.");
     }
 
     @Override
@@ -202,22 +202,18 @@ public class GCPChunkStorage extends BaseChunkStorage {
     private ChunkStorageException convertException(String chunkName, String message, Exception e) {
         ChunkStorageException retValue = null;
         if (e instanceof ChunkStorageException) {
-            return (ChunkStorageException) e;
-        }
-        if (e instanceof IOException) {
+            retValue = (ChunkStorageException) e;
+        } else if (e instanceof StorageException) {
+            retValue = getChunkNotFoundException(chunkName, message, (StorageException)e);
+        } else if (e instanceof IOException) {
             if (e.getCause() instanceof RetryHelper.RetryHelperException) {
                 RetryHelper.RetryHelperException retryHelperException = (RetryHelper.RetryHelperException) e.getCause();
                 if (retryHelperException.getCause() instanceof StorageException) {
                     StorageException storageException = (StorageException) retryHelperException.getCause();
-                    int code = storageException.getCode();
-                    if (code == FILE_NOT_FOUND) {
-                        retValue = new ChunkNotFoundException(chunkName, message, e);
-                    }
+                    retValue = getChunkNotFoundException(chunkName, message, storageException);
                 }
             }
-        }
-
-        if (e instanceof IllegalArgumentException) {
+        } else if (e instanceof IllegalArgumentException) {
             throw (IllegalArgumentException) e;
         }
 
@@ -226,6 +222,15 @@ public class GCPChunkStorage extends BaseChunkStorage {
         }
 
         return retValue;
+    }
+
+    private ChunkNotFoundException getChunkNotFoundException(String chunkName, String message, StorageException storageException) {
+        int code = storageException.getCode();
+        ChunkNotFoundException chunkNotFoundException = null;
+        if (code == FILE_NOT_FOUND) {
+            chunkNotFoundException = new ChunkNotFoundException(chunkName, message, storageException);
+        }
+        return chunkNotFoundException;
     }
 
     private String getObjectPath(String objectName) {

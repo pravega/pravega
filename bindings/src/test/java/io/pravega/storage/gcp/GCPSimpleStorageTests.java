@@ -44,7 +44,7 @@ public class GCPSimpleStorageTests extends SimpleStorageTests {
 
     @Override
     protected ChunkStorage getChunkStorage() {
-        return new GCPChunkStorage(testContext.storage, testContext.adapterConfig, executorService(), false);
+        return new GCPChunkStorage(testContext.storage, testContext.adapterConfig, executorService());
     }
 
     @Override
@@ -69,7 +69,7 @@ public class GCPSimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            return new GCPChunkStorage(testContext.storage, testContext.adapterConfig, executorService(), false);
+            return new GCPChunkStorage(testContext.storage, testContext.adapterConfig, executorService());
         }
 
         @Override
@@ -99,7 +99,7 @@ public class GCPSimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage createChunkStorage() {
-            return new GCPChunkStorage(testContext.storage, testContext.adapterConfig, executorService(), false);
+            return new GCPChunkStorage(testContext.storage, testContext.adapterConfig, executorService());
         }
 
         @Override
@@ -115,7 +115,7 @@ public class GCPSimpleStorageTests extends SimpleStorageTests {
         public void testCapabilities() {
             assertFalse(getChunkStorage().supportsAppend());
             assertFalse(getChunkStorage().supportsTruncation());
-            assertFalse(getChunkStorage().supportsConcat());
+            assertTrue(getChunkStorage().supportsConcat());
         }
     }
 
@@ -140,7 +140,7 @@ public class GCPSimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            return new GCPChunkStorage(testContext.storage, testContext.adapterConfig, executorService(), false);
+            return new GCPChunkStorage(testContext.storage, testContext.adapterConfig, executorService());
         }
     }
 }
