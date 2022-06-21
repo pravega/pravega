@@ -376,15 +376,15 @@ public final class WireCommands {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(requestId);
-            out.writeUTF(serverStackTrace);
             out.writeLong(eventNumber);
+            out.writeUTF(serverStackTrace);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long requestId = in.readLong();
-            String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
             long eventNumber = in.readLong();
+            String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
             return new InvalidEventNumber(writerId, requestId, serverStackTrace, eventNumber);
         }
 
