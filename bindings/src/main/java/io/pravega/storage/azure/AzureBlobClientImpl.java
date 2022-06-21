@@ -41,8 +41,9 @@ public class AzureBlobClientImpl implements AzureClient {
                 .credential(StorageSharedKeyCredential.fromConnectionString(config.getConnectionString()))
                 .buildClient();
         this.blobContainerClient = storageClient.getBlobContainerClient(config.getContainerName());
-        //Only for tests.
-        blobContainerClient.create();
+        if (config.isCreateContainer()) {
+            blobContainerClient.create();
+        }
     }
 
     @Override

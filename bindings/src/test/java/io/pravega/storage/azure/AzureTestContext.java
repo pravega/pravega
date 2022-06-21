@@ -38,18 +38,34 @@ public class AzureTestContext {
             this.port = TestUtils.getAvailableListenPort();
             this.configUri = "https://localhost";
             String prefix = CONTAINER_NAME_PREFIX + UUID.randomUUID();
-            this.adapterConfig = AzureStorageConfig.builder()
-                    .with(AzureStorageConfig.ENDPOINT, "")
-                    .with(AzureStorageConfig.CONNECTION_STRING, "")
-                    .with(AzureStorageConfig.CONTAINER, "test1" + System.currentTimeMillis())
-                    .with(AzureStorageConfig.PREFIX, prefix)
-                    .with(AzureStorageConfig.ACCESS_KEY, "access")
-                    .build();
+            adapterConfig = getLocalAzureStorageConfig(prefix);
             azureClient = new AzureBlobClientImpl(adapterConfig);
         } catch (Exception e) {
             close();
             throw e;
         }
+    }
+
+    public static AzureStorageConfig getLocalAzureStorageConfig(String prefix) {
+         return AzureStorageConfig.builder()
+                .with(AzureStorageConfig.ENDPOINT, "http://127.0.0.1:10000/devstoreaccount1")
+                .with(AzureStorageConfig.CONNECTION_STRING, "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;")
+                .with(AzureStorageConfig.CONTAINER, "azureunittests" + System.currentTimeMillis())
+                .with(AzureStorageConfig.PREFIX, prefix)
+                .with(AzureStorageConfig.ACCESS_KEY, "access")
+                .with(AzureStorageConfig.CREATE_CONTAINER, true)
+                .build();
+    }
+
+    public static AzureStorageConfig getAzureStorageConfig(String prefix) {
+        return AzureStorageConfig.builder()
+                .with(AzureStorageConfig.ENDPOINT, "https://ajadhav9.blob.core.windows.net")
+                .with(AzureStorageConfig.CONNECTION_STRING, "DefaultEndpointsProtocol=https;AccountName=ajadhav9;AccountKey=0DuaCG/7yEpHQCE7lS/hkxHtQa1oqg2E7NSXSLCPGjTvBrGHDdn8zxiYaA1iPn84ntErNXX0AMYB+AStK7xMCA==;EndpointSuffix=core.windows.net")
+                .with(AzureStorageConfig.CONTAINER, "azureunittests")
+                .with(AzureStorageConfig.PREFIX, prefix)
+                .with(AzureStorageConfig.ACCESS_KEY, "access")
+                .with(AzureStorageConfig.CREATE_CONTAINER, false)
+                .build();
     }
 
     public void close() throws Exception {

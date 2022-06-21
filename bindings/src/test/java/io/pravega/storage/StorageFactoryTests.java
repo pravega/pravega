@@ -25,10 +25,11 @@ import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.storage.azure.AzureTestContext;
+import io.pravega.storage.azure.AzureStorageFactoryCreator;
 import io.pravega.storage.azure.AzureChunkStorage;
 import io.pravega.storage.azure.AzureSimpleStorageFactory;
 import io.pravega.storage.azure.AzureStorageConfig;
-import io.pravega.storage.azure.AzureStorageFactoryCreator;
 import io.pravega.storage.extendeds3.ExtendedS3ChunkStorage;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
@@ -242,12 +243,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
 
         // Simple Storage
         ConfigSetup configSetup1 = mock(ConfigSetup.class);
-        val config = AzureStorageConfig.builder()
-                .with(AzureStorageConfig.ENDPOINT, "")
-                .with(AzureStorageConfig.CONNECTION_STRING, "")
-                .with(AzureStorageConfig.CONTAINER, "container")
-                .with(AzureStorageConfig.PREFIX, "samplePrefix")
-                .build();
+        val config = AzureTestContext.getAzureStorageConfig("samplePrefix");
         when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof AzureSimpleStorageFactory);

@@ -28,6 +28,8 @@ public class AzureStorageConfig {
     public static final Property<String> ENDPOINT = Property.named("endpoint", "", "endpoint");
     public static final Property<String> CONTAINER = Property.named("container", "");
 
+    public static final Property<Boolean> CREATE_CONTAINER = Property.named("container.create", false);
+
     public static final Property<String> ACCESS_KEY = Property.named("connect.config.access.key", "");
 
     public static final Property<String> PREFIX = Property.named("prefix", "/");
@@ -43,12 +45,16 @@ public class AzureStorageConfig {
     @Getter
     private String prefix;
 
+    @Getter
+    private boolean createContainer;
+
     private AzureStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.endpoint = Preconditions.checkNotNull(properties.get(ENDPOINT));
         this.connectionString = Preconditions.checkNotNull(properties.get(CONNECTION_STRING));
         this.containerName = Preconditions.checkNotNull(properties.get(CONTAINER));
         String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
+        this.createContainer = properties.getBoolean(CREATE_CONTAINER);
     }
 
     /**
