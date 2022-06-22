@@ -118,6 +118,8 @@ nav:
       - 'Distributed Mode': 'security/securing-distributed-mode-cluster.md'
       - 'TLS Artifacts': 'security/generating-tls-artifacts.md'
     - 'Admin CLI': 'https://github.com/pravega/pravega/blob/master/cli/admin/README.md'
+    - 'Recovery Procedures':
+      - 'Corrupted Table Segment Index': 'recovery-procedures/table-segment-recovery.md'
   - Contributing:
     - 'Coding guildelines': 'contributing.md'
     - 'Pravega Roadmap': 'roadmap.md'
