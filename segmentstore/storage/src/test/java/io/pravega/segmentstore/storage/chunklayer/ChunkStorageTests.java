@@ -686,7 +686,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                 " setReadOnly should throw ChunkNotFoundException.",
                 chunkStorage.setReadOnly(writeHandle, false),
                 ex -> (ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName))
-                        || ex.getCause() instanceof UnsupportedOperationException);
+                        || ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException);
         AssertExtensions.assertFutureThrows(
                 " delete should throw ChunkNotFoundException.",
                 chunkStorage.delete(writeHandle),
@@ -914,7 +914,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                 " setReadOnly should throw exception.",
                 chunkStorage.setReadOnly(ChunkHandle.writeHandle(chunkName), false),
                 ex -> (ex instanceof ChunkNotFoundException && ex.getMessage().contains(chunkName))
-                        || ex.getCause() instanceof UnsupportedOperationException);
+                        || ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException);
 
         AssertExtensions.assertFutureThrows(
                 " read should throw exception.",

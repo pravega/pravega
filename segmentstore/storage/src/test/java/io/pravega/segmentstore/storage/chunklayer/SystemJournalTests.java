@@ -51,7 +51,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     private static final int THREAD_POOL_SIZE = 10;
 
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(600);
+    public Timeout globalTimeout = Timeout.seconds(60);
 
     @Override
     @Before

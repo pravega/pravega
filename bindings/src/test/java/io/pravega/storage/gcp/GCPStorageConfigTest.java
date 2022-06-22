@@ -1,12 +1,12 @@
 /**
  * Copyright Pravega Authors.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,7 +19,7 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.Property;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 public class GCPStorageConfigTest {
 
@@ -32,8 +32,7 @@ public class GCPStorageConfigTest {
         GCPStorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
         assertEquals("testPrefix/", config.getPrefix());
-        assertEquals("us-east-1", config.getRegion());
-        assertEquals(false, config.isShouldOverrideUri());
+        assertFalse(config.isShouldOverrideUri());
     }
 
     @Test
@@ -51,13 +50,11 @@ public class GCPStorageConfigTest {
         GCPStorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
         assertEquals("testPrefix/", config.getPrefix());
-        assertEquals("my-region", config.getRegion());
-        assertEquals(true, config.isShouldOverrideUri());
+        assertTrue(config.isShouldOverrideUri());
         assertEquals("http://example.com", config.getGcpConfig());
-        assertEquals( "my-region", config.getRegion());
-        assertEquals( "key", config.getAccessKey());
-        assertEquals( "secret", config.getSecretKey());
-        assertEquals( "role", config.getUserRole());
-        assertEquals( true, config.isAssumeRoleEnabled());
+        assertEquals("key", config.getAccessKey());
+        assertEquals("secret", config.getSecretKey());
+        assertEquals("role", config.getUserRole());
+        assertTrue(config.isAssumeRoleEnabled());
     }
 }

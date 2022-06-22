@@ -1,12 +1,12 @@
 /**
  * Copyright Pravega Authors.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -36,9 +36,6 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 @RequiredArgsConstructor
 public class GCPSimpleStorageFactory implements SimpleStorageFactory {
-    private static final String AWS_ACCESS_KEY_ID = "aws.accessKeyId";
-    private static final String AWS_SECRET_ACCESS_KEY = "aws.secretAccessKey";
-    private static final String AWS_REGION = "aws.region";
 
     @NonNull
     @Getter
@@ -53,12 +50,11 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
 
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
+        return new ChunkedSegmentStorage(containerId,
                 createChunkStorage(),
                 metadataStore,
                 this.executor,
                 this.chunkedSegmentStorageConfig);
-        return chunkedSegmentStorage;
     }
 
     /**
@@ -86,13 +82,7 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
     }
 
     private static AccessToken getAccessToken(GCPStorageConfig config) {
-        setSystemProperties(config);
         return new AccessToken(config.getAccessKey(), new Date());
     }
 
-    private static void setSystemProperties(GCPStorageConfig config) {
-        System.setProperty(AWS_ACCESS_KEY_ID, config.getAccessKey());
-        System.setProperty(AWS_SECRET_ACCESS_KEY, config.getSecretKey());
-        System.setProperty(AWS_REGION, config.getRegion());
-    }
 }

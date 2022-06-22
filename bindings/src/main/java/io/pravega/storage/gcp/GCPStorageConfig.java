@@ -1,12 +1,12 @@
 /**
  * Copyright Pravega Authors.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,7 +22,6 @@ import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import software.amazon.awssdk.regions.Region;
 
 /**
  * Configuration for the GCP Storage component.
@@ -34,7 +33,6 @@ public class GCPStorageConfig {
     public static final Property<String> CONFIGURI = Property.named("connect.config.uri", "", "configUri");
     public static final Property<String> ACCESS_KEY = Property.named("connect.config.access.key", "");
     public static final Property<String> SECRET_KEY = Property.named("connect.config.secret.key", "");
-    public static final Property<String> REGION = Property.named("connect.config.region", Region.US_EAST_1.toString());
     public static final Property<String> BUCKET = Property.named("bucket", "");
     public static final Property<String> PREFIX = Property.named("prefix", "/");
     public static final Property<Boolean> USENONEMATCH = Property.named("noneMatch.enable", false, "useNoneMatch");
@@ -120,7 +118,7 @@ public class GCPStorageConfig {
     private GCPStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.shouldOverrideUri = properties.getBoolean(OVERRIDE_CONFIGURI);
         this.gcpConfig = Preconditions.checkNotNull(properties.get(CONFIGURI), "configUri");
-        this.region = Preconditions.checkNotNull(properties.get(REGION), "region");
+        this.region = "";
         this.accessKey = Preconditions.checkNotNull(properties.get(ACCESS_KEY), "accessKey");
         this.secretKey = Preconditions.checkNotNull(properties.get(SECRET_KEY), "secretKey");
         this.bucket = Preconditions.checkNotNull(properties.get(BUCKET), "bucket");
