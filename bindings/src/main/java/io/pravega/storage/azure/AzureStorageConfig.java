@@ -48,6 +48,7 @@ public class AzureStorageConfig {
     @Getter
     private boolean createContainer;
 
+
     private AzureStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.endpoint = Preconditions.checkNotNull(properties.get(ENDPOINT));
         this.connectionString = Preconditions.checkNotNull(properties.get(CONNECTION_STRING));

@@ -21,7 +21,7 @@ import io.pravega.test.common.TestUtils;
 import java.util.UUID;
 
 /**
- * Test context S3 tests.
+ * Test context Azure tests.
  */
 public class AzureTestContext {
     public static final String CONTAINER_NAME_PREFIX = "pravega-unit-test/";

@@ -18,18 +18,22 @@ package io.pravega.storage.azure;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
-import com.azure.storage.blob.models.BlobRange;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.AppendBlobItem;
 import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobProperties;
-import com.azure.storage.blob.models.AppendBlobItem;
+import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.AppendBlobRequestConditions;
 import com.azure.storage.blob.specialized.AppendBlobClient;
 import com.azure.storage.blob.specialized.BlobClientBase;
 import com.azure.storage.common.StorageSharedKeyCredential;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.io.InputStream;
 
+@Slf4j
 public class AzureBlobClientImpl implements AzureClient {
     private final BlobContainerClient blobContainerClient;
     private final AzureStorageConfig config;
@@ -41,8 +45,21 @@ public class AzureBlobClientImpl implements AzureClient {
                 .credential(StorageSharedKeyCredential.fromConnectionString(config.getConnectionString()))
                 .buildClient();
         this.blobContainerClient = storageClient.getBlobContainerClient(config.getContainerName());
+        log.debug("creating container {}.", config.getContainerName());
         if (config.isCreateContainer()) {
-            blobContainerClient.create();
+            try {
+                val containerprop = blobContainerClient.getProperties();
+            } catch (Exception e) {
+                if (e instanceof BlobStorageException) {
+                    BlobStorageException blobStorageException = (BlobStorageException) e;
+                    val errorCode = blobStorageException.getErrorCode();
+                    if (errorCode.equals(BlobErrorCode.CONTAINER_NOT_FOUND)) {
+                        blobContainerClient.create();
+                        return;
+                    }
+                }
+                throw e;
+            }
         }
     }
 

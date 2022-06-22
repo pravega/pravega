@@ -243,7 +243,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
 
         // Simple Storage
         ConfigSetup configSetup1 = mock(ConfigSetup.class);
-        val config = AzureTestContext.getAzureStorageConfig("samplePrefix");
+        val config = AzureTestContext.getLocalAzureStorageConfig("samplePrefix");
         when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof AzureSimpleStorageFactory);
