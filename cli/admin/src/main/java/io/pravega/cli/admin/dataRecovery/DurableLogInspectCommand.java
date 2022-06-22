@@ -17,6 +17,7 @@ package io.pravega.cli.admin.dataRecovery;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.logs.DataFrameRecord;
 import io.pravega.segmentstore.server.logs.DebugRecoveryProcessor;
@@ -41,11 +42,10 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.val;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -73,6 +73,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
     private static final String GREATER_THAN_EQUAL_TO = ">=";
     private static final String NOT_EQUAL_TO = "!=";
     private static final String OPERATOR_AND = "and";
+    private static final String NEW_LINE_SEPARATOR = "\n";
 
     /**
      * Creates a new instance of the DurableLogInspectCommand class.
@@ -104,6 +105,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         int durableLogReadOperations = readDurableDataLog(containerId, originalDataLog);
 
         output("Total reads original:" + durableLogReadOperations);
+        output("\n Note: Previous Inspect Result files if present will be deleted \n");
 
         //Get user input
         Predicate<OperationInspectInfo> durableLogPredicates = getConditionTypeFromUser();
@@ -123,7 +125,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         return operationsReadFromOriginalLog;
     }
 
-    private OperationInspectInfo getActualOperation(Operation op) {
+    public static OperationInspectInfo getActualOperation(Operation op) {
         OperationInspectInfo res = null;
         if (op instanceof StreamSegmentAppendOperation) {
             res = new OperationInspectInfo(op.getSequenceNumber(), op.getClass().getSimpleName(), op.getCacheLength(),
@@ -165,17 +167,16 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
 
     private int filterResult(Predicate<OperationInspectInfo> predicate, int containerId, DebugDurableDataLogWrapper originalDataLog) throws Exception {
         AtomicInteger res = new AtomicInteger();
+        FileHelpers.deleteFileOrDirectory(new File(getCLIControllerConfig().getInspectResultLocation()));
 
-        SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yy.HH-mm-ss");
-        Date date = new Date();
         @Cleanup
-        FileWriter writer = new FileWriter(createFileAndDirectory("/tmp/inspect/DurableLogInspectResult" + dateFormat.format(date)));
+        FileWriter writer = new FileWriter(createFileAndDirectory(getCLIControllerConfig().getInspectResultLocation()));
 
         readDurableDataLogWithCustomCallback((a, b) -> {
                     if (predicate.test(getActualOperation(a))) {
                         output(a.toString());
                         try {
-                            writer.write(a.toString());
+                            writer.write(getActualOperation(a).toString() + NEW_LINE_SEPARATOR);
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
@@ -183,6 +184,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
                     }
                 }, containerId, originalDataLog.asReadOnly());
         writer.flush();
+        writer.close();
         return res.get();
     }
 
@@ -333,6 +335,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
 
     @Getter
     @Setter
+    static
     class OperationInspectInfo extends Operation {
         public static final long DEFAULT_ABSENT_VALUE = Long.MIN_VALUE + 1;
         private final String operationTypeString;
@@ -346,20 +349,20 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
             setSequenceNumber(sequenceNumber);
             this.operationTypeString = operationTypeString;
             this.length = length == DEFAULT_ABSENT_VALUE ? 0 : length;
-            this.segmentId = segmentId;
-            this.offset = offset;
-            this.attributes = attributes;
+            this.segmentId = segmentId == DEFAULT_ABSENT_VALUE ? 0 : segmentId;
+            this.offset = offset == DEFAULT_ABSENT_VALUE ? 0 : offset;
+            this.attributes = attributes == DEFAULT_ABSENT_VALUE ? 0 : attributes;
         }
 
         @Override
         public String toString() {
-            return "{ " + operationTypeString +
+            return "{ operationTypeString=" + operationTypeString +
                     ", SequenceNumber=" + this.getSequenceNumber() +
-                    (length == DEFAULT_ABSENT_VALUE ? "" : ", Length=" + length) +
-                    (segmentId == DEFAULT_ABSENT_VALUE ? "" : ", SegmentId=" + segmentId) +
-                    (offset == DEFAULT_ABSENT_VALUE ? "" : ", Offset=" + offset) +
-                    (attributes == DEFAULT_ABSENT_VALUE ? "" : ", Attributes=" + attributes) +
-                    '}';
+                    ", Length=" + length +
+                    ", SegmentId=" + segmentId +
+                    ", Offset=" + offset +
+                    ", Attributes=" + attributes +
+                    " }";
         }
     }
 
