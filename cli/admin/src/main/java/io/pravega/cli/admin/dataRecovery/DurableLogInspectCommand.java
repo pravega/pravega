@@ -357,11 +357,11 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         @Override
         public String toString() {
             return "{ operationTypeString=" + operationTypeString +
-                    ", SequenceNumber=" + this.getSequenceNumber() +
-                    ", Length=" + length +
-                    ", SegmentId=" + segmentId +
-                    ", Offset=" + offset +
-                    ", Attributes=" + attributes +
+                    ", sequenceNumber=" + this.getSequenceNumber() +
+                    ", length=" + length +
+                    ", segmentId=" + segmentId +
+                    ", offset=" + offset +
+                    ", attributes=" + attributes +
                     " }";
         }
     }
