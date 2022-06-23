@@ -39,7 +39,8 @@ public class AzureTestContext {
             this.configUri = "https://localhost";
             String prefix = CONTAINER_NAME_PREFIX + UUID.randomUUID();
             adapterConfig = getLocalAzureStorageConfig(prefix);
-            azureClient = new AzureBlobClientImpl(adapterConfig);
+            azureClient = new MockAzureClient(adapterConfig);
+//            azureClient = new AzureBlobClientImpl(adapterConfig);
         } catch (Exception e) {
             close();
             throw e;
