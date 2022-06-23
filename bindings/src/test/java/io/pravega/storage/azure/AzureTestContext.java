@@ -57,17 +57,6 @@ public class AzureTestContext {
                 .build();
     }
 
-    public static AzureStorageConfig getAzureStorageConfig(String prefix) {
-        return AzureStorageConfig.builder()
-                .with(AzureStorageConfig.ENDPOINT, "https://ajadhav9.blob.core.windows.net")
-                .with(AzureStorageConfig.CONNECTION_STRING, "DefaultEndpointsProtocol=https;AccountName=ajadhav9;AccountKey=0DuaCG/7yEpHQCE7lS/hkxHtQa1oqg2E7NSXSLCPGjTvBrGHDdn8zxiYaA1iPn84ntErNXX0AMYB+AStK7xMCA==;EndpointSuffix=core.windows.net")
-                .with(AzureStorageConfig.CONTAINER, "azureunittests")
-                .with(AzureStorageConfig.PREFIX, prefix)
-                .with(AzureStorageConfig.ACCESS_KEY, "access")
-                .with(AzureStorageConfig.CREATE_CONTAINER, false)
-                .build();
-    }
-
     public void close() throws Exception {
         if (null != azureClient) {
             azureClient.close();
