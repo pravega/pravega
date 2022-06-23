@@ -28,46 +28,88 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class GCPStorageConfig {
+
     //region Config Names
-    public static final Property<Boolean> OVERRIDE_CONFIGURI = Property.named("connect.config.uri.override", false);
-    public static final Property<String> CONFIGURI = Property.named("connect.config.uri", "", "configUri");
-    public static final Property<String> ACCESS_KEY = Property.named("connect.config.access.key", "");
-    public static final Property<String> SECRET_KEY = Property.named("connect.config.secret.key", "");
+    public static final Property<String> ACCOUNT_TYPE = Property.named("type", "service_account");
+    public static final Property<String> PROJECT_ID = Property.named("project_id", "");
+    public static final Property<String> PRIVATE_KEY_ID = Property.named("private_key_id", "");
+    public static final Property<String> PRIVATE_KEY = Property.named("private_key", "");
+    public static final Property<String> CLIENT_EMAIL = Property.named("client_email", "");
+    public static final Property<String> CLIENT_ID = Property.named("client_id", "");
+    public static final Property<String> AUTH_URI = Property.named("auth_uri", "https://accounts.google.com/o/oauth2/auth");
+    public static final Property<String> TOKEN_URI = Property.named("token_uri", "https://oauth2.googleapis.com/token");
+    public static final Property<String> AUTH_PROVIDER_CERT_URL = Property.named("auth_provider_x509_cert_url", "https://www.googleapis.com/oauth2/v1/certs");
+    public static final Property<String> CLIENT_CERT_URL = Property.named("client_x509_cert_url", "");
+
+
+
     public static final Property<String> BUCKET = Property.named("bucket", "");
     public static final Property<String> PREFIX = Property.named("prefix", "/");
-    public static final Property<Boolean> USENONEMATCH = Property.named("noneMatch.enable", false, "useNoneMatch");
-    public static final Property<Boolean> ASSUME_ROLE = Property.named("connect.config.assumeRole.enable", false);
-    public static final Property<String> USER_ROLE = Property.named("connect.config.role", "");
     private static final String COMPONENT_CODE = "gcp";
     private static final String PATH_SEPARATOR = "/";
 
     //endregion
 
-    //region Members
 
     /**
-     *  The GCP complete client config of the GCP REST interface
+     *  The GCP account type
      */
     @Getter
-    private final String gcpConfig;
+    private final String accountType;
 
     /**
-     *  The GCP region to use
+     *  The GCP projectId
      */
     @Getter
-    private final String region;
+    private final String projectId;
 
     /**
-     *  The GCP access key id - this is equivalent to the user
+     *  The GCP
      */
     @Getter
-    private final String accessKey;
+    private final String privateKeyId;
 
     /**
-     *  The GCP secret key associated with the accessKey
+     *  The GCP
      */
     @Getter
-    private final String secretKey;
+    private final String privateKey;
+
+    /**
+     *  The GCP
+     */
+    @Getter
+    private final String clientEmail;
+
+    /**
+     *  The GCP
+     */
+    @Getter
+    private final String clientId;
+
+    /**
+     *  The GCP
+     */
+    @Getter
+    private final String authUri;
+
+    /**
+     *  The GCP
+     */
+    @Getter
+    private final String tokenUri;
+
+    /**
+     *  The GCP
+     */
+    @Getter
+    private final String authProviderCertUrl;
+
+    /**
+     *  The GCP
+     */
+    @Getter
+    private final String clientCertUrl;
 
     /**
      *  A unique bucket name to store objects
@@ -82,30 +124,6 @@ public class GCPStorageConfig {
     @Getter
     private final String prefix;
 
-    /**
-     * Whether to use if-none-match header or not.
-     */
-    @Getter
-    private final boolean useNoneMatch;
-
-    /**
-     * Whether to use end point other than default.
-     */
-    @Getter
-    private final boolean shouldOverrideUri;
-
-    /**
-     * Whether to use STS tokens by using assume role.
-     */
-    @Getter
-    private final boolean assumeRoleEnabled;
-
-    /**
-     *  The role to assume.
-     */
-    @Getter
-    private final String userRole;
-
     //endregion
 
     //region Constructor
@@ -116,17 +134,20 @@ public class GCPStorageConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private GCPStorageConfig(TypedProperties properties) throws ConfigurationException {
-        this.shouldOverrideUri = properties.getBoolean(OVERRIDE_CONFIGURI);
-        this.gcpConfig = Preconditions.checkNotNull(properties.get(CONFIGURI), "configUri");
-        this.region = "";
-        this.accessKey = Preconditions.checkNotNull(properties.get(ACCESS_KEY), "accessKey");
-        this.secretKey = Preconditions.checkNotNull(properties.get(SECRET_KEY), "secretKey");
+        this.accountType = Preconditions.checkNotNull(properties.get(ACCOUNT_TYPE));
+        this.projectId = Preconditions.checkNotNull(properties.get(PROJECT_ID));
+        this.privateKeyId = Preconditions.checkNotNull(properties.get(PRIVATE_KEY_ID));
+        this.privateKey = Preconditions.checkNotNull(properties.get(PRIVATE_KEY));
+        this.clientEmail = Preconditions.checkNotNull(properties.get(CLIENT_EMAIL));
+        this.clientId = Preconditions.checkNotNull(properties.get(CLIENT_ID));
+        this.authUri = Preconditions.checkNotNull(properties.get(AUTH_URI));
+        this.tokenUri = Preconditions.checkNotNull(properties.get(TOKEN_URI));
+        this.authProviderCertUrl = Preconditions.checkNotNull(properties.get(AUTH_PROVIDER_CERT_URL));
+        this.clientCertUrl = Preconditions.checkNotNull(properties.get(CLIENT_CERT_URL));
         this.bucket = Preconditions.checkNotNull(properties.get(BUCKET), "bucket");
         String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
-        this.useNoneMatch = properties.getBoolean(USENONEMATCH);
-        this.assumeRoleEnabled = properties.getBoolean(ASSUME_ROLE);
-        this.userRole = Preconditions.checkNotNull(properties.get(USER_ROLE), "userRole");
+
     }
 
     /**

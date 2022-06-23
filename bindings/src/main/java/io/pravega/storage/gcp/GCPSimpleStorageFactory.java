@@ -15,9 +15,9 @@
  */
 package io.pravega.storage.gcp;
 
-import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.StorageOptions;
+import com.google.gson.JsonObject;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
@@ -28,7 +28,8 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
-import java.util.Date;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -67,8 +68,8 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
 
     @Override
     public ChunkStorage createChunkStorage() {
-        com.google.cloud.storage.Storage storage = createStorageOptions(this.config).getService();
-        return new GCPChunkStorage(storage, this.config, this.executor);
+        com.google.cloud.storage.Storage storage =  createStorageOptions(this.config).getService();
+        return new GCPChunkStorage(storage, this.config, this.executor, false);
     }
 
     /**
@@ -77,12 +78,29 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
      * @return StorageOptions instance.
      */
     static StorageOptions createStorageOptions(GCPStorageConfig config) {
-        GoogleCredentials credentials = GoogleCredentials.create(getAccessToken(config));
-        return StorageOptions.newBuilder().setCredentials(credentials).setProjectId("pravega-amit").build();
+        JsonObject serviceAccountJSON = getServiceAcountJSON(config);
+        GoogleCredentials credentials = null;
+        try {
+            credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(serviceAccountJSON.toString().getBytes()));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return StorageOptions.newBuilder().setCredentials(credentials).build();
     }
 
-    private static AccessToken getAccessToken(GCPStorageConfig config) {
-        return new AccessToken(config.getAccessKey(), new Date());
+    private static JsonObject getServiceAcountJSON(GCPStorageConfig config) {
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty(GCPStorageConfig.ACCOUNT_TYPE.getName(), config.getAccountType());
+        jsonObject.addProperty(GCPStorageConfig.PROJECT_ID.getName(), config.getProjectId());
+        jsonObject.addProperty(GCPStorageConfig.PRIVATE_KEY_ID.getName(), config.getPrivateKeyId());
+        jsonObject.addProperty(GCPStorageConfig.PRIVATE_KEY.getName(), config.getPrivateKey());
+        jsonObject.addProperty(GCPStorageConfig.CLIENT_EMAIL.getName(), config.getClientEmail());
+        jsonObject.addProperty(GCPStorageConfig.CLIENT_ID.getName(), config.getClientId());
+        jsonObject.addProperty(GCPStorageConfig.AUTH_URI.getName(), config.getAuthUri());
+        jsonObject.addProperty(GCPStorageConfig.TOKEN_URI.getName(), config.getTokenUri());
+        jsonObject.addProperty(GCPStorageConfig.AUTH_PROVIDER_CERT_URL.getName(), config.getAuthProviderCertUrl());
+        jsonObject.addProperty(GCPStorageConfig.CLIENT_CERT_URL.getName(), config.getClientCertUrl());
+        return jsonObject;
     }
 
 }

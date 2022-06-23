@@ -26,35 +26,42 @@ public class GCPStorageConfigTest {
     @Test
     public void testDefaultGCPConfig() {
         ConfigBuilder<GCPStorageConfig> builder = GCPStorageConfig.builder();
-        builder.with(Property.named("configUri"), "http://127.0.0.1:9020")
-                .with(Property.named("bucket"), "testBucket")
+        builder.with(Property.named("bucket"), "testBucket")
                 .with(Property.named("prefix"), "testPrefix");
         GCPStorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
         assertEquals("testPrefix/", config.getPrefix());
-        assertFalse(config.isShouldOverrideUri());
     }
 
     @Test
     public void testConstructGCPConfig() {
         ConfigBuilder<GCPStorageConfig> builder = GCPStorageConfig.builder();
-        builder.with(Property.named("connect.config.uri"), "http://example.com")
-                .with(Property.named("bucket"), "testBucket")
+        builder.with(Property.named("bucket"), "testBucket")
                 .with(Property.named("prefix"), "testPrefix")
-                .with(Property.named("connect.config.region"), "my-region")
-                .with(Property.named("connect.config.access.key"), "key")
-                .with(Property.named("connect.config.secret.key"), "secret")
-                .with(Property.named("connect.config.role"), "role")
-                .with(Property.named("connect.config.uri.override"), true)
-                .with(Property.named("connect.config.assumeRole.enable"), true);
+
+                .with(Property.named("type"), "testType")
+                .with(Property.named("project_id"), "testProjectId")
+                .with(Property.named("private_key_id"), "testPrivateKeyId")
+                .with(Property.named("private_key"), "testPrivateKey")
+                .with(Property.named("client_email"), "testClientEmail")
+                .with(Property.named("client_id"), "testClientId")
+                .with(Property.named("auth_uri"), "testAuthUri")
+                .with(Property.named("token_uri"), "testTokenUri")
+                .with(Property.named("auth_provider_x509_cert_url"), "testAuthProviderCertUrl")
+                .with(Property.named("client_x509_cert_url"), "testClientCertUrl");
         GCPStorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
         assertEquals("testPrefix/", config.getPrefix());
-        assertTrue(config.isShouldOverrideUri());
-        assertEquals("http://example.com", config.getGcpConfig());
-        assertEquals("key", config.getAccessKey());
-        assertEquals("secret", config.getSecretKey());
-        assertEquals("role", config.getUserRole());
-        assertTrue(config.isAssumeRoleEnabled());
+
+        assertEquals("testType", config.getAccountType());
+        assertEquals("testProjectId", config.getProjectId());
+        assertEquals("testPrivateKeyId", config.getPrivateKeyId());
+        assertEquals("testPrivateKey", config.getPrivateKey());
+        assertEquals("testClientEmail", config.getClientEmail());
+        assertEquals("testClientId", config.getClientId());
+        assertEquals("testAuthUri", config.getAuthUri());
+        assertEquals("testTokenUri", config.getTokenUri());
+        assertEquals("testAuthProviderCertUrl", config.getAuthProviderCertUrl());
+        assertEquals("testClientCertUrl", config.getClientCertUrl());
     }
 }

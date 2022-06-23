@@ -276,34 +276,12 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testGCPStorageFactoryCreatorWithoutRole() {
+    public void testGCPStorageFactoryCreator() {
         val config = GCPStorageConfig.builder()
-                .with(S3StorageConfig.CONFIGURI, "http://127.0.0.1")
-                .with(S3StorageConfig.BUCKET, "bucket")
-                .with(S3StorageConfig.PREFIX, "samplePrefix")
-                .with(S3StorageConfig.ACCESS_KEY, "user")
-                .with(S3StorageConfig.SECRET_KEY, "secret")
-                .build();
-
-        testGCPStorageFactoryCreator(config);
-    }
-
-    @Test
-    public void testGCPStorageFactoryCreatorWithRole() {
-        val config = GCPStorageConfig.builder()
-                .with(GCPStorageConfig.CONFIGURI, "http://127.0.0.1")
-                .with(GCPStorageConfig.ASSUME_ROLE, true)
                 .with(GCPStorageConfig.BUCKET, "bucket")
                 .with(GCPStorageConfig.PREFIX, "samplePrefix")
-                .with(GCPStorageConfig.ACCESS_KEY, "user")
-                .with(GCPStorageConfig.SECRET_KEY, "secret")
-                .with(GCPStorageConfig.USER_ROLE, "role")
                 .build();
 
-        testGCPStorageFactoryCreator(config);
-    }
-
-    private void testGCPStorageFactoryCreator(GCPStorageConfig config) {
         StorageFactoryCreator factoryCreator = new GCPStorageFactoryCreator();
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()

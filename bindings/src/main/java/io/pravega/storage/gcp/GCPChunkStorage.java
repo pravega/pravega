@@ -58,7 +58,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
     //endregion
 
     //region constructor
-    public GCPChunkStorage(Storage storage, GCPStorageConfig config, Executor executor) {
+    public GCPChunkStorage(Storage storage, GCPStorageConfig config, Executor executor, boolean shouldCloseClient) {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.storage = Preconditions.checkNotNull(storage, "client");
