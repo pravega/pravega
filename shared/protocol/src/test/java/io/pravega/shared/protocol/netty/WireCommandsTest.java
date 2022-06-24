@@ -463,7 +463,6 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         final WireCommandType type = WireCommandType.INVALID_EVENT_NUMBER;
         final UUID writerId;
         final long eventNumber;
-        final long requestId;
 
         @Override
         public void process(ReplyProcessor cp) {}
@@ -473,7 +472,6 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
-            out.writeLong(requestId);
         }
 
         @Override
@@ -488,7 +486,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
         @Override
         public long getRequestId() {
-            return requestId;
+            return eventNumber;
         }
     }
 
@@ -496,9 +494,9 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     public void testCompatibilityInvalidEventNumberV5() throws IOException {
         // Test that we are able to decode a message with a previous version
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        InvalidEventNumberV5 commandV5 = new InvalidEventNumberV5(uuid, i, l);
+        InvalidEventNumberV5 commandV5 = new InvalidEventNumberV5(uuid, i);
         commandV5.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.InvalidEventNumber(uuid, i, "", l));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.InvalidEventNumber(uuid, i, "",b));
     }
 
     @Data
