@@ -384,7 +384,7 @@ public final class WireCommands {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long requestId = in.readLong();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
-            long eventNumber = (in.available() >= Long.BYTES) ? in.readLong(): -1L;
+            long eventNumber = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
             return new InvalidEventNumber(writerId, requestId, serverStackTrace, eventNumber);
         }
 
