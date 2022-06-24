@@ -45,11 +45,17 @@ public class GCPStorageConfig {
 
     public static final Property<String> BUCKET = Property.named("bucket", "");
     public static final Property<String> PREFIX = Property.named("prefix", "/");
+    public static final Property<Boolean> USE_MOCK = Property.named("useMock", false);
     private static final String COMPONENT_CODE = "gcp";
     private static final String PATH_SEPARATOR = "/";
 
     //endregion
 
+    /**
+     * The GCP use mock
+     */
+    @Getter
+    boolean useMock;
 
     /**
      *  The GCP account type
@@ -147,6 +153,7 @@ public class GCPStorageConfig {
         this.bucket = Preconditions.checkNotNull(properties.get(BUCKET), "bucket");
         String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
+        this.useMock = properties.getBoolean(USE_MOCK);
 
     }
 

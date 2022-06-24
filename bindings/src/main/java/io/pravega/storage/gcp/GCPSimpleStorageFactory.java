@@ -17,6 +17,7 @@ package io.pravega.storage.gcp;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.StorageOptions;
+import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import com.google.gson.JsonObject;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
@@ -80,6 +81,9 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
     static StorageOptions createStorageOptions(GCPStorageConfig config) {
         JsonObject serviceAccountJSON = getServiceAcountJSON(config);
         GoogleCredentials credentials = null;
+        if (config.isUseMock()) {
+            return LocalStorageHelper.getOptions();
+        }
         try {
             credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(serviceAccountJSON.toString().getBytes()));
         } catch (IOException e) {

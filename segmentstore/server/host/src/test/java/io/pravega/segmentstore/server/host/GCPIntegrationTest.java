@@ -45,6 +45,8 @@ import java.util.concurrent.ScheduledExecutorService;
 public class GCPIntegrationTest extends BookKeeperIntegrationTestBase {
     //region Test Configuration and Setup
 
+    com.google.cloud.storage.Storage mockGCPStorage;
+
     @Getter
     private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
             .journalSnapshotInfoUpdateFrequency(Duration.ofMillis(10))
@@ -69,6 +71,7 @@ public class GCPIntegrationTest extends BookKeeperIntegrationTestBase {
         this.configBuilder.include(GCPStorageConfig.builder()
                 .with(GCPStorageConfig.BUCKET, bucketName)
                 .with(GCPStorageConfig.PREFIX, prefix));
+        mockGCPStorage = LocalStorageHelper.getOptions().getService();
     }
 
     @Override
@@ -145,7 +148,7 @@ public class GCPIntegrationTest extends BookKeeperIntegrationTestBase {
 
         @Override
         public ChunkStorage createChunkStorage() {
-            return new GCPChunkStorage(LocalStorageHelper.getOptions().getService(), this.config, executorService(), false);
+            return new GCPChunkStorage(mockGCPStorage, this.config, executorService(), false);
         }
     }
 }

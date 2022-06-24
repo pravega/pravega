@@ -280,6 +280,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         val config = GCPStorageConfig.builder()
                 .with(GCPStorageConfig.BUCKET, "bucket")
                 .with(GCPStorageConfig.PREFIX, "samplePrefix")
+                .with(GCPStorageConfig.USE_MOCK, true)
                 .build();
 
         StorageFactoryCreator factoryCreator = new GCPStorageFactoryCreator();
