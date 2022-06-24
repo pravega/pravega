@@ -30,14 +30,9 @@ import lombok.extern.slf4j.Slf4j;
 public class GCPStorageConfig {
 
     //region Config Names
-    public static final Property<String> ACCOUNT_TYPE = Property.named("type", "service_account");
-    public static final Property<String> PROJECT_ID = Property.named("project_id", "");
-    public static final Property<String> PRIVATE_KEY_ID = Property.named("private_key_id", "");
-    public static final Property<String> PRIVATE_KEY = Property.named("private_key", "");
-    public static final Property<String> CLIENT_EMAIL = Property.named("client_email", "");
-    public static final Property<String> CLIENT_ID = Property.named("client_id", "");
-    public static final Property<String> BUCKET = Property.named("bucket", "");
-    public static final Property<String> PREFIX = Property.named("prefix", "/");
+    public static final Property<String> ACCESS_TOKEN = Property.named("gcp.access.token", "");
+    public static final Property<String> BUCKET = Property.named("gcp.bucket", "");
+    public static final Property<String> PREFIX = Property.named("gcp.prefix", "/");
     public static final Property<Boolean> USE_MOCK = Property.named("useMock", false);
     private static final String COMPONENT_CODE = "gcp";
     private static final String PATH_SEPARATOR = "/";
@@ -51,40 +46,10 @@ public class GCPStorageConfig {
     boolean useMock;
 
     /**
-     * The GCP account type
+     * The access token is a string representation of google service account json.
      */
     @Getter
-    private final String accountType;
-
-    /**
-     * The GCP projectId
-     */
-    @Getter
-    private final String projectId;
-
-    /**
-     * The GCP private key id
-     */
-    @Getter
-    private final String privateKeyId;
-
-    /**
-     * The GCP private key
-     */
-    @Getter
-    private final String privateKey;
-
-    /**
-     * The GCP client email
-     */
-    @Getter
-    private final String clientEmail;
-
-    /**
-     * The GCP client id
-     */
-    @Getter
-    private final String clientId;
+    private final String accessToken;
 
     /**
      * A unique bucket name to store objects
@@ -109,12 +74,7 @@ public class GCPStorageConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private GCPStorageConfig(TypedProperties properties) throws ConfigurationException {
-        this.accountType = Preconditions.checkNotNull(properties.get(ACCOUNT_TYPE));
-        this.projectId = Preconditions.checkNotNull(properties.get(PROJECT_ID));
-        this.privateKeyId = Preconditions.checkNotNull(properties.get(PRIVATE_KEY_ID));
-        this.privateKey = Preconditions.checkNotNull(properties.get(PRIVATE_KEY));
-        this.clientEmail = Preconditions.checkNotNull(properties.get(CLIENT_EMAIL));
-        this.clientId = Preconditions.checkNotNull(properties.get(CLIENT_ID));
+        this.accessToken = Preconditions.checkNotNull(properties.get(ACCESS_TOKEN));
         this.bucket = Preconditions.checkNotNull(properties.get(BUCKET), "bucket");
         String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;

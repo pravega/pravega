@@ -18,7 +18,6 @@ package io.pravega.storage.gcp;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
-import com.google.gson.JsonObject;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
@@ -39,13 +38,22 @@ import java.util.concurrent.ScheduledExecutorService;
 @RequiredArgsConstructor
 public class GCPSimpleStorageFactory implements SimpleStorageFactory {
 
+    /**
+     * ChunkedSegmentStorageConfig contains configuration for {@link ChunkedSegmentStorage}.
+     */
     @NonNull
     @Getter
     private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
 
+    /**
+     * GCPStorageConfig contains configuration for GCP.
+     */
     @NonNull
     private final GCPStorageConfig config;
 
+    /**
+     * ScheduledExecutorService is an {@link java.util.concurrent.ExecutorService} that can schedule commands to run after a given delay.
+     */
     @NonNull
     @Getter
     private final ScheduledExecutorService executor;
@@ -69,38 +77,27 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
 
     @Override
     public ChunkStorage createChunkStorage() {
-        com.google.cloud.storage.Storage storage =  createStorageOptions(this.config).getService();
+        com.google.cloud.storage.Storage storage = createStorageOptions(this.config).getService();
         return new GCPChunkStorage(storage, this.config, this.executor, false);
     }
 
     /**
      * Creates instance of {@link StorageOptions} based on given {@link GCPStorageConfig}.
+     *
      * @param config Config to use.
      * @return StorageOptions instance.
      */
     static StorageOptions createStorageOptions(GCPStorageConfig config) {
-        JsonObject serviceAccountJSON = getServiceAcountJSON(config);
-        GoogleCredentials credentials = null;
+        GoogleCredentials credentials;
         if (config.isUseMock()) {
             return LocalStorageHelper.getOptions();
         }
         try {
-            credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(serviceAccountJSON.toString().getBytes()));
+            credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(config.getAccessToken().getBytes()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
         return StorageOptions.newBuilder().setCredentials(credentials).build();
-    }
-
-    private static JsonObject getServiceAcountJSON(GCPStorageConfig config) {
-        JsonObject jsonObject = new JsonObject();
-        jsonObject.addProperty(GCPStorageConfig.ACCOUNT_TYPE.getName(), config.getAccountType());
-        jsonObject.addProperty(GCPStorageConfig.PROJECT_ID.getName(), config.getProjectId());
-        jsonObject.addProperty(GCPStorageConfig.PRIVATE_KEY_ID.getName(), config.getPrivateKeyId());
-        jsonObject.addProperty(GCPStorageConfig.PRIVATE_KEY.getName(), config.getPrivateKey());
-        jsonObject.addProperty(GCPStorageConfig.CLIENT_EMAIL.getName(), config.getClientEmail());
-        jsonObject.addProperty(GCPStorageConfig.CLIENT_ID.getName(), config.getClientId());
-        return jsonObject;
     }
 
 }

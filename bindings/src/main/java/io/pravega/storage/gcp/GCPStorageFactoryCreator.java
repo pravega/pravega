@@ -25,6 +25,9 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 
 import java.util.concurrent.ScheduledExecutorService;
 
+/**
+ * Factory creator {@link GCPSimpleStorageFactory}.
+ */
 public class GCPStorageFactoryCreator implements StorageFactoryCreator {
     @Override
     public StorageFactory createFactory(StorageFactoryInfo storageFactoryInfo, ConfigSetup setup, ScheduledExecutorService executor) {

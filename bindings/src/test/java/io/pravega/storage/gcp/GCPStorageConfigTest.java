@@ -21,13 +21,16 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
+/**
+ * Unit tests for {@link GCPStorageConfig}
+ */
 public class GCPStorageConfigTest {
 
     @Test
     public void testDefaultGCPConfig() {
         ConfigBuilder<GCPStorageConfig> builder = GCPStorageConfig.builder();
-        builder.with(Property.named("bucket"), "testBucket")
-                .with(Property.named("prefix"), "testPrefix");
+        builder.with(Property.named("gcp.bucket"), "testBucket")
+                .with(Property.named("gcp.prefix"), "testPrefix");
         GCPStorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
         assertEquals("testPrefix/", config.getPrefix());
@@ -36,10 +39,10 @@ public class GCPStorageConfigTest {
     @Test
     public void testConstructGCPConfig() {
         ConfigBuilder<GCPStorageConfig> builder = GCPStorageConfig.builder();
-        builder.with(Property.named("bucket"), "testBucket")
-                .with(Property.named("prefix"), "testPrefix")
+        builder.with(Property.named("gcp.bucket"), "testBucket")
+                .with(Property.named("gcp.prefix"), "testPrefix")
 
-                .with(Property.named("type"), "testType")
+                .with(Property.named("gcp.access.token"), "testAccessToken")
                 .with(Property.named("project_id"), "testProjectId")
                 .with(Property.named("private_key_id"), "testPrivateKeyId")
                 .with(Property.named("private_key"), "testPrivateKey")
@@ -48,12 +51,6 @@ public class GCPStorageConfigTest {
         GCPStorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
         assertEquals("testPrefix/", config.getPrefix());
-
-        assertEquals("testType", config.getAccountType());
-        assertEquals("testProjectId", config.getProjectId());
-        assertEquals("testPrivateKeyId", config.getPrivateKeyId());
-        assertEquals("testPrivateKey", config.getPrivateKey());
-        assertEquals("testClientEmail", config.getClientEmail());
-        assertEquals("testClientId", config.getClientId());
+        assertEquals("testAccessToken", config.getAccessToken());
     }
 }

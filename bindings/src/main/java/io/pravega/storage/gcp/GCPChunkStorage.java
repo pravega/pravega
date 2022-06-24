@@ -43,15 +43,25 @@ import java.util.concurrent.Executor;
  * <p>
  * Each chunk is represented as a single Object on the underlying storage.
  * <p>
- * This implementation works under the assumption that is only created once and never modified.
+ * This implementation works under the assumption that object is created only once and never modified.
  */
 @Slf4j
 public class GCPChunkStorage extends BaseChunkStorage {
-    
+
+    /**
+     * Error code for not found in google cloud storage
+     */
     private static final int FILE_NOT_FOUND = 404;
 
     //region members
+    /**
+     * GCPStorageConfig contains config values.
+     */
     private final GCPStorageConfig config;
+
+    /**
+     * Storage is provided by GCP to perform cloud operation on google cloud storage.
+     */
     private final Storage storage;
 
     //endregion
@@ -140,7 +150,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
     protected ChunkInfo doGetInfo(String chunkName) throws ChunkNotFoundException {
         Blob blob = this.storage.get(this.config.getBucket(), getObjectPath(chunkName), Storage.BlobGetOption.fields(Storage.BlobField.SIZE));
         if (null == blob) {
-            throw new ChunkNotFoundException(chunkName, null, null);
+            throw new ChunkNotFoundException(chunkName, "doGetInfo", null);
         }
         return ChunkInfo.builder()
                 .name(chunkName)
@@ -163,8 +173,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
         } catch (IOException e) {
             throw convertException(chunkName, "doCreateWithContent", e);
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new ChunkStorageException(e.getMessage(), null, null);
+            throw convertException(chunkName, e.getMessage(), new ChunkStorageException(e.getMessage(), "doCreateWithContent", null));
         }
     }
 
@@ -178,14 +187,23 @@ public class GCPChunkStorage extends BaseChunkStorage {
     protected void doDelete(ChunkHandle handle) throws ChunkNotFoundException {
         boolean deleted = this.storage.delete(this.config.getBucket(), getObjectPath(handle.getChunkName()));
         if (!deleted) {
-            throw new ChunkNotFoundException(handle.getChunkName(), null, null);
+            throw new ChunkNotFoundException(handle.getChunkName(), "doDelete", null);
         }
     }
 
+    /**
+     *
+     * @param chunkName - Name of the chunk
+     * @param message - Error message
+     * @param e - Exception
+     * @return Takes the exception and converts it to meaningful exception
+     */
     private ChunkStorageException convertException(String chunkName, String message, Exception e) {
         ChunkStorageException retValue = null;
         if (e instanceof ChunkStorageException) {
             retValue = (ChunkStorageException) e;
+        } else if (e instanceof ChunkNotFoundException) {
+            retValue = (ChunkNotFoundException) e;
         } else if (e instanceof StorageException) {
             retValue = getChunkNotFoundException(chunkName, message, (StorageException) e);
         } else if (e instanceof IOException) {
@@ -205,6 +223,13 @@ public class GCPChunkStorage extends BaseChunkStorage {
         return retValue;
     }
 
+    /**
+     *
+     * @param chunkName - Name of the chunk
+     * @param message - Error message
+     * @param storageException - StorageException
+     * @return Takes the StorageException and returns ChunkNotFoundException
+     */
     private ChunkNotFoundException getChunkNotFoundException(String chunkName, String message, StorageException storageException) {
         int code = storageException.getCode();
         ChunkNotFoundException chunkNotFoundException = null;
@@ -214,6 +239,11 @@ public class GCPChunkStorage extends BaseChunkStorage {
         return chunkNotFoundException;
     }
 
+    /**
+     *
+     * @param objectName - The name of the object
+     * @return returns the object name by appending prefix
+     */
     private String getObjectPath(String objectName) {
         return config.getPrefix() + objectName;
     }
