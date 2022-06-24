@@ -36,13 +36,6 @@ public class GCPStorageConfig {
     public static final Property<String> PRIVATE_KEY = Property.named("private_key", "");
     public static final Property<String> CLIENT_EMAIL = Property.named("client_email", "");
     public static final Property<String> CLIENT_ID = Property.named("client_id", "");
-    public static final Property<String> AUTH_URI = Property.named("auth_uri", "https://accounts.google.com/o/oauth2/auth");
-    public static final Property<String> TOKEN_URI = Property.named("token_uri", "https://oauth2.googleapis.com/token");
-    public static final Property<String> AUTH_PROVIDER_CERT_URL = Property.named("auth_provider_x509_cert_url", "https://www.googleapis.com/oauth2/v1/certs");
-    public static final Property<String> CLIENT_CERT_URL = Property.named("client_x509_cert_url", "");
-
-
-
     public static final Property<String> BUCKET = Property.named("bucket", "");
     public static final Property<String> PREFIX = Property.named("prefix", "/");
     public static final Property<Boolean> USE_MOCK = Property.named("useMock", false);
@@ -52,73 +45,49 @@ public class GCPStorageConfig {
     //endregion
 
     /**
-     * The GCP use mock
+     * The GCP use mock. Keep always false in production
      */
     @Getter
     boolean useMock;
 
     /**
-     *  The GCP account type
+     * The GCP account type
      */
     @Getter
     private final String accountType;
 
     /**
-     *  The GCP projectId
+     * The GCP projectId
      */
     @Getter
     private final String projectId;
 
     /**
-     *  The GCP
+     * The GCP private key id
      */
     @Getter
     private final String privateKeyId;
 
     /**
-     *  The GCP
+     * The GCP private key
      */
     @Getter
     private final String privateKey;
 
     /**
-     *  The GCP
+     * The GCP client email
      */
     @Getter
     private final String clientEmail;
 
     /**
-     *  The GCP
+     * The GCP client id
      */
     @Getter
     private final String clientId;
 
     /**
-     *  The GCP
-     */
-    @Getter
-    private final String authUri;
-
-    /**
-     *  The GCP
-     */
-    @Getter
-    private final String tokenUri;
-
-    /**
-     *  The GCP
-     */
-    @Getter
-    private final String authProviderCertUrl;
-
-    /**
-     *  The GCP
-     */
-    @Getter
-    private final String clientCertUrl;
-
-    /**
-     *  A unique bucket name to store objects
+     * A unique bucket name to store objects
      */
     @Getter
     private final String bucket;
@@ -146,10 +115,6 @@ public class GCPStorageConfig {
         this.privateKey = Preconditions.checkNotNull(properties.get(PRIVATE_KEY));
         this.clientEmail = Preconditions.checkNotNull(properties.get(CLIENT_EMAIL));
         this.clientId = Preconditions.checkNotNull(properties.get(CLIENT_ID));
-        this.authUri = Preconditions.checkNotNull(properties.get(AUTH_URI));
-        this.tokenUri = Preconditions.checkNotNull(properties.get(TOKEN_URI));
-        this.authProviderCertUrl = Preconditions.checkNotNull(properties.get(AUTH_PROVIDER_CERT_URL));
-        this.clientCertUrl = Preconditions.checkNotNull(properties.get(CLIENT_CERT_URL));
         this.bucket = Preconditions.checkNotNull(properties.get(BUCKET), "bucket");
         String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;

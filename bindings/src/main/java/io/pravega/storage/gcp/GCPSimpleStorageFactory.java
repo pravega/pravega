@@ -100,10 +100,6 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
         jsonObject.addProperty(GCPStorageConfig.PRIVATE_KEY.getName(), config.getPrivateKey());
         jsonObject.addProperty(GCPStorageConfig.CLIENT_EMAIL.getName(), config.getClientEmail());
         jsonObject.addProperty(GCPStorageConfig.CLIENT_ID.getName(), config.getClientId());
-        jsonObject.addProperty(GCPStorageConfig.AUTH_URI.getName(), config.getAuthUri());
-        jsonObject.addProperty(GCPStorageConfig.TOKEN_URI.getName(), config.getTokenUri());
-        jsonObject.addProperty(GCPStorageConfig.AUTH_PROVIDER_CERT_URL.getName(), config.getAuthProviderCertUrl());
-        jsonObject.addProperty(GCPStorageConfig.CLIENT_CERT_URL.getName(), config.getClientCertUrl());
         return jsonObject;
     }
 

@@ -47,8 +47,7 @@ import java.util.concurrent.Executor;
  */
 @Slf4j
 public class GCPChunkStorage extends BaseChunkStorage {
-
-    //GCP error codes
+    
     private static final int FILE_NOT_FOUND = 404;
 
     //region members
