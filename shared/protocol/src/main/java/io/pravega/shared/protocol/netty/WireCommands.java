@@ -363,7 +363,6 @@ public final class WireCommands {
         final UUID writerId;
         final long requestId;
         final String serverStackTrace;
-
         final long eventNumber;
 
         @Override
