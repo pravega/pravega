@@ -44,11 +44,7 @@ public class GCPStorageConfigTest {
                 .with(Property.named("private_key_id"), "testPrivateKeyId")
                 .with(Property.named("private_key"), "testPrivateKey")
                 .with(Property.named("client_email"), "testClientEmail")
-                .with(Property.named("client_id"), "testClientId")
-                .with(Property.named("auth_uri"), "testAuthUri")
-                .with(Property.named("token_uri"), "testTokenUri")
-                .with(Property.named("auth_provider_x509_cert_url"), "testAuthProviderCertUrl")
-                .with(Property.named("client_x509_cert_url"), "testClientCertUrl");
+                .with(Property.named("client_id"), "testClientId");
         GCPStorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
         assertEquals("testPrefix/", config.getPrefix());
@@ -59,9 +55,5 @@ public class GCPStorageConfigTest {
         assertEquals("testPrivateKey", config.getPrivateKey());
         assertEquals("testClientEmail", config.getClientEmail());
         assertEquals("testClientId", config.getClientId());
-        assertEquals("testAuthUri", config.getAuthUri());
-        assertEquals("testTokenUri", config.getTokenUri());
-        assertEquals("testAuthProviderCertUrl", config.getAuthProviderCertUrl());
-        assertEquals("testClientCertUrl", config.getClientCertUrl());
     }
 }
