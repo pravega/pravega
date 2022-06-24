@@ -248,11 +248,6 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof AzureSimpleStorageFactory);
 
-        @Cleanup
-        Storage storage1 = ((AzureSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
-        Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
-        Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof AzureChunkStorage);
-
         AssertExtensions.assertThrows(
                 "createStorageAdapter should throw UnsupportedOperationException.",
                 () -> factory1.createStorageAdapter(),

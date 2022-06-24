@@ -26,11 +26,9 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
-import io.pravega.storage.azure.AzureBlobClientImpl;
-import io.pravega.storage.azure.AzureChunkStorage;
-import io.pravega.storage.azure.AzureClient;
-import io.pravega.storage.azure.AzureStorageConfig;
+import io.pravega.storage.azure.*;
 import lombok.Getter;
+import lombok.val;
 import org.junit.After;
 import org.junit.Before;
 
@@ -46,6 +44,8 @@ public class AzureIntegrationTest extends BookKeeperIntegrationTestBase {
     //region Test Configuration and Setup
 
     private String azureEndpoint;
+
+    private AzureClient azureClient;
 
     @Getter
     private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
@@ -68,13 +68,15 @@ public class AzureIntegrationTest extends BookKeeperIntegrationTestBase {
         azureEndpoint = "https://localhost";
         String containerName = "test-container" + UUID.randomUUID();
         String prefix = "Integration" + UUID.randomUUID();
-        this.configBuilder.include(AzureStorageConfig.builder()
+        val builder = AzureStorageConfig.builder()
                 .with(AzureStorageConfig.ENDPOINT, "http://127.0.0.1:10000/devstoreaccount1")
                 .with(AzureStorageConfig.CONNECTION_STRING, "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;")
                 .with(AzureStorageConfig.CONTAINER, containerName)
                 .with(AzureStorageConfig.PREFIX, prefix)
                 .with(AzureStorageConfig.ACCESS_KEY, "access")
-                .with(AzureStorageConfig.CREATE_CONTAINER, true));
+                .with(AzureStorageConfig.CREATE_CONTAINER, true);
+        this.configBuilder.include(builder);
+        this.azureClient = new MockAzureClient(builder.build());
     }
 
     @Override
@@ -165,7 +167,7 @@ public class AzureIntegrationTest extends BookKeeperIntegrationTestBase {
         }
 
         private AzureClient createAzureClient(AzureStorageConfig config) {
-            return new AzureBlobClientImpl(config);
+            return azureClient;
         }
     }
 }
