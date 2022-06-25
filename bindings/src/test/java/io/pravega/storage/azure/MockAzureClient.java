@@ -1,13 +1,36 @@
+/**
+ * Copyright Pravega Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.pravega.storage.azure;
 
 import com.azure.core.http.HttpHeaders;
 import com.azure.core.http.HttpMethod;
 import com.azure.core.http.HttpRequest;
 import com.azure.core.http.HttpResponse;
-import com.azure.storage.blob.models.*;
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.models.AppendBlobItem;
+import com.azure.storage.blob.models.BlobProperties;
+import com.azure.storage.blob.models.BlobType;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.CollectionHelpers;
-import lombok.*;
+import lombok.val;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.SneakyThrows;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -17,7 +40,6 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,24 +53,24 @@ public class MockAzureClient implements AzureClient {
      */
 
     @GuardedBy("objects")
-    private static final Map<String, Map<String, InMemoryBlobData>> data = new HashMap<>();
+    private static final Map<String, Map<String, InMemoryBlobData>> DATA = new HashMap<>();
 
     AzureStorageConfig config;
 
     public MockAzureClient(AzureStorageConfig config) {
         this.config = config;
-        if(!data.containsKey(config.getContainerName())) {
-            data.put(config.getContainerName(), new HashMap<>());
+        if (!DATA.containsKey(config.getContainerName())) {
+            DATA.put(config.getContainerName(), new HashMap<>());
         }
     }
 
     @Override
     synchronized public AppendBlobItem create(String blobName) {
-        val objectMap = data.get(config.getContainerName());
-        if(objectMap == null) {
+        val objectMap = DATA.get(config.getContainerName());
+        if (objectMap == null) {
             throw new BlobStorageException("Container doesn't exist.", null, null);
         }
-        if(objectMap.containsKey(blobName)) {
+        if (objectMap.containsKey(blobName)) {
             throw new BlobStorageException("Container doesn't exist.", null, null);
         }
         objectMap.put(blobName, new InMemoryBlobData());
@@ -58,8 +80,8 @@ public class MockAzureClient implements AzureClient {
 
     @Override
     synchronized public boolean exists(String blobName) {
-        val objectMap = data.get(config.getContainerName());
-        if(objectMap == null) {
+        val objectMap = DATA.get(config.getContainerName());
+        if (objectMap == null) {
             throw new BlobStorageException("Blob doesn't exist.", new MockHttpResponse(404, new HttpRequest(HttpMethod.HEAD, config.getEndpoint()),
                     BlobErrorCode.BLOB_NOT_FOUND.toString()), null);
         }
@@ -68,12 +90,12 @@ public class MockAzureClient implements AzureClient {
 
     @Override
     synchronized public void delete(String blobName) {
-        val objectMap = data.get(config.getContainerName());
-        if(objectMap == null) {
+        val objectMap = DATA.get(config.getContainerName());
+        if (objectMap == null) {
             throw new BlobStorageException("Container doesn't exist.", new MockHttpResponse(404, new HttpRequest(HttpMethod.HEAD, config.getEndpoint()),
                     BlobErrorCode.CONTAINER_NOT_FOUND.toString()), null);
         }
-        if(!objectMap.containsKey(blobName)) {
+        if (!objectMap.containsKey(blobName)) {
             throw new BlobStorageException("Blob doesn't exist.", new MockHttpResponse(404, new HttpRequest(HttpMethod.HEAD, config.getEndpoint()),
                     BlobErrorCode.BLOB_NOT_FOUND.toString()), null);
         }
@@ -100,7 +122,7 @@ public class MockAzureClient implements AzureClient {
         int bytesCopied = 0;
         int srcIndex = 0;
 
-        for(int i = floorIndex; i < inMemoryBlobData.blockList.size(); i++) {
+        for (int i = floorIndex; i < inMemoryBlobData.blockList.size(); i++) {
             val currentBlock = inMemoryBlobData.blockList.get(i);
             val arrayToReadFrom = currentBlock.getData(); //byte[] to which data is copied equ to source
             val isLastBlock = currentBlock.getStart() + currentBlock.getLength() >= offSetInBlob + length;
@@ -114,7 +136,7 @@ public class MockAzureClient implements AzureClient {
                 }
             } else {
                 srcIndex = 0;
-                if(isLastBlock) {
+                if (isLastBlock) {
                     size = Math.toIntExact(length - bytesCopied);
                 } else {
                     size = Math.toIntExact(currentBlock.getLength());
@@ -137,7 +159,7 @@ public class MockAzureClient implements AzureClient {
     @SneakyThrows
     synchronized public AppendBlobItem appendBlock(String blobName, long offSet, long length, InputStream inputStream) {
         final InMemoryBlobData inMemoryBlobData = getBlobData(blobName);
-        if(inMemoryBlobData.blobLength != offSet) {
+        if (inMemoryBlobData.blobLength != offSet) {
             throw new BlobStorageException("Container doesn't exist.", new MockHttpResponse(404,
                     new HttpRequest(HttpMethod.HEAD, config.getEndpoint()), BlobErrorCode.SOURCE_CONDITION_NOT_MET.toString()), null);
         }
@@ -152,12 +174,12 @@ public class MockAzureClient implements AzureClient {
     }
 
     private InMemoryBlobData getBlobData(String blobName) {
-        val objectMap = data.get(config.getContainerName());
-        if(objectMap == null) {
+        val objectMap = DATA.get(config.getContainerName());
+        if (objectMap == null) {
             throw new BlobStorageException("Container doesn't exist.",
                     new MockHttpResponse(404, new HttpRequest(HttpMethod.HEAD, config.getEndpoint()), BlobErrorCode.BLOB_NOT_FOUND.toString()), null);
         }
-        if(!objectMap.containsKey(blobName)) {
+        if (!objectMap.containsKey(blobName)) {
             throw new BlobStorageException("Blob doesn't exist.",
                     new MockHttpResponse(404, new HttpRequest(HttpMethod.HEAD, config.getEndpoint()),
                             BlobErrorCode.BLOB_NOT_FOUND.toString()), null);
@@ -173,7 +195,7 @@ public class MockAzureClient implements AzureClient {
         return new BlobProperties(OffsetDateTime.now(), null, "",
                 inMemoryBlobData.blobLength, "", null,
                 "", "", "", "", null, BlobType.APPEND_BLOB,
-                null, null, null, "", null, "" , "", null,
+                null, null, null, "", null, "", "", null,
                 "", false, false, "", null, false,
                 null, "", null, null, null);
     }
@@ -206,10 +228,9 @@ public class MockAzureClient implements AzureClient {
     }
 
     static class MockHttpResponse extends HttpResponse {
+        public static final String ERROR_CODE = "x-ms-error-code";
         final int statusCode;
         final String errorCode;
-        public static final String ERROR_CODE = "x-ms-error-code";
-
 
         public MockHttpResponse(int statusCode, HttpRequest httpRequest, String errorCode) {
             super(httpRequest);

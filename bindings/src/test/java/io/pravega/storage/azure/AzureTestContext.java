@@ -40,7 +40,6 @@ public class AzureTestContext {
             String prefix = CONTAINER_NAME_PREFIX + UUID.randomUUID();
             adapterConfig = getLocalAzureStorageConfig(prefix);
             azureClient = new MockAzureClient(adapterConfig);
-//            azureClient = new AzureBlobClientImpl(adapterConfig);
         } catch (Exception e) {
             close();
             throw e;

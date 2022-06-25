@@ -27,7 +27,6 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.storage.azure.AzureTestContext;
 import io.pravega.storage.azure.AzureStorageFactoryCreator;
-import io.pravega.storage.azure.AzureChunkStorage;
 import io.pravega.storage.azure.AzureSimpleStorageFactory;
 import io.pravega.storage.azure.AzureStorageConfig;
 import io.pravega.storage.extendeds3.ExtendedS3ChunkStorage;
