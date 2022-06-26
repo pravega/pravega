@@ -40,11 +40,11 @@ public class AzureBlobClientImpl implements AzureClient {
 
     public AzureBlobClientImpl(AzureStorageConfig config) {
         this.config = config;
-        BlobServiceClient storageClient = new BlobServiceClientBuilder()
-                .endpoint(config.getEndpoint())
-                .credential(StorageSharedKeyCredential.fromConnectionString(config.getConnectionString()))
-                .buildClient();
-        this.blobContainerClient = storageClient.getBlobContainerClient(config.getContainerName());
+        this.blobContainerClient = getBlobContainerClient(config);
+        createContainerIfRequired(config, blobContainerClient);
+    }
+
+    public void createContainerIfRequired(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
         log.debug("creating container {}.", config.getContainerName());
         if (config.isCreateContainer()) {
             try {
@@ -61,6 +61,21 @@ public class AzureBlobClientImpl implements AzureClient {
                 throw e;
             }
         }
+    }
+
+    public AzureBlobClientImpl(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
+        this.config = config;
+        this.blobContainerClient = blobContainerClient;
+        createContainerIfRequired(config, blobContainerClient);
+    }
+
+    private BlobContainerClient getBlobContainerClient(AzureStorageConfig config) {
+        BlobServiceClient storageClient = new BlobServiceClientBuilder()
+                .endpoint(config.getEndpoint())
+                .credential(StorageSharedKeyCredential.fromConnectionString(config.getConnectionString()))
+                .buildClient();
+        val Client = storageClient.getBlobContainerClient(config.getContainerName());
+        return Client;
     }
 
     @Override
