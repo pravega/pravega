@@ -192,7 +192,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
     }
 
     /**
-     *
+     * This method takes exception instance and converts it to a meaningful exception.
      * @param chunkName - Name of the chunk
      * @param message - Error message
      * @param e - Exception
@@ -202,8 +202,6 @@ public class GCPChunkStorage extends BaseChunkStorage {
         ChunkStorageException retValue = null;
         if (e instanceof ChunkStorageException) {
             retValue = (ChunkStorageException) e;
-        } else if (e instanceof ChunkNotFoundException) {
-            retValue = (ChunkNotFoundException) e;
         } else if (e instanceof StorageException) {
             retValue = getChunkNotFoundException(chunkName, message, (StorageException) e);
         } else if (e instanceof IOException) {
@@ -224,7 +222,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
     }
 
     /**
-     *
+     * This method takes StorageException and converts it to ChunkNotFoundException.
      * @param chunkName - Name of the chunk
      * @param message - Error message
      * @param storageException - StorageException
@@ -240,7 +238,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
     }
 
     /**
-     *
+     * This method takes object name and append a prefix to it.
      * @param objectName - The name of the object
      * @return returns the object name by appending prefix
      */

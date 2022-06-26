@@ -42,12 +42,7 @@ public class GCPStorageConfigTest {
         builder.with(Property.named("gcp.bucket"), "testBucket")
                 .with(Property.named("gcp.prefix"), "testPrefix")
 
-                .with(Property.named("gcp.access.token"), "testAccessToken")
-                .with(Property.named("project_id"), "testProjectId")
-                .with(Property.named("private_key_id"), "testPrivateKeyId")
-                .with(Property.named("private_key"), "testPrivateKey")
-                .with(Property.named("client_email"), "testClientEmail")
-                .with(Property.named("client_id"), "testClientId");
+                .with(Property.named("gcp.access.token"), "testAccessToken");
         GCPStorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
         assertEquals("testPrefix/", config.getPrefix());
