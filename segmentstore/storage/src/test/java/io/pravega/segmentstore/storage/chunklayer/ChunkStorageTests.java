@@ -1053,7 +1053,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
             AssertExtensions.assertFutureThrows(
                     " write should throw UnsupportedOperationException.",
                     chunkStorage.write(chunkHandle, 0, writeBuffer.length, new ByteArrayInputStream(writeBuffer)),
-            ex -> (ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException));
+            ex -> ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException);
         }
 
         if (!chunkStorage.supportsConcat()) {
@@ -1064,7 +1064,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
             AssertExtensions.assertFutureThrows(
                     " concat should throw UnsupportedOperationException.",
                     chunkStorage.concat(concatArguments),
-            ex -> (ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException));
+            ex -> ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException);
         }
     }
 }
