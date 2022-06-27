@@ -107,6 +107,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         output("Total reads original:" + durableLogReadOperations);
         output("\n Note: Previous Inspect Result files if present will be deleted \n");
 
+        FileHelpers.deleteFileOrDirectory(new File(getCLIControllerConfig().getInspectResultLocation()));
         //Get user input
         Predicate<OperationInspectInfo> durableLogPredicates = getConditionTypeFromUser();
 
@@ -167,7 +168,6 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
 
     private int filterResult(Predicate<OperationInspectInfo> predicate, int containerId, DebugDurableDataLogWrapper originalDataLog) throws Exception {
         AtomicInteger res = new AtomicInteger();
-        FileHelpers.deleteFileOrDirectory(new File(getCLIControllerConfig().getInspectResultLocation()));
 
         @Cleanup
         FileWriter writer = new FileWriter(createFileAndDirectory(getCLIControllerConfig().getInspectResultLocation()));

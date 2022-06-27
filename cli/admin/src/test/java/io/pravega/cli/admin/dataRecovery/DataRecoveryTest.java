@@ -68,6 +68,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.rules.Timeout;
 import org.mockito.Mockito;
 
@@ -1024,6 +1025,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
+        //originalOperations.add(new DeleteSegmentOperation(1000L));
         Map<String, Long> origOperationsCountMap = getOperationsCountMapByOperationType(originalOperations);
 
         System.out.println("Printing count map: \n " + origOperationsCountMap);
@@ -1256,8 +1258,82 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .doReturn("!=").doReturn("no").doReturn("no")
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
-        savedOpCountMap = getOperationsCountMapBySequenceNumber(getSavedResult(testDataDir.getAbsolutePath()));
-        Assert.assertEquals(origOperationsCountMap.size(), savedOpCountMap.size());
+
+        this.factory.close();
+    }
+
+    @Test
+    public void testDurableLogInspectCommandException() throws Exception {
+        int instanceId = 0;
+        int bookieCount = 3;
+        int containerCount = 1;
+        File testDataDir = Files.createTempDirectory("test-data-data-recovery-inspect").toFile().getAbsoluteFile();
+
+        @Cleanup
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
+        pravegaRunner.startBookKeeperRunner(instanceId);
+        val bkConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
+                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
+                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner.getBookKeeperRunner().getLogMetaNamespace())
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .build();
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
+
+        String streamName = "testDataRecoveryCommand";
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
+            // Write events to the streams.
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
+        }
+        // Shut down services, we assume that the cluster is in very bad shape in this test.
+        pravegaRunner.shutDownControllerRunner();
+        pravegaRunner.shutDownSegmentStoreRunner();
+
+        // set Pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner.getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner.getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        pravegaProperties.setProperty("cli.inspect.temp", testDataDir.getAbsolutePath());
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Execute basic command workflow for inspect DurableLog.
+        CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        DurableLogInspectCommand command = Mockito.spy(new DurableLogInspectCommand(args));
+
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        this.factory.initialize();
+
+        // First, keep all the Operations of Container 0 in this list, so we can compare with the modified one.
+        List<DurableLogInspectCommand.OperationInspectInfo> originalOperations = new ArrayList<>();
+
+        @Cleanup
+        DebugDurableDataLogWrapper wrapper = this.factory.createDebugLogWrapper(0);
+        command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
+                0, wrapper.asReadOnly());
+
+        Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
+
+        System.out.println("Printing count map: \n " + origOperationsCountMap);
+
+        Mockito.doReturn(true).doReturn(false)
+                .when(command).confirmContinue();
+        Mockito.doThrow(new NumberFormatException("Test"))
+                .when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("SequenceNumber").doReturn("value")
+                .when(command).getStringUserInput(Mockito.any());
+        Assert.assertEquals(0, testDataDir.listFiles().length);
+        command.execute();
 
         this.factory.close();
     }
@@ -1270,7 +1346,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         try (Stream<String> stream = Files.lines(Path.of(inspectResult), StandardCharsets.UTF_8)) {
             savedResult = stream.collect(Collectors.toList());
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            return new ArrayList<>();
         }
         System.out.println("Printing file content: " + this.baseDir.getAbsolutePath() + "inspect \n");
         Gson g = new GsonBuilder().setLenient().create();
