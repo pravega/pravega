@@ -138,7 +138,7 @@ public class Attributes {
      * @return True if immutable, false otherwise.
      */
     public static boolean isUnmodifiable(AttributeId attributeId) {
-        return attributeId == ATTRIBUTE_SEGMENT_TYPE || attributeId == ATTRIBUTE_ID_LENGTH;
+        return attributeId.equals(ATTRIBUTE_SEGMENT_TYPE) || attributeId.equals(ATTRIBUTE_ID_LENGTH);
     }
 
     /**
