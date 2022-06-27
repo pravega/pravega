@@ -1043,4 +1043,28 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IllegalArgumentException);
 
     }
+
+    @Test
+    public void testUnsupported() throws ExecutionException, InterruptedException {
+        String chunkName = "testchunk";
+        ChunkHandle chunkHandle = ChunkHandle.writeHandle(chunkName);
+        byte[] writeBuffer = new byte[10];
+        if (!chunkStorage.supportsAppend()) {
+            AssertExtensions.assertFutureThrows(
+                    " write should throw UnsupportedOperationException.",
+                    chunkStorage.write(chunkHandle, 0, writeBuffer.length, new ByteArrayInputStream(writeBuffer)),
+            ex -> (ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException));
+        }
+
+        if (!chunkStorage.supportsConcat()) {
+            ConcatArgument[] concatArguments = new ConcatArgument[] {
+                    new ConcatArgument(writeBuffer.length, chunkName),
+                    new ConcatArgument(writeBuffer.length, "testchunknew")
+            };
+            AssertExtensions.assertFutureThrows(
+                    " concat should throw UnsupportedOperationException.",
+                    chunkStorage.concat(concatArguments),
+            ex -> (ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException));
+        }
+    }
 }

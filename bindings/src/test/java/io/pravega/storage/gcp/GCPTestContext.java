@@ -18,7 +18,6 @@ package io.pravega.storage.gcp;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
-import io.pravega.test.common.TestUtils;
 
 import java.util.UUID;
 
@@ -29,12 +28,10 @@ public class GCPTestContext {
     public static final String BUCKET_NAME_PREFIX = "pravega-pre/";
     public final GCPStorageConfig adapterConfig;
 
-    public final int port;
     public final Storage storage;
     public final ChunkedSegmentStorageConfig defaultConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
 
     public GCPTestContext() {
-        this.port = TestUtils.getAvailableListenPort();
         String bucketName = "pravega-unit-test";
         String prefix = BUCKET_NAME_PREFIX + UUID.randomUUID();
         this.adapterConfig = GCPStorageConfig.builder()
