@@ -1053,18 +1053,23 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
             AssertExtensions.assertFutureThrows(
                     " write should throw UnsupportedOperationException.",
                     chunkStorage.write(chunkHandle, 0, writeBuffer.length, new ByteArrayInputStream(writeBuffer)),
-            ex -> ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException);
+                    ex -> ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException);
         }
 
+        String newChunkName = "testchunknew";
+        ChunkHandle newChunkHandle = chunkStorage.createWithContent(chunkName, 1, new ByteArrayInputStream(new byte[1])).get();
+        assertEquals(chunkName, chunkHandle.getChunkName());
+        assertEquals(false, chunkHandle.isReadOnly());
+
         if (!chunkStorage.supportsConcat()) {
-            ConcatArgument[] concatArguments = new ConcatArgument[] {
+            ConcatArgument[] concatArguments = new ConcatArgument[]{
                     new ConcatArgument(writeBuffer.length, chunkName),
-                    new ConcatArgument(writeBuffer.length, "testchunknew")
+                    new ConcatArgument(writeBuffer.length, newChunkName)
             };
             AssertExtensions.assertFutureThrows(
                     " concat should throw UnsupportedOperationException.",
                     chunkStorage.concat(concatArguments),
-            ex -> ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException);
+                    ex -> ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException);
         }
     }
 }
