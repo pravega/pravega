@@ -1009,8 +1009,31 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         pravegaProperties.setProperty("cli.inspect.temp", testDataDir.getAbsolutePath());
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
-        // Execute basic command workflow for inspect DurableLog.
         CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        DurableDataLogRepairCommand cmd = Mockito.spy(new DurableDataLogRepairCommand(args));
+
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        TestUtils.executeCommand("bk disable 0", STATE.get());
+
+        // Second, add 2 operations, delete 1 operation, replace 1 operation.
+        Mockito.doReturn(true).doReturn(true).doReturn(false)
+                .doReturn(true).doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true)
+                .when(cmd).confirmContinue();
+        Mockito.doReturn(900L).doReturn(901L)
+                .doReturn(901L).doReturn(1L).doReturn(123L)
+                .doReturn(2L).doReturn(123L)
+                .doReturn(903L).doReturn(3L).doReturn(123L)
+                .doReturn(905L).doReturn(4L).doReturn(123L)
+                .when(cmd).getLongUserInput(Mockito.any());
+        Mockito.doReturn("delete")
+                .doReturn("add").doReturn("DeleteSegmentOperation").doReturn("DeleteSegmentOperation")
+                .doReturn("replace").doReturn("DeleteSegmentOperation")
+                .doReturn("add").doReturn("StreamSegmentSealOperation")
+                .when(cmd).getStringUserInput(Mockito.any());
+        cmd.execute();
+
+        // Execute basic command workflow for inspect DurableLog.
         DurableLogInspectCommand command = Mockito.spy(new DurableLogInspectCommand(args));
 
         this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
@@ -1023,7 +1046,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         DebugDurableDataLogWrapper wrapper = this.factory.createDebugLogWrapper(0);
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
-
+        
         //originalOperations.add(new DeleteSegmentOperation(1000L));
         Map<String, Long> origOperationsCountMap = getOperationsCountMapByOperationType(originalOperations);
 
