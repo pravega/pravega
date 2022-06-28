@@ -735,7 +735,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                 bytesRead += chunkStorage.read(ChunkHandle.readHandle(tragetChunkName), bytesRead, bufferRead.length, bufferRead, bytesRead).get();
             }
             assertArrayEquals(bufferWritten, bufferRead);
-        } catch (Exception e) {
+        } catch (ExecutionException | UnsupportedOperationException e) {
             val ex = Exceptions.unwrap(e);
             // The storage provider may not have native concat.
             Assert.assertTrue(ex instanceof UnsupportedOperationException);
