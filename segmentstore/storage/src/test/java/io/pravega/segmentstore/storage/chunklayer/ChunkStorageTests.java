@@ -1057,8 +1057,8 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
         }
 
         String newChunkName = "testchunknew";
-        ChunkHandle newChunkHandle = chunkStorage.createWithContent(chunkName, 1, new ByteArrayInputStream(new byte[1])).get();
-        assertEquals(chunkName, chunkHandle.getChunkName());
+        ChunkHandle newChunkHandle = chunkStorage.createWithContent(newChunkName, 1, new ByteArrayInputStream(new byte[1])).get();
+        assertEquals(newChunkName, chunkHandle.getChunkName());
         assertEquals(false, chunkHandle.isReadOnly());
 
         if (!chunkStorage.supportsConcat()) {
