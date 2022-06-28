@@ -1046,29 +1046,15 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testUnsupported() throws ExecutionException, InterruptedException {
-        String chunkName = "testchunk";
-        ChunkHandle chunkHandle = ChunkHandle.writeHandle(chunkName);
+        String chunkName = "testchunk1";
         byte[] writeBuffer = new byte[10];
+        ChunkHandle chunkHandle = chunkStorage.createWithContent(chunkName, writeBuffer.length, new ByteArrayInputStream(writeBuffer)).get();
+        assertEquals(chunkName, chunkHandle.getChunkName());
+        assertEquals(false, chunkHandle.isReadOnly());
         if (!chunkStorage.supportsAppend()) {
             AssertExtensions.assertFutureThrows(
                     " write should throw UnsupportedOperationException.",
                     chunkStorage.write(chunkHandle, 0, writeBuffer.length, new ByteArrayInputStream(writeBuffer)),
-                    ex -> ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException);
-        }
-
-        String newChunkName = "testchunknew";
-        ChunkHandle newChunkHandle = chunkStorage.createWithContent(newChunkName, 1, new ByteArrayInputStream(new byte[1])).get();
-        assertEquals(newChunkName, newChunkHandle.getChunkName());
-        assertEquals(false, newChunkHandle.isReadOnly());
-
-        if (!chunkStorage.supportsConcat()) {
-            ConcatArgument[] concatArguments = new ConcatArgument[]{
-                    new ConcatArgument(writeBuffer.length, chunkName),
-                    new ConcatArgument(writeBuffer.length, newChunkName)
-            };
-            AssertExtensions.assertFutureThrows(
-                    " concat should throw UnsupportedOperationException.",
-                    chunkStorage.concat(concatArguments),
                     ex -> ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException);
         }
     }
