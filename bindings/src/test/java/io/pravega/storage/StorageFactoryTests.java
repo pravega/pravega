@@ -276,6 +276,38 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testGCPStorageFactoryCreatorWithException() {
+        val config = GCPStorageConfig.builder()
+                .with(GCPStorageConfig.BUCKET, "bucket")
+                .with(GCPStorageConfig.PREFIX, "samplePrefix")
+                .with(GCPStorageConfig.ACCESS_TOKEN, "accessToken")
+                .with(GCPStorageConfig.USE_MOCK, false)
+                .build();
+
+        StorageFactoryCreator factoryCreator = new GCPStorageFactoryCreator();
+        val expected = new StorageFactoryInfo[]{
+                StorageFactoryInfo.builder()
+                        .name("GCP")
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
+                        .build()
+        };
+
+        val factoryInfoList = factoryCreator.getStorageFactories();
+        Assert.assertEquals(1, factoryInfoList.length);
+        Assert.assertArrayEquals(expected, factoryInfoList);
+
+        // Simple Storage
+        ConfigSetup configSetup1 = mock(ConfigSetup.class);
+
+        when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
+        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
+        Assert.assertTrue(factory1 instanceof GCPSimpleStorageFactory);
+
+        GCPSimpleStorageFactory gcpSimpleStorageFactory = (GCPSimpleStorageFactory) factory1;
+        Assert.assertThrows(RuntimeException.class, () -> gcpSimpleStorageFactory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService())));
+    }
+
+    @Test
     public void testGCPStorageFactoryCreator() {
         val config = GCPStorageConfig.builder()
                 .with(GCPStorageConfig.BUCKET, "bucket")

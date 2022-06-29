@@ -172,8 +172,6 @@ public class GCPChunkStorage extends BaseChunkStorage {
             return ChunkHandle.writeHandle(chunkName);
         } catch (IOException e) {
             throw convertException(chunkName, "doCreateWithContent", e);
-        } catch (Exception e) {
-            throw convertException(chunkName, e.getMessage(), new ChunkStorageException(e.getMessage(), "doCreateWithContent", null));
         }
     }
 
@@ -200,11 +198,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
      */
     private ChunkStorageException convertException(String chunkName, String message, Exception e) {
         ChunkStorageException retValue = null;
-        if (e instanceof ChunkStorageException) {
-            retValue = (ChunkStorageException) e;
-        } else if (e instanceof StorageException) {
-            retValue = getChunkNotFoundException(chunkName, message, (StorageException) e);
-        } else if (e instanceof IOException) {
+        if (e instanceof IOException) {
             if (e.getCause() instanceof RetryHelper.RetryHelperException) {
                 RetryHelper.RetryHelperException retryHelperException = (RetryHelper.RetryHelperException) e.getCause();
                 if (retryHelperException.getCause() instanceof StorageException) {
