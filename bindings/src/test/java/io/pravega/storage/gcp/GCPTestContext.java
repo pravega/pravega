@@ -38,6 +38,7 @@ public class GCPTestContext {
                 .with(GCPStorageConfig.BUCKET, bucketName)
                 .with(GCPStorageConfig.PREFIX, prefix)
                 .build();
+
         storage = LocalStorageHelper.getOptions().getService();
     }
 
