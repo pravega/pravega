@@ -166,7 +166,7 @@ public class AzureIntegrationTest extends BookKeeperIntegrationTestBase {
         public ChunkStorage createChunkStorage() {
             URI uri = URI.create(azureEndpoint);
             AzureClient azureClient = createAzureClient(this.config);
-            return new AzureChunkStorage(azureClient, this.config, this.executor, true, true);
+            return new AzureChunkStorage(azureClient, this.config, this.executor, true);
         }
 
         private AzureClient createAzureClient(AzureStorageConfig config) {

@@ -35,20 +35,31 @@ import java.io.InputStream;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-
+/**
+ * Each chunk is represented as a single blob on the underlying storage.
+ *
+ * The Append Block operation commits a new block of data to the end of an existing Append blob.
+ */
 public class AzureChunkStorage extends BaseChunkStorage {
     private final AzureStorageConfig config;
     private final AzureClient client;
-    private final boolean shouldClose;
     private final AtomicBoolean closed;
     private final boolean supportsAppend;
 
-    public AzureChunkStorage(AzureClient client, AzureStorageConfig config, Executor executor, boolean supportsAppend, boolean shouldClose) {
+    /**
+     * Creates a new instance of the AzureChunkStorage class.
+     *
+     * @param client Client allows you to manipulate Azure Storage containers and their blobs.
+     * @param config The configuration to use.
+     * @param executor Executor for async operations.
+     * @param supportsAppend The Append block operation commits a new block of data to the end of an existing Append blob.
+     */
+
+    public AzureChunkStorage(AzureClient client, AzureStorageConfig config, Executor executor, boolean supportsAppend) {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.client = Preconditions.checkNotNull(client, "client");
         this.closed = new AtomicBoolean(false);
-        this.shouldClose = shouldClose;
         this.supportsAppend = supportsAppend;
 
     }
@@ -169,7 +180,7 @@ public class AzureChunkStorage extends BaseChunkStorage {
     @Override
     @SneakyThrows
     public void close() {
-        if (shouldClose && !this.closed.getAndSet(true)) {
+        if (!this.closed.getAndSet(true)) {
             this.client.close();
         }
         super.close();

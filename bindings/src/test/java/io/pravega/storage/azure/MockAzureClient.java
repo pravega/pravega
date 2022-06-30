@@ -26,6 +26,7 @@ import com.azure.storage.blob.models.BlobProperties;
 import com.azure.storage.blob.models.BlobType;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.CollectionHelpers;
+import io.pravega.storage.s3.S3Mock;
 import lombok.val;
 import lombok.Builder;
 import lombok.Getter;
@@ -45,6 +46,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 
 public class MockAzureClient implements AzureClient {
 

@@ -52,7 +52,7 @@ public class AzureSimpleStorageTests extends SimpleStorageTests {
 
     @Override
     protected ChunkStorage getChunkStorage() {
-        return new AzureChunkStorage(testContext.azureClient, testContext.adapterConfig, executorService(), true, true);
+        return new AzureChunkStorage(testContext.azureClient, testContext.adapterConfig, executorService(), true);
     }
 
     @Override
@@ -80,7 +80,7 @@ public class AzureSimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            return new AzureChunkStorage(testContext.azureClient, testContext.adapterConfig, executorService(), true, true);
+            return new AzureChunkStorage(testContext.azureClient, testContext.adapterConfig, executorService(), true);
         }
 
         @Override
@@ -113,7 +113,7 @@ public class AzureSimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage createChunkStorage() {
-            return new AzureChunkStorage(testContext.azureClient, testContext.adapterConfig, executorService(), true, true);
+            return new AzureChunkStorage(testContext.azureClient, testContext.adapterConfig, executorService(), true);
         }
 
         @Override
@@ -157,7 +157,7 @@ public class AzureSimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            return new AzureChunkStorage(testContext.azureClient, testContext.adapterConfig, executorService(), true, true);
+            return new AzureChunkStorage(testContext.azureClient, testContext.adapterConfig, executorService(), true);
         }
     }
 }

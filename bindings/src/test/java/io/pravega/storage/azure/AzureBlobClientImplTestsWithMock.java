@@ -58,4 +58,38 @@ public class AzureBlobClientImplTestsWithMock {
         verify(appendBlobClient).create(false);
 
     }
+
+    @Test
+    public void testDelete() {
+        val blobContainerClient = mock(BlobContainerClient.class);
+        val blobClient = mock(BlobClient.class);
+        val appendBlobClient = mock(AppendBlobClient.class);
+        when(blobContainerClient.getBlobClient(any())).thenReturn(blobClient);
+        when(blobClient.getAppendBlobClient()).thenReturn(appendBlobClient);
+
+        val azureClient = new AzureBlobClientImpl(AzureStorageConfig.builder()
+                .with(AzureStorageConfig.CONTAINER, "test")
+                .build(), blobContainerClient);
+
+        azureClient.delete("testBlob");
+
+        verify(appendBlobClient).delete();
+    }
+
+    @Test
+    public void testGetInputStream() {
+        val blobContainerClient = mock(BlobContainerClient.class);
+        val blobClient = mock(BlobClient.class);
+        val appendBlobClient = mock(AppendBlobClient.class);
+        when(blobContainerClient.getBlobClient(any())).thenReturn(blobClient);
+        when(blobClient.getAppendBlobClient()).thenReturn(appendBlobClient);
+
+        val azureClient = new AzureBlobClientImpl(AzureStorageConfig.builder()
+                .with(AzureStorageConfig.CONTAINER, "test")
+                .build(), blobContainerClient);
+
+        azureClient.create("testBlob");
+        Assert.assertNotNull("");
+
+    }
 }

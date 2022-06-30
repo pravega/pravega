@@ -20,6 +20,9 @@ import com.azure.storage.blob.models.BlobProperties;
 
 import java.io.InputStream;
 
+/**
+ * AzureClient class allows methods to manipulate Azure Storage containers and their blobs.
+ */
 public interface AzureClient extends AutoCloseable {
     AppendBlobItem create(String blobName);
 
