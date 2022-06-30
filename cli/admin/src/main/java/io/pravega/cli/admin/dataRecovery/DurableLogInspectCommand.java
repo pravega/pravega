@@ -101,20 +101,19 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         @Cleanup
         val originalDataLog = dataLogFactory.createDebugLogWrapper(containerId);
 
-        // Print the operations for the selected durableLog
+        // Print the operations for the selected durableLog.
         int durableLogReadOperations = readDurableDataLog(containerId, originalDataLog);
 
-        output("Total reads original:" + durableLogReadOperations);
-        output("\n Note: Previous Inspect Result files if present will be deleted \n");
+        output("Total operations read from original log :" + durableLogReadOperations);
+        output("\n Note: Previous result files if present will be deleted \n");
 
         FileHelpers.deleteFileOrDirectory(new File(getCLIControllerConfig().getInspectResultLocation()));
-        //Get user input
+        // Get user input.
         Predicate<OperationInspectInfo> durableLogPredicates = getConditionTypeFromUser();
 
         durableLogReadOperations = filterResult(durableLogPredicates, containerId, originalDataLog);
-        //List the number of operations matched the user condition
-        output("Total reads matching conditions :" + durableLogReadOperations);
-
+        //List the number of operations matched the user condition.
+        output("Total operations read matching conditions: " + durableLogReadOperations);
         output("Process completed successfully!!");
     }
 
@@ -126,7 +125,8 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         return operationsReadFromOriginalLog;
     }
 
-    public static OperationInspectInfo getActualOperation(Operation op) {
+    @VisibleForTesting
+    static OperationInspectInfo getActualOperation(Operation op) {
         OperationInspectInfo res = null;
         if (op instanceof StreamSegmentAppendOperation) {
             res = new OperationInspectInfo(op.getSequenceNumber(), op.getClass().getSimpleName(), op.getCacheLength(),
@@ -164,7 +164,6 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         }
         return res;
     }
-
 
     private int filterResult(Predicate<OperationInspectInfo> predicate, int containerId, DebugDurableDataLogWrapper originalDataLog) throws Exception {
         AtomicInteger res = new AtomicInteger();
