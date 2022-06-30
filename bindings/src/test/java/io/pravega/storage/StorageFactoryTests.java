@@ -15,7 +15,6 @@
  */
 package io.pravega.storage;
 
-import io.pravega.common.util.Property;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.Storage;
