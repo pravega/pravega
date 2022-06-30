@@ -41,11 +41,21 @@ public class GCPStorageConfigTest {
         ConfigBuilder<GCPStorageConfig> builder = GCPStorageConfig.builder();
         builder.with(Property.named("gcp.bucket"), "testBucket")
                 .with(Property.named("gcp.prefix"), "testPrefix")
-                .with(Property.named("gcp.access.token"), "testAccessToken");
-        
+                .with(Property.named("gcp.account.type"), "testAccountType")
+                .with(Property.named("gcp.project.id"), "testProjectId")
+                .with(Property.named("gcp.client.email"), "testClientEmail")
+                .with(Property.named("gcp.client.id"), "testClientId")
+                .with(Property.named("gcp.private.key.id"), "testPrivateKeyId")
+                .with(Property.named("gcp.private.key"), "testPrivateKey");
+
         GCPStorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
         assertEquals("testPrefix/", config.getPrefix());
-        assertEquals("testAccessToken", config.getAccessToken());
+        assertEquals("testAccountType", config.getAccountType());
+        assertEquals("testProjectId", config.getProjectId());
+        assertEquals("testClientEmail", config.getClientEmail());
+        assertEquals("testClientId", config.getClientId());
+        assertEquals("testPrivateKeyId", config.getPrivateKeyId());
+        assertEquals("testPrivateKey", config.getPrivateKey());
     }
 }

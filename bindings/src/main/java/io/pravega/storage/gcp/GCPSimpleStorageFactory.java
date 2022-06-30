@@ -18,6 +18,7 @@ package io.pravega.storage.gcp;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
+import com.google.gson.JsonObject;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
@@ -93,11 +94,21 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
             return LocalStorageHelper.getOptions();
         }
         try {
-            credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(config.getAccessToken().getBytes()));
+            credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(getServiceAcountJSON().toString().getBytes()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
         return StorageOptions.newBuilder().setCredentials(credentials).build();
     }
 
+    private static JsonObject getServiceAcountJSON() {
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("type", GCPStorageConfig.ACCOUNT_TYPE.getDefaultValue());
+        jsonObject.addProperty("project_id", GCPStorageConfig.PROJECT_ID.getDefaultValue());
+        jsonObject.addProperty("private_key_id", GCPStorageConfig.PRIVATE_KEY_ID.getDefaultValue());
+        jsonObject.addProperty("private_key", GCPStorageConfig.PRIVATE_KEY.getDefaultValue());
+        jsonObject.addProperty("client_email", GCPStorageConfig.CLIENT_EMAIL.getDefaultValue());
+        jsonObject.addProperty("client_id", GCPStorageConfig.CLIENT_ID.getDefaultValue());
+        return jsonObject;
+    }
 }

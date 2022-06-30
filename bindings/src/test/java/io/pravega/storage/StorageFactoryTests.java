@@ -15,6 +15,7 @@
  */
 package io.pravega.storage;
 
+import io.pravega.common.util.Property;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.Storage;
@@ -280,7 +281,12 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         val config = GCPStorageConfig.builder()
                 .with(GCPStorageConfig.BUCKET, "bucket")
                 .with(GCPStorageConfig.PREFIX, "samplePrefix")
-                .with(GCPStorageConfig.ACCESS_TOKEN, "accessToken")
+                .with(GCPStorageConfig.ACCOUNT_TYPE, "testAccountType")
+                .with(GCPStorageConfig.PROJECT_ID, "testProjectId")
+                .with(GCPStorageConfig.CLIENT_EMAIL, "testClientEmail")
+                .with(GCPStorageConfig.CLIENT_ID, "testClientId")
+                .with(GCPStorageConfig.PRIVATE_KEY_ID, "testPrivateKeyId")
+                .with(GCPStorageConfig.PRIVATE_KEY, "testPrivateKey")
                 .with(GCPStorageConfig.USE_MOCK, false)
                 .build();
 

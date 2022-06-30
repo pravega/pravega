@@ -30,7 +30,13 @@ import lombok.extern.slf4j.Slf4j;
 public class GCPStorageConfig {
 
     //region Config Names
-    public static final Property<String> ACCESS_TOKEN = Property.named("gcp.access.token", "");
+    public static final Property<String> ACCOUNT_TYPE = Property.named("gcp.account.type", "service_account");
+    public static final Property<String> PROJECT_ID = Property.named("gcp.project.id", "");
+    public static final Property<String> PRIVATE_KEY_ID = Property.named("gcp.private.key.id", "");
+    public static final Property<String> PRIVATE_KEY = Property.named("gcp.private.key", "");
+    public static final Property<String> CLIENT_EMAIL = Property.named("gcp.client.email", "");
+    public static final Property<String> CLIENT_ID = Property.named("gcp.client.id", "");
+
     public static final Property<String> BUCKET = Property.named("gcp.bucket", "");
     public static final Property<String> PREFIX = Property.named("gcp.prefix", "/");
     public static final Property<Boolean> USE_MOCK = Property.named("useMock", false);
@@ -49,7 +55,37 @@ public class GCPStorageConfig {
      * The access token is a string representation of google service account json.
      */
     @Getter
-    private final String accessToken;
+    private final String accountType;
+
+    /**
+     * The GCP project id
+     */
+    @Getter
+    private final String projectId;
+
+    /**
+     * The gcp private key id
+     */
+    @Getter
+    private final String privateKeyId;
+
+    /**
+     * The GCP private key
+     */
+    @Getter
+    private final String privateKey;
+
+    /**
+     * The GCP client email
+     */
+    @Getter
+    private final String clientEmail;
+
+    /**
+     * The GCP client id.
+     */
+    @Getter
+    private final String clientId;
 
     /**
      * A unique bucket name to store objects
@@ -74,7 +110,12 @@ public class GCPStorageConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private GCPStorageConfig(TypedProperties properties) throws ConfigurationException {
-        this.accessToken = Preconditions.checkNotNull(properties.get(ACCESS_TOKEN));
+        this.accountType = Preconditions.checkNotNull(properties.get(ACCOUNT_TYPE));
+        this.projectId = Preconditions.checkNotNull(properties.get(PROJECT_ID));
+        this.privateKeyId = Preconditions.checkNotNull(properties.get(PRIVATE_KEY_ID));
+        this.privateKey = Preconditions.checkNotNull(properties.get(PRIVATE_KEY));
+        this.clientEmail = Preconditions.checkNotNull(properties.get(CLIENT_EMAIL));
+        this.clientId = Preconditions.checkNotNull(properties.get(CLIENT_ID));
         this.bucket = Preconditions.checkNotNull(properties.get(BUCKET), "bucket");
         String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
