@@ -271,4 +271,32 @@ public class PravegaTablesStoreHelperTest {
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         verify(segmentHelper, times(8)).updateTableEntries(anyString(), any(), anyString(), anyLong());
     }
+
+    /*
+     * Test that verifies controller should not retry when Segment store send the reply back with NoSuchSegment WireCommand.
+     */
+    @Test
+    public void testNoRetriesOnNoSuchSegmentException() {
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
+        GrpcAuthHelper authHelper = GrpcAuthHelper.getDisabledAuthHelper();
+        PravegaTablesStoreHelper storeHelper = spy(new PravegaTablesStoreHelper(segmentHelper, authHelper, executor, 2));
+
+        // region noSuchSegment exception is not retried
+        CompletableFuture<Void> noSuchSegment = Futures.failedFuture(
+                new WireCommandFailedException(WireCommandType.UPDATE_TABLE_ENTRIES, WireCommandFailedException.Reason.SegmentDoesNotExist));
+        doAnswer(x -> noSuchSegment).when(segmentHelper).updateTableEntries(anyString(), any(), anyString(), anyLong());
+
+        //this should not be retried. we have configured 2 retries, but as there is no retry happens hence count will be 1.
+        AssertExtensions.assertFutureThrows("noSuchSegment", storeHelper.addNewEntry("table", "key",
+                        new byte[0], x -> x, 0L),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException);
+        verify(segmentHelper, times(1)).updateTableEntries(anyString(), any(), anyString(), anyLong());
+
+        AssertExtensions.assertFutureThrows("noSuchSegment", storeHelper.updateEntry("table", "key",
+                        new byte[0], x -> x, new Version.LongVersion(0L), 0L),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException);
+        verify(segmentHelper, times(2)).updateTableEntries(anyString(), any(), anyString(), anyLong());
+
+        // endregion
+    }
 }
