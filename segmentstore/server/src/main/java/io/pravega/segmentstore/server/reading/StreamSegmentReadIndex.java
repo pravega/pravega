@@ -829,8 +829,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 // Data not available or data exist in a partially merged transaction.
                 return null;
             } else {
-                // Fetch data from the cache for the first entry, but do not update the cache hit stats.
-                nextEntry = createMemoryRead(indexEntry, startOffset, length, false, false);
+                // Fetch data from the cache for the first entry, but do not update the cache hit stats (but make a data copy).
+                nextEntry = createMemoryRead(indexEntry, startOffset, length, false, true);
             }
         }
 
