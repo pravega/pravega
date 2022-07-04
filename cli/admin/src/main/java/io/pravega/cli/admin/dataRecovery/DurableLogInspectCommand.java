@@ -226,7 +226,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         List<Predicate<OperationInspectInfo>> predicates = new ArrayList<>();
         boolean finishInputCommands = false;
         boolean next = false;
-        String clause = "";
+        String clause = OPERATOR_AND;
         while (!finishInputCommands) {
             boolean showMessage = true;
             try {
@@ -258,7 +258,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
                         showMessage = false;
                         output("Invalid operation, please select one of [OperationType/SequenceNumber/SegmentId/Offset/Length/Attributes]");
                 }
-                predicate = clause.equals(OPERATOR_AND) ?
+                predicate = clause.equals(clause) ?
                         predicates.stream().reduce(Predicate::and).orElse(x -> true) : predicates.stream().reduce(Predicate::or).orElse(x -> false);
             } catch (NumberFormatException ex) {
                 outputError("Wrong input argument.");
@@ -317,7 +317,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
                 default:
                     output("Invalid input please select valid operator : [</>/<=/>=/!=]");
             }
-            predicate = clause.equals(OPERATOR_AND) ?
+            predicate = clause.equals(clause) ?
                     predicates.stream().reduce(Predicate::and).orElse(x -> true) : predicates.stream().reduce(Predicate::or).orElse(x -> false);
             output("You can continue adding range operators for inspect.");
             finish = !confirmContinue();
@@ -334,8 +334,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
 
     @Getter
     @Setter
-    static
-    class OperationInspectInfo extends Operation {
+    static class OperationInspectInfo extends Operation {
         public static final long DEFAULT_ABSENT_VALUE = Long.MIN_VALUE + 1;
         private final String operationTypeString;
         private final long length;
