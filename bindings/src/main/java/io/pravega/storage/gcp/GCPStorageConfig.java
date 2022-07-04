@@ -110,6 +110,7 @@ public class GCPStorageConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private GCPStorageConfig(TypedProperties properties) throws ConfigurationException {
+        log.info("In GCPStorageConfig constructor");
         this.accountType = Preconditions.checkNotNull(properties.get(ACCOUNT_TYPE));
         this.projectId = Preconditions.checkNotNull(properties.get(PROJECT_ID));
         this.privateKeyId = Preconditions.checkNotNull(properties.get(PRIVATE_KEY_ID));

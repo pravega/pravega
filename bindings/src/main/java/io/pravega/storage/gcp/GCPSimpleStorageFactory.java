@@ -28,6 +28,7 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -36,6 +37,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Factory for GCP {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link GCPChunkStorage}.
  */
+@Slf4j
 @RequiredArgsConstructor
 public class GCPSimpleStorageFactory implements SimpleStorageFactory {
 
@@ -89,6 +91,7 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
      * @return StorageOptions instance.
      */
     static StorageOptions createStorageOptions(GCPStorageConfig config) {
+        log.info("In createStorageOptions method");
         GoogleCredentials credentials;
         if (config.isUseMock()) {
             return LocalStorageHelper.getOptions();
@@ -96,6 +99,8 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
         try {
             credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(getServiceAcountJSON().toString().getBytes()));
         } catch (IOException e) {
+            log.info("Exception while creating storage option for GCP.");
+            log.error(e.getMessage());
             throw new RuntimeException(e);
         }
         return StorageOptions.newBuilder().setCredentials(credentials).build();
