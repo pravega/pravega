@@ -1244,34 +1244,33 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 0, wrapper.asReadOnly());
 
         Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
-        Mockito.doReturn(true).doReturn(false)
-                .doReturn(true).doReturn(false)
-                .doReturn(true).doReturn(false)
+        Mockito.doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(false).doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doReturn(1L).doReturn(1000L)
                 .doReturn(1L).doReturn(1000L)
-                .doReturn(1L).doReturn(1000L)
+                .doReturn(1L).doReturn(10000L)
                 .when(command).getLongUserInput(Mockito.any());
-        Mockito.doReturn("SequenceNumber").doReturn("range").doReturn(">").doReturn("yes")
-                .doReturn("<").doReturn("no").doReturn("no")
-                .when(command).getStringUserInput(Mockito.any());
+        Mockito.doReturn("SequenceNumber").doReturn("range").doReturn(">").doReturn("and")
+                .doReturn("<").when(command).getStringUserInput(Mockito.any());
         command.execute();
 
         List<DurableLogInspectCommand.OperationInspectInfo> savedList = getSavedResult(testDataDir.getAbsolutePath());
         Map<Long, Long> savedOpCountMap = getOperationsCountMapBySequenceNumber(savedList);
-        Assert.assertEquals(origOperationsCountMap.size(), savedOpCountMap.size());
+        Assert.assertEquals(origOperationsCountMap.size()-1, savedOpCountMap.size());
 
-        Mockito.doReturn("SequenceNumber").doReturn("range").doReturn(">=").doReturn("yes")
-                .doReturn("<=").doReturn("no").doReturn("no")
-                .when(command).getStringUserInput(Mockito.any());
+        Mockito.doReturn("SequenceNumber").doReturn("range").doReturn(">=").doReturn("and")
+                .doReturn("<=").when(command).getStringUserInput(Mockito.any());
         command.execute();
         savedOpCountMap = getOperationsCountMapBySequenceNumber(getSavedResult(testDataDir.getAbsolutePath()));
         Assert.assertEquals(origOperationsCountMap.size(), savedOpCountMap.size());
 
-        Mockito.doReturn("SequenceNumber").doReturn("range").doReturn("==").doReturn("yes")
-                .doReturn("!=").doReturn("no").doReturn("no")
-                .when(command).getStringUserInput(Mockito.any());
+        Mockito.doReturn("SequenceNumber").doReturn("range").doReturn("!=").doReturn("and")
+                .doReturn(">").when(command).getStringUserInput(Mockito.any());
         command.execute();
+        savedOpCountMap = getOperationsCountMapBySequenceNumber(getSavedResult(testDataDir.getAbsolutePath()));
+        Assert.assertEquals(0, savedOpCountMap.size());
 
         this.factory.close();
     }
@@ -1336,13 +1335,12 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
-        Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
-        Mockito.doReturn(true).doReturn(false)
+        Mockito.doReturn(true).doReturn(false).doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doReturn(1L).doReturn(3L).when(command).getLongUserInput(Mockito.any());
 
-        Mockito.doReturn("SequenceNumber").doReturn("range").doReturn("!=").doReturn("yes")
-                .doReturn("<").doReturn("no").doReturn("no")
+        Mockito.doReturn("SequenceNumber").doReturn("range").doReturn("!=")
+                .doReturn("and").doReturn("<")
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
         List<DurableLogInspectCommand.OperationInspectInfo> savedList = getSavedResult(testDataDir.getAbsolutePath());
@@ -1412,14 +1410,15 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
-        Mockito.doReturn(true).doReturn(false)
-                .when(command).confirmContinue();
+        Mockito.doReturn(true).doReturn(true)
+                .doReturn(true).doReturn(false)
+                .doReturn(false).when(command).confirmContinue();
         Mockito.doReturn(1L).doReturn(4L).doReturn(2L).doReturn(3L).when(command).getLongUserInput(Mockito.any());
 
-        Mockito.doReturn("SequenceNumber").doReturn("range").doReturn("!=").doReturn("yes")
-                .doReturn("<").doReturn("yes")
-                .doReturn(">=").doReturn("yes")
-                .doReturn("<=").doReturn("no").doReturn("no")
+        Mockito.doReturn("SequenceNumber").doReturn("range").doReturn("!=")
+                .doReturn("and").doReturn("<")
+                .doReturn("and").doReturn(">=")
+                .doReturn("and").doReturn("<=")
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
         List<DurableLogInspectCommand.OperationInspectInfo> savedList = getSavedResult(testDataDir.getAbsolutePath());
@@ -1490,12 +1489,13 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 0, wrapper.asReadOnly());
 
         Mockito.doReturn(true).doReturn(false)
-                .when(command).confirmContinue();
+                .doReturn(true).doReturn(false).when(command).confirmContinue();
         Mockito.doReturn(11L).doReturn(9L).when(command).getLongUserInput(Mockito.any());
 
-        Mockito.doReturn("SequenceNumber").doReturn("range").doReturn("<").doReturn("yes")
-                .doReturn(">").doReturn("no").doReturn("yes").doReturn("OperationType")
-                .doReturn("value").doReturn("StreamSegmentAppendOperation").doReturn("no")
+        Mockito.doReturn("SequenceNumber").doReturn("range")
+                .doReturn("<").doReturn("and")
+                .doReturn(">").doReturn("OperationType")
+                .doReturn("value").doReturn("StreamSegmentAppendOperation")
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
         List<DurableLogInspectCommand.OperationInspectInfo> savedList = getSavedResult(testDataDir.getAbsolutePath());
