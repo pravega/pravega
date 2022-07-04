@@ -1050,8 +1050,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         //originalOperations.add(new DeleteSegmentOperation(1000L));
         Map<String, Long> origOperationsCountMap = getOperationsCountMapByOperationType(originalOperations);
 
-        System.out.println("Printing count map: \n " + origOperationsCountMap);
-
         Mockito.doReturn(false)
                 .when(command).confirmContinue();
 
@@ -1173,9 +1171,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 0, wrapper.asReadOnly());
 
         Map<Long, Long> origOperationsCountMap = getOperationsCountMapByAttributes(originalOperations);
-
-        System.out.println("Printing count map: \n " + origOperationsCountMap);
-
         Mockito.doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doReturn(1L).when(command).getLongUserInput(Mockito.any());
@@ -1249,9 +1244,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 0, wrapper.asReadOnly());
 
         Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
-
-        System.out.println("Printing count map: \n " + origOperationsCountMap);
-
         Mockito.doReturn(true).doReturn(false)
                 .doReturn(true).doReturn(false)
                 .doReturn(true).doReturn(false)
@@ -1345,9 +1337,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 0, wrapper.asReadOnly());
 
         Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
-
-        System.out.println("Printing count map: \n " + origOperationsCountMap);
-
         Mockito.doReturn(true).doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doReturn(1L).doReturn(3L).when(command).getLongUserInput(Mockito.any());
@@ -1422,10 +1411,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         DebugDurableDataLogWrapper wrapper = this.factory.createDebugLogWrapper(0);
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
-
-        Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
-
-        System.out.println("Printing count map: \n " + origOperationsCountMap);
 
         Mockito.doReturn(true).doReturn(false)
                 .when(command).confirmContinue();
@@ -1504,10 +1489,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
-        Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
-
-        System.out.println("Printing count map: \n " + origOperationsCountMap);
-
         Mockito.doReturn(true).doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doReturn(11L).doReturn(9L).when(command).getLongUserInput(Mockito.any());
@@ -1585,10 +1566,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
-        Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
-
-        System.out.println("Printing count map: \n " + origOperationsCountMap);
-
         Mockito.doReturn(true).doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doThrow(new NumberFormatException("Test"))
@@ -1611,12 +1588,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         } catch (IOException e) {
             return new ArrayList<>();
         }
-        System.out.println("Printing file content: " + this.baseDir.getAbsolutePath() + "inspect \n");
         Gson g = new GsonBuilder().setLenient().create();
-
         savedResult.stream().forEach(a -> {
             if (!StringUtils.isEmpty(a)) {
-                System.out.println(a);
                 savedResults.add(g.fromJson(a, DurableLogInspectCommand.OperationInspectInfo.class));
             }
         });

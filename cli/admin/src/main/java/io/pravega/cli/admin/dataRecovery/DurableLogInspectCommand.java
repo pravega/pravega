@@ -260,25 +260,21 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
                 clause = getStringUserInput("Select conditional operator: [and/or]");
             }
             final String input = getStringUserInput("Select operator : [</>/<=/>=/!=]");
+            final long in = getLongUserInput("Enter range " + conditionTpe);
             switch (input) {
                 case LESS_THAN:
-                    long in = getLongUserInput("Enter range " + conditionTpe);
                     predicates.add(a -> a.getSequenceNumber() < in);
                     break;
                 case GREATER_THAN:
-                    in = getLongUserInput("Enter range " + conditionTpe);
                     predicates.add(a -> a.getSequenceNumber() > in);
                     break;
                 case LESS_THAN_EQUAL_TO:
-                     in = getLongUserInput("Enter range " + conditionTpe);
                     predicates.add(a -> a.getSequenceNumber() <= in);
                     break;
                 case GREATER_THAN_EQUAL_TO:
-                    in = getLongUserInput("Enter range " + conditionTpe);
                     predicates.add(a -> a.getSequenceNumber() >= in);
                     break;
                 case NOT_EQUAL_TO:
-                    in = getLongUserInput("Enter range " + conditionTpe);
                     predicates.add(a -> a.getSequenceNumber() != in);
                     break;
                 default:
