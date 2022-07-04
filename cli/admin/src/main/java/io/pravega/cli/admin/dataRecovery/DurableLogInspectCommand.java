@@ -18,9 +18,6 @@ package io.pravega.cli.admin.dataRecovery;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.common.io.FileHelpers;
-import io.pravega.segmentstore.server.containers.ContainerConfig;
-import io.pravega.segmentstore.server.logs.DataFrameRecord;
-import io.pravega.segmentstore.server.logs.DebugRecoveryProcessor;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
@@ -31,9 +28,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
-import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
-import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
@@ -48,7 +43,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 import static io.pravega.cli.admin.utils.FileHelper.createFileAndDirectory;
@@ -188,33 +182,6 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
     }
 
     /**
-     * Reads a {@link DurableDataLog} associated with a container id and runs the callback on each {@link Operation}
-     * read from the log.
-     *
-     * @param callback Callback to be run upon each {@link Operation} read.
-     * @param containerId Container id to read from.
-     * @param durableDataLog {@link DurableDataLog} of the Container to be read.
-     * @return Number of {@link Operation}s read.
-     * @throws Exception If there is a problem reading the {@link DurableDataLog}.
-     */
-    @VisibleForTesting
-    int readDurableDataLogWithCustomCallback(BiConsumer<Operation, List<DataFrameRecord.EntryInfo>> callback,
-                                             int containerId, DurableDataLog durableDataLog) throws Exception {
-        val logReaderCallbacks = new DebugRecoveryProcessor.OperationCallbacks(
-                callback,
-                op -> false, // We are not interested on doing actual recovery, just reading the operations.
-                null,
-                null);
-        val containerConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(ContainerConfig::builder);
-        val readIndexConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(ReadIndexConfig::builder);
-        @Cleanup
-        val rp = DebugRecoveryProcessor.create(containerId, durableDataLog,
-                containerConfig, readIndexConfig, getCommandArgs().getState().getExecutor(), logReaderCallbacks, false);
-        int operationsRead = rp.performRecovery();
-        return operationsRead;
-    }
-
-    /**
      * Guides the users to a set of options for creating predicates for printing
      * operations of durable Log .
      *
@@ -258,7 +225,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
                         showMessage = false;
                         output("Invalid operation, please select one of [OperationType/SequenceNumber/SegmentId/Offset/Length/Attributes]");
                 }
-                predicate = clause.equals(clause) ?
+                predicate = clause.equals(OPERATOR_AND) ?
                         predicates.stream().reduce(Predicate::and).orElse(x -> true) : predicates.stream().reduce(Predicate::or).orElse(x -> false);
             } catch (NumberFormatException ex) {
                 outputError("Wrong input argument.");
@@ -317,7 +284,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
                 default:
                     output("Invalid input please select valid operator : [</>/<=/>=/!=]");
             }
-            predicate = clause.equals(clause) ?
+            predicate = clause.equals(OPERATOR_AND) ?
                     predicates.stream().reduce(Predicate::and).orElse(x -> true) : predicates.stream().reduce(Predicate::or).orElse(x -> false);
             output("You can continue adding range operators for inspect.");
             finish = !confirmContinue();
