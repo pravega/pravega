@@ -113,7 +113,9 @@ public class GCPStorageConfig {
         log.info("In GCPStorageConfig constructor");
         this.accountType = Preconditions.checkNotNull(properties.get(ACCOUNT_TYPE));
         this.projectId = Preconditions.checkNotNull(properties.get(PROJECT_ID));
+        log.info("projectId=" + projectId);
         this.privateKeyId = Preconditions.checkNotNull(properties.get(PRIVATE_KEY_ID));
+        log.info("privateKeyId=" + privateKeyId);
         this.privateKey = Preconditions.checkNotNull(properties.get(PRIVATE_KEY));
         this.clientEmail = Preconditions.checkNotNull(properties.get(CLIENT_EMAIL));
         this.clientId = Preconditions.checkNotNull(properties.get(CLIENT_ID));

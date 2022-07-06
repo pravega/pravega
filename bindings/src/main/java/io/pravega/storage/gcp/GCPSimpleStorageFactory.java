@@ -97,7 +97,7 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
             return LocalStorageHelper.getOptions();
         }
         try {
-            credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(getServiceAcountJSON().toString().getBytes()));
+            credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(getServiceAcountJSON(config).toString().getBytes()));
         } catch (IOException e) {
             log.info("Exception while creating storage option for GCP.");
             log.error(e.getMessage());
@@ -106,14 +106,14 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
         return StorageOptions.newBuilder().setCredentials(credentials).build();
     }
 
-    private static JsonObject getServiceAcountJSON() {
+    private static JsonObject getServiceAcountJSON(GCPStorageConfig config) {
         JsonObject jsonObject = new JsonObject();
-        jsonObject.addProperty("type", GCPStorageConfig.ACCOUNT_TYPE.getDefaultValue());
-        jsonObject.addProperty("project_id", GCPStorageConfig.PROJECT_ID.getDefaultValue());
-        jsonObject.addProperty("private_key_id", GCPStorageConfig.PRIVATE_KEY_ID.getDefaultValue());
-        jsonObject.addProperty("private_key", GCPStorageConfig.PRIVATE_KEY.getDefaultValue());
-        jsonObject.addProperty("client_email", GCPStorageConfig.CLIENT_EMAIL.getDefaultValue());
-        jsonObject.addProperty("client_id", GCPStorageConfig.CLIENT_ID.getDefaultValue());
+        jsonObject.addProperty("type", config.getAccountType());
+        jsonObject.addProperty("project_id", config.getProjectId());
+        jsonObject.addProperty("private_key_id", config.getPrivateKeyId());
+        jsonObject.addProperty("private_key", config.getPrivateKey());
+        jsonObject.addProperty("client_email", config.getClientEmail());
+        jsonObject.addProperty("client_id", config.getClientId());
         log.info("JSONObject" + jsonObject.toString());
         return jsonObject;
     }
