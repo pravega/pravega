@@ -233,11 +233,15 @@ public abstract class AbstractService implements Service {
     }
 
     private Map<String, Object> getTier2Config() {
-        return parseSystemPropertyAsMap("tier2Config");
+        Map<String, Object> map = parseSystemPropertyAsMap("tier2Config");
+        log.info("GCPConfig = " + map.toString());
+        return map;
     }
 
     private Map<String, Object> getTier2Env() {
-        return parseSystemPropertyAsMap("tier2Env");
+        Map<String, Object> map = parseSystemPropertyAsMap("tier2Env");
+        log.info("GCPEnv = " + map.toString());
+        return map;
     }
 
     private Map<String, Object> parseSystemPropertyAsMap(String systemProperty) {
