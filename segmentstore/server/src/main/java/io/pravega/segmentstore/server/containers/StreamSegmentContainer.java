@@ -85,6 +85,7 @@ import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -440,6 +441,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.metadataStore.getOrAssignSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
                     val operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates);
+                    // Compute the hash the contents of this append before adding it to the ingestion pipeline.
+                    operation.setContentHash(Arrays.hashCode(data.getCopy()));
                     return processAppend(operation, timer).thenApply(v -> operation.getLastStreamSegmentOffset());
                 });
     }
@@ -454,6 +457,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.metadataStore.getOrAssignSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
                     val operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
+                    // Compute the hash the contents of this append before adding it to the ingestion pipeline.
+                    operation.setContentHash(Arrays.hashCode(data.getCopy()));
                     return processAppend(operation, timer).thenApply(v -> operation.getLastStreamSegmentOffset());
                 });
     }
@@ -1036,6 +1041,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             ensureRunning();
             logRequest("append", this.segmentId, data.getLength(), this.requestedPriority);
             StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, data, attributeUpdates);
+            // Compute the hash the contents of this append before adding it to the ingestion pipeline.
+            operation.setContentHash(Arrays.hashCode(data.getCopy()));
             operation.setDesiredPriority(this.requestedPriority);
             return processAppend(operation, new TimeoutTimer(timeout))
                     .thenApply(v -> operation.getStreamSegmentOffset());        }
@@ -1045,6 +1052,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             ensureRunning();
             logRequest("append", this.segmentId, offset, data.getLength(), this.requestedPriority);
             StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, offset, data, attributeUpdates);
+            // Compute the hash the contents of this append before adding it to the ingestion pipeline.
+            operation.setContentHash(Arrays.hashCode(data.getCopy()));
             operation.setDesiredPriority(this.requestedPriority);
             return processAppend(operation, new TimeoutTimer(timeout))
                     .thenApply(v -> operation.getStreamSegmentOffset());

@@ -21,6 +21,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.HashHelper;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -49,11 +50,12 @@ import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.ArrayDeque;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -64,7 +66,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
 import lombok.Cleanup;
+import lombok.Data;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -99,6 +103,8 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     private final AtomicReference<Duration> lastFlush;
     private final AtomicReference<AggregatorState> state;
     private final AtomicReference<ReconciliationState> reconciliationState;
+    private final Map<Long, Queue<AggregatedAppendIntegrityInfo>> appendIntegrityInfo = new ConcurrentHashMap<>();
+    private final HashHelper hashHelper = HashHelper.seededWith("SegmentContainer");
 
     //endregion
 
@@ -426,7 +432,14 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             // Aggregate the Append Operation.
             AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(
                     operation.getStreamSegmentOffset(), operation.getSequenceNumber());
+            // Add integrity info for this operation.
             aggregateAppendOperation((CachedStreamSegmentAppendOperation) operation, aggregatedAppend);
+            if (!this.appendIntegrityInfo.containsKey(operation.getStreamSegmentId())) {
+                this.appendIntegrityInfo.put(operation.getStreamSegmentId(), new LinkedBlockingQueue<>());
+            }
+            this.appendIntegrityInfo.get(operation.getStreamSegmentId()).add(
+                    new AggregatedAppendIntegrityInfo(operation.getStreamSegmentId(), operation.getStreamSegmentOffset(),
+                            operation.getLength(), ((CachedStreamSegmentAppendOperation) operation).getContentHash()));
         }
     }
 
@@ -816,6 +829,8 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         BufferView data = null;
         if (length > 0) {
             data = this.dataSource.getAppendData(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), length);
+            // Validate that whatever we read from cache, is what it is expected.
+            checkAppendIntegrity(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), data);
             if (data == null) {
                 if (this.metadata.isDeleted()) {
                     // Segment was deleted - nothing more to do.
@@ -827,6 +842,44 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         appendOp.seal();
         return data;
+    }
+
+    private void checkAppendIntegrity(long segmentId, long offset, BufferView data) throws DataCorruptionException {
+        // Get the appends for queued for this specific Segment.
+        if (!this.appendIntegrityInfo.containsKey(segmentId)) {
+            log.warn("{}: No integrity info for Segment {}", this.traceObjectId, segmentId);
+            return;
+        }
+        if (data == null) {
+            log.warn("{}: No data to do integrity check {}", this.traceObjectId, segmentId);
+            return;
+        }
+        Iterator<AggregatedAppendIntegrityInfo> iterator = this.appendIntegrityInfo.get(segmentId).iterator();
+        int accumulatedLength = 0;
+        byte[] dataContents = data.getCopy();
+        while (iterator.hasNext() && accumulatedLength <= data.getLength()) {
+            AggregatedAppendIntegrityInfo integrityInfo = iterator.next();
+            if (integrityInfo.getOffset() < offset) {
+                // Old operation, just remove.
+                iterator.remove();
+            } else {
+                if (integrityInfo.getContentHash() != Long.MIN_VALUE) {
+                    // Check integrity for this append if we have some hash to compare to.
+                    if (dataContents.length >= accumulatedLength + integrityInfo.getLength()) {
+                        long hash = Arrays.hashCode(Arrays.copyOfRange(dataContents, accumulatedLength, (int) (accumulatedLength + integrityInfo.getLength())));
+                        if (hash == integrityInfo.getContentHash()) {
+                            log.info("{}: Append integrity check PASSED: Offset = {}, Length = {}, Hash = {}.", traceObjectId,
+                                    integrityInfo.getOffset() + accumulatedLength, integrityInfo.getLength(), hash);
+                        } else {
+                            log.error("{}: Append integrity check FAILED: Offset = {}, Length = {}, Original Hash = {}, Current Hash = {}.", traceObjectId,
+                                    integrityInfo.getOffset() + accumulatedLength, integrityInfo.getLength(), integrityInfo.getContentHash(), hash);
+                            throw new DataCorruptionException("Data read from cache differs from original data appended");
+                        }
+                    }
+                }
+                accumulatedLength += integrityInfo.getLength();
+            }
+        }
     }
 
     /**
@@ -1788,6 +1841,14 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         }
 
         //endregion
+    }
+
+    @Data
+    private static class AggregatedAppendIntegrityInfo {
+        private final long segmentId;
+        private final long offset;
+        private final long length;
+        private final long contentHash;
     }
 
     //endregion

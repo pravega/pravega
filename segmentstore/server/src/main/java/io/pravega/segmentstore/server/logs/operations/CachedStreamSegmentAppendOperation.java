@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import lombok.Getter;
 
 /**
  * Log Operation that represents a StreamSegment Append. As opposed from StreamSegmentAppendOperation, this operation cannot
@@ -29,6 +30,8 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation impleme
     private final int length;
     private final long streamSegmentOffset;
     private final AttributeUpdateCollection attributeUpdates;
+    @Getter
+    long contentHash = Long.MIN_VALUE;
 
     //endregion
 
@@ -68,6 +71,10 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation impleme
     @Override
     public AttributeUpdateCollection getAttributeUpdates() {
         return this.attributeUpdates;
+    }
+
+    public void setContentHash(long hash) {
+        this.contentHash = hash;
     }
 
     @Override

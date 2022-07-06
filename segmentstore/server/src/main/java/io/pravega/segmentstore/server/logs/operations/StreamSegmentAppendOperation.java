@@ -25,6 +25,8 @@ import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import lombok.Getter;
+
 import java.io.IOException;
 
 /**
@@ -38,6 +40,8 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
     protected long streamSegmentOffset;
     protected BufferView data;
     protected AttributeUpdateCollection attributeUpdates;
+    @Getter
+    long contentHash = Long.MIN_VALUE;
 
     //endregion
 
@@ -93,6 +97,10 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
     public void setStreamSegmentOffset(long value) {
         // No need for parameter validation here. We allow even invalid offsets now - we will check for them upon serialization.
         this.streamSegmentOffset = value;
+    }
+
+    public void setContentHash(long hash) {
+        this.contentHash = hash;
     }
 
     /**

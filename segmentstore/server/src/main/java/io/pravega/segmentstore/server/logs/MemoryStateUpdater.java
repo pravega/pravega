@@ -34,6 +34,8 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperati
 import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.ThrottlerSourceListenerCollection;
 import io.pravega.segmentstore.storage.cache.CacheFullException;
+
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -199,6 +201,8 @@ class MemoryStateUpdater {
                 StreamSegmentAppendOperation appendOp = (StreamSegmentAppendOperation) operation;
                 try {
                     operation = new CachedStreamSegmentAppendOperation(appendOp);
+                    // Copy the computed hash when this append was originally created to the new cached append.
+                    ((CachedStreamSegmentAppendOperation) operation).setContentHash(appendOp.getContentHash());
                 } catch (Throwable ex) {
                     if (Exceptions.mustRethrow(ex)) {
                         throw ex;
