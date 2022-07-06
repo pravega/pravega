@@ -115,8 +115,8 @@ public class GCPStorageConfig {
      */
     private GCPStorageConfig(TypedProperties properties) throws ConfigurationException {
         log.info("In GCPStorageConfig constructor");
-        String newAccessToken = Preconditions.checkNotNull(properties.get(ACCESS_TOKEN));
-        this.accessToken = !newAccessToken.isEmpty() ? newAccessToken.substring(1, newAccessToken.length() - 1) : newAccessToken;
+        this.accessToken = Preconditions.checkNotNull(properties.get(ACCESS_TOKEN));
+        //this.accessToken = !newAccessToken.isEmpty() ? newAccessToken.substring(1, newAccessToken.length() - 1) : newAccessToken;
         /*this.accountType = Preconditions.checkNotNull(properties.get(ACCOUNT_TYPE));
         this.projectId = Preconditions.checkNotNull(properties.get(PROJECT_ID));
         log.info("projectId=" + projectId);
