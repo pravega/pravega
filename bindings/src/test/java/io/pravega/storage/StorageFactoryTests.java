@@ -280,12 +280,12 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         val config = GCPStorageConfig.builder()
                 .with(GCPStorageConfig.BUCKET, "bucket")
                 .with(GCPStorageConfig.PREFIX, "samplePrefix")
-                /*.with(GCPStorageConfig.ACCOUNT_TYPE, "testAccountType")
+                .with(GCPStorageConfig.ACCOUNT_TYPE, "testAccountType")
                 .with(GCPStorageConfig.PROJECT_ID, "testProjectId")
                 .with(GCPStorageConfig.CLIENT_EMAIL, "testClientEmail")
                 .with(GCPStorageConfig.CLIENT_ID, "testClientId")
                 .with(GCPStorageConfig.PRIVATE_KEY_ID, "testPrivateKeyId")
-                .with(GCPStorageConfig.PRIVATE_KEY, "testPrivateKey")*/
+                .with(GCPStorageConfig.PRIVATE_KEY, "testPrivateKey")
                 .with(GCPStorageConfig.USE_MOCK, false)
                 .build();
 

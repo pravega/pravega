@@ -97,7 +97,7 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
             return LocalStorageHelper.getOptions();
         }
         try {
-            credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(config.getAccessToken().getBytes()));
+            credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(getServiceAcountJSON(config).toString().getBytes()));
         } catch (IOException e) {
             log.info("Exception while creating storage option for GCP.");
             log.error(e.getMessage());
@@ -106,7 +106,7 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
         return StorageOptions.newBuilder().setCredentials(credentials).build();
     }
 
-    /*private static JsonObject getServiceAcountJSON(GCPStorageConfig config) {
+    private static JsonObject getServiceAcountJSON(GCPStorageConfig config) {
         JsonObject jsonObject = new JsonObject();
         jsonObject.addProperty("type", config.getAccountType());
         jsonObject.addProperty("project_id", config.getProjectId());
@@ -116,5 +116,5 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
         jsonObject.addProperty("client_id", config.getClientId());
         log.info("JSONObject" + jsonObject.toString());
         return jsonObject;
-    }*/
+    }
 }
