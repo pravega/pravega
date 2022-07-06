@@ -116,7 +116,8 @@ public class GCPStorageConfig {
         log.info("projectId=" + projectId);
         this.privateKeyId = Preconditions.checkNotNull(properties.get(PRIVATE_KEY_ID));
         log.info("privateKeyId=" + privateKeyId);
-        this.privateKey = Preconditions.checkNotNull(properties.get(PRIVATE_KEY));
+        String newPrivateKey = Preconditions.checkNotNull(properties.get(PRIVATE_KEY));
+        this.privateKey = newPrivateKey.substring(1, newPrivateKey.length() - 1);
         this.clientEmail = Preconditions.checkNotNull(properties.get(CLIENT_EMAIL));
         this.clientId = Preconditions.checkNotNull(properties.get(CLIENT_ID));
         this.bucket = Preconditions.checkNotNull(properties.get(BUCKET), "bucket");
