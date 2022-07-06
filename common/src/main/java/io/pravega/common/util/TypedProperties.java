@@ -254,5 +254,12 @@ public class TypedProperties {
         }
     }
 
+    @Override
+    public String toString() {
+        log.info("keyPrefix" + keyPrefix);
+        log.info("toString" + properties.toString());
+        return properties.toString();
+    }
+
     //endregion
 }
