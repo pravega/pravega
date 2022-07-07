@@ -157,5 +157,13 @@ public class SecureControllerCommandsTest {
         Assert.assertTrue(commandResult.contains("testStream"));
     }
 
+
+    @Test
+    @SneakyThrows
+    public void testDeleteReaderGroupCommand() {
+        String commandResult = TestUtils.executeCommand("controller delete-readergroup _system testRG", cliConfig());
+        Assert.assertTrue(commandResult.contains("404"));
+        Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
+    }
 }
 

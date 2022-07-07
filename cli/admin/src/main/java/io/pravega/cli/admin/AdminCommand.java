@@ -31,6 +31,7 @@ import io.pravega.cli.admin.bookkeeper.BookKeeperListCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperLogReconcileCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerContinuousRecoveryCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerRecoverCommand;
+import io.pravega.cli.admin.controller.ControllerDeleteReaderGroupCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeReaderGroupCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeScopeCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeStreamCommand;
@@ -377,6 +378,7 @@ public abstract class AdminCommand {
                         .put(ControllerDescribeScopeCommand::descriptor, ControllerDescribeScopeCommand::new)
                         .put(ControllerListStreamsInScopeCommand::descriptor, ControllerListStreamsInScopeCommand::new)
                         .put(ControllerListReaderGroupsInScopeCommand::descriptor, ControllerListReaderGroupsInScopeCommand::new)
+                        .put(ControllerDeleteReaderGroupCommand::descriptor, ControllerDeleteReaderGroupCommand::new)
                         .put(ControllerDescribeReaderGroupCommand::descriptor, ControllerDescribeReaderGroupCommand::new)
                         .put(ControllerDescribeStreamCommand::descriptor, ControllerDescribeStreamCommand::new)
                         .put(GetClusterNodesCommand::descriptor, GetClusterNodesCommand::new)
