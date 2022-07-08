@@ -101,6 +101,7 @@ All available commands:
         container flush-to-storage <container-id> <segmentstore-endpoint>: Persist the given Segment Container into Storage.
         container recover <container-id>: Executes a local, non-invasive recovery for a SegmentContainer.
         controller describe-readergroup <scope-name> <readergroup-id>: Get the details of a given ReaderGroup in a Scope.
+        controller delete-readergroup <scope-name> <readergroup>: Delete ReaderGroup in a given Scope.
         controller describe-scope <scope-name>: Get the details of a given Scope.
         controller describe-stream <scope-name> <stream-name>: Get the details of a given Stream.
         controller list-readergroups <scope-name>: Lists all the existing ReaderGroups in a given Scope.

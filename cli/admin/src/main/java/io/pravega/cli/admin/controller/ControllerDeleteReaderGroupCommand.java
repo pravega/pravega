@@ -44,7 +44,7 @@ public class ControllerDeleteReaderGroupCommand extends ControllerCommand {
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "delete-readergroup", "Lists all the existing ReaderGroups in a given Scope.",
+        return new CommandDescriptor(COMPONENT, "delete-readergroup", "Delete ReaderGroup in a given Scope.",
                 new ArgDescriptor("scope-name", "Name of the Scope where the ReaderGroup is stored."),
                 new ArgDescriptor("readergroup", "Name of the ReaderGroup."));
     }
