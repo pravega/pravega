@@ -258,6 +258,11 @@ public class TypedProperties {
     public String toString() {
         log.info("keyPrefix" + keyPrefix);
         log.info("toString" + properties.toString());
+        log.info("All properties");
+        for (Object key : properties.keySet()) {
+            log.info(key.toString() + " " + properties.get(key.toString()));
+        }
+        log.info("No more properties");
         return properties.toString();
     }
 
