@@ -22,6 +22,7 @@ import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.text.StringEscapeUtils;
 
 /**
  * Configuration for the GCP Storage component.
@@ -116,7 +117,7 @@ public class GCPStorageConfig {
         log.info("projectId=" + projectId);
         this.privateKeyId = Preconditions.checkNotNull(properties.get(PRIVATE_KEY_ID));
         log.info("privateKeyId=" + privateKeyId);
-        this.privateKey = Preconditions.checkNotNull(properties.get(PRIVATE_KEY));
+        this.privateKey = StringEscapeUtils.unescapeJava(Preconditions.checkNotNull(properties.get(PRIVATE_KEY)));
         this.clientEmail = Preconditions.checkNotNull(properties.get(CLIENT_EMAIL));
         this.clientId = Preconditions.checkNotNull(properties.get(CLIENT_ID));
         this.bucket = Preconditions.checkNotNull(properties.get(BUCKET), "bucket");
