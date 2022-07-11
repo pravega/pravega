@@ -114,6 +114,7 @@ public class ChunkedSegmentStorageConfig {
             .minSizeForTruncateRelocationInbytes(64 * 1024 * 1024L)
             .maxSizeForTruncateRelocationInbytes(1024 * 1024 * 1024L)
             .minPercentForTruncateRelocation(80)
+            .dataIntegrityChecksEnabled(true)
             .build();
 
     static final String COMPONENT_CODE = "storage";

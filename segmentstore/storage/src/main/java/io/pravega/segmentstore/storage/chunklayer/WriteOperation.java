@@ -465,10 +465,10 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
      * written to certify the contents' integrity is correct.
      *
      * @param chunkHandle Handle for the Chunk to check.
-     * @param offsetToWriteAt
-     * @param bytesWritten
-     * @param data
-     * @return
+     * @param offsetToWriteAt Start offset to read the data just written to check its integrity.
+     * @param bytesWritten Length of the data written to check its integrity.
+     * @param data Original data written to Storage.
+     * @return Whether the written data passes or not the integrity check.
      */
     @SneakyThrows
     private boolean checkDataIntegrity(ChunkHandle chunkHandle, long offsetToWriteAt, int bytesWritten, InputStream data) {
