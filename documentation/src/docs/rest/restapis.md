@@ -832,8 +832,8 @@ Delete a reader group
 |HTTP Code|Description|Schema|
 |---|---|---|
 |**204**|Successfully deleted the reader group|No Content|
-|**404**|Scope or reader group with given name not found|No Content|
-|**500**|Internal server error while deleting a reader|No Content|
+|**404**|Reader group with given name not found|No Content|
+|**500**|Internal server error while deleting a reader group|No Content|
 
 
 #### Tags

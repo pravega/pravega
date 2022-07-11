@@ -157,7 +157,7 @@ public final class ApiV1 {
                 @io.swagger.annotations.ApiResponse(code = 404, message = "Reader group with given name not found",
                         response = void.class),
 
-                @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while deleting a reader",
+                @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while deleting a reader group",
                         response = void.class) })
         void deleteReaderGroup(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                                @ApiParam(value = "Reader group name", required = true)
