@@ -21,7 +21,7 @@ import lombok.Cleanup;
 import lombok.val;
 
 /**
- * Delete reader group from scope.
+ * Delete a reader group from scope.
  */
 public class ControllerDeleteReaderGroupCommand extends ControllerCommand {
     /**
@@ -44,8 +44,8 @@ public class ControllerDeleteReaderGroupCommand extends ControllerCommand {
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "delete-readergroup", "Delete ReaderGroup in a given Scope.",
-                new ArgDescriptor("scope-name", "Name of the Scope where the ReaderGroup is stored."),
-                new ArgDescriptor("readergroup", "Name of the ReaderGroup."));
+        return new CommandDescriptor(COMPONENT, "delete-readergroup", "Delete a readergroup in a given Scope.",
+                new ArgDescriptor("scope-name", "Name of the Scope where the readergroup is stored."),
+                new ArgDescriptor("readergroup", "Name of the readergroup."));
     }
 }

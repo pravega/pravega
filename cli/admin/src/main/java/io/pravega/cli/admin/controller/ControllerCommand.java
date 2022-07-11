@@ -120,7 +120,7 @@ public abstract class ControllerCommand extends AdminCommand {
      * @param requestURI URI to execute the request against.
      * @return Response for the REST call.
      */
-    String executeDeleteRESTCall(Context context, String requestURI) {
+    protected String executeDeleteRESTCall(Context context, String requestURI) {
         Response response = getInvocationBuilder(context, requestURI).delete();
         printResponseInfo(response);
         return response.readEntity(String.class);
@@ -128,6 +128,7 @@ public abstract class ControllerCommand extends AdminCommand {
 
     /**
      * Method to get invocationBuilder to execute rest api.
+     *
      * @param context       Controller command context.
      * @param requestURI    URI to execute the request against.
      * @return              InvocationBuilder object.
@@ -140,12 +141,10 @@ public abstract class ControllerCommand extends AdminCommand {
 
     @VisibleForTesting
     void printResponseInfo(Response response) {
-        if (OK.getStatusCode() == response.getStatus()) {
+        if (OK.getStatusCode() == response.getStatus() || NO_CONTENT.getStatusCode() == response.getStatus()) {
             output("Successful REST request.");
         } else if (UNAUTHORIZED.getStatusCode() == response.getStatus()) {
             output("Unauthorized REST request. You may need to set the user/password correctly.");
-        } else if (NO_CONTENT.getStatusCode() == response.getStatus()) {
-            output("Successful REST request.");
         } else {
             output("The REST request was not successful: " + response.getStatus());
         }

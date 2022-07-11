@@ -19,8 +19,11 @@ import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.integration.utils.ClusterWrapper;
 import lombok.Cleanup;
@@ -164,6 +167,20 @@ public class SecureControllerCommandsTest {
         String commandResult = TestUtils.executeCommand("controller delete-readergroup _system testRG", cliConfig());
         Assert.assertTrue(commandResult.contains("404"));
         Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                                                               .stream(Stream.of("testScope", "testStream"))
+                                                               .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                                                               .automaticCheckpointIntervalMillis(1000L)
+                                                               .groupRefreshTimeMillis(1000L)
+                                                               .build();
+        ReaderGroupManager.withScope("testScope", prepareValidClientConfig(CLUSTER.controllerUri(), true, true))
+                                                                  .createReaderGroup("testRG", readerGroupConfig);
+
+        commandResult = TestUtils.executeCommand("controller list-readergroups testScope", cliConfig());
+        Assert.assertTrue(commandResult.contains("testRG"));
+
+        commandResult = TestUtils.executeCommand("controller delete-readergroup testScope testRG", cliConfig());
+        Assert.assertFalse(commandResult.contains("testRG"));
     }
 }
 
