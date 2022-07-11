@@ -21,13 +21,11 @@ import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.text.StringEscapeUtils;
 
 /**
  * Configuration for the GCP Storage component.
  */
-@Slf4j
 public class GCPStorageConfig {
 
     //region Config Names
@@ -111,12 +109,9 @@ public class GCPStorageConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private GCPStorageConfig(TypedProperties properties) throws ConfigurationException {
-        log.info("In GCPStorageConfig constructor");
         this.accountType = Preconditions.checkNotNull(properties.get(ACCOUNT_TYPE));
         this.projectId = Preconditions.checkNotNull(properties.get(PROJECT_ID));
-        log.info("projectId=" + projectId);
         this.privateKeyId = Preconditions.checkNotNull(properties.get(PRIVATE_KEY_ID));
-        log.info("privateKeyId=" + privateKeyId);
         this.privateKey = StringEscapeUtils.unescapeJava(Preconditions.checkNotNull(properties.get(PRIVATE_KEY)));
         this.clientEmail = Preconditions.checkNotNull(properties.get(CLIENT_EMAIL));
         this.clientId = Preconditions.checkNotNull(properties.get(CLIENT_ID));
@@ -124,7 +119,6 @@ public class GCPStorageConfig {
         String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
         this.useMock = properties.getBoolean(USE_MOCK);
-        log.info("Properties" + properties.toString());
     }
 
     /**

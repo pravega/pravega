@@ -99,7 +99,6 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
         try {
             credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(getServiceAcountJSON(config).toString().getBytes()));
         } catch (IOException e) {
-            log.info("Exception while creating storage option for GCP.");
             log.error(e.getMessage());
             throw new RuntimeException(e);
         }
@@ -114,7 +113,6 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
         jsonObject.addProperty("private_key", config.getPrivateKey());
         jsonObject.addProperty("client_email", config.getClientEmail());
         jsonObject.addProperty("client_id", config.getClientId());
-        log.info("JSONObject" + jsonObject.toString());
         return jsonObject;
     }
 }
