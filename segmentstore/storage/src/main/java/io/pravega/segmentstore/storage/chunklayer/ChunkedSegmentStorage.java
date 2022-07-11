@@ -453,7 +453,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         if (isStorageFull() && !isSegmentInSystemScope(handle)) {
             return CompletableFuture.failedFuture(new StorageFullException(handle.getSegmentName()));
         }
-        return executeSerialized(new WriteOperation(this, handle, offset, data, length), handle.getSegmentName());
+        return executeSerialized(new WriteOperation(this, handle, offset, data, length, this.config.isDataIntegrityChecksEnabled()), handle.getSegmentName());
     }
 
     /**

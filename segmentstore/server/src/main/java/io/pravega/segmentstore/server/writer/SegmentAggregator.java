@@ -99,6 +99,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     private final AtomicReference<Duration> lastFlush;
     private final AtomicReference<AggregatorState> state;
     private final AtomicReference<ReconciliationState> reconciliationState;
+    private final AppendIntegrityChecker dataIntegrityChecker;
 
     //endregion
 
@@ -133,6 +134,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         this.state = new AtomicReference<>(AggregatorState.NotInitialized);
         this.reconciliationState = new AtomicReference<>();
         this.handle = new AtomicReference<>();
+        this.dataIntegrityChecker = new AppendIntegrityChecker();
     }
 
     //endregion
@@ -423,6 +425,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             this.operations.add(operation);
             this.truncateCount.incrementAndGet();
         } else if (operation instanceof CachedStreamSegmentAppendOperation) {
+            // Track new append for integrity checks, if necessary,
+            this.dataIntegrityChecker.addAppendIntegrityInfo(operation.getStreamSegmentId(), operation.getStreamSegmentOffset(),
+                    operation.getLength(), ((CachedStreamSegmentAppendOperation) operation).getContentHash());
             // Aggregate the Append Operation.
             AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(
                     operation.getStreamSegmentOffset(), operation.getSequenceNumber());
@@ -816,6 +821,8 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         BufferView data = null;
         if (length > 0) {
             data = this.dataSource.getAppendData(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), length);
+            // Verify that the data received here is the same that was initially sent by the client (if data integrity checks are enabled).
+            this.dataIntegrityChecker.checkAppendIntegrity(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), data);
             if (data == null) {
                 if (this.metadata.isDeleted()) {
                     // Segment was deleted - nothing more to do.

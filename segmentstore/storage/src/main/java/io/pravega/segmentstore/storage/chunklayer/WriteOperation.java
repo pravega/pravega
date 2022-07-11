@@ -16,6 +16,8 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -29,6 +31,7 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutException;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -65,6 +68,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final List<SystemJournal.SystemJournalRecord> systemLogRecords = new Vector<>();
     private final List<ChunkNameOffsetPair> newReadIndexEntries = new Vector<>();
     private final AtomicInteger chunksAddedCount = new AtomicInteger();
+    private final boolean checkDataIntegrityEnabled;
 
     private volatile boolean isCommitted = false;
     private volatile SegmentMetadata segmentMetadata;
@@ -81,12 +85,13 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     private volatile boolean didSegmentLayoutChange = false;
 
-    WriteOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, InputStream data, int length) {
+    WriteOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, InputStream data, int length, boolean checkDataIntegrityEnabled) {
         this.handle = handle;
         this.offset = offset;
         this.data = data;
         this.length = length;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
+        this.checkDataIntegrityEnabled = checkDataIntegrityEnabled;
         traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
         timer = new Timer();
     }
@@ -400,12 +405,12 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
      * Write to chunk.
      */
     private CompletableFuture<Void> writeToChunk(MetadataTransaction txn,
-                                                    SegmentMetadata segmentMetadata,
-                                                    InputStream data,
-                                                    ChunkHandle chunkHandle,
-                                                    ChunkMetadata chunkWrittenMetadata,
-                                                    long offsetToWriteAt,
-                                                    int bytesCount) {
+                                                 SegmentMetadata segmentMetadata,
+                                                 InputStream data,
+                                                 ChunkHandle chunkHandle,
+                                                 ChunkMetadata chunkWrittenMetadata,
+                                                 long offsetToWriteAt,
+                                                 int bytesCount) {
         Preconditions.checkState(0 != bytesCount, "Attempt to write zero bytes. Segment=%s Chunk=%s offsetToWriteAt=%s", segmentMetadata, chunkWrittenMetadata, offsetToWriteAt);
         // Finally write the data.
         val bis = new BoundedInputStream(data, bytesCount);
@@ -421,6 +426,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     // Update the metadata for segment and chunk.
                     Preconditions.checkState(bytesWritten >= 0, "bytesWritten (%s) must be non-negative. Segment=%s Chunk=%s offsetToWriteAt=%s",
                             bytesWritten, segmentMetadata, chunkWrittenMetadata, offsetToWriteAt);
+                    Preconditions.checkState(checkDataIntegrity(chunkHandle, offsetToWriteAt, bytesWritten, data));
                     segmentMetadata.setLength(segmentMetadata.getLength() + bytesWritten);
                     chunkWrittenMetadata.setLength(chunkWrittenMetadata.getLength() + bytesWritten);
                     txn.update(chunkWrittenMetadata);
@@ -451,5 +457,36 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     }
                     return v;
                 }, chunkedSegmentStorage.getExecutor());
+    }
+
+    /**
+     * Verify that the integrity of the contents of a {@link WriteOperation} that has been written to LTS. This is done
+     * by calculating the hash of the original data written to LTS, and then reading again the data that has been
+     * written to certify the contents' integrity is correct.
+     *
+     * @param chunkHandle Handle for the Chunk to check.
+     * @param offsetToWriteAt
+     * @param bytesWritten
+     * @param data
+     * @return
+     */
+    @SneakyThrows
+    private boolean checkDataIntegrity(ChunkHandle chunkHandle, long offsetToWriteAt, int bytesWritten, InputStream data) {
+        if (!this.checkDataIntegrityEnabled) {
+            // No data integrity checks enabled, do nothing.
+            return true;
+        }
+
+        HashFunction hashFunction = Hashing.crc32c();
+
+        // Reset the input stream used to get the data to write to LTS and re-read its content to calculate the hash.
+        data.reset();
+        byte[] readData = data.readAllBytes();
+        int originalHash = hashFunction.newHasher().putBytes(data.readAllBytes()).hash().asInt();
+
+        // Read the data (directly from Storage) that has been just written and verify its integrity.
+        chunkedSegmentStorage.getChunkStorage().read(chunkHandle, offsetToWriteAt, bytesWritten, readData, 0);
+        int readDataHash = hashFunction.newHasher().putBytes(readData).hash().asInt();
+        return originalHash == readDataHash;
     }
 }
