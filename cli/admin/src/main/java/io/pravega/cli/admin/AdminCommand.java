@@ -43,6 +43,7 @@ import io.pravega.cli.admin.controller.metadata.ControllerMetadataListEntriesCom
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListKeysCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataUpdateEntryCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewReaderInfoCommand;
+import io.pravega.cli.admin.dataRecovery.DurableLogInspectCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
 import io.pravega.cli.admin.dataRecovery.DurableDataLogRepairCommand;
 import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
@@ -384,6 +385,7 @@ public abstract class AdminCommand {
                         .put(GetSegmentStoreByContainerCommand::descriptor, GetSegmentStoreByContainerCommand::new)
                         .put(PasswordFileCreatorCommand::descriptor, PasswordFileCreatorCommand::new)
                         .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)
+                        .put(DurableLogInspectCommand::descriptor, DurableLogInspectCommand::new)
                         .put(DurableLogRecoveryCommand::descriptor, DurableLogRecoveryCommand::new)
                         .put(DurableDataLogRepairCommand::descriptor, DurableDataLogRepairCommand::new)
                         .put(TableSegmentRecoveryCommand::descriptor, TableSegmentRecoveryCommand::new)

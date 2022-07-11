@@ -85,7 +85,7 @@ nav:
       - 'Presto Connector': 'https://github.com/pravega/presto-connector/blob/main/README.md'
       - 'Boomi Connector': 'https://github.com/pravega/boomi-connector/blob/master/README.md'
       - 'NiFi Connector': 'https://github.com/pravega/nifi-pravega/blob/master/README.md'
-    - Client Bingings: 'bindings.md'
+    - Client Bindings: 'bindings.md'
     - Tools:
       - 'User CLI': 'https://github.com/pravega/pravega/blob/master/cli/user/README.md'
       - 'Gateways': 'gateways.md'
