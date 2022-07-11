@@ -52,7 +52,7 @@ import static io.pravega.cli.admin.utils.FileHelper.createFileAndDirectory;
  * The workflow of this command is as follows:
  * 1. Reads the original DurableLog
  * 2. User input for conditions to inspect.
- * 3. Lists the result and is saved in a text file at /tmp/inspect/
+ * 3. Lists the result and is saved in given filename
  */
 public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
 
@@ -80,8 +80,9 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
 
     @Override
     public void execute() throws Exception {
-        ensureArgCount(1);
+        ensureArgCount(2);
         int containerId = getIntArg(0);
+        final String fileName = getArg(1);
         val bkConfig = getCommandArgs().getState().getConfigBuilder()
                 .include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, getServiceConfig().getZkURL()))
                 .build().getConfig(BookKeeperConfig::builder);
@@ -101,11 +102,11 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         output("Total operations read from original log :" + durableLogReadOperations);
         output("\n Note: Previous result files if present will be deleted \n");
 
-        FileHelpers.deleteFileOrDirectory(new File(getCLIControllerConfig().getInspectResultLocation()));
+        FileHelpers.deleteFileOrDirectory(new File(fileName));
         // Get user input.
         Predicate<OperationInspectInfo> durableLogPredicates = getConditionTypeFromUser();
 
-        durableLogReadOperations = filterResult(durableLogPredicates, containerId, originalDataLog);
+        durableLogReadOperations = filterResult(durableLogPredicates, containerId, originalDataLog, fileName);
         //List the number of operations matched the user condition.
         output("Total operations read matching conditions: " + durableLogReadOperations);
         output("Process completed successfully!!");
@@ -159,11 +160,11 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         return res;
     }
 
-    private int filterResult(Predicate<OperationInspectInfo> predicate, int containerId, DebugDurableDataLogWrapper originalDataLog) throws Exception {
+    private int filterResult(Predicate<OperationInspectInfo> predicate, int containerId, DebugDurableDataLogWrapper originalDataLog, String fileName) throws Exception {
         AtomicInteger res = new AtomicInteger();
 
         @Cleanup
-        FileWriter writer = new FileWriter(createFileAndDirectory(getCLIControllerConfig().getInspectResultLocation()));
+        FileWriter writer = new FileWriter(createFileAndDirectory(fileName));
 
         readDurableDataLogWithCustomCallback((a, b) -> {
                     if (predicate.test(getActualOperation(a))) {
