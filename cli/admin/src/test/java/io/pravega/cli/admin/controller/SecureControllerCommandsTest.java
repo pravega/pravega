@@ -173,13 +173,16 @@ public class SecureControllerCommandsTest {
                                                                .automaticCheckpointIntervalMillis(1000L)
                                                                .groupRefreshTimeMillis(1000L)
                                                                .build();
-        ReaderGroupManager.withScope("testScope", prepareValidClientConfig(CLUSTER.controllerUri(), true, true))
-                                                                  .createReaderGroup("testRG", readerGroupConfig);
-
-        commandResult = TestUtils.executeCommand("controller list-readergroups testScope", cliConfig());
-        Assert.assertTrue(commandResult.contains("testRG"));
-
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope("testScope",
+                prepareValidClientConfig(CLUSTER.controllerUri(), true, true));
+        boolean isRGCreated = readerGroupManager.createReaderGroup("testRG", readerGroupConfig);
+        assertTrue("Failed to create reader group ", isRGCreated);
+        //execute the delete reader group command
         commandResult = TestUtils.executeCommand("controller delete-readergroup testScope testRG", cliConfig());
+        Assert.assertTrue(commandResult.contains("Successful REST request."));
+        //verify that reader group not exists after api call
+        commandResult = TestUtils.executeCommand("controller list-readergroups testScope", cliConfig());
         Assert.assertFalse(commandResult.contains("testRG"));
     }
 }
