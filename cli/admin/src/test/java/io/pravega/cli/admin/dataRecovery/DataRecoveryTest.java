@@ -1007,8 +1007,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
-        CommandArgs args = new CommandArgs(List.of("0", testDataFile.getName()), STATE.get());
-        DurableLogInspectCommand cmd = Mockito.spy(new DurableLogInspectCommand(args));
+        CommandArgs args = new CommandArgs(List.of("0"), STATE.get());
+        DurableDataLogRepairCommand cmd = Mockito.spy(new DurableDataLogRepairCommand(args));
 
         System.setIn(new ByteArrayInputStream("yes".getBytes()));
         TestUtils.executeCommand("bk disable 0", STATE.get());
@@ -1028,9 +1028,11 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .doReturn("add").doReturn("DeleteSegmentOperation").doReturn("DeleteSegmentOperation")
                 .doReturn("replace").doReturn("DeleteSegmentOperation")
                 .doReturn("add").doReturn("StreamSegmentSealOperation")
+                .doReturn("add").doReturn("MergeSegmentOperation")
                 .when(cmd).getStringUserInput(Mockito.any());
         cmd.execute();
 
+        args = new CommandArgs(List.of("0", testDataFile.getName()), STATE.get());
         // Execute basic command workflow for inspect DurableLog.
         DurableLogInspectCommand command = Mockito.spy(new DurableLogInspectCommand(args));
 
