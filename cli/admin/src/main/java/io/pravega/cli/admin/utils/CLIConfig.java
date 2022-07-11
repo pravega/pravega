@@ -35,8 +35,6 @@ public final class CLIConfig {
 
     private static final String PROTOCOL_PATTERN = "://";
 
-    private static final String CLI_INSPECT_DEFAULT_LOCATION = "/tmp/inspect/DurableLogInspectResult";
-
     private static final Property<String> CONTROLLER_REST_URI = Property.named("controller.connect.rest.uri", "localhost:9091");
     private static final Property<String> CONTROLLER_GRPC_URI = Property.named("controller.connect.grpc.uri", "localhost:9090");
     private static final Property<Boolean> AUTH_ENABLED = Property.named("channel.auth", true);
@@ -47,7 +45,6 @@ public final class CLIConfig {
     private static final Property<Integer> TRUSTSTORE_ACCESS_TOKEN_TTL_SECONDS = Property.named("trustStore.access.token.ttl.seconds", 10);
     private static final Property<String> METADATA_BACKEND = Property.named("store.metadata.backend", MetadataBackends.SEGMENTSTORE.name());
 
-    private static final Property<String> INSPECT_RESULT_LOCATION = Property.named("inspect.temp", CLI_INSPECT_DEFAULT_LOCATION);
     private static final String COMPONENT_CODE = "cli";
 
     /**
@@ -104,9 +101,6 @@ public final class CLIConfig {
     @Getter
     private final String metadataBackend;
 
-    @Getter
-    private final String inspectResultLocation;
-
     private CLIConfig(TypedProperties properties) throws ConfigurationException {
         this.tlsEnabled = properties.getBoolean(TLS_ENABLED);
         this.controllerRestURI = (this.isTlsEnabled() ? "https://" : "http://") + cleanUri(properties.get(CONTROLLER_REST_URI));
@@ -117,7 +111,6 @@ public final class CLIConfig {
         this.truststore = properties.get(TRUSTSTORE_JKS);
         this.accessTokenTtl = properties.getDuration(TRUSTSTORE_ACCESS_TOKEN_TTL_SECONDS, ChronoUnit.SECONDS);
         this.metadataBackend = properties.get(METADATA_BACKEND);
-        this.inspectResultLocation = properties.get(INSPECT_RESULT_LOCATION);
     }
 
     /**
