@@ -82,7 +82,7 @@ public class AzureChunkStorage extends BaseChunkStorage {
     @Override
     protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException {
         try {
-            val blobProperties = client.getBlobProperties(getObjectPath(chunkName));
+            val blobProperties = this.client.getBlobProperties(getObjectPath(chunkName));
             return ChunkInfo.builder()
                     .name(chunkName)
                     .length(blobProperties.getBlobSize())
@@ -134,16 +134,16 @@ public class AzureChunkStorage extends BaseChunkStorage {
 
     @Override
     protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException {
-        try  {
+        try {
             try (val inputStream = client.getInputStream(getObjectPath(handle.getChunkName()), fromOffset, length)) {
-                val retValue =  StreamHelpers.readAll(inputStream, buffer, bufferOffset, length);
-                if (retValue == 0) {
-                    val blobProperties = client.getBlobProperties(getObjectPath(handle.getChunkName()));
+                val bytesRead =  StreamHelpers.readAll(inputStream, buffer, bufferOffset, length);
+                if (bytesRead == 0) {
+                    val blobProperties = this.client.getBlobProperties(getObjectPath(handle.getChunkName()));
                     if (blobProperties.getBlobSize() <= fromOffset || blobProperties.getBlobSize() <= fromOffset + length) {
                         throw new IllegalArgumentException();
                     }
                 }
-                return retValue;
+                return bytesRead;
             }
         } catch (IllegalArgumentException e) {
                 throw e;
@@ -156,9 +156,9 @@ public class AzureChunkStorage extends BaseChunkStorage {
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
         try {
             val objectPath = getObjectPath(handle.getChunkName());
-            val metadata = client.getBlobProperties(objectPath);
+            val metadata = this.client.getBlobProperties(objectPath);
             if (metadata.getBlobSize() != offset) {
-                throw new InvalidOffsetException(handle.getChunkName(), metadata.getBlobSize(), offset, "doWrite");
+                throw new InvalidOffsetException(handle.getChunkName(), metadata.getBlobSize(), offset, "doWrite - blobSize in bytes %d and offset for the chunk to start writing %d do not match.");
             }
             client.appendBlock(objectPath, offset, length, new BufferedInputStream(data));
             return length;
@@ -186,6 +186,13 @@ public class AzureChunkStorage extends BaseChunkStorage {
         super.close();
     }
 
+    /**
+     * Provides generic exceptions related to chunk storage operations with the values of {@link BlobErrorCode}.
+     * @param chunkName Name of the chunk.
+     * @param message Message thrown by the exception.
+     * @param e Cause of the exception.
+     * @return value for ChunkStorageException.
+     */
     private ChunkStorageException convertException(String chunkName, String message, Exception e) {
         ChunkStorageException retValue = null;
         if (e instanceof ChunkStorageException) {
@@ -215,6 +222,11 @@ public class AzureChunkStorage extends BaseChunkStorage {
         return retValue;
     }
 
+    /**
+     * Gets an Azure object path for the given object name by pre-pending prefix of the Pravega owned Azure path under the assigned container.
+     * @param objectName Name of the object.
+     * @return Azure object Path.
+     */
     private String getObjectPath(String objectName) {
         return config.getPrefix() + objectName;
     }

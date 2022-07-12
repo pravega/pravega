@@ -22,6 +22,9 @@ import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
 
+/**
+ * Configuration for the Azure Storage component.
+ */
 public class AzureStorageConfig {
 
     public static final Property<String> CONNECTION_STRING = Property.named("connection.string", "", "connectionString");
@@ -36,18 +39,36 @@ public class AzureStorageConfig {
     private static final String PATH_SEPARATOR = "/";
     private static final String COMPONENT_CODE = "azure";
 
+    /**
+     *  Blob service endpoint that we get from the Storage account created on Azure portal.
+     */
     @Getter
     private String endpoint;
+
+    /**
+     * ConnectionString containing authorization information to access the Storage account.
+     */
     @Getter
     private String connectionString;
+
+    /**
+     * A unique container name to store set of blobs.
+     */
     @Getter
     private String containerName;
+
+    /**
+     * Prefix of the Pravega owned Azure path under the assigned container. All the objects under this path will be
+     * exclusively owned by Pravega.
+     */
     @Getter
     private String prefix;
 
+    /**
+     * Whether to create a new container during every run or not.
+     */
     @Getter
     private boolean createContainer;
-
 
     private AzureStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.endpoint = Preconditions.checkNotNull(properties.get(ENDPOINT));

@@ -33,6 +33,9 @@ import lombok.val;
 
 import java.io.InputStream;
 
+/**
+ * AzureBlobClientImpl class provides implementation of AzureClient methods.
+ */
 @Slf4j
 public class AzureBlobClientImpl implements AzureClient {
     private final BlobContainerClient blobContainerClient;
@@ -45,10 +48,10 @@ public class AzureBlobClientImpl implements AzureClient {
     }
 
     public void createContainerIfRequired(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
-        log.debug("creating container {}.", config.getContainerName());
+        log.debug("Creating container {}.", config.getContainerName());
         if (config.isCreateContainer()) {
             try {
-                val containerprop = blobContainerClient.getProperties();
+                val containerProperties = blobContainerClient.getProperties();
             } catch (Exception e) {
                 if (e instanceof BlobStorageException) {
                     BlobStorageException blobStorageException = (BlobStorageException) e;
