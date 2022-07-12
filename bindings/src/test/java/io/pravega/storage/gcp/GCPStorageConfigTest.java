@@ -29,8 +29,8 @@ public class GCPStorageConfigTest {
     @Test
     public void testDefaultGCPConfig() {
         ConfigBuilder<GCPStorageConfig> builder = GCPStorageConfig.builder();
-        builder.with(Property.named("gcp.bucket"), "testBucket")
-                .with(Property.named("gcp.prefix"), "testPrefix");
+        builder.with(Property.named("bucket"), "testBucket")
+                .with(Property.named("prefix"), "testPrefix");
         GCPStorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
         assertEquals("testPrefix/", config.getPrefix());
@@ -39,14 +39,14 @@ public class GCPStorageConfigTest {
     @Test
     public void testConstructGCPConfig() {
         ConfigBuilder<GCPStorageConfig> builder = GCPStorageConfig.builder();
-        builder.with(Property.named("gcp.bucket"), "testBucket")
-                .with(Property.named("gcp.prefix"), "testPrefix")
-                .with(Property.named("gcp.account.type"), "testAccountType")
-                .with(Property.named("gcp.project.id"), "testProjectId")
-                .with(Property.named("gcp.client.email"), "testClientEmail")
-                .with(Property.named("gcp.client.id"), "testClientId")
-                .with(Property.named("gcp.private.key.id"), "testPrivateKeyId")
-                .with(Property.named("gcp.private.key"), "testPrivateKey");
+        builder.with(Property.named("bucket"), "testBucket")
+                .with(Property.named("prefix"), "testPrefix")
+                .with(Property.named("account.type"), "testAccountType")
+                .with(Property.named("project.id"), "testProjectId")
+                .with(Property.named("client.email"), "testClientEmail")
+                .with(Property.named("client.id"), "testClientId")
+                .with(Property.named("private.key.id"), "testPrivateKeyId")
+                .with(Property.named("private.key"), "testPrivateKey");
 
         GCPStorageConfig config = builder.build();
         assertEquals("testBucket", config.getBucket());
