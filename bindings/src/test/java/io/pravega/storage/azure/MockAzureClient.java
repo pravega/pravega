@@ -26,7 +26,6 @@ import com.azure.storage.blob.models.BlobProperties;
 import com.azure.storage.blob.models.BlobType;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.CollectionHelpers;
-import io.pravega.storage.s3.S3Mock;
 import lombok.val;
 import lombok.Builder;
 import lombok.Getter;

@@ -55,6 +55,15 @@ public class AzureBlobClientImpl implements AzureClient {
         this.client = null;
     }
 
+    public AzureBlobClientImpl(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
+        this.config = config;
+        this.blobContainerClient = blobContainerClient;
+        createContainerIfRequired(config, blobContainerClient);
+        shouldCloseClient = false;
+        closed = null;
+        client = null;
+    }
+
     public void createContainerIfRequired(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
         log.debug("Creating container {}.", config.getContainerName());
         if (config.isCreateContainer()) {
@@ -74,22 +83,13 @@ public class AzureBlobClientImpl implements AzureClient {
         }
     }
 
-    public AzureBlobClientImpl(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
-        this.config = config;
-        this.blobContainerClient = blobContainerClient;
-        createContainerIfRequired(config, blobContainerClient);
-        shouldCloseClient = false;
-        closed = null;
-        client = null;
-    }
-
     private BlobContainerClient getBlobContainerClient(AzureStorageConfig config) {
         BlobServiceClient storageClient = new BlobServiceClientBuilder()
                 .endpoint(config.getEndpoint())
                 .credential(StorageSharedKeyCredential.fromConnectionString(config.getConnectionString()))
                 .buildClient();
-        val Client = storageClient.getBlobContainerClient(config.getContainerName());
-        return Client;
+        val containerClient = storageClient.getBlobContainerClient(config.getContainerName());
+        return containerClient;
     }
 
     @Override
