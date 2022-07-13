@@ -255,7 +255,7 @@ public class ConditionalOutputStreamTest {
                 ReplyProcessor processor = connectionFactory.getProcessor(location);
 
                 if (retryCounter.getAndIncrement() < 2) {
-                    processor.process(new WireCommands.InvalidEventNumber(argument.getWriterId(), argument.getRequestId(), ""));
+                    processor.process(new WireCommands.InvalidEventNumber(argument.getWriterId(), argument.getRequestId(), "", argument.getEventNumber()));
                 } else {
                     processor.process(new WireCommands.DataAppended(argument.getRequestId(),
                             argument.getWriterId(), argument.getEventNumber(), 0, -1));
@@ -328,7 +328,7 @@ public class ConditionalOutputStreamTest {
                 e -> e instanceof TokenExpiredException);
         
         AssertExtensions.assertThrows("InvalidEventNumber wasn't treated as a connection failure",
-                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.InvalidEventNumber(UUID.randomUUID(), 1, "SomeException"), "test"),
+                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.InvalidEventNumber(UUID.randomUUID(), 1, "SomeException", 1L), "test"),
                 e -> e instanceof ConnectionFailedException);
         
         AssertExtensions.assertThrows("Hello wasn't treated as a connection failure",
