@@ -47,11 +47,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
+/**
+ * In-memory mock for Azure client.
+ */
 public class MockAzureClient implements AzureClient {
 
     /**
-     * Map of containerName to msp of objectName to object data.
+     * Map of containerName to map of objectName to object data.
      */
 
     @GuardedBy("objects")

@@ -28,10 +28,12 @@ import com.azure.storage.blob.models.AppendBlobRequestConditions;
 import com.azure.storage.blob.specialized.AppendBlobClient;
 import com.azure.storage.blob.specialized.BlobClientBase;
 import com.azure.storage.common.StorageSharedKeyCredential;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.io.InputStream;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * AzureBlobClientImpl class provides implementation of AzureClient methods.
@@ -40,11 +42,17 @@ import java.io.InputStream;
 public class AzureBlobClientImpl implements AzureClient {
     private final BlobContainerClient blobContainerClient;
     private final AzureStorageConfig config;
+    private final boolean shouldCloseClient;
+    private final AtomicBoolean closed;
+    private final AzureClient client;
 
     public AzureBlobClientImpl(AzureStorageConfig config) {
         this.config = config;
         this.blobContainerClient = getBlobContainerClient(config);
         createContainerIfRequired(config, blobContainerClient);
+        this.shouldCloseClient = false;
+        this.closed = new AtomicBoolean(false);
+        this.client = null;
     }
 
     public void createContainerIfRequired(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
@@ -70,6 +78,9 @@ public class AzureBlobClientImpl implements AzureClient {
         this.config = config;
         this.blobContainerClient = blobContainerClient;
         createContainerIfRequired(config, blobContainerClient);
+        shouldCloseClient = false;
+        closed = null;
+        client = null;
     }
 
     private BlobContainerClient getBlobContainerClient(AzureStorageConfig config) {
@@ -120,7 +131,10 @@ public class AzureBlobClientImpl implements AzureClient {
     }
 
     @Override
+    @SneakyThrows
     public void close() throws Exception {
-
+        if (shouldCloseClient && !this.closed.getAndSet(true)) {
+            this.client.close();
+        }
     }
 }

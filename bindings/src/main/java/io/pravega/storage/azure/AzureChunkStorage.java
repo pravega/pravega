@@ -160,7 +160,7 @@ public class AzureChunkStorage extends BaseChunkStorage {
             if (metadata.getBlobSize() != offset) {
                 throw new InvalidOffsetException(handle.getChunkName(), metadata.getBlobSize(), offset, "doWrite - blobSize in bytes %d and offset for the chunk to start writing %d do not match.");
             }
-            client.appendBlock(objectPath, offset, length, new BufferedInputStream(data));
+            this.client.appendBlock(objectPath, offset, length, new BufferedInputStream(data));
             return length;
         } catch (Exception e) {
             throw convertException(handle.getChunkName(), "doWrite", e);

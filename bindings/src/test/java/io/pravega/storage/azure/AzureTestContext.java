@@ -46,6 +46,12 @@ public class AzureTestContext {
         }
     }
 
+    /**
+     * Creates a new instance of the AzureStorageConfig class as defined by this builder with the information which includes
+     * default configuration to connect Storage account created on Azure portal.
+     * @param prefix Prefix of the Pravega owned Azure path under the assigned containers.
+     * @return The newly created instance.
+     */
     public static AzureStorageConfig getLocalAzureStorageConfig(String prefix) {
          return AzureStorageConfig.builder()
                 .with(AzureStorageConfig.ENDPOINT, "http://127.0.0.1:10000/devstoreaccount1")
