@@ -19,12 +19,23 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
@@ -60,6 +71,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import javax.ws.rs.client.Client;
@@ -1052,6 +1064,70 @@ public class StreamMetaDataTests {
         assertEquals("List Reader Groups response code", 404, response.getStatus());
         verify(mockControllerService, times(1)).getCurrentSegments(anyString(), anyString(), anyLong());
     }
+
+    /**
+     * Test for deleteReaderGroup REST API
+     *
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
+    @Test(timeout = 30000)
+    public void testDeleteReaderGroup() {
+        final String scope = "scope";
+        final String streamName = "stream1";
+        final String rgName = "readergroup1";
+        final String resourceURI = getURI() + "v1/scopes/scope1/readergroups/readergroup1";
+
+        when(mockControllerService.getExecutor()).thenReturn(connectionFactory.getInternalExecutor());
+
+        StreamInfo info = StreamInfo.newBuilder().setScope(scope).setStream(streamName).build();
+        SegmentId segment1 = SegmentId.newBuilder().setSegmentId(1).setStreamInfo(info).build();
+        SegmentRange segmentRange1 = SegmentRange.newBuilder().setSegmentId(segment1)
+                                                            .setMinKey(0.1).setMaxKey(0.3).build();
+
+        List<SegmentRange> segmentsList = new ArrayList<>(1);
+        segmentsList.add(segmentRange1);
+        when(mockControllerService.getCurrentSegments(anyString(), anyString(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(segmentsList));
+
+        final io.pravega.client.segment.impl.Segment seg0 = new io.pravega.client.segment.impl.Segment(scope, streamName, 0L);
+        final io.pravega.client.segment.impl.Segment seg1 = new io.pravega.client.segment.impl.Segment(scope, streamName, 1L);
+        ImmutableMap<io.pravega.client.segment.impl.Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(scope, streamName),
+                new StreamCutImpl(Stream.of(scope, streamName), startStreamCut));
+        ImmutableMap<io.pravega.client.segment.impl.Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(scope, streamName),
+                new StreamCutImpl(Stream.of(scope, streamName), endStreamCut));
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                                                      .automaticCheckpointIntervalMillis(30000L)
+                                                      .groupRefreshTimeMillis(20000L)
+                                                      .maxOutstandingCheckpointRequest(2)
+                                                      .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                                                      .startingStreamCuts(startSC)
+                                                      .endingStreamCuts(endSC).build();
+        ReaderGroupConfig config = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 0L);
+
+        ReaderGroupConfiguration expectedConfig = ModelHelper.decode(scope, rgName, config);
+
+        when(mockControllerService.getReaderGroupConfig(anyString(), anyString(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(ReaderGroupConfigResponse.newBuilder()
+                                                                           .setStatus(ReaderGroupConfigResponse.Status.SUCCESS)
+                                                                           .setConfig(expectedConfig)
+                                                                           .build()));
+        when(mockControllerService.deleteReaderGroup(anyString(), anyString(), anyString(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(
+                DeleteReaderGroupStatus.newBuilder().setStatus(DeleteReaderGroupStatus.Status.SUCCESS).build()));
+        Response response = addAuthHeaders(client.target(resourceURI).request()).buildDelete().invoke();
+        assertEquals("Delete reader group response code", 204, response.getStatus());
+
+        when(mockControllerService.deleteReaderGroup(anyString(), anyString(), anyString(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(
+                        DeleteReaderGroupStatus.newBuilder().setStatus(DeleteReaderGroupStatus.Status.RG_NOT_FOUND).build()));
+        response = addAuthHeaders(client.target(resourceURI).request()).buildDelete().invoke();
+        assertEquals("Delete reader group response code", 404, response.getStatus());
+        response.close();
+    }
+
 
     private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {
         assertNotNull(expected);
