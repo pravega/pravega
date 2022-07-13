@@ -812,6 +812,43 @@ Fetch the properties of an existing reader group
 ```
 
 
+<a name="deletereadergroup"></a>
+### DELETE /scopes/{scopeName}/readergroups/{readerGroupName}
+
+#### Description
+Delete a reader group
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**readerGroupName**  <br>*required*|Reader group name|string|
+|**Path**|**scopeName**  <br>*required*|Scope name|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**204**|Successfully deleted the reader group|No Content|
+|**404**|Reader group with given name not found|No Content|
+|**500**|Internal server error while deleting a reader group|No Content|
+
+
+#### Tags
+
+* ReaderGroups
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/scopes/string/readergroups/string
+```
+
+
 <a name="createstream"></a>
 ### POST /scopes/{scopeName}/streams
 

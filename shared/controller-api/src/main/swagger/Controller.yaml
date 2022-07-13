@@ -412,6 +412,18 @@ paths:
           description: Scope or reader group with given name not found
         500:
           description: Internal server error while fetching reader group details
+    delete:
+      tags:
+        - "ReaderGroups"
+      operationId: deleteReaderGroup
+      description: Delete a reader group
+      responses:
+        204:
+          description: Successfully deleted the reader group
+        404:
+          description: Reader group with given name not found
+        500:
+          description: Internal server error while deleting a reader group
   /health:
     get:
       tags:
