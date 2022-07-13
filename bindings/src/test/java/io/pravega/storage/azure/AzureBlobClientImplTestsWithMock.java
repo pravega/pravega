@@ -98,18 +98,4 @@ public class AzureBlobClientImplTestsWithMock {
         blobClientBase.openInputStream(any(), any());
     }
 
-//    @Test
-//    public void testAppendBlock() {
-//        val blobContainerClient = mock(BlobContainerClient.class);
-//        val blobClient = mock(BlobClient.class);
-//        val appendBlobClient = mock(AppendBlobClient.class);
-//        when(blobContainerClient.getBlobClient(any())).thenReturn(blobClient);
-//        when(blobClient.getAppendBlobClient()).thenReturn(appendBlobClient);
-//
-//    }
-//
-//    @Test
-//    public void testBlobProperties() {
-//
-//    }
 }
