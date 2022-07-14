@@ -44,7 +44,7 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
     protected AttributeUpdateCollection attributeUpdates;
 
     // Hash of the Append contents. Note that this is only used internally within the Segment Store to
-    //check data integrity and should not be considered for serialization.
+    // check data integrity and should not be considered for serialization.
     @Getter
     @Setter
     private transient long contentHash = AppendIntegrityChecker.NO_HASH;

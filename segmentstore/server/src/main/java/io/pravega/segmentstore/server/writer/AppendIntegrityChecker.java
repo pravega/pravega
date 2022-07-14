@@ -21,7 +21,6 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -51,19 +50,19 @@ public class AppendIntegrityChecker implements AutoCloseable {
 
     //endregion
 
-    //region AppendIntegrityChecker Implementation
-
-    public static long computeDataHash(BufferView data) {
-        return computeDataHash(data.getCopy());
-    }
-
-    public static long computeDataHash(byte[] data) {
-        return Arrays.hashCode(data);
-    }
+    //region Autocloseable
 
     @Override
     public synchronized void close() {
         this.appendIntegrityInfo.clear();
+    }
+
+    //endregion
+
+    //region AppendIntegrityChecker Implementation
+
+    public static long computeDataHash(BufferView data) {
+        return data.hashCode();
     }
 
     public synchronized void addAppendIntegrityInfo(long segmentId, long offset, long length, long hash) {
@@ -83,7 +82,6 @@ public class AppendIntegrityChecker implements AutoCloseable {
         // Get the appends for queued for this specific Segment.
         Iterator<AggregatedAppendIntegrityInfo> iterator = this.appendIntegrityInfo.iterator();
         int accumulatedLength = 0;
-        byte[] dataContents = data.getCopy();
         while (iterator.hasNext() && accumulatedLength <= data.getLength()) {
             AggregatedAppendIntegrityInfo integrityInfo = iterator.next();
             if (integrityInfo.getContentHash() == NO_HASH || integrityInfo.getOffset() < offset) {
@@ -91,12 +89,13 @@ public class AppendIntegrityChecker implements AutoCloseable {
                 iterator.remove();
             } else {
                 // Check integrity for this append if we have some hash to compare to.
-                if (dataContents.length >= accumulatedLength + integrityInfo.getLength()) {
-                    long hash = Arrays.hashCode(Arrays.copyOfRange(dataContents, accumulatedLength, (int) (accumulatedLength + integrityInfo.getLength())));
+                if (data.getLength() >= accumulatedLength + integrityInfo.getLength()) {
+                    long hash = computeDataHash(data.slice(accumulatedLength, (int) integrityInfo.getLength()));
                     if (hash != integrityInfo.getContentHash())  {
                         log.error("Append integrity check failed. SegmentId = {}, Offset = {}, Length = {}, Original Hash = {}, Current Hash = {}.",
                                 segmentId, integrityInfo.getOffset() + accumulatedLength, integrityInfo.getLength(), integrityInfo.getContentHash(), hash);
-                        throw new DataCorruptionException("Data read from cache differs from original data appended.");
+                        throw new DataCorruptionException(String.format("Data read from cache for Segment %s (hash = %s) differs from original data appended (hash = %s).",
+                                integrityInfo.getSegmentId(), hash, integrityInfo.getContentHash()));
                     }
                 }
                 accumulatedLength += integrityInfo.getLength();
