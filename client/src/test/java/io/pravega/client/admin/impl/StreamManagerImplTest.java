@@ -267,7 +267,7 @@ public class StreamManagerImplTest {
                                                                                 .scalingPolicy(ScalingPolicy.fixed(3))
                                                                                 .build());
         // fetch StreamInfo.
-        StreamInfo info = streamManager.getStreamInfo(defaultScope, streamName);
+        StreamInfo info = streamManager.fetchStreamInfo(defaultScope, streamName);
 
         //validate results.
         assertEquals(defaultScope, info.getScope());
@@ -330,7 +330,7 @@ public class StreamManagerImplTest {
         streamManager.sealStream(defaultScope, streamName);
 
         //Fetch StreamInfo
-        StreamInfo info = streamManager.getStreamInfo(defaultScope, streamName);
+        StreamInfo info = streamManager.fetchStreamInfo(defaultScope, streamName);
 
         //validate results.
         assertEquals(defaultScope, info.getScope());
