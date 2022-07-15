@@ -21,6 +21,8 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.BoundedInputStream;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageFullException;
@@ -32,6 +34,7 @@ import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutEx
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Vector;
@@ -65,6 +68,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final List<SystemJournal.SystemJournalRecord> systemLogRecords = new Vector<>();
     private final List<ChunkNameOffsetPair> newReadIndexEntries = new Vector<>();
     private final AtomicInteger chunksAddedCount = new AtomicInteger();
+    private final boolean checkDataIntegrityEnabled;
 
     private volatile boolean isCommitted = false;
     private volatile SegmentMetadata segmentMetadata;
@@ -81,12 +85,13 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     private volatile boolean didSegmentLayoutChange = false;
 
-    WriteOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, InputStream data, int length) {
+    WriteOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, InputStream data, int length, boolean checkDataIntegrityEnabled) {
         this.handle = handle;
         this.offset = offset;
         this.data = data;
         this.length = length;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
+        this.checkDataIntegrityEnabled = checkDataIntegrityEnabled;
         traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
         timer = new Timer();
     }
@@ -421,6 +426,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     // Update the metadata for segment and chunk.
                     Preconditions.checkState(bytesWritten >= 0, "bytesWritten (%s) must be non-negative. Segment=%s Chunk=%s offsetToWriteAt=%s",
                             bytesWritten, segmentMetadata, chunkWrittenMetadata, offsetToWriteAt);
+                    Preconditions.checkState(checkDataIntegrity(chunkHandle, offsetToWriteAt, bytesWritten, data));
                     segmentMetadata.setLength(segmentMetadata.getLength() + bytesWritten);
                     chunkWrittenMetadata.setLength(chunkWrittenMetadata.getLength() + bytesWritten);
                     txn.update(chunkWrittenMetadata);
@@ -451,5 +457,39 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     }
                     return v;
                 }, chunkedSegmentStorage.getExecutor());
+    }
+
+    /**
+     * Verify that the integrity of the contents of a {@link WriteOperation} that has been written to LTS. This is done
+     * by calculating the hash of the original data written to LTS, and then reading again the data that has been
+     * written to certify the contents' integrity is correct.
+     *
+     * @param chunkHandle Handle for the Chunk to check.
+     * @param offsetToWriteAt Start offset to read the data just written to check its integrity.
+     * @param bytesWritten Length of the data written to check its integrity.
+     * @param data Original data written to Storage.
+     * @return Whether the written data passes or not the integrity check.
+     */
+    private boolean checkDataIntegrity(ChunkHandle chunkHandle, long offsetToWriteAt, int bytesWritten, InputStream data) {
+        if (!this.checkDataIntegrityEnabled) {
+            // No data integrity checks enabled, do nothing.
+            return true;
+        }
+
+        // Reset the input stream used to get the data to write to LTS and re-read its content to calculate the hash.
+        byte[] readData;
+        try {
+            data.reset();
+            readData = data.readAllBytes();
+        } catch (IOException ex) {
+            log.warn("{}: Unable to reset input stream to perform integrity check.", this.traceId, ex);
+            return true;
+        }
+        int originalHash = BufferView.wrap(List.of(new ByteArraySegment(readData))).hashCode();
+
+        // Read the data (directly from Storage) that has been just written and verify its integrity.
+        int bytesRead = chunkedSegmentStorage.getChunkStorage().read(chunkHandle, offsetToWriteAt, bytesWritten, readData, 0).join();
+        int readDataHash =  BufferView.wrap(List.of(new ByteArraySegment(readData))).hashCode();
+        return bytesRead == bytesWritten && originalHash == readDataHash;
     }
 }

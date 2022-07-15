@@ -42,6 +42,8 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,13 +51,18 @@ import java.util.HashSet;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+
 import lombok.Cleanup;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.After;
@@ -1061,6 +1068,43 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         HashSet<String>  chunksAfter = new HashSet<>();
         chunksAfter.addAll(TestUtils.getChunkNameList(testContext.metadataStore, testSegmentName));
         TestUtils.checkGarbageCollectionQueue(testContext.chunkedSegmentStorage, chunksBefore, chunksAfter);
+    }
+
+    @Test
+    public void testPartialWrite() throws Exception {
+        String testSegmentName = "foo";
+        @Cleanup
+        TestContext testContext = getTestContext();
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+
+        // Create
+        val hWrite = testContext.chunkedSegmentStorage.create(testSegmentName, policy, null).get();
+        HashSet<String> chunksBefore = new HashSet<>();
+        chunksBefore.addAll(TestUtils.getChunkNameList(testContext.metadataStore, testSegmentName));
+
+        // Write some data.
+        long writeAt = 0;
+        for (int i = 1; i < 5; i++) {
+            InputStream data = new ByteArrayInputStream(new byte[i]);
+            ((TestNoOpChunkStorage) testContext.chunkedSegmentStorage.getChunkStorage()).getPreWriteCallback().set(is -> {
+                try {
+                    // read some bytes
+                    is.readNBytes(2);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                throw new CompletionException(new InvalidOffsetException("chunk", 0, 0, "Simulate partial write"));
+            });
+            testContext.chunkedSegmentStorage.write(hWrite, writeAt, data, i, null).join();
+            writeAt += i;
+        }
+        HashSet<String>  chunksAfter = new HashSet<>();
+        chunksAfter.addAll(TestUtils.getChunkNameList(testContext.metadataStore, testSegmentName));
+        TestUtils.checkGarbageCollectionQueue(testContext.chunkedSegmentStorage, chunksBefore, chunksAfter);
+
+        int total = 10;
+
+        checkDataRead(testSegmentName, testContext, 0, total);
     }
 
     /**
@@ -3448,6 +3492,23 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             this.chunkedSegmentStorage = null;
             this.chunkStorage = null;
             this.metadataStore = null;
+        }
+    }
+
+    private static class TestNoOpChunkStorage extends NoOpChunkStorage {
+
+        @Getter
+        @Setter
+        private AtomicReference<Consumer<InputStream>> preWriteCallback = new AtomicReference<>(is -> { });
+
+        public TestNoOpChunkStorage(Executor executor) {
+            super(executor);
+        }
+
+        @Override
+        protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException, IndexOutOfBoundsException {
+            this.preWriteCallback.get().accept(data);
+            return super.doWrite(handle, offset, length, data);
         }
     }
 }
