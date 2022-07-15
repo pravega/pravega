@@ -821,8 +821,6 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         BufferView data = null;
         if (length > 0) {
             data = this.dataSource.getAppendData(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), length);
-            // Verify that the data received here is the same that was initially sent by the client (if data integrity checks are enabled).
-            this.dataIntegrityChecker.checkAppendIntegrity(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), data);
             if (data == null) {
                 if (this.metadata.isDeleted()) {
                     // Segment was deleted - nothing more to do.
@@ -830,6 +828,15 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                 }
                 throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for '%s'.", appendOp));
             }
+            // Check that the offset of the AggregatedAppendOperation we are adding matches with the offset of the
+            // Segment in Storage. Otherwise, we might be inadvertently writing wrong contents to Storage, even though
+            // storage-related offsets match.
+            if (this.metadata.getStorageLength() != appendOp.getStreamSegmentOffset()) {
+                throw new DataCorruptionException(String.format("Mismatch in the offsets of Appends being written to Storage '%s' " +
+                        "and the actual offset of the Segment in Storage '%s'.", appendOp, this.metadata.getStorageLength() ));
+            }
+            // Verify that the data received here is the same that was initially sent by the client (if data integrity checks are enabled).
+            this.dataIntegrityChecker.checkAppendIntegrity(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), data);
         }
 
         appendOp.seal();
