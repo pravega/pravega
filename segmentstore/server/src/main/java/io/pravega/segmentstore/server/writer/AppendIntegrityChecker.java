@@ -18,6 +18,7 @@ package io.pravega.segmentstore.server.writer;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -61,7 +62,7 @@ public class AppendIntegrityChecker implements AutoCloseable {
 
     //region AppendIntegrityChecker Implementation
 
-    public static long computeDataHash(BufferView data) {
+    public static long computeDataHash(@NonNull BufferView data) {
         return data.hashCode();
     }
 
