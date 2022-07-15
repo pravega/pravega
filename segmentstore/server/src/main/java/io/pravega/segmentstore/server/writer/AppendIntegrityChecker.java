@@ -22,6 +22,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -63,7 +64,8 @@ public class AppendIntegrityChecker implements AutoCloseable {
     //region AppendIntegrityChecker Implementation
 
     public static long computeDataHash(@NonNull BufferView data) {
-        return data.hashCode();
+        // FIXME: Before using BufferView.hashCode(), we need to have a common implementation of that method to all subclasses
+        return Arrays.hashCode(data.getCopy());
     }
 
     public synchronized void addAppendIntegrityInfo(long segmentId, long offset, long length, long hash) {
