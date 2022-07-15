@@ -290,11 +290,11 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public StreamInfo fetchStreamInfo(String scopeName, String streamName) {
+    public CompletableFuture<StreamInfo> fetchStreamInfo(String scopeName, String streamName) {
         NameUtils.validateUserStreamName(streamName);
         NameUtils.validateUserScopeName(scopeName);
         log.info("Fetching StreamInfo for scope/stream: {}/{}", scopeName, streamName);
-        return Futures.getThrowingException(fetchStreamInfo(Stream.of(scopeName, streamName)));
+        return fetchStreamInfo(Stream.of(scopeName, streamName));
     }
 
     /**

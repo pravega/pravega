@@ -187,7 +187,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public StreamInfo fetchStreamInfo(String scopeName, String streamName) {
+    public CompletableFuture<StreamInfo> fetchStreamInfo(String scopeName, String streamName) {
         throw new NotImplementedException("fetchStreamInfo");
     }
 
