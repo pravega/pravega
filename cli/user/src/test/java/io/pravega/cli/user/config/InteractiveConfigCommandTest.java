@@ -15,8 +15,10 @@
  */
 package io.pravega.cli.user.config;
 
+import ch.qos.logback.classic.Level;
 import org.junit.Assert;
 import org.junit.Test;
+
 
 public class InteractiveConfigCommandTest {
 
@@ -45,6 +47,9 @@ public class InteractiveConfigCommandTest {
         interactiveConfig.set(InteractiveConfig.TRUSTSTORE_JKS, testString);
         Assert.assertEquals(testString, interactiveConfig.getTruststore());
         Assert.assertNotNull(interactiveConfig.getAll());
+        interactiveConfig.set(InteractiveConfig.LOGLEVEL, "INFO");
+        Assert.assertEquals(interactiveConfig.getLogLevel(), Level.INFO);
+        // Ensure the log level has been immediately applied
+        Assert.assertEquals(interactiveConfig.getLoggerContext().getLoggerList().get(0).getLevel(), Level.INFO);
     }
-
 }

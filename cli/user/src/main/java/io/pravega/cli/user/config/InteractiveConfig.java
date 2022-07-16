@@ -15,10 +15,13 @@
  */
 package io.pravega.cli.user.config;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.cli.user.UserCLIRunner;
 import lombok.Builder;
 import lombok.Data;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
@@ -28,6 +31,7 @@ import java.util.Map;
 @Data
 @Builder
 public class InteractiveConfig {
+    public static final String LOGLEVEL = "log-level";
     public static final String CONTROLLER_URI = "controller-uri";
     public static final String DEFAULT_SEGMENT_COUNT = "default-segment-count";
     public static final String TIMEOUT_MILLIS = "timeout-millis";
@@ -52,9 +56,14 @@ public class InteractiveConfig {
     private boolean tlsEnabled;
     private String truststore;
     private long rolloverSizeBytes;
+    private Level logLevel;
+    private LoggerContext loggerContext;
 
     public static InteractiveConfig getDefault() {
+        LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+
         return InteractiveConfig.builder()
+                .loggerContext(loggerContext)
                 .controllerUri("localhost:9090")
                 .defaultSegmentCount(4)
                 .timeoutMillis(60000)
@@ -66,6 +75,7 @@ public class InteractiveConfig {
                 .tlsEnabled(false)
                 .truststore("")
                 .rolloverSizeBytes(0)
+                .logLevel(Level.ERROR)
                 .build();
     }
 
@@ -104,6 +114,10 @@ public class InteractiveConfig {
             case ROLLOVER_SIZE_BYTES:
                 setRolloverSizeBytes(Long.parseLong(value));
                 break;
+            case LOGLEVEL:
+                setLogLevel(Level.toLevel(value));
+                loggerContext.getLoggerList().get(0).setLevel(logLevel);
+                break;
             default:
                 throw new IllegalArgumentException(String.format("Unrecognized property name '%s'.", propertyName));
         }
@@ -123,6 +137,7 @@ public class InteractiveConfig {
                 .put(TLS_ENABLED, isTlsEnabled())
                 .put(TRUSTSTORE_JKS, getTruststore())
                 .put(ROLLOVER_SIZE_BYTES, getRolloverSizeBytes())
+                .put(LOGLEVEL, getLogLevel())
                 .build();
     }
 }
