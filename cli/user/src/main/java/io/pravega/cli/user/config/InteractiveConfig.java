@@ -20,7 +20,6 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.cli.user.UserCLIRunner;
 import lombok.Builder;
 import lombok.Data;
-import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
