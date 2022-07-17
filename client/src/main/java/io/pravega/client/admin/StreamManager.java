@@ -238,7 +238,7 @@ public interface StreamManager extends AutoCloseable {
      *
      * @param scopeName The scope of the stream.
      * @param streamName The stream name.
-     * @return stream information.
+     * @return A future representing {@link StreamInfo}.
      */
     @Beta
     CompletableFuture<StreamInfo> fetchStreamInfo(String scopeName, String streamName);
