@@ -107,7 +107,6 @@ public class UserCLIRunner {
                 // No command was found.
                 printHelp(pc);
             } else {
-
                 cmd.execute();
             }
         } catch (IllegalArgumentException ex) {
