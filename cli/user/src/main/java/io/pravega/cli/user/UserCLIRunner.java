@@ -23,6 +23,7 @@ import io.pravega.cli.user.config.ConfigCommand;
 import io.pravega.cli.user.config.InteractiveConfig;
 import lombok.Cleanup;
 import lombok.val;
+import org.junit.Assert;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
@@ -49,6 +50,8 @@ public class UserCLIRunner {
         System.out.println("Pravega User CLI Tool.");
         System.out.println("\tUsage instructions: https://github.com/pravega/pravega/wiki/Pravega-User-CLI\n");
         val config = InteractiveConfig.getDefault();
+        LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+        loggerContext.getLoggerList().get(0).setLevel(config.getLogLevel());
 
         // Output loaded config.
         System.out.println("Initial configuration:");
@@ -56,14 +59,14 @@ public class UserCLIRunner {
         initialConfigCmd.execute();
 
         if (args == null || args.length == 0) {
-            interactiveMode(config);
+            interactiveMode(config, loggerContext);
         } else {
             String commandLine = Arrays.stream(args).collect(Collectors.joining(" ", "", ""));
             processCommand(commandLine, config);
         }
     }
 
-    private static void interactiveMode(InteractiveConfig config) {
+    private static void interactiveMode(InteractiveConfig config, LoggerContext loggerContext) {
         // Continuously accept new commands as long as the user entered one.
         System.out.println(String.format("%nType \"%s\" for list of commands, or \"%s\" to exit.", CMD_HELP, CMD_EXIT));
         @Cleanup
@@ -71,6 +74,8 @@ public class UserCLIRunner {
         while (true) {
             System.out.print(System.lineSeparator() + "> ");
             String line = input.nextLine();
+
+            loggerContext.getLoggerList().get(0).setLevel(config.getLogLevel());
             processCommand(line, config);
         }
     }
@@ -102,6 +107,7 @@ public class UserCLIRunner {
                 // No command was found.
                 printHelp(pc);
             } else {
+
                 cmd.execute();
             }
         } catch (IllegalArgumentException ex) {

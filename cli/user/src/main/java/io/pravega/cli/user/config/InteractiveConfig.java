@@ -16,7 +16,6 @@
 package io.pravega.cli.user.config;
 
 import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.cli.user.UserCLIRunner;
 import lombok.Builder;
@@ -57,13 +56,9 @@ public class InteractiveConfig {
     private String truststore;
     private long rolloverSizeBytes;
     private Level logLevel;
-    private LoggerContext loggerContext;
 
     public static InteractiveConfig getDefault() {
-        LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
-
         return InteractiveConfig.builder()
-                .loggerContext(loggerContext)
                 .controllerUri("localhost:9090")
                 .defaultSegmentCount(4)
                 .timeoutMillis(60000)
@@ -116,7 +111,6 @@ public class InteractiveConfig {
                 break;
             case LOGLEVEL:
                 setLogLevel(Level.toLevel(value));
-                loggerContext.getLoggerList().get(0).setLevel(logLevel);
                 break;
             default:
                 throw new IllegalArgumentException(String.format("Unrecognized property name '%s'.", propertyName));

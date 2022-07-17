@@ -47,9 +47,11 @@ public class InteractiveConfigCommandTest {
         interactiveConfig.set(InteractiveConfig.TRUSTSTORE_JKS, testString);
         Assert.assertEquals(testString, interactiveConfig.getTruststore());
         Assert.assertNotNull(interactiveConfig.getAll());
+
+        Assert.assertEquals(InteractiveConfig.getDefault().getLogLevel(), Level.ERROR);
         interactiveConfig.set(InteractiveConfig.LOGLEVEL, "INFO");
         Assert.assertEquals(interactiveConfig.getLogLevel(), Level.INFO);
-        // Ensure the log level has been immediately applied
-        Assert.assertEquals(interactiveConfig.getLoggerContext().getLoggerList().get(0).getLevel(), Level.INFO);
+        interactiveConfig.set(InteractiveConfig.LOGLEVEL, "debug");
+        Assert.assertEquals(interactiveConfig.getLogLevel(), Level.DEBUG);
     }
 }
