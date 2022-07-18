@@ -15,7 +15,6 @@
  */
 package io.pravega.cli.user;
 
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
@@ -23,7 +22,6 @@ import io.pravega.cli.user.config.ConfigCommand;
 import io.pravega.cli.user.config.InteractiveConfig;
 import lombok.Cleanup;
 import lombok.val;
-import org.junit.Assert;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
