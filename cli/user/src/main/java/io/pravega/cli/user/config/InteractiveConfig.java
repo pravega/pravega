@@ -29,7 +29,7 @@ import java.util.Map;
 @Data
 @Builder
 public class InteractiveConfig {
-    public static final String LOGLEVEL = "log-level";
+    public static final String LOG_LEVEL = "log-level";
     public static final String CONTROLLER_URI = "controller-uri";
     public static final String DEFAULT_SEGMENT_COUNT = "default-segment-count";
     public static final String TIMEOUT_MILLIS = "timeout-millis";
@@ -108,7 +108,7 @@ public class InteractiveConfig {
             case ROLLOVER_SIZE_BYTES:
                 setRolloverSizeBytes(Long.parseLong(value));
                 break;
-            case LOGLEVEL:
+            case LOG_LEVEL:
                 setLogLevel(Level.toLevel(value));
                 break;
             default:
@@ -130,7 +130,7 @@ public class InteractiveConfig {
                 .put(TLS_ENABLED, isTlsEnabled())
                 .put(TRUSTSTORE_JKS, getTruststore())
                 .put(ROLLOVER_SIZE_BYTES, getRolloverSizeBytes())
-                .put(LOGLEVEL, getLogLevel())
+                .put(LOG_LEVEL, getLogLevel())
                 .build();
     }
 }

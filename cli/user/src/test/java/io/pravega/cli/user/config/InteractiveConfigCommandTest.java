@@ -49,9 +49,9 @@ public class InteractiveConfigCommandTest {
         Assert.assertNotNull(interactiveConfig.getAll());
 
         Assert.assertEquals(InteractiveConfig.getDefault().getLogLevel(), Level.ERROR);
-        interactiveConfig.set(InteractiveConfig.LOGLEVEL, "INFO");
+        interactiveConfig.set(InteractiveConfig.LOG_LEVEL, "INFO");
         Assert.assertEquals(interactiveConfig.getLogLevel(), Level.INFO);
-        interactiveConfig.set(InteractiveConfig.LOGLEVEL, "debug");
+        interactiveConfig.set(InteractiveConfig.LOG_LEVEL, "debug");
         Assert.assertEquals(interactiveConfig.getLogLevel(), Level.DEBUG);
     }
 }
