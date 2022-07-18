@@ -836,6 +836,8 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                         "and the actual offset of the Segment in Storage '%s'.", appendOp, this.metadata.getStorageLength()));
             }
             // Verify that the data received here is the same that was initially sent by the client (if data integrity checks are enabled).
+            log.debug("{}: Integrity check for AggregatedAppendOperation. Start Offset = {}, Length = {}, BufferView Length = {}.",
+                    this.traceObjectId, first.getStreamSegmentOffset(), first.getLength(), data.getLength());
             this.dataIntegrityChecker.checkAppendIntegrity(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), data);
         }
 
