@@ -145,6 +145,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     public void close() {
         if (!isClosed()) {
             setState(AggregatorState.Closed);
+            this.dataIntegrityChecker.close();
         }
     }
 
