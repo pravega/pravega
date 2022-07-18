@@ -205,10 +205,10 @@ class RecoveryProcessor {
         metadataUpdater.setOperationSequenceNumber(operation.getSequenceNumber());
 
         // Compute integrity check for recovered Appends.
-        if (operation instanceof StreamSegmentAppendOperation) {
+        /*if (operation instanceof StreamSegmentAppendOperation) {
             ((StreamSegmentAppendOperation) operation).setContentHash(AppendIntegrityChecker.computeDataHash(
                     ((StreamSegmentAppendOperation) operation).getData()));
-        }
+        }*/
 
         // Update the metadata with the information from the Operation.
         try {
