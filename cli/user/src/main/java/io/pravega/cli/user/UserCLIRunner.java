@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -39,7 +40,7 @@ public class UserCLIRunner {
     private static final String CMD_HELP = "help";
     private static final String CMD_EXIT = "exit";
 
-    private static boolean running = true;
+    private static final AtomicBoolean running = new AtomicBoolean(true);
 
     public static void main(String[] args) {
         doMain(args, System.in);
@@ -72,7 +73,7 @@ public class UserCLIRunner {
         System.out.println(String.format("%nType \"%s\" for list of commands, or \"%s\" to exit.", CMD_HELP, CMD_EXIT));
         @Cleanup
         Scanner input = new Scanner(interactiveStream);
-        while (running) {
+        while (running.get()) {
             System.out.print(System.lineSeparator() + "> ");
             String line = input.nextLine();
 
@@ -93,7 +94,7 @@ public class UserCLIRunner {
                 printHelp(null);
                 break;
             case CMD_EXIT:
-                running = false;
+                running.set(false);
                 break;
             default:
                 execCommand(pc);
