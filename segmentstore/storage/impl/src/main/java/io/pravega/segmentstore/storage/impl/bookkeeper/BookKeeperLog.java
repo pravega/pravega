@@ -1022,7 +1022,7 @@ class BookKeeperLog implements DurableDataLog {
                 .filter(ledgerId -> ledgerId >= startId )
                 .collect(Collectors.toList());
 
-        log.info("List of ledgers to be deleted are: "+ledgersToDelete);
+        log.info("List of ledgers to be deleted are: " + ledgersToDelete);
         ledgersToDelete.forEach(id -> {
             try {
                 Ledgers.delete(id, this.bookKeeper);
