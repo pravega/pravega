@@ -24,6 +24,7 @@ import lombok.Cleanup;
 import lombok.val;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -38,13 +39,15 @@ public class UserCLIRunner {
     private static final String CMD_HELP = "help";
     private static final String CMD_EXIT = "exit";
 
+    private static boolean running = true;
+
     public static void main(String[] args) {
-        doMain(args);
+        doMain(args, System.in);
         System.exit(0);
     }
 
     @VisibleForTesting
-    public static void doMain(String[] args) {
+    public static void doMain(String[] args, InputStream interactiveStream) {
         System.out.println("Pravega User CLI Tool.");
         System.out.println("\tUsage instructions: https://github.com/pravega/pravega/wiki/Pravega-User-CLI\n");
         val config = InteractiveConfig.getDefault();
@@ -57,19 +60,19 @@ public class UserCLIRunner {
         initialConfigCmd.execute();
 
         if (args == null || args.length == 0) {
-            interactiveMode(config, loggerContext);
+            interactiveMode(config, loggerContext, interactiveStream);
         } else {
             String commandLine = Arrays.stream(args).collect(Collectors.joining(" ", "", ""));
             processCommand(commandLine, config);
         }
     }
 
-    private static void interactiveMode(InteractiveConfig config, LoggerContext loggerContext) {
+    private static void interactiveMode(InteractiveConfig config, LoggerContext loggerContext, InputStream interactiveStream) {
         // Continuously accept new commands as long as the user entered one.
         System.out.println(String.format("%nType \"%s\" for list of commands, or \"%s\" to exit.", CMD_HELP, CMD_EXIT));
         @Cleanup
-        Scanner input = new Scanner(System.in);
-        while (true) {
+        Scanner input = new Scanner(interactiveStream);
+        while (running) {
             System.out.print(System.lineSeparator() + "> ");
             String line = input.nextLine();
 
@@ -90,7 +93,7 @@ public class UserCLIRunner {
                 printHelp(null);
                 break;
             case CMD_EXIT:
-                System.exit(0);
+                running = false;
                 break;
             default:
                 execCommand(pc);
