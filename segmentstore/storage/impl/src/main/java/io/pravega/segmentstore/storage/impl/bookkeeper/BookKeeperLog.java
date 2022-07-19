@@ -1010,6 +1010,29 @@ class BookKeeperLog implements DurableDataLog {
 
     //endregion
 
+    /**
+     * Deletes all ledgers followed by/including given ledgerId
+     *
+     * @param startId     starting ledger id to delete
+     */
+    void deleteLedgersStartingWithId(long startId) throws DataLogInitializationException {
+        LogMetadata metadata = loadMetadata();
+        val ledgersToDelete = metadata.getLedgers().stream()
+                .map(LedgerMetadata::getLedgerId)
+                .filter(ledgerId -> ledgerId >= startId )
+                .collect(Collectors.toList());
+
+        log.info("List of ledgers to be deleted are: "+ledgersToDelete);
+        ledgersToDelete.forEach(id -> {
+            try {
+                Ledgers.delete(id, this.bookKeeper);
+                log.info("{}: Deleted ledger with ledger id {}.", this.traceObjectId, id);
+            } catch (DurableDataLogException ex) {
+                log.warn("{}: Unable to delete ledger {}.", this.traceObjectId, id, ex);
+            }
+        });
+    }
+
     //region Helpers
 
     private void reportMetrics() {

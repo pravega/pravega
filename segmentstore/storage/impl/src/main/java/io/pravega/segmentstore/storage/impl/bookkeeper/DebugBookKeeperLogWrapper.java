@@ -264,6 +264,10 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         }
     }
 
+    public void deleteLedgersStartingWithId(long startId) throws DataLogInitializationException {
+        this.log.deleteLedgersStartingWithId(startId);
+    }
+
     private void initialize() throws DurableDataLogException {
         if (this.initialized.compareAndSet(false, true)) {
             try {
