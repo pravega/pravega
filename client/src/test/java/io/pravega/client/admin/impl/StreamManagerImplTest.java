@@ -74,7 +74,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 
 import lombok.Cleanup;
 import org.junit.After;
@@ -268,7 +267,7 @@ public class StreamManagerImplTest {
                                                                                 .scalingPolicy(ScalingPolicy.fixed(3))
                                                                                 .build());
         // fetch StreamInfo.
-        StreamInfo info = streamManager.fetchStreamInfo(defaultScope, streamName).get();
+        StreamInfo info = streamManager.fetchStreamInfo(defaultScope, streamName).join();
 
         //validate results.
         assertEquals(defaultScope, info.getScope());
@@ -283,7 +282,7 @@ public class StreamManagerImplTest {
     }
 
     @Test(timeout = 10000)
-    public void testSealedStream() throws ConnectionFailedException, ExecutionException, InterruptedException {
+    public void testSealedStream() throws ConnectionFailedException {
         final String streamName = "stream";
         final Stream stream = new StreamImpl(defaultScope, streamName);
 
@@ -331,7 +330,7 @@ public class StreamManagerImplTest {
         streamManager.sealStream(defaultScope, streamName);
 
         //Fetch StreamInfo
-        StreamInfo info = streamManager.fetchStreamInfo(defaultScope, streamName).get();
+        StreamInfo info = streamManager.fetchStreamInfo(defaultScope, streamName).join();
 
         //validate results.
         assertEquals(defaultScope, info.getScope());

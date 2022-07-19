@@ -164,10 +164,10 @@ public class StreamRecreationTest {
             assertEquals("Wrong event read in re-created stream", eventContent, readResult);
 
             // Delete the stream.
-            StreamInfo streamInfo = streamManager.fetchStreamInfo(myScope, myStream).get();
+            StreamInfo streamInfo = streamManager.fetchStreamInfo(myScope, myStream).join();
             assertFalse(streamInfo.isSealed());
             assertTrue("Unable to seal re-created stream.", streamManager.sealStream(myScope, myStream));
-            streamInfo = streamManager.fetchStreamInfo(myScope, myStream).get();
+            streamInfo = streamManager.fetchStreamInfo(myScope, myStream).join();
             assertTrue(streamInfo.isSealed());
             assertTrue("Unable to delete re-created stream.", streamManager.deleteStream(myScope, myStream));
         }
