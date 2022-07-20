@@ -39,7 +39,6 @@ public class UserCLIRunnerTest {
     @Test
     public void testDoMain() {
         UserCLIRunner.doMain(new String[]{"scope", "wrongCommand"}, System.in);
-        UserCLIRunner.doMain(new String[]{"scope", "wrongCommand"}, System.in);
     }
 
     @Test
