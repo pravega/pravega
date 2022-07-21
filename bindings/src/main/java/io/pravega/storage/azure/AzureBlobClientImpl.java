@@ -53,6 +53,7 @@ public class AzureBlobClientImpl implements AzureClient {
         closed = null;
         client = null;
     }
+
     public void createContainerIfRequired(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
         log.debug("Creating container {}.", config.getContainerName());
         if (config.isCreateContainer()) {
