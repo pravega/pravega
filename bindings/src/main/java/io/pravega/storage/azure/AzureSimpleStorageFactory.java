@@ -15,6 +15,7 @@
  */
 package io.pravega.storage.azure;
 
+import com.azure.storage.blob.BlobClientBuilder;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
@@ -70,6 +71,6 @@ public class AzureSimpleStorageFactory implements SimpleStorageFactory {
     }
 
     private AzureClient createAzureClient(AzureStorageConfig config) {
-        return new AzureBlobClientImpl(config);
+        return new AzureBlobClientImpl(config, new BlobClientBuilder().buildClient().getContainerClient());
     }
 }

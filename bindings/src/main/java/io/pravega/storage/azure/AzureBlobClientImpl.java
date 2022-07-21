@@ -45,16 +45,6 @@ public class AzureBlobClientImpl implements AzureClient {
     private final boolean shouldCloseClient;
     private final AtomicBoolean closed;
     private final AzureClient client;
-
-    public AzureBlobClientImpl(AzureStorageConfig config) {
-        this.config = config;
-        this.blobContainerClient = getBlobContainerClient(config);
-        createContainerIfRequired(config, blobContainerClient);
-        this.shouldCloseClient = false;
-        this.closed = new AtomicBoolean(false);
-        this.client = null;
-    }
-
     public AzureBlobClientImpl(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
         this.config = config;
         this.blobContainerClient = blobContainerClient;
@@ -63,7 +53,6 @@ public class AzureBlobClientImpl implements AzureClient {
         closed = null;
         client = null;
     }
-
     public void createContainerIfRequired(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
         log.debug("Creating container {}.", config.getContainerName());
         if (config.isCreateContainer()) {
