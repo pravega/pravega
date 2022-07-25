@@ -39,7 +39,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
 
 /**
- * {@link ChunkStorage} for GCP based storage.
+ * {@link ChunkStorage} for GCP (Google Cloud Platform) based storage.
  * <p>
  * Each chunk is represented as a single Object on the underlying storage.
  * <p>
@@ -118,6 +118,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
                 readChannel.seek(fromOffset);
                 readChannel.limit(fromOffset + length);
                 int val = readChannel.read(ByteBuffer.wrap(buffer, bufferOffset, length));
+                //Returns -1 if the channel has reached at the end of the stream.
                 if (val == -1) {
                     ChunkInfo info = doGetInfo(handle.getChunkName());
                     if (fromOffset >= info.getLength() || (length + fromOffset) >= info.getLength()) {

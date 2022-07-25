@@ -24,7 +24,7 @@ import lombok.Getter;
 import org.apache.commons.text.StringEscapeUtils;
 
 /**
- * Configuration for the GCP Storage component.
+ * Configuration for the GCP (Google Cloud Platform) Storage component.
  */
 public class GCPStorageConfig {
 

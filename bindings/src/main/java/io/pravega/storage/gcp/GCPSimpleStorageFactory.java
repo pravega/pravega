@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Factory for GCP {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link GCPChunkStorage}.
+ * Factory for GCP (Google Cloud Platform) {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link GCPChunkStorage}.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -113,7 +113,7 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
         jsonObject.addProperty("private_key", config.getPrivateKey());
         jsonObject.addProperty("client_email", config.getClientEmail());
         jsonObject.addProperty("client_id", config.getClientId());
-        
+
         return jsonObject;
     }
 }
