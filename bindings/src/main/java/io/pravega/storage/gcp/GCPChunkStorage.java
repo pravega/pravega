@@ -238,7 +238,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
      * @return returns the object name by appending prefix
      */
     private String getObjectPath(String objectName) {
-        return config.getPrefix() + objectName;
+        return config.getPrefix().concat(objectName);
     }
     //endregion
 }
