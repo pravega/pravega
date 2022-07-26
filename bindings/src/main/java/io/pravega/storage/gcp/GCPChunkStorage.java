@@ -122,7 +122,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
                 if (val == -1) {
                     ChunkInfo info = doGetInfo(handle.getChunkName());
                     if (fromOffset >= info.getLength() || (length + fromOffset) >= info.getLength()) {
-                        throw new IllegalArgumentException(handle.getChunkName());
+                        throw new IllegalArgumentException(String.format("End of stream for chunk %s. fromOffset = %s, length = %s", handle.getChunkName(), fromOffset, length));
                     }
                 }
                 return val;
