@@ -19,32 +19,19 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.cli.user.config.ConfigCommand;
+import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.cli.user.kvs.KeyValueTableCommand;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.cli.user.stream.StreamCommand;
 import io.pravega.cli.user.utils.Formatter;
-import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.client.ClientConfig;
-import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.shared.NameUtils;
-import lombok.Builder;
-import lombok.Data;
-import lombok.Getter;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
-import lombok.Setter;
-import lombok.Singular;
-import lombok.val;
+import io.pravega.shared.security.auth.DefaultCredentials;
+import lombok.*;
 
 import java.io.PrintStream;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -84,7 +71,8 @@ public abstract class Command {
     }
 
     protected URI getControllerUri() {
-        return URI.create((getConfig().isTlsEnabled() ? "tls://" : "tcp://") + getConfig().getControllerUri());
+        //return URI.create((getConfig().isTlsEnabled() ? "tls://" : "tcp://") + getConfig().getControllerUri());
+        return URI.create(getConfig().getControllerUri());
     }
 
     protected ClientConfig getClientConfig() {
@@ -95,8 +83,10 @@ public abstract class Command {
                     getConfig().getUserName()));
         }
         if (getConfig().isTlsEnabled()) {
-            clientConfigBuilder.trustStore(getConfig().getTruststore())
-                    .validateHostName(false);
+            if (getConfig().getTruststore() != null) {
+                clientConfigBuilder.trustStore(getConfig().getTruststore())
+                        .validateHostName(false);
+            }
         }
         return clientConfigBuilder.build();
     }

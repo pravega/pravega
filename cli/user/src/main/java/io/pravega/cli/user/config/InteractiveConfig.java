@@ -54,8 +54,17 @@ public class InteractiveConfig {
     private long rolloverSizeBytes;
 
     public static InteractiveConfig getDefault() {
+        String controllerURI = "localhost:9090";
+        boolean tlsEnabled = false;
+        //default configurations corresponding to SDP for user cli
+        if (System.getenv("PRAVEGA_CONTROLLER_URI") != null) {
+            controllerURI = System.getenv("PRAVEGA_CONTROLLER_URI");
+            if (controllerURI.startsWith("tls://"))
+                tlsEnabled = true;
+               // controllerURI = controllerURI.replace("tls://", "");
+        }
         return InteractiveConfig.builder()
-                .controllerUri("localhost:9090")
+                .controllerUri(controllerURI)
                 .defaultSegmentCount(4)
                 .timeoutMillis(60000)
                 .maxListItems(1000)
@@ -63,7 +72,7 @@ public class InteractiveConfig {
                 .authEnabled(false)
                 .userName("")
                 .password("")
-                .tlsEnabled(false)
+                .tlsEnabled(tlsEnabled)
                 .truststore("")
                 .rolloverSizeBytes(0)
                 .build();
