@@ -64,6 +64,7 @@ public class InteractiveConfig {
             controllerURI = System.getenv("PRAVEGA_CONTROLLER_URI");
             if (controllerURI.startsWith("tls://")) {
                 tlsEnabled = true;
+                controllerURI = controllerURI.replace("tls://", "");
             }
         }
         return InteractiveConfig.builder()

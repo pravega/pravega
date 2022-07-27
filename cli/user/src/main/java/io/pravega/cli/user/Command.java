@@ -84,7 +84,7 @@ public abstract class Command {
     }
 
     protected URI getControllerUri() {
-        return URI.create(getConfig().getControllerUri());
+        return URI.create((getConfig().isTlsEnabled() ? "tls://" : "tcp://") + getConfig().getControllerUri());
     }
 
     protected ClientConfig getClientConfig() {
