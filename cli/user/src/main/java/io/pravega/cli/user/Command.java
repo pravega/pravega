@@ -84,7 +84,7 @@ public abstract class Command {
     }
 
     protected URI getControllerUri() {
-        return URI.create((getConfig().isTlsEnabled() ? "tls://" : "tcp://") + getConfig().getControllerUri());
+        return URI.create(getConfig().getControllerUri());
     }
 
     protected ClientConfig getClientConfig() {
@@ -95,8 +95,10 @@ public abstract class Command {
                     getConfig().getUserName()));
         }
         if (getConfig().isTlsEnabled()) {
-            clientConfigBuilder.trustStore(getConfig().getTruststore())
-                    .validateHostName(false);
+            if (getConfig().getTruststore() != null) {
+                clientConfigBuilder.trustStore(getConfig().getTruststore())
+                        .validateHostName(false);
+            }
         }
         return clientConfigBuilder.build();
     }
