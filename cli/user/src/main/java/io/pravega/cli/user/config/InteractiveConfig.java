@@ -59,7 +59,7 @@ public class InteractiveConfig {
     public static InteractiveConfig getDefault() {
         String controllerURI = "localhost:9090";
         boolean tlsEnabled = false;
-        //Default configurations corresponding to SDP for user-cli
+        //Default tls based configurations for pravega cli
         if (System.getenv("PRAVEGA_CONTROLLER_URI") != null) {
             controllerURI = System.getenv("PRAVEGA_CONTROLLER_URI");
             if (controllerURI.startsWith("tls://")) {
