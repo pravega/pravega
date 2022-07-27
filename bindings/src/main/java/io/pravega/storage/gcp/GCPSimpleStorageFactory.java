@@ -81,7 +81,7 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
     @Override
     public ChunkStorage createChunkStorage() {
         com.google.cloud.storage.Storage storage = createStorageOptions(this.config).getService();
-        return new GCPChunkStorage(storage, this.config, this.executor, false);
+        return new GCPChunkStorage(storage, this.config, this.executor);
     }
 
     /**

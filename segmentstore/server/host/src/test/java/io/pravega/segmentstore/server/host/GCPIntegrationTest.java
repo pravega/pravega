@@ -148,7 +148,7 @@ public class GCPIntegrationTest extends BookKeeperIntegrationTestBase {
 
         @Override
         public ChunkStorage createChunkStorage() {
-            return new GCPChunkStorage(mockGCPStorage, this.config, executorService(), false);
+            return new GCPChunkStorage(mockGCPStorage, this.config, executorService());
         }
     }
 }
