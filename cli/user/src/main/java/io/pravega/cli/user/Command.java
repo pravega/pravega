@@ -95,10 +95,8 @@ public abstract class Command {
                     getConfig().getUserName()));
         }
         if (getConfig().isTlsEnabled()) {
-            if (getConfig().getTruststore() != null) {
-                clientConfigBuilder.trustStore(getConfig().getTruststore())
-                        .validateHostName(false);
-            }
+            clientConfigBuilder.trustStore(getConfig().getTruststore())
+                    .validateHostName(false);
         }
         return clientConfigBuilder.build();
     }
