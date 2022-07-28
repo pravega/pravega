@@ -15,10 +15,14 @@
  */
 package io.pravega.storage.azure;
 
+import com.azure.core.http.HttpMethod;
+import com.azure.core.http.HttpRequest;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.models.AppendBlobItem;
 import com.azure.storage.blob.models.AppendBlobRequestConditions;
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.specialized.AppendBlobClient;
 import com.azure.storage.blob.specialized.BlobClientBase;
 import lombok.val;
@@ -28,6 +32,7 @@ import org.junit.Test;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -134,10 +139,30 @@ public class AzureBlobClientImplTestsWithMock {
     }
 
     @Test
+    public void testCreateContainerIfRequired() {
+        val blobContainerClient = mock(BlobContainerClient.class);
+        val config = AzureStorageConfig.builder()
+                .with(AzureStorageConfig.CONNECTION_STRING, "testString")
+                .with(AzureStorageConfig.ENDPOINT, "http://localhost")
+                .with(AzureStorageConfig.CREATE_CONTAINER, true)
+                .build();
+
+        Exception exception = new BlobStorageException("Container doesn't exist.", new MockAzureClient.MockHttpResponse(404, new HttpRequest(HttpMethod.HEAD, config.getEndpoint()),
+                BlobErrorCode.CONTAINER_NOT_FOUND.toString()), null);
+
+        doThrow(exception).when(blobContainerClient).getProperties();
+
+        val azureCliImpl = new AzureBlobClientImpl(config, blobContainerClient);
+
+        verify(blobContainerClient).create();
+    }
+
+    @Test
     public void testGetBlobProperties() {
         val blobContainerClient = mock(BlobContainerClient.class);
         val blobClient = mock(BlobClient.class);
         when(blobContainerClient.getBlobClient(any())).thenReturn(blobClient);
+
 
         val azureClient = new AzureBlobClientImpl(AzureStorageConfig.builder()
                 .with(AzureStorageConfig.CONTAINER, "test")
