@@ -266,7 +266,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         System.setIn(new ByteArrayInputStream("no".getBytes()));
         TestUtils.executeCommand("bk delete-ledgers 0 2", STATE.get());
         System.setIn(new ByteArrayInputStream("yes".getBytes()));
-        commandResult = TestUtils.executeCommand("bk delete-ledgers 0 2", STATE.get());
+        commandResult = TestUtils.executeCommand("bk delete-ledgers 0 0", STATE.get());
         Assert.assertTrue(commandResult.contains("Delete ledgers command successful"));
     }
 
