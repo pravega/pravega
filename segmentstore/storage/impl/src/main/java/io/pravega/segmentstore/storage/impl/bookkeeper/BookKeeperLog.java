@@ -1026,9 +1026,9 @@ class BookKeeperLog implements DurableDataLog {
         ledgersToDelete.forEach(id -> {
             try {
                 Ledgers.delete(id, this.bookKeeper);
-                log.info("{}: Deleted ledger with ledger id {}.", this.traceObjectId, id);
+                log.info("{}: Deleted ledger with ledger id {} from bookkeeper log {}.", this.traceObjectId, id, this.logId);
             } catch (DurableDataLogException ex) {
-                log.warn("{}: Unable to delete ledger {}.", this.traceObjectId, id, ex);
+                log.warn("{}: Unable to delete ledger {} from bookkeeper log {}.", this.traceObjectId, id, this.logId, ex);
             }
         });
     }
