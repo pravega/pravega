@@ -290,11 +290,11 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public StreamInfo getStreamInfo(String scopeName, String streamName) {
+    public CompletableFuture<StreamInfo> fetchStreamInfo(String scopeName, String streamName) {
         NameUtils.validateUserStreamName(streamName);
         NameUtils.validateUserScopeName(scopeName);
         log.info("Fetching StreamInfo for scope/stream: {}/{}", scopeName, streamName);
-        return Futures.getThrowingException(getStreamInfo(Stream.of(scopeName, streamName)));
+        return fetchStreamInfo(Stream.of(scopeName, streamName));
     }
 
     /**
@@ -303,7 +303,7 @@ public class StreamManagerImpl implements StreamManager {
      * @param stream The Stream.
      * @return A future representing {@link StreamInfo}.
      */
-    private CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
+    private CompletableFuture<StreamInfo> fetchStreamInfo(final Stream stream) {
         // Fetch the stream configuration which includes the tags associated with the stream.
         CompletableFuture<StreamConfiguration> streamConfiguration = controller.getStreamConfiguration(stream.getScope(), stream.getStreamName());
         // Fetch the stream cut representing the current TAIL and current HEAD of the stream.
