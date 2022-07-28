@@ -37,6 +37,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Unit tests for {@link AzureClient} implementation {@link AzureBlobClientImpl}.
+ */
 public class AzureBlobClientImplTestsWithMock {
     @Test
     public void testExists() {
@@ -162,7 +165,6 @@ public class AzureBlobClientImplTestsWithMock {
         val blobContainerClient = mock(BlobContainerClient.class);
         val blobClient = mock(BlobClient.class);
         when(blobContainerClient.getBlobClient(any())).thenReturn(blobClient);
-
 
         val azureClient = new AzureBlobClientImpl(AzureStorageConfig.builder()
                 .with(AzureStorageConfig.CONTAINER, "test")
