@@ -1015,6 +1015,8 @@ class BookKeeperLog implements DurableDataLog {
      *
      * @param startId     starting ledger id to delete
      */
+
+    @VisibleForTesting
     void deleteLedgersStartingWithId(long startId) throws DataLogInitializationException {
         LogMetadata metadata = loadMetadata();
         val ledgersToDelete = metadata.getLedgers().stream()
