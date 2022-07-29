@@ -16,8 +16,6 @@
 package io.pravega.storage.azure;
 
 import com.azure.storage.blob.BlobContainerClient;
-import com.azure.storage.blob.BlobServiceClient;
-import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.AppendBlobItem;
@@ -27,7 +25,7 @@ import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.AppendBlobRequestConditions;
 import com.azure.storage.blob.specialized.AppendBlobClient;
 import com.azure.storage.blob.specialized.BlobClientBase;
-import com.azure.storage.common.StorageSharedKeyCredential;
+import com.google.common.base.Preconditions;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -42,16 +40,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class AzureBlobClientImpl implements AzureClient {
     private final BlobContainerClient blobContainerClient;
     private final AzureStorageConfig config;
-    private final boolean shouldCloseClient;
-    private final AtomicBoolean closed;
-    private final AzureClient client;
+    private final AtomicBoolean closed = new AtomicBoolean();
+
     public AzureBlobClientImpl(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
         this.config = config;
         this.blobContainerClient = blobContainerClient;
         createContainerIfRequired(config, blobContainerClient);
-        shouldCloseClient = false;
-        closed = null;
-        client = null;
     }
 
     public void createContainerIfRequired(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
@@ -73,41 +67,37 @@ public class AzureBlobClientImpl implements AzureClient {
         }
     }
 
-    private BlobContainerClient getBlobContainerClient(AzureStorageConfig config) {
-        BlobServiceClient storageClient = new BlobServiceClientBuilder()
-                .endpoint(config.getEndpoint())
-                .credential(StorageSharedKeyCredential.fromConnectionString(config.getConnectionString()))
-                .buildClient();
-        val containerClient = storageClient.getBlobContainerClient(config.getContainerName());
-        return containerClient;
-    }
-
     @Override
     public AppendBlobItem create(String blobName) {
+        Preconditions.checkState(!closed.get());
         AppendBlobClient appendBlobClient = blobContainerClient.getBlobClient(blobName).getAppendBlobClient();
         return appendBlobClient.create(false);
     }
 
     @Override
     public boolean exists(String blobName) {
+        Preconditions.checkState(!closed.get());
         AppendBlobClient appendBlobClient = blobContainerClient.getBlobClient(blobName).getAppendBlobClient();
         return appendBlobClient.exists();
     }
 
     @Override
     public void delete(String blobName) {
+        Preconditions.checkState(!closed.get());
         AppendBlobClient appendBlobClient = blobContainerClient.getBlobClient(blobName).getAppendBlobClient();
         appendBlobClient.delete();
     }
 
     @Override
     public InputStream getInputStream(String blobName, long offSet, long length) {
+        Preconditions.checkState(!closed.get());
         BlobClientBase blobClientBase = blobContainerClient.getBlobClient(blobName);
         return blobClientBase.openInputStream(new BlobRange(offSet, length), new BlobRequestConditions());
     }
 
     @Override
     public AppendBlobItem appendBlock(String blobName, long offSet, long length, InputStream inputStream) {
+        Preconditions.checkState(!closed.get());
         AppendBlobClient appendBlobClient = blobContainerClient.getBlobClient(blobName).getAppendBlobClient();
         val conditions = new AppendBlobRequestConditions();
         conditions.setAppendPosition(offSet);
@@ -116,6 +106,7 @@ public class AzureBlobClientImpl implements AzureClient {
 
     @Override
     public BlobProperties getBlobProperties(String blobName) {
+        Preconditions.checkState(!closed.get());
         val appendBlobClient = blobContainerClient.getBlobClient(blobName);
         return appendBlobClient.getProperties();
     }
@@ -123,8 +114,6 @@ public class AzureBlobClientImpl implements AzureClient {
     @Override
     @SneakyThrows
     public void close() throws Exception {
-        if (shouldCloseClient && !this.closed.getAndSet(true)) {
-            this.client.close();
-        }
+        this.closed.getAndSet(true);
     }
 }

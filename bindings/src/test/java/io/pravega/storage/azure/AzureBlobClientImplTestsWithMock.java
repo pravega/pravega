@@ -25,9 +25,13 @@ import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.specialized.AppendBlobClient;
 import com.azure.storage.blob.specialized.BlobClientBase;
+import io.pravega.test.common.AssertExtensions;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyBoolean;
@@ -161,6 +165,23 @@ public class AzureBlobClientImplTestsWithMock {
     }
 
     @Test
+    public void testCreateContainerIfRequiredWithException() {
+        val blobContainerClient = mock(BlobContainerClient.class);
+        val config = AzureStorageConfig.builder()
+                .with(AzureStorageConfig.CONNECTION_STRING, "testString")
+                .with(AzureStorageConfig.ENDPOINT, "http://localhost")
+                .with(AzureStorageConfig.CREATE_CONTAINER, true)
+                .build();
+
+        Exception exception = new RuntimeException();
+
+        doThrow(exception).when(blobContainerClient).getProperties();
+        AssertExtensions.assertThrows("should throw an exception",
+                () -> new AzureBlobClientImpl(config, blobContainerClient),
+                ex -> ex instanceof RuntimeException);
+    }
+
+    @Test
     public void testGetBlobProperties() {
         val blobContainerClient = mock(BlobContainerClient.class);
         val blobClient = mock(BlobClient.class);
@@ -173,5 +194,41 @@ public class AzureBlobClientImplTestsWithMock {
         azureClient.getBlobProperties("testBlob");
 
         verify(blobClient).getProperties();
+    }
+
+    @Test
+    public void testClose() throws Exception {
+        val blobContainerClient = mock(BlobContainerClient.class);
+        val blobClient = mock(BlobClient.class);
+        when(blobContainerClient.getBlobClient(any())).thenReturn(blobClient);
+
+        val azureClient = new AzureBlobClientImpl(AzureStorageConfig.builder()
+                .with(AzureStorageConfig.CONTAINER, "test")
+                .build(), blobContainerClient);
+
+        azureClient.close();
+        AssertExtensions.assertThrows("create should throw",
+                () -> azureClient.create("testBlob"),
+                ex -> ex instanceof IllegalStateException);
+
+        AssertExtensions.assertThrows("create should throw",
+                () -> azureClient.exists("testBlob"),
+                ex -> ex instanceof IllegalStateException);
+
+        AssertExtensions.assertThrows("create should throw",
+                () -> azureClient.delete("testBlob"),
+                ex -> ex instanceof IllegalStateException);
+
+        AssertExtensions.assertThrows("create should throw",
+                () -> azureClient.appendBlock("testBlob", 0, 10, new ByteArrayInputStream(new byte[0])),
+                ex -> ex instanceof IllegalStateException);
+
+        AssertExtensions.assertThrows("create should throw",
+                () -> azureClient.getInputStream("testBlob", 0, 10),
+                ex -> ex instanceof IllegalStateException);
+
+        AssertExtensions.assertThrows("create should throw",
+                () -> azureClient.getBlobProperties("testBlob"),
+                ex -> ex instanceof IllegalStateException);
     }
 }
