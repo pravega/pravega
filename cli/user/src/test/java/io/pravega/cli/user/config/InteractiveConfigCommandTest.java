@@ -19,6 +19,9 @@ import ch.qos.logback.classic.Level;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.lang.reflect.Field;
+import java.util.Map;
+
 
 public class InteractiveConfigCommandTest {
 
@@ -53,5 +56,29 @@ public class InteractiveConfigCommandTest {
         Assert.assertEquals(interactiveConfig.getLogLevel(), Level.INFO);
         interactiveConfig.set(InteractiveConfig.LOG_LEVEL, "debug");
         Assert.assertEquals(interactiveConfig.getLogLevel(), Level.DEBUG);
+    }
+
+    @Test
+    public void testGetDefaultsForTlsEnv() throws NoSuchFieldException, IllegalAccessException {
+        Map<String, String> unmodifiableEnv = System.getenv();
+        Field field = unmodifiableEnv.getClass().getDeclaredField("m");
+        field.setAccessible(true);
+        Map<String, String> modifiableEnv = (Map<String, String>) field.get(unmodifiableEnv);
+        modifiableEnv.put("PRAVEGA_CONTROLLER_URI", "tls://testControllerURI");
+        InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
+        Assert.assertEquals("testControllerURI", interactiveConfig.getControllerUri());
+        Assert.assertEquals(true, interactiveConfig.isTlsEnabled());
+    }
+
+    @Test
+    public void testGetDefaultsForNonTlsEnv() throws NoSuchFieldException, IllegalAccessException {
+        Map<String, String> unmodifiableEnv = System.getenv();
+        Field field = unmodifiableEnv.getClass().getDeclaredField("m");
+        field.setAccessible(true);
+        Map<String, String> modifiableEnv = (Map<String, String>) field.get(unmodifiableEnv);
+        modifiableEnv.put("PRAVEGA_CONTROLLER_URI", "localhost:9090");
+        InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
+        Assert.assertEquals("localhost:9090", interactiveConfig.getControllerUri());
+        Assert.assertEquals(false, interactiveConfig.isTlsEnabled());
     }
 }
