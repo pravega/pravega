@@ -65,6 +65,8 @@ public class ChunkedSegmentStorageConfig {
 
     public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", false);
     public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
+    public static final Property<Boolean> SELF_CHECK_DATA_INTEGRITY = Property.named("self.check.integrity.data", true);
+    public static final Property<Boolean> SELF_CHECK_METADATA_INTEGRITY = Property.named("self.check.integrity.metadata", true);
 
     public static final Property<Long> MAX_SAFE_SIZE = Property.named("safe.size.bytes.max", Long.MAX_VALUE);
     public static final Property<Boolean> ENABLE_SAFE_SIZE_CHECK = Property.named("safe.size.check.enable", true);
@@ -105,6 +107,8 @@ public class ChunkedSegmentStorageConfig {
             .maxJournalReadAttempts(100)
             .maxJournalWriteAttempts(10)
             .selfCheckEnabled(false)
+            .selfCheckForDataEnabled(true)
+            .selfCheckForMetadataEnabled(true)
             .maxSafeStorageSize(Long.MAX_VALUE)
             .safeStorageSizeCheckEnabled(true)
             .safeStorageSizeCheckFrequencyInSeconds(60)
@@ -294,6 +298,19 @@ public class ChunkedSegmentStorageConfig {
     @Getter
     final private boolean selfCheckEnabled;
 
+
+    /**
+     * When enabled, SLTS will perform extra validation for data.
+     */
+    @Getter
+    final private boolean selfCheckForDataEnabled;
+
+    /**
+     * When enabled, SLTS will perform extra validation for metadata.
+     */
+    @Getter
+    final private boolean selfCheckForMetadataEnabled;
+
     /**
      * Maximum storage size in bytes below which operations are considered safe.
      * Above this value any non-critical writes are not allowed.
@@ -342,6 +359,8 @@ public class ChunkedSegmentStorageConfig {
         this.maxJournalReadAttempts = properties.getPositiveInt(MAX_JOURNAL_READ_ATTEMPTS);
         this.maxJournalWriteAttempts = properties.getPositiveInt(MAX_JOURNAL_WRITE_ATTEMPTS);
         this.selfCheckEnabled = properties.getBoolean(SELF_CHECK_ENABLED);
+        this.selfCheckForDataEnabled = properties.getBoolean(SELF_CHECK_DATA_INTEGRITY);
+        this.selfCheckForMetadataEnabled = properties.getBoolean(SELF_CHECK_METADATA_INTEGRITY);
         this.indexBlockSize = properties.getPositiveLong(READ_INDEX_BLOCK_SIZE);
         this.maxEntriesInTxnBuffer = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_BUFFER);
         this.maxEntriesInCache = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_CACHE);

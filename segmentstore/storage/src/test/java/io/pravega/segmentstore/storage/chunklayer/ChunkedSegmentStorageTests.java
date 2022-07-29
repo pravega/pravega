@@ -3014,6 +3014,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .minSizeLimitForConcat(Integer.MAX_VALUE)
                 .maxSizeLimitForConcat(100L * Integer.MAX_VALUE)
+                .indexBlockSize(Integer.MAX_VALUE / 2)
                 .build());
         testBaseConcat(testContext, 10L * Integer.MAX_VALUE,
                 new long[]{Integer.MAX_VALUE + 1L},
@@ -3028,6 +3029,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 .relocateOnTruncateEnabled(true)
                 .maxBufferSizeForChunkDataTransfer(128 * 1024 * 128)
                 .maxSizeForTruncateRelocationInbytes(10L * Integer.MAX_VALUE)
+                .indexBlockSize(Integer.MAX_VALUE / 2)
                 .build();
         @Cleanup
         TestContext testContext = getTestContext(config);
