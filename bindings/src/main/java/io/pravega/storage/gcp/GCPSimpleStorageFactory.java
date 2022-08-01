@@ -113,7 +113,6 @@ public class GCPSimpleStorageFactory implements SimpleStorageFactory {
         jsonObject.addProperty("private_key", config.getPrivateKey());
         jsonObject.addProperty("client_email", config.getClientEmail());
         jsonObject.addProperty("client_id", config.getClientId());
-
         return jsonObject;
     }
 }
