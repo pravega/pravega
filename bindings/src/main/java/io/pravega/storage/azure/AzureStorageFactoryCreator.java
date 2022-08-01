@@ -25,6 +25,9 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 
 import java.util.concurrent.ScheduledExecutorService;
 
+/**
+ * Factory creator for Azure {@link AzureSimpleStorageFactory}.
+ */
 public class AzureStorageFactoryCreator implements StorageFactoryCreator {
     @Override
     public StorageFactory createFactory(StorageFactoryInfo storageFactoryInfo, ConfigSetup setup, ScheduledExecutorService executor) {
