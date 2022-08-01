@@ -56,14 +56,16 @@ public class InteractiveConfig {
     private long rolloverSizeBytes;
     private Level logLevel;
 
-    public static InteractiveConfig getDefault() {
+    public static InteractiveConfig getDefault(Map<String, String> env) {
         //Default tls based configurations for pravega cli
         boolean tlsEnabled = false;
-        String systemEnvURI = System.getenv("PRAVEGA_CONTROLLER_URI");
+        String systemEnvURI = env.get("PRAVEGA_CONTROLLER_URI");
         String controllerURI = systemEnvURI != null ? systemEnvURI : "localhost:9090";
         if (controllerURI.startsWith("tls://")) {
             tlsEnabled = true;
             controllerURI = controllerURI.replace("tls://", "");
+        } else if (controllerURI.startsWith("tcp://")) {
+            controllerURI = controllerURI.replace("tcp://", "");
         }
         return InteractiveConfig.builder()
                 .controllerUri(controllerURI)
