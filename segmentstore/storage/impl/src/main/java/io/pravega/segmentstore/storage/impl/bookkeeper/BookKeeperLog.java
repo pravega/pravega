@@ -50,6 +50,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -1017,7 +1018,8 @@ class BookKeeperLog implements DurableDataLog {
      */
 
     @VisibleForTesting
-    void deleteLedgersStartingWithId(long startId) throws DataLogInitializationException {
+    int deleteLedgersStartingWithId(long startId) throws DataLogInitializationException {
+        AtomicInteger count = new AtomicInteger(0);
         LogMetadata metadata = loadMetadata();
         val ledgersToDelete = metadata.getLedgers().stream()
                 .map(LedgerMetadata::getLedgerId)
@@ -1028,11 +1030,13 @@ class BookKeeperLog implements DurableDataLog {
         ledgersToDelete.forEach(id -> {
             try {
                 Ledgers.delete(id, this.bookKeeper);
+                count.incrementAndGet();
                 log.info("{}: Deleted ledger with ledger id {} from bookkeeper log {}.", this.traceObjectId, id, this.logId);
             } catch (DurableDataLogException ex) {
                 log.warn("{}: Unable to delete ledger {} from bookkeeper log {}.", this.traceObjectId, id, this.logId, ex);
             }
         });
+        return count.get();
     }
 
     //region Helpers

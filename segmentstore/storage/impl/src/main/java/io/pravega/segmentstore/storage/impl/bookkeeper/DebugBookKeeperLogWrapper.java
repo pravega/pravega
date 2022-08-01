@@ -264,7 +264,16 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         }
     }
 
-    public void deleteLedgersStartingWithId(long startId) throws DataLogInitializationException {
+    public void deleteLedgersStartingWithId(long startId) throws DurableDataLogException {
+        LogMetadata metadata = this.log.loadMetadata();
+        List<LedgerMetadata> ledgers = metadata.getLedgers();
+        List<Long> ids = ledgers.stream()
+                .map(ledgerMetadata -> ledgerMetadata.getLedgerId())
+                .collect(Collectors.toList());
+        if (!ids.contains(startId)) {
+            throw new DurableDataLogException("No such ledger exist in log: " + this.log.getLogId() );
+        }
+        // Start deleting the ledgers with starting ledger id
         this.log.deleteLedgersStartingWithId(startId);
     }
 

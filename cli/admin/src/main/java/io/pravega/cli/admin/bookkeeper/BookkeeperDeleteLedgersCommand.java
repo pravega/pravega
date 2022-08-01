@@ -38,16 +38,20 @@ public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
 
         // Display a summary of the BookKeeperLog.
         val m = log.fetchMetadata();
-        outputLogSummary(logId, m);
         if (m == null || m.isEnabled()) {
             String message = (m == null) ? "BookKeeperLog '%s' does not exist." :
                     "BookKeeperLog '%s' is enabled. Please, disable it before executing this command.";
             output(message, logId);
             return;
         }
+        if (m.getLedgers().size() == 0) {
+            output("Ledgers list is zero, nothing to delete. Exiting...");
+            return;
+        }
+        outputLogSummary(logId, m);
         output("Ledgers will be permanently deleted from bookkeeper log '%s' starting with ledger id '%s' ", logId, startId);
         if (!confirmContinue()) {
-            output("Not reconciling anything at this time.");
+            output("Exiting delete-ledgers command");
             return;
         }
         try {
@@ -56,7 +60,7 @@ public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
         } catch (Exception ex) {
             output("Delete ledgers failed: " + ex.getMessage());
         }
-        output("Delete ledgers command successful");
+        output("Delete ledgers command completed");
     }
 
     public static CommandDescriptor descriptor() {
