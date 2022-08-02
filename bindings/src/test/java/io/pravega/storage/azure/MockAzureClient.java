@@ -105,6 +105,13 @@ public class MockAzureClient implements AzureClient {
         objectMap.remove(blobName);
     }
 
+    /**
+     * Method to copy fixed bytes of data from the chunk and return the resulting byte[].
+     * @param blobName Blob name.
+     * @param offSetInBlob Blob offset position from which we need to start to copy the bytes.
+     * @param length Length of the blob whose data is to be copied.
+     * @return Input stream of byte[].
+     */
     @Override
     synchronized public InputStream getInputStream(String blobName, long offSetInBlob, long length) {
         final InMemoryBlobData inMemoryBlobData = getBlobData(blobName);
@@ -115,6 +122,7 @@ public class MockAzureClient implements AzureClient {
         if (inMemoryBlobData.blobLength < length || offSetInBlob > inMemoryBlobData.blobLength || inMemoryBlobData.blobLength < offSetInBlob + length) {
             throw new IllegalArgumentException();
         }
+        // floorIndex -1 suggests offSetInBlob < data.start.
         if (floorIndex == -1) {
             throw new BlobStorageException("Container doesn't exist.", new MockHttpResponse(404, new HttpRequest(HttpMethod.HEAD, config.getEndpoint()),
                     BlobErrorCode.CONTAINER_NOT_FOUND.toString()), null);
