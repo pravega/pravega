@@ -592,7 +592,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                                     ConcatArgument.builder().name(existingChunkName1).length(0).build(),
                             }
                     ).get(),
-                    ex -> ex instanceof IllegalArgumentException);
+                    ex -> ex instanceof IllegalArgumentException || ex instanceof UnsupportedOperationException);
             AssertExtensions.assertThrows(
                     " concat should throw IllegalArgumentException.",
                     () -> chunkStorage.concat(
@@ -601,7 +601,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                                     ConcatArgument.builder().name(existingChunkName2).length(0).build(),
                             }
                     ).get(),
-                    ex -> ex instanceof IllegalArgumentException);
+                    ex -> ex instanceof IllegalArgumentException || ex instanceof UnsupportedOperationException);
             AssertExtensions.assertThrows(
                     " concat should throw IllegalArgumentException.",
                     () -> chunkStorage.concat(
@@ -610,7 +610,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                                     ConcatArgument.builder().name(existingChunkName2).length(-1).build(),
                             }
                     ).get(),
-                    ex -> ex instanceof IllegalArgumentException);
+                    ex -> ex instanceof IllegalArgumentException || ex instanceof UnsupportedOperationException);
             AssertExtensions.assertThrows(
                     " concat should throw IllegalArgumentException.",
                     () -> chunkStorage.concat(
@@ -619,7 +619,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                                     ConcatArgument.builder().name(existingChunkName1).length(1).build(),
                             }
                     ).get(),
-                    ex -> ex instanceof IllegalArgumentException);
+                    ex -> ex instanceof IllegalArgumentException || ex instanceof UnsupportedOperationException);
             AssertExtensions.assertThrows(
                     " concat should throw IllegalArgumentException.",
                     () -> chunkStorage.concat(
@@ -628,7 +628,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                                     null,
                             }
                     ).get(),
-                    ex -> ex instanceof IllegalArgumentException);
+                    ex -> ex instanceof IllegalArgumentException || ex instanceof UnsupportedOperationException);
             AssertExtensions.assertThrows(
                     " concat should throw IllegalArgumentException.",
                     () -> chunkStorage.concat(
@@ -637,7 +637,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                                     ConcatArgument.builder().name(existingChunkName1).length(1).build(),
                             }
                     ).get(),
-                    ex -> ex instanceof IllegalArgumentException);
+                    ex -> ex instanceof IllegalArgumentException || ex instanceof UnsupportedOperationException);
             AssertExtensions.assertThrows(
                     " concat should throw IllegalArgumentException.",
                     () -> chunkStorage.concat(
@@ -647,7 +647,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                                     ConcatArgument.builder().name(existingChunkName2).length(1).build(),
                             }
                     ).get(),
-                    ex -> ex instanceof IllegalArgumentException);
+                    ex -> ex instanceof IllegalArgumentException || ex instanceof UnsupportedOperationException);
         } catch (UnsupportedOperationException e) {
             // The storage provider may not have native concat.
         } finally {
@@ -735,7 +735,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                 bytesRead += chunkStorage.read(ChunkHandle.readHandle(tragetChunkName), bytesRead, bufferRead.length, bufferRead, bytesRead).get();
             }
             assertArrayEquals(bufferWritten, bufferRead);
-        } catch (ExecutionException e) {
+        } catch (ExecutionException | UnsupportedOperationException e) {
             val ex = Exceptions.unwrap(e);
             // The storage provider may not have native concat.
             Assert.assertTrue(ex instanceof UnsupportedOperationException);
@@ -972,14 +972,14 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
 
         AssertExtensions.assertThrows(
-                " concat should throw ChunkNotFoundException.",
+                " concat should throw ChunkNotFoundException or UnSupportedOperationException",
                 () -> chunkStorage.concat(
                         new ConcatArgument[]{
                                 ConcatArgument.builder().name(emptyChunkName).length(0).build(),
                                 ConcatArgument.builder().name("NonExistent").length(1).build()
                         }
                 ).get(),
-                ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
+                ex -> (ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName)) || ex instanceof UnsupportedOperationException);
 
         AssertExtensions.assertThrows(
                 " concat should throw ChunkNotFoundException.",
@@ -989,7 +989,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
                                 ConcatArgument.builder().name(emptyChunkName).length(0).build(),
                         }
                 ).get(),
-                ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
+                ex -> (ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName)) || ex instanceof UnsupportedOperationException);
     }
 
     @Test
@@ -1036,11 +1036,42 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 " concat should throw IllegalArgumentException.",
                 () -> chunkStorage.concat(null).get(),
-                ex -> ex instanceof IllegalArgumentException);
+                ex -> ex instanceof IllegalArgumentException || ex instanceof UnsupportedOperationException);
         AssertExtensions.assertThrows(
                 " concat should throw IllegalArgumentException.",
                 () -> chunkStorage.concat(new ConcatArgument[]{null}).get(),
-                ex -> ex instanceof IllegalArgumentException);
+                ex -> ex instanceof IllegalArgumentException || ex instanceof UnsupportedOperationException);
 
+    }
+
+    @Test
+    public void testUnsupported() throws ExecutionException, InterruptedException {
+        String chunkName = "testchunk1";
+        byte[] writeBuffer = new byte[10];
+        ChunkHandle chunkHandle = chunkStorage.createWithContent(chunkName, writeBuffer.length, new ByteArrayInputStream(writeBuffer)).get();
+        assertEquals(chunkName, chunkHandle.getChunkName());
+        assertEquals(false, chunkHandle.isReadOnly());
+        if (!chunkStorage.supportsAppend()) {
+            AssertExtensions.assertFutureThrows(
+                    " write should throw UnsupportedOperationException.",
+                    chunkStorage.write(chunkHandle, 0, writeBuffer.length, new ByteArrayInputStream(writeBuffer)),
+                    ex -> ex.getCause() instanceof UnsupportedOperationException || ex instanceof UnsupportedOperationException);
+        }
+
+        String newChunkName = "testchunk2";
+        ChunkHandle newChunkHandle = chunkStorage.createWithContent(newChunkName, 1, new ByteArrayInputStream(new byte[1])).get();
+        assertEquals(newChunkName, newChunkHandle.getChunkName());
+        assertEquals(false, newChunkHandle.isReadOnly());
+
+        if (!chunkStorage.supportsConcat()) {
+            ConcatArgument[] concatArguments = new ConcatArgument[]{
+                    new ConcatArgument(writeBuffer.length, chunkName),
+                    new ConcatArgument(1, newChunkName)
+            };
+            AssertExtensions.assertThrows(
+                    " concat should throw UnsupportedOperationException.",
+                    () -> chunkStorage.concat(concatArguments).get(),
+                    ex -> ex instanceof UnsupportedOperationException || ex.getCause() instanceof UnsupportedOperationException);
+        }
     }
 }

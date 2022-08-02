@@ -505,6 +505,8 @@ project ('bindings') {
         implementation group: 'com.google.inject.extensions', name: 'guice-assistedinject', version: guiceVersion
         implementation group: 'com.google.inject.extensions', name: 'guice-servlet', version: guiceVersion
         implementation group: 'com.google.inject', name: 'guice', version: guiceVersion
+        implementation group: 'com.google.cloud', name: 'google-cloud-storage', version: gcpSdkVersion
+        implementation group: 'com.google.cloud', name: 'google-cloud-nio', version: gcpCloudNioVersion
 
         compile project(':common')
         compile project(':segmentstore:storage')
@@ -584,6 +586,8 @@ project('segmentstore:server:host') {
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
         testCompile project(path:':bindings', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+        testCompile group: 'com.google.cloud', name: 'google-cloud-storage', version: gcpSdkVersion
+        testCompile group: 'com.google.cloud', name: 'google-cloud-nio', version: gcpCloudNioVersion
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {

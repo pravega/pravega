@@ -404,6 +404,9 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      */
     @Override
     final public CompletableFuture<Integer> concat(ConcatArgument[] chunks) {
+        if (!supportsConcat()) {
+            throw new UnsupportedOperationException("Chunk storage does not support doConcat");
+        }
         Exceptions.checkNotClosed(this.closed.get(), this);
         checkConcatArgs(chunks);
 
