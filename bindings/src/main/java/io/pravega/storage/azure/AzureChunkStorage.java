@@ -20,6 +20,7 @@ import com.azure.storage.blob.models.BlobStorageException;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.storage.chunklayer.BaseChunkStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
 import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
@@ -36,6 +37,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
+ * {@link AzureChunkStorage} implements {@link ChunkStorage} for Azure blob storage.
+ *
  * Each chunk is represented as a single blob on the underlying storage.
  *
  * The Append Block operation commits a new block of data to the end of an existing Append blob.

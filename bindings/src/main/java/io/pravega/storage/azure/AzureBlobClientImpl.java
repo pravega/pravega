@@ -38,18 +38,35 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 public class AzureBlobClientImpl implements AzureClient {
+
+    /**
+     * Client to a container which contains operations on the blob container.
+     */
     private final BlobContainerClient blobContainerClient;
+
+    /**
+     * Providing different configurations for Azure Storage component.
+     */
     private final AzureStorageConfig config;
+
+    /**
+     * Automatically updating the value to close the resources.
+     */
     private final AtomicBoolean closed = new AtomicBoolean();
 
     public AzureBlobClientImpl(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
-        this.config = config;
+        this.config = Preconditions.checkNotNull(config, "config");
+        Preconditions.checkNotNull(config, "");
         this.blobContainerClient = blobContainerClient;
         createContainerIfRequired(config, blobContainerClient);
     }
 
+    /**
+     * Method to create container using the container client.
+     * @param config configuration for the Azure Storage component.
+     * @param blobContainerClient client to a container performing operations on container.
+     */
     public void createContainerIfRequired(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
-        log.debug("Creating container {}.", config.getContainerName());
         if (config.isCreateContainer()) {
             try {
                 val containerProperties = blobContainerClient.getProperties();
@@ -59,6 +76,7 @@ public class AzureBlobClientImpl implements AzureClient {
                     val errorCode = blobStorageException.getErrorCode();
                     if (errorCode.equals(BlobErrorCode.CONTAINER_NOT_FOUND)) {
                         blobContainerClient.create();
+                        log.debug("Creating container {}.", config.getContainerName());
                         return;
                     }
                 }

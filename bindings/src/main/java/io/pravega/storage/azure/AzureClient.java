@@ -24,15 +24,50 @@ import java.io.InputStream;
  * AzureClient class allows methods to manipulate Azure Storage containers and their blobs.
  */
 public interface AzureClient extends AutoCloseable {
+
+    /**
+     * Creates a 0-length append blob.
+     * @param blobName Name of the blob on which operation is performed.
+     * @return The created appended blob.
+     */
     AppendBlobItem create(String blobName);
 
+    /**
+     * Gets if the blob this client represents exists in the cloud.
+     * @param blobName name of the blob on which operation is performed.
+     * @return True if the blob exists, false if it doesn't.
+     */
     boolean exists(String blobName);
 
+    /**
+     * Deletes the specified blob.
+     * @param blobName Name of the blob on which operation is performed.
+     */
     void delete(String blobName);
 
+    /**
+     * Copy fixed bytes of data from the chunk and return the resulting byte[].
+     * @param blobName Name of the blob on which operation is performed.
+     * @param offSet Blob offset position from which we need to start to copy the bytes.
+     * @param length Length of the blob whose data is to be copied.
+     * @return Input stream of byte[].
+     */
     InputStream getInputStream(String blobName, long offSet, long length);
 
+    /**
+     * Commits a new block of data to the end of an existing Append blob.
+     * @param blobName Name of the blob on which operation is performed.
+     * @param offSet Blob offset position from which we can append the bytes.
+     * @param length Length of the blob on which append operation is performed.
+     * @param inputStream Input stream of byte[].
+     * @return The resulting created appended blob.
+     */
     AppendBlobItem appendBlock(String blobName, long offSet, long length, InputStream inputStream);
 
+    /**
+     * Gets blob properties and metadata.
+     * @param blobName Name of the blob on which operation is performed.
+     * @return Returns blob properties and metadata for specified blob.
+     */
     BlobProperties getBlobProperties(String blobName);
 }
