@@ -102,7 +102,7 @@ public class BookKeeperLogReconcileCommand extends BookKeeperCommand {
 
             // Executing BookkeeperLog reconciliation.
             output("BookKeeperLog '%s': starting ledger reconciliation.", logId);
-            log.reconcileLedgers(candidateLedgers);
+            log.reconcileLedgers(candidateLedgers, false);
             output("BookKeeperLog '%s': ledger reconciliation completed.", logId);
         } finally {
             // Closing opened ledgers.

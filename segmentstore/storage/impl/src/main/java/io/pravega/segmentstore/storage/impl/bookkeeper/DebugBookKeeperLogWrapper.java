@@ -155,12 +155,14 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
      * @throws IllegalStateException   If this BookKeeperLog is not disabled.
      * @throws DurableDataLogException If an exception occurred while updating the metadata.
      */
-    public boolean reconcileLedgers(List<? extends ReadHandle> candidateLedgers) throws DurableDataLogException {
+    public boolean reconcileLedgers(List<? extends ReadHandle> candidateLedgers, boolean overwrite) throws DurableDataLogException {
         // Load metadata and verify if disabled (metadata may be null if it doesn't exist).
         LogMetadata metadata = this.log.loadMetadata();
         final long highestLedgerId;
-        if (metadata != null) {
+        if (!overwrite) {
             Preconditions.checkState(!metadata.isEnabled(), "BookKeeperLog is enabled; cannot reconcile ledgers.");
+        }
+        if (metadata != null) {
             int ledgerCount = metadata.getLedgers().size();
             if (ledgerCount > 0) {
                 // Get the highest Ledger id from the list of ledgers.
@@ -226,7 +228,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
                     .updateVersion(getOrDefault(metadata, LogMetadata::getUpdateVersion, LogMetadata.INITIAL_VERSION))
                     .ledgers(newLedgerList)
                     .build();
-            this.log.overWriteMetadata(newMetadata);
+            this.log.overWriteMetadata(newMetadata, overwrite);
         }
 
         return changed;

@@ -898,11 +898,13 @@ class BookKeeperLog implements DurableDataLog {
      * @throws DurableDataLogException  If another kind of exception occurred. See {@link #persistMetadata}.
      */
     @VisibleForTesting
-    void overWriteMetadata(LogMetadata metadata) throws DurableDataLogException {
+    void overWriteMetadata(LogMetadata metadata, boolean overwrite) throws DurableDataLogException {
         LogMetadata currentMetadata = loadMetadata();
         boolean create = currentMetadata == null;
-        if (!create) {
+        if (!overwrite) {
             Preconditions.checkState(!currentMetadata.isEnabled(), "Cannot overwrite metadata if BookKeeperLog is enabled.");
+        }
+        if (!create) {
             Preconditions.checkArgument(currentMetadata.getUpdateVersion() == metadata.getUpdateVersion(),
                     "Wrong Update Version; expected %s, given %s.", currentMetadata.getUpdateVersion(), metadata.getUpdateVersion());
         }

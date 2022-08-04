@@ -114,6 +114,7 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
      */
     public CompletableFuture<WireCommands.StorageChunksListed> listStorageChunks(String qualifiedName, PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.LIST_STORAGE_CHUNKS;
+        System.out.println("qualifiedName = "+qualifiedName+" uri= "+uri+" delegationToken= "+delegationToken);
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 

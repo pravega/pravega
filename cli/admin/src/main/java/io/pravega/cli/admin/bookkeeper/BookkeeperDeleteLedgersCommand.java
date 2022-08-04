@@ -16,8 +16,17 @@
 package io.pravega.cli.admin.bookkeeper;
 
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.segmentstore.storage.impl.bookkeeper.Ledgers;
 import lombok.Cleanup;
 import lombok.val;
+import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.api.ReadHandle;
+import org.apache.bookkeeper.conf.ClientConfiguration;
+import org.apache.bookkeeper.meta.LedgerManager;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
 
@@ -38,18 +47,15 @@ public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
 
         // Display a summary of the BookKeeperLog.
         val m = log.fetchMetadata();
-        if (m == null || m.isEnabled()) {
-            String message = (m == null) ? "BookKeeperLog '%s' does not exist." :
-                    "BookKeeperLog '%s' is enabled. Please, disable it before executing this command.";
-            output(message, logId);
+        if (m == null) {
+            output("BookKeeperLog '%s' does not exist.", logId);
             return;
         }
-        if (m.getLedgers().size() == 0) {
-            output("Ledgers list is zero, nothing to delete. Exiting...");
-            return;
-        }
+
         outputLogSummary(logId, m);
-        output("Ledgers will be permanently deleted from bookkeeper log '%s' starting with ledger id '%s' ", logId, startId);
+
+        output("Ledgers will be permanently deleted from bookkeeper log '%s' " +
+                "starting with ledger id '%s' and reconcile will happen automatically ", logId, startId);
         if (!confirmContinue()) {
             output("Exiting delete-ledgers command");
             return;
@@ -59,7 +65,46 @@ public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
             output("Deleted ledgers from bookkeeper log '%s' starting with ledger id '%s' ", logId, startId);
         } catch (Exception ex) {
             output("Delete ledgers failed: " + ex.getMessage());
+            return;
         }
+        output("Starting force over-write to recover log");
+        // over-write metadata
+        ClientConfiguration config = new ClientConfiguration()
+                .setMetadataServiceUri( "zk://" + this.getServiceConfig().getZkURL() + context.bookKeeperConfig.getBkLedgerPath());
+        @Cleanup
+        BookKeeper bkClient = BookKeeper.forConfig(config).build();
+        @Cleanup
+        LedgerManager manager = bkClient.getLedgerManager();
+        LedgerManager.LedgerRangeIterator ledgerRangeIterator = manager.getLedgerRanges(Long.MAX_VALUE);
+        List<ReadHandle> candidateLedgers = new ArrayList<>();
+        try {
+            while (ledgerRangeIterator.hasNext()) {
+                LedgerManager.LedgerRange lr = ledgerRangeIterator.next();
+                for (long ledgerId : lr.getLedgers()) {
+                    ReadHandle readHandle = Ledgers.openRead(ledgerId, bkClient, context.bookKeeperConfig);
+                    if (Ledgers.getBookKeeperLogId(readHandle) == logId) {
+                        candidateLedgers.add(readHandle);
+                    }
+                }
+            }
+            // If there are no candidate ledgers then the last or last 2 ledgers are missing.
+            // So checking if log also has no ledger information and is empty.
+            if (candidateLedgers.isEmpty() && m.getLedgers().isEmpty()) {
+                output("No candidate ledgers to over-write.");
+                return;
+            }
+            // Confirm with user prior executing the command.
+            output("Candidate ledgers for over-write: %s",
+                    candidateLedgers.stream().map(String::valueOf).collect(Collectors.joining(",")));
+            output("BookKeeperLog '%s' over-write is about to be executed.", logId);
+
+            log.reconcileLedgers(candidateLedgers, true);
+        } finally {
+            // Closing opened ledgers.
+            closeBookkeeperReadHandles(candidateLedgers);
+        }
+        val updatedLog = log.fetchMetadata();
+        outputLogSummary(logId, updatedLog);
         output("Delete ledgers command completed");
     }
 
