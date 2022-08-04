@@ -62,7 +62,6 @@ public class AzureBlobClientImpl implements AzureClient {
      */
     public AzureBlobClientImpl(AzureStorageConfig config, BlobContainerClient blobContainerClient) {
         this.config = Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(config, "");
         this.blobContainerClient = blobContainerClient;
         createContainerIfRequired(config, blobContainerClient);
     }
