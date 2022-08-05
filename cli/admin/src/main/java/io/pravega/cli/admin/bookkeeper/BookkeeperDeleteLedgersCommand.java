@@ -28,6 +28,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * BookKeeper delete and recover command in caserecovery fails with missing ledger(s).
+ */
 public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
 
     public BookkeeperDeleteLedgersCommand(CommandArgs args) {
@@ -64,7 +67,7 @@ public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
             log.deleteLedgersStartingWithId(startId);
             output("Deleted ledgers from bookkeeper log '%s' starting with ledger id '%s' ", logId, startId);
         } catch (Exception ex) {
-            output("Delete ledgers failed: " + ex.getMessage());
+            output("Delete ledgers failed: Exiting " + ex.getMessage());
             return;
         }
         output("Starting force over-write to recover log");
