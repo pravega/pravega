@@ -151,6 +151,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
      * @param candidateLedgers A List of {@link LedgerHandle}s that contain all the Ledgers that this {@link BookKeeperLog}
      *                         should contain. This could be the list of all BookKeeper Ledgers or a subset, as long as
      *                         it contains all Ledgers that list this {@link BookKeeperLog} as their owner.
+     * @param overwrite  Boolean denoting whether reconcile has to be forced even if log is enabled
      * @return True if something changed (and the metadata is updated), false otherwise.
      * @throws IllegalStateException   If this BookKeeperLog is not disabled.
      * @throws DurableDataLogException If an exception occurred while updating the metadata.
