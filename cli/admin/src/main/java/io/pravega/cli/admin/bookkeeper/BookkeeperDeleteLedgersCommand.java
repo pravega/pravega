@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * BookKeeper delete and recover command in caserecovery fails with missing ledger(s).
+ * BookKeeper delete and recover command in case recovery fails with missing ledger(s).
  */
 public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
 
