@@ -898,13 +898,11 @@ class BookKeeperLog implements DurableDataLog {
      * @throws DurableDataLogException  If another kind of exception occurred. See {@link #persistMetadata}.
      */
     @VisibleForTesting
-    void overWriteMetadata(LogMetadata metadata, boolean overwrite) throws DurableDataLogException {
+    void overWriteMetadata(LogMetadata metadata) throws DurableDataLogException {
         LogMetadata currentMetadata = loadMetadata();
         boolean create = currentMetadata == null;
-        if (!overwrite) {
-            Preconditions.checkState(!currentMetadata.isEnabled(), "Cannot overwrite metadata if BookKeeperLog is enabled.");
-        }
         if (!create) {
+            Preconditions.checkState(!currentMetadata.isEnabled(), "Cannot overwrite metadata if BookKeeperLog is enabled.");
             Preconditions.checkArgument(currentMetadata.getUpdateVersion() == metadata.getUpdateVersion(),
                     "Wrong Update Version; expected %s, given %s.", currentMetadata.getUpdateVersion(), metadata.getUpdateVersion());
         }
@@ -1028,7 +1026,7 @@ class BookKeeperLog implements DurableDataLog {
                 .filter(ledgerId -> ledgerId >= startId )
                 .collect(Collectors.toList());
 
-        log.info("List of ledgers to be deleted are: " + ledgersToDelete);
+        log.info("{}: List of ledgers to be deleted are: {}.", this.traceObjectId, ledgersToDelete);
         ledgersToDelete.forEach(id -> {
             try {
                 Ledgers.delete(id, this.bookKeeper);

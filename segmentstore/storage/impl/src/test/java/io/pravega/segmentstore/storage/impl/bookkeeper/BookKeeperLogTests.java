@@ -549,7 +549,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         val wrapper = this.factory.get().createDebugLogWrapper(log.getLogId());
         AssertExtensions.assertThrows(
                 "reconcileLedgers worked with non-disabled log.",
-                () -> wrapper.reconcileLedgers(Collections.emptyList(), false),
+                () -> wrapper.reconcileLedgers(Collections.emptyList()),
                 ex -> ex instanceof IllegalStateException);
 
         wrapper.disable();
@@ -586,10 +586,10 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         candidateLedgers.add(Ledgers.openFence(sameLogHighIdNonEmptyLedger, bk, this.config.get()));
 
         // Perform reconciliation.
-        boolean isChanged = wrapper.reconcileLedgers(candidateLedgers, false);
+        boolean isChanged = wrapper.reconcileLedgers(candidateLedgers);
         Assert.assertTrue("Expected first reconcileLedgers to have changed something.", isChanged);
 
-        isChanged = wrapper.reconcileLedgers(candidateLedgers, false);
+        isChanged = wrapper.reconcileLedgers(candidateLedgers);
         Assert.assertFalse("No expecting second reconcileLedgers to have changed anything.", isChanged);
 
         // Validate new metadata.
@@ -624,7 +624,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 .updateVersion(wrapper.fetchMetadata().getUpdateVersion())
                 .ledgers(Collections.emptyList())
                 .build();
-        log.overWriteMetadata(emptyMetadata, false);
+        log.overWriteMetadata(emptyMetadata);
 
         // Create a few ledgers. One without an Id, one with a bad id, and one with
         WriteHandle ledgerNoLogId = createCustomLedger(null);
@@ -639,7 +639,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         }
 
         // Perform reconciliation.
-        boolean isChanged = wrapper.reconcileLedgers(candidateLedgers, false);
+        boolean isChanged = wrapper.reconcileLedgers(candidateLedgers);
         Assert.assertTrue("Expected something to change.", isChanged);
 
         // Validate new metadata.
@@ -683,7 +683,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         }
 
         // Perform reconciliation.
-        boolean isChanged = wrapper.reconcileLedgers(candidateLedgers, false);
+        boolean isChanged = wrapper.reconcileLedgers(candidateLedgers);
         Assert.assertTrue("Expected something to change.", isChanged);
 
         // Validate new metadata.
@@ -738,7 +738,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 .updateVersion(wrapper.fetchMetadata().getUpdateVersion())
                 .ledgers(newLedgers)
                 .build();
-        writeLog.overWriteMetadata(badMetadata, false);
+        writeLog.overWriteMetadata(badMetadata);
 
         // Perform an initial read. This should fail.
         val readLog = (BookKeeperLog) createDurableDataLog();
@@ -764,7 +764,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
             allLedgers.add(reconcileWrapper.openLedgerNoFencing(lm));
         }
 
-        boolean isChanged = reconcileWrapper.reconcileLedgers(allLedgers, false);
+        boolean isChanged = reconcileWrapper.reconcileLedgers(allLedgers);
         Assert.assertTrue("Expected something to change.", isChanged);
 
         // There should only be two ledgers that survived: the one where we wrote to the original log and ledgerGoodLogId.

@@ -141,6 +141,14 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
     }
 
     /**
+     * Disables the BookKeeperLog and updates the metadata in ZooKeeper by setting its Enabled flag to false.
+     * @throws DurableDataLogException If an exception occurred.
+     */
+    public void markAsdisabled() throws DurableDataLogException {
+        this.log.disable();
+    }
+
+    /**
      * Performs a {@link BookKeeperLog}-{@link LedgerHandle} reconciliation for this {@link BookKeeperLog} subject to the
      * following rules:
      * - Any {@link LedgerHandle}s that list this {@link BookKeeperLog} as their owner will be added to this {@link BookKeeperLog}'s
@@ -151,19 +159,16 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
      * @param candidateLedgers A List of {@link LedgerHandle}s that contain all the Ledgers that this {@link BookKeeperLog}
      *                         should contain. This could be the list of all BookKeeper Ledgers or a subset, as long as
      *                         it contains all Ledgers that list this {@link BookKeeperLog} as their owner.
-     * @param overwrite  Boolean denoting whether reconcile has to be forced even if log is enabled
      * @return True if something changed (and the metadata is updated), false otherwise.
      * @throws IllegalStateException   If this BookKeeperLog is not disabled.
      * @throws DurableDataLogException If an exception occurred while updating the metadata.
      */
-    public boolean reconcileLedgers(List<? extends ReadHandle> candidateLedgers, boolean overwrite) throws DurableDataLogException {
+    public boolean reconcileLedgers(List<? extends ReadHandle> candidateLedgers) throws DurableDataLogException {
         // Load metadata and verify if disabled (metadata may be null if it doesn't exist).
         LogMetadata metadata = this.log.loadMetadata();
         final long highestLedgerId;
-        if (!overwrite) {
-            Preconditions.checkState(!metadata.isEnabled(), "BookKeeperLog is enabled; cannot reconcile ledgers.");
-        }
         if (metadata != null) {
+            Preconditions.checkState(!metadata.isEnabled(), "BookKeeperLog is enabled; cannot reconcile ledgers.");
             int ledgerCount = metadata.getLedgers().size();
             if (ledgerCount > 0) {
                 // Get the highest Ledger id from the list of ledgers.
@@ -229,7 +234,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
                     .updateVersion(getOrDefault(metadata, LogMetadata::getUpdateVersion, LogMetadata.INITIAL_VERSION))
                     .ledgers(newLedgerList)
                     .build();
-            this.log.overWriteMetadata(newMetadata, overwrite);
+            this.log.overWriteMetadata(newMetadata);
         }
 
         return changed;
@@ -274,7 +279,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
                 .map(ledgerMetadata -> ledgerMetadata.getLedgerId())
                 .collect(Collectors.toList());
         if (!ids.contains(startId)) {
-            throw new DurableDataLogException("No such ledger exist in log: " + this.log.getLogId() );
+            throw new DurableDataLogException(String.format("No such ledger exist with ledger id: %d.", this.log.getLogId()));
         }
         // Start deleting the ledgers with starting ledger id
         this.log.deleteLedgersStartingWithId(startId);

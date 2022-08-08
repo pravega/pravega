@@ -16,20 +16,12 @@
 package io.pravega.cli.admin.bookkeeper;
 
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.segmentstore.storage.impl.bookkeeper.Ledgers;
 import lombok.Cleanup;
 import lombok.val;
-import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.api.ReadHandle;
-import org.apache.bookkeeper.conf.ClientConfiguration;
-import org.apache.bookkeeper.meta.LedgerManager;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
- * BookKeeper delete and recover command in case recovery fails with missing ledger(s).
+ * This command delete all the ledgers of the log starting with and including given ledger-id.
+ * It can be used as last resort to recover the log in case recovery fails with missing ledger(s).
  */
 public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
 
@@ -54,8 +46,9 @@ public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
             output("BookKeeperLog '%s' does not exist.", logId);
             return;
         }
-
         outputLogSummary(logId, m);
+
+        log.markAsdisabled();
 
         output("Ledgers will be permanently deleted from bookkeeper log '%s' " +
                 "starting with ledger id '%s' and reconcile will happen automatically ", logId, startId);
@@ -69,42 +62,6 @@ public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
         } catch (Exception ex) {
             output("Delete ledgers failed: Exiting " + ex.getMessage());
             return;
-        }
-        output("Starting force over-write to recover log");
-        // over-write metadata
-        ClientConfiguration config = new ClientConfiguration()
-                .setMetadataServiceUri( "zk://" + this.getServiceConfig().getZkURL() + context.bookKeeperConfig.getBkLedgerPath());
-        @Cleanup
-        BookKeeper bkClient = BookKeeper.forConfig(config).build();
-        @Cleanup
-        LedgerManager manager = bkClient.getLedgerManager();
-        LedgerManager.LedgerRangeIterator ledgerRangeIterator = manager.getLedgerRanges(Long.MAX_VALUE);
-        List<ReadHandle> candidateLedgers = new ArrayList<>();
-        try {
-            while (ledgerRangeIterator.hasNext()) {
-                LedgerManager.LedgerRange lr = ledgerRangeIterator.next();
-                for (long ledgerId : lr.getLedgers()) {
-                    ReadHandle readHandle = Ledgers.openRead(ledgerId, bkClient, context.bookKeeperConfig);
-                    if (Ledgers.getBookKeeperLogId(readHandle) == logId) {
-                        candidateLedgers.add(readHandle);
-                    }
-                }
-            }
-            // If there are no candidate ledgers then the last or last 2 ledgers are missing.
-            // So checking if log also has no ledger information and is empty.
-            if (candidateLedgers.isEmpty() && m.getLedgers().isEmpty()) {
-                output("No candidate ledgers to over-write.");
-                return;
-            }
-            // Confirm with user prior executing the command.
-            output("Candidate ledgers for over-write: %s",
-                    candidateLedgers.stream().map(String::valueOf).collect(Collectors.joining(",")));
-            output("BookKeeperLog '%s' over-write is about to be executed.", logId);
-
-            log.reconcileLedgers(candidateLedgers, true);
-        } finally {
-            // Closing opened ledgers.
-            closeBookkeeperReadHandles(candidateLedgers);
         }
         val updatedLog = log.fetchMetadata();
         outputLogSummary(logId, updatedLog);
