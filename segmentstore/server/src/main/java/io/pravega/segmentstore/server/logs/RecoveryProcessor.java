@@ -28,8 +28,6 @@ import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.writer.AppendIntegrityChecker;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
