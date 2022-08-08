@@ -457,7 +457,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(tracker, times(3)).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new DataAppended(requestId, clientId, 1, 0, data.length));
         verify(connection).send(new ConditionalCheckFailed(clientId, 2, requestId));
-        verify(connection).send(new InvalidEventNumber(clientId, requestId, "test"));
+        verify(connection).send(new InvalidEventNumber(clientId, requestId, "test", 3));
         verify(connection).close();
         verify(tracker, times(3)).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);

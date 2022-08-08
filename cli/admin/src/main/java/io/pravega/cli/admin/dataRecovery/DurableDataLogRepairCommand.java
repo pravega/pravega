@@ -42,7 +42,6 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
@@ -236,7 +235,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
     }
 
     private int validateBackupLog(DurableDataLogFactory dataLogFactory, int containerId, DebugDurableDataLogWrapper originalDataLog,
-                                  boolean createNewBackupLog) throws Exception {
+                                    boolean createNewBackupLog) throws Exception {
         // Validate that the Original and Backup logs have the same number of operations.
         int operationsReadFromOriginalLog = readDurableDataLogWithCustomCallback((a, b) -> { }, containerId, originalDataLog.asReadOnly());
         @Cleanup
@@ -259,7 +258,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
      *
      * @param dataLogFactory Factory to instantiate {@link DurableDataLog} instances.
      * @return Whether there is metadata for an existing Backup Log.
-     * @throws DataLogInitializationException If there is an error initializing the {@link DurableDataLog}.
+     * @throws Exception If there is an error initializing the {@link DurableDataLog}.
      */
     private boolean existsBackupLog(DurableDataLogFactory dataLogFactory) throws Exception {
         try (DebugDurableDataLogWrapper backupDataLogDebugLogWrapper = dataLogFactory.createDebugLogWrapper(dataLogFactory.getBackupLogId())) {
