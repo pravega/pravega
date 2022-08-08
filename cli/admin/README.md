@@ -101,6 +101,7 @@ All available commands:
         container flush-to-storage <container-id> <segmentstore-endpoint>: Persist the given Segment Container into Storage.
         container recover <container-id>: Executes a local, non-invasive recovery for a SegmentContainer.
         controller describe-readergroup <scope-name> <readergroup-id>: Get the details of a given ReaderGroup in a Scope.
+        controller delete-readergroup <scope-name> <readergroup>: Delete ReaderGroup in a given Scope.
         controller describe-scope <scope-name>: Get the details of a given Scope.
         controller describe-stream <scope-name> <stream-name>: Get the details of a given Stream.
         controller list-readergroups <scope-name>: Lists all the existing ReaderGroups in a given Scope.
@@ -112,6 +113,7 @@ All available commands:
         controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
         controller-metadata tables-info : List all the controller metadata tables.
         controller-metadata update <qualified-table-segment-name> <key> <segmentstore-endpoint> <new-value-file>: Update the given key in the table with the provided value.
+        data-recovery durableLog-inspect <container-id> <filename>: Inspects the state of the DurableLog from the storage depending on the given criteria and save it in given filename.
         data-recovery durableLog-recovery : Recovers the state of the DurableLog from the storage.
         data-recovery durableLog-repair <container-id>: Allows to repair DurableLog damaged/corrupted Operations.
         data-recovery list-segments : Lists segments from storage with their name, length and sealed status.
