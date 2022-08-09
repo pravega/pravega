@@ -104,7 +104,7 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
         Preconditions.checkNotNull(systemSnapshot, "No SystemSnapshots found");
         updateSystemSnapShotRecord(systemSnapshot, sortedSegmentChunkFiles);
         Files.write(Paths.get(outputJournalPath + latestSnapshotFile.getName()), SYSTEM_SNAPSHOT_SERIALIZER.serialize(systemSnapshot).array());
-        output("SystemSnapshot Journal file has been created successfully at "+outputJournalPath);
+        output("SystemSnapshot Journal file has been created successfully at " + outputJournalPath);
     }
 
     private interface JournalDeserializer {
