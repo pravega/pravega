@@ -23,6 +23,7 @@ import lombok.val;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -124,7 +125,7 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
         }
     }
 
-    private static class FileComparator implements Comparator<File> {
+    private static class FileComparator implements Comparator<File>, Serializable {
         @Override
         public int compare(File f1, File f2) {
             String[] file1 = f1.getName().split(EPOCH_SPLITTER);
