@@ -88,6 +88,7 @@ import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -790,7 +791,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> processAppend(StreamSegmentAppendOperation appendOperation, TimeoutTimer timer) {
         if (this.config.isDataIntegrityChecksEnabled()) {
             // Compute the hash of the Append contents at the beginning of the ingestion pipeline.
-            appendOperation.setContentHash(AppendIntegrityChecker.computeDataHash(appendOperation.getData()));
+            long hash = AppendIntegrityChecker.computeDataHash(appendOperation.getData());
+            log.info("{}: Hash {} (Length = {}) for data {}", this.traceObjectId, hash, appendOperation.getLength(), Arrays.toString(appendOperation.getData().getCopy()));
+            appendOperation.setContentHash(hash);
         }
         CompletableFuture<Void> result = processAttributeUpdaterOperation(appendOperation, timer);
         Futures.exceptionListener(result, ex -> appendOperation.close());

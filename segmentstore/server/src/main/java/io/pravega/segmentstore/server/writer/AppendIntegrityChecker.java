@@ -74,6 +74,7 @@ public class AppendIntegrityChecker implements AutoCloseable {
             // No data integrity checks enabled, do nothing.
             return;
         }
+        log.info("Adding integrity info: Segment = {}, offset = {}, length = {}, hash = {}", segmentId, offset, length, hash);
         this.appendIntegrityInfo.add(new AggregatedAppendIntegrityInfo(segmentId, offset, length, hash));
     }
 
@@ -95,7 +96,12 @@ public class AppendIntegrityChecker implements AutoCloseable {
                 // Check integrity for this append if we have some hash to compare to.
                 if (data.getLength() >= accumulatedLength + integrityInfo.getLength()) {
                     //long hash = computeDataHash(data.slice(accumulatedLength, (int) integrityInfo.getLength())); // FIXME: This does not work well
-                    long hash = computeDataHash(new ByteArraySegment(Arrays.copyOfRange(data.getCopy(), accumulatedLength, (int) (accumulatedLength + integrityInfo.getLength()))));
+                    ByteArraySegment appendData = new ByteArraySegment(Arrays.copyOfRange(data.getCopy(), accumulatedLength, (int) (accumulatedLength + integrityInfo.getLength())));
+                    long hash = computeDataHash(appendData);
+                    log.info("Checking integrity info: Segment = {}/{}, offset = {}/{}, length = {}/{}, hash = {}/{}", segmentId, integrityInfo.getSegmentId(),
+                            offset, integrityInfo.getOffset(), data.getLength(), integrityInfo.getLength(), hash, integrityInfo.getContentHash());
+                    log.info("Accumulated length in this aggregated append {}", accumulatedLength);
+                    log.info("Append data {}", Arrays.toString(appendData.array()));
                     if (hash != integrityInfo.getContentHash())  {
                         log.error("Append integrity check failed. SegmentId = {}, Offset = {}, Length = {}, Original Hash = {}, Current Hash = {}.",
                                 segmentId, integrityInfo.getOffset() + accumulatedLength, integrityInfo.getLength(), integrityInfo.getContentHash(), hash);
