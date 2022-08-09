@@ -78,12 +78,14 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
         final String outputJournalPath = getArg(3);
 
         File journalFile = new File(journalPath);
+        File latestSnapshotFile = new File(latestSnapshot);
         Preconditions.checkState(journalFile.isFile(), "journal-path provided should point to a valid journal file");
+        Preconditions.checkState(latestSnapshotFile.isFile(), "snapshot file path provided should point to a valid file");
         //check whether we are deserializing a snapshot file or a journal index file
         JournalDeserializer deserializer = journalFile.getName().contains(SNAPSHOT) ? new JournalSnapshotDeserializer() : new JournalFileDeserializer();
         //list all segment chunks sorted based on epoch and offset
         File[] segmentChunkFiles = new File(segmentChunkPath).listFiles();
-        assert segmentChunkFiles != null;
+        Preconditions.checkState(segmentChunkFiles.length > 0, "No segment chunks found");
         List<File> sortedSegmentChunkFiles = Arrays.stream(segmentChunkFiles).
                 filter(File::isFile).
                 sorted(new FileComparator()).
@@ -101,8 +103,8 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
         }
         Preconditions.checkNotNull(systemSnapshot, "No SystemSnapshots found");
         updateSystemSnapShotRecord(systemSnapshot, sortedSegmentChunkFiles);
-        Files.write(Paths.get(outputJournalPath + new File(latestSnapshot).getName()), SYSTEM_SNAPSHOT_SERIALIZER.serialize(systemSnapshot).array());
-        output("SystemSnapshot Journal file has been created successfully.");
+        Files.write(Paths.get(outputJournalPath + latestSnapshotFile.getName()), SYSTEM_SNAPSHOT_SERIALIZER.serialize(systemSnapshot).array());
+        output("SystemSnapshot Journal file has been created successfully at "+outputJournalPath);
     }
 
     private interface JournalDeserializer {
@@ -212,7 +214,7 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
     private long deriveStartOffset(String chunkName) {
         Preconditions.checkArgument(chunkName != null, "Chunk is null");
         Preconditions.checkArgument(chunkName.length() > 0, "Chunk Name has length 0");
-        return Long.parseLong(chunkName.split("O-")[1].split("\\.")[0]);
+        return Long.parseLong(chunkName.split(OFFSET_SPLITTER)[1].split("\\.")[0]);
     }
 
     public static CommandDescriptor descriptor() {
