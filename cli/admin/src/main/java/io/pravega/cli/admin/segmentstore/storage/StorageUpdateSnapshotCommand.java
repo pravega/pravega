@@ -85,6 +85,7 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
         JournalDeserializer deserializer = journalFile.getName().contains(SNAPSHOT) ? new JournalSnapshotDeserializer() : new JournalFileDeserializer();
         //list all segment chunks sorted based on epoch and offset
         File[] segmentChunkFiles = new File(segmentChunkPath).listFiles();
+        assert segmentChunkFiles != null;
         Preconditions.checkState(segmentChunkFiles.length > 0, "No segment chunks found");
         List<File> sortedSegmentChunkFiles = Arrays.stream(segmentChunkFiles).
                 filter(File::isFile).
