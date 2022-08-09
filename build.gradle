@@ -497,6 +497,7 @@ project ('bindings') {
         compile group: 'software.amazon.awssdk', name: 's3', version: awsSdkVersion
         compile group: 'software.amazon.awssdk', name: 'sts', version: awsSdkVersion
 
+        compile group: 'com.azure', name: 'azure-storage-blob', version: azureSdkVersion
         // These were previously brought in as transitive dependencies of HDFS, although they were required for running
         // ExtendedS3SimpleStorageTests. But since the HDFS 3.x upgrade, these transitive dependencies are excluded,
         // so adding explicit dependencies is necessary (as well as desirable).
