@@ -88,7 +88,6 @@ import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
