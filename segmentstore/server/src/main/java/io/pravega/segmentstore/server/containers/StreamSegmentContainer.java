@@ -791,9 +791,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> processAppend(StreamSegmentAppendOperation appendOperation, TimeoutTimer timer) {
         if (this.config.isDataIntegrityChecksEnabled()) {
             // Compute the hash of the Append contents at the beginning of the ingestion pipeline.
-            long hash = AppendIntegrityChecker.computeDataHash(appendOperation.getData());
-            log.info("{}: Hash {} (Length = {}) for data {}", this.traceObjectId, hash, appendOperation.getLength(), Arrays.toString(appendOperation.getData().getCopy()));
-            appendOperation.setContentHash(hash);
+            appendOperation.setContentHash(AppendIntegrityChecker.computeDataHash(appendOperation.getData()));
         }
         CompletableFuture<Void> result = processAttributeUpdaterOperation(appendOperation, timer);
         Futures.exceptionListener(result, ex -> appendOperation.close());

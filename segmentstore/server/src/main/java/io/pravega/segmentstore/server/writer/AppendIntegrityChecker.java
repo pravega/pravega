@@ -16,7 +16,6 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import lombok.Data;
 import lombok.NonNull;
@@ -74,12 +73,11 @@ public class AppendIntegrityChecker implements AutoCloseable {
             // No data integrity checks enabled, do nothing.
             return;
         }
-        log.info("Adding integrity info: Segment = {}, offset = {}, length = {}, hash = {}", segmentId, offset, length, hash);
         this.appendIntegrityInfo.add(new AggregatedAppendIntegrityInfo(segmentId, offset, length, hash));
     }
 
-    public synchronized void checkAppendIntegrity(long segmentId, long offset, BufferView data) throws DataCorruptionException {
-        if (data == null || this.appendIntegrityInfo.isEmpty()) {
+    public synchronized void checkAppendIntegrity(long segmentId, long offset, BufferView aggregatedAppends) throws DataCorruptionException {
+        if (aggregatedAppends == null || this.appendIntegrityInfo.isEmpty()) {
             // No data to check, do nothing.
             return;
         }
@@ -87,22 +85,23 @@ public class AppendIntegrityChecker implements AutoCloseable {
         // Get the appends for queued for this specific Segment.
         Iterator<AggregatedAppendIntegrityInfo> iterator = this.appendIntegrityInfo.iterator();
         int accumulatedLength = 0;
-        while (iterator.hasNext() && accumulatedLength <= data.getLength()) {
-            AggregatedAppendIntegrityInfo integrityInfo = iterator.next();
+        AggregatedAppendIntegrityInfo integrityInfo;
+        while (iterator.hasNext() && accumulatedLength < aggregatedAppends.getLength()) {
+            integrityInfo = iterator.next();
             if (integrityInfo.getContentHash() == NO_HASH || integrityInfo.getOffset() < offset) {
                 // Old or not hashed operation, just remove.
                 iterator.remove();
             } else {
-                // Check integrity for this append if we have some hash to compare to.
-                if (data.getLength() >= accumulatedLength + integrityInfo.getLength()) {
-                    //long hash = computeDataHash(data.slice(accumulatedLength, (int) integrityInfo.getLength())); // FIXME: This does not work well
-                    ByteArraySegment appendData = new ByteArraySegment(Arrays.copyOfRange(data.getCopy(), accumulatedLength, (int) (accumulatedLength + integrityInfo.getLength())));
-                    long hash = computeDataHash(appendData);
-                    log.info("Checking integrity info: Segment = {}/{}, offset = {}/{}, length = {}/{}, hash = {}/{}", segmentId, integrityInfo.getSegmentId(),
-                            offset, integrityInfo.getOffset(), data.getLength(), integrityInfo.getLength(), hash, integrityInfo.getContentHash());
-                    log.info("Accumulated length in this aggregated append {}", accumulatedLength);
-                    log.info("Append data {}", Arrays.toString(appendData.array()));
-                    if (hash != integrityInfo.getContentHash())  {
+                // If the last AggregatedAppend from the previous flush had a partial Append, we need to skip the second part of that Append.
+                if (accumulatedLength == 0 && integrityInfo.getOffset() != offset) {
+                    accumulatedLength += integrityInfo.getOffset() - offset;
+                }
+
+                // Do the integrity check if the input data contains the whole contents of the original Append.
+                // Otherwise, it means that the input data ends with a partial Append, for which we cannot determine the hash.
+                if (aggregatedAppends.getLength() >= accumulatedLength + integrityInfo.getLength()) {
+                    long hash = computeDataHash(aggregatedAppends.slice(accumulatedLength, (int) integrityInfo.getLength()));
+                    if (hash != integrityInfo.getContentHash()) {
                         log.error("Append integrity check failed. SegmentId = {}, Offset = {}, Length = {}, Original Hash = {}, Current Hash = {}.",
                                 segmentId, integrityInfo.getOffset() + accumulatedLength, integrityInfo.getLength(), integrityInfo.getContentHash(), hash);
                         throw new DataCorruptionException(String.format("Data read from cache for Segment %s (hash = %s) differs from original data appended (hash = %s).",
