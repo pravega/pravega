@@ -19,11 +19,9 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import lombok.Data;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -72,11 +70,6 @@ public class AggregatedAppendIntegrityChecker implements AutoCloseable {
 
     //region AppendIntegrityChecker Implementation
 
-    public static long computeDataHash(@NonNull BufferView data) {
-        // FIXME: Before using BufferView.hashCode(), we need to have a common implementation of that method to all subclasses
-        return Arrays.hashCode(data.getCopy());
-    }
-
     public synchronized void addAppendIntegrityInfo(long segmentId, long offset, long length, long hash) {
         if (hash == NO_HASH) {
             // No data integrity checks enabled, do nothing.
@@ -120,7 +113,7 @@ public class AggregatedAppendIntegrityChecker implements AutoCloseable {
                 // Do the integrity check if the input data contains the whole contents of the original Append.
                 // Otherwise, it means that the input data ends with a partial Append, and we need to handle it.
                 if (aggregatedAppends.getLength() >= accumulatedLength + integrityInfo.getLength()) {
-                    long hash = computeDataHash(aggregatedAppends.slice(accumulatedLength, (int) integrityInfo.getLength()));
+                    long hash = aggregatedAppends.slice(accumulatedLength, (int) integrityInfo.getLength()).hash();
                     if (hash != integrityInfo.getContentHash()) {
                         log.error("Append integrity check failed. SegmentId = {}, Offset = {}, Length = {}, Original Hash = {}, Current Hash = {}.",
                                 segmentId, integrityInfo.getOffset() + accumulatedLength, integrityInfo.getLength(), integrityInfo.getContentHash(), hash);

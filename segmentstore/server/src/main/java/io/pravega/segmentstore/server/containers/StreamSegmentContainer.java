@@ -76,7 +76,6 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
-import io.pravega.segmentstore.server.writer.AggregatedAppendIntegrityChecker;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -790,7 +789,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> processAppend(StreamSegmentAppendOperation appendOperation, TimeoutTimer timer) {
         if (this.config.isDataIntegrityChecksEnabled()) {
             // Compute the hash of the Append contents at the beginning of the ingestion pipeline.
-            appendOperation.setContentHash(AggregatedAppendIntegrityChecker.computeDataHash(appendOperation.getData()));
+            appendOperation.setContentHash(appendOperation.getData().hash());
         }
         CompletableFuture<Void> result = processAttributeUpdaterOperation(appendOperation, timer);
         Futures.exceptionListener(result, ex -> appendOperation.close());
