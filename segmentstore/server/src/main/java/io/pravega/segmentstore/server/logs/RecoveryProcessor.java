@@ -29,7 +29,7 @@ import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperatio
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.writer.AppendIntegrityChecker;
+import io.pravega.segmentstore.server.writer.AggregatedAppendIntegrityChecker;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
@@ -206,7 +206,7 @@ class RecoveryProcessor {
 
         // Compute integrity check for recovered Appends.
         if (operation instanceof StreamSegmentAppendOperation) {
-            ((StreamSegmentAppendOperation) operation).setContentHash(AppendIntegrityChecker.computeDataHash(
+            ((StreamSegmentAppendOperation) operation).setContentHash(AggregatedAppendIntegrityChecker.computeDataHash(
                     ((StreamSegmentAppendOperation) operation).getData()));
         }
 

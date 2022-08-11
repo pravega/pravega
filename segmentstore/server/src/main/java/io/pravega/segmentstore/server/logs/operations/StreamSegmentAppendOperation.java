@@ -25,7 +25,7 @@ import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
-import io.pravega.segmentstore.server.writer.AppendIntegrityChecker;
+import io.pravega.segmentstore.server.writer.AggregatedAppendIntegrityChecker;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -47,7 +47,7 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
     // check data integrity and should not be considered for serialization.
     @Getter
     @Setter
-    private transient long contentHash = AppendIntegrityChecker.NO_HASH;
+    private transient long contentHash = AggregatedAppendIntegrityChecker.NO_HASH;
 
     //endregion
 
