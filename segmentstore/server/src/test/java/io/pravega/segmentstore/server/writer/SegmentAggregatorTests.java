@@ -339,6 +339,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 () -> {
                     // We have the correct offset, but we did not increase the Length.
                     StreamSegmentAppendOperation badAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), appendData, null);
+                    badAppend.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
                     badAppend.setStreamSegmentOffset(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength());
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badAppend));
                 },
@@ -350,6 +351,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 () -> {
                     // We have the correct offset, but we the append exceeds the Length by 1 byte.
                     StreamSegmentAppendOperation badAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), appendData, null);
+                    badAppend.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
                     badAppend.setStreamSegmentOffset(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength());
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badAppend));
                 },
@@ -360,6 +362,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 "add() allowed an operation with wrong offset (too small).",
                 () -> {
                     StreamSegmentAppendOperation badOffsetAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), appendData, null);
+                    badOffsetAppend.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
                     badOffsetAppend.setStreamSegmentOffset(0);
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badOffsetAppend));
                 },
@@ -369,10 +372,21 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 "add() allowed an operation with wrong offset (too large).",
                 () -> {
                     StreamSegmentAppendOperation badOffsetAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), appendData, null);
+                    badOffsetAppend.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
                     badOffsetAppend.setStreamSegmentOffset(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength() + 1);
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badOffsetAppend));
                 },
                 ex -> ex instanceof DataCorruptionException);
+
+        AssertExtensions.assertThrows(
+                "add() allowed an operation with wrong operation sequence number.",
+                () -> {
+                    StreamSegmentAppendOperation badSeqNumberAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), appendData, null);
+                    badSeqNumberAppend.setSequenceNumber(0);
+                    badSeqNumberAppend.setStreamSegmentOffset(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength());
+                    context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badSeqNumberAppend));
+                },
+                ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 "add() allowed an operation with wrong offset (too large, but no pending operations).",
@@ -384,6 +398,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                     badTransactionAggregator.initialize(TIMEOUT).join();
 
                     StreamSegmentAppendOperation badOffsetAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), appendData, null);
+                    badOffsetAppend.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
                     badOffsetAppend.setStreamSegmentOffset(1);
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badOffsetAppend));
                 },

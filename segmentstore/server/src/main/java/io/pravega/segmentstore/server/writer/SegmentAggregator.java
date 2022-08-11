@@ -99,6 +99,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     private final AtomicReference<Duration> lastFlush;
     private final AtomicReference<AggregatorState> state;
     private final AtomicReference<ReconciliationState> reconciliationState;
+    private final AtomicLong operationSequenceTracker;
 
     //endregion
 
@@ -133,6 +134,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         this.state = new AtomicReference<>(AggregatorState.NotInitialized);
         this.reconciliationState = new AtomicReference<>();
         this.handle = new AtomicReference<>();
+        this.operationSequenceTracker = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
     }
 
     //endregion
@@ -257,7 +259,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "initialize");
 
         if (this.metadata.isDeleted()) {
-            // Segment is dead on arrival. Delete it from Storage (if it exists) and do not bother to do anything else with it).
+            // Segment is dead on arrival. Delete it from Storage (if it exists) and do not bother to do anything else with it.
             // This is a rather uncommon case, but it can happen in one of two cases: 1) the segment has been deleted
             // immediately after creation or 2) after a container recovery.
             log.info("{}: Segment '{}' is marked as Deleted in Metadata. Attempting Storage delete.",
@@ -468,10 +470,12 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         if (operation.getStreamSegmentOffset() < aggregatedAppend.getLastStreamSegmentOffset()) {
             // The given operation begins before the AggregatedAppendOperation. This is likely due to it having been
             // partially written to Storage prior to some recovery event. We must make sure we only include the part that
-            // has not yet been written.
+            // has not yet been written. Also, we trigger reconciliation to check that the partially written data is correct.
             long delta = aggregatedAppend.getLastStreamSegmentOffset() - operation.getStreamSegmentOffset();
             remainingLength -= delta;
-            log.debug("{}: Skipping {} bytes from the beginning of '{}' since it has already been partially written to Storage.", this.traceObjectId, delta, operation);
+            log.warn("{}: Skipping {} bytes from the beginning of '{}' since it has already been partially written to Storage. Triggering reconciliation.",
+                    this.traceObjectId, delta, operation);
+            setState(AggregatorState.ReconciliationNeeded);
         }
 
         while (remainingLength > 0) {
@@ -822,6 +826,14 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                     return null;
                 }
                 throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for '%s'.", appendOp));
+            }
+
+            // Check that the offset of the AggregatedAppendOperation we are adding matches with the offset of the
+            // Segment in Storage. Otherwise, we might be inadvertently writing wrong contents to Storage, even though
+            // storage-related offsets match.
+            if (this.metadata.getStorageLength() != appendOp.getStreamSegmentOffset()) {
+                throw new DataCorruptionException(String.format("Mismatch in the offsets of Appends being written to Storage '%s' " +
+                        "and the actual offset of the Segment in Storage '%s'.", appendOp, this.metadata.getStorageLength()));
             }
         }
 
@@ -1500,6 +1512,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     /**
      * Ensures the following conditions are met:
      * * SegmentId matches this SegmentAggregator's SegmentId
+     * * Operation Sequence Numbers are monotonically increasing.
      * * If Segment is Sealed, only TruncateSegmentOperations are allowed.
      * * If Segment is deleted, no further operations are allowed.
      *
@@ -1516,6 +1529,10 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         if (this.hasSealPending.get() && !isTruncateOperation(operation) && !isDeleteOperation(operation)) {
             throw new DataCorruptionException(String.format("Illegal operation for a sealed Segment; received '%s'.", operation));
         }
+
+        // Check that operations being processed follow a monotonically increasing order.
+        Preconditions.checkArgument(operation.getSequenceNumber() > this.operationSequenceTracker.getAndSet(operation.getSequenceNumber()),
+                "Operations for Segment %s do not follow monotonically increasing order.", operation.getStreamSegmentId());
     }
 
     /**
