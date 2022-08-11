@@ -321,7 +321,6 @@ class BookKeeperLog implements DurableDataLog {
             this.logMetadata = newMetadata;
             LogMetadata metadata = getLogMetadata();
             Preconditions.checkState(metadata.isEnabled(), "BookKeeperLog is already disabled.");
-            System.out.println("Inside markAsDisabled: with Metadata => "+metadata);
             metadata = this.logMetadata.asDisabled();
             persistMetadata(metadata, false);
             this.logMetadata = metadata;

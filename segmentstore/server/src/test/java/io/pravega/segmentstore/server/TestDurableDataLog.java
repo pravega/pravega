@@ -88,6 +88,11 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
+    public void markAsDisabled() throws DurableDataLogException {
+        this.wrappedLog.markAsDisabled();
+    }
+
+    @Override
     public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.appendSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.appendAsyncErrorInjector,
