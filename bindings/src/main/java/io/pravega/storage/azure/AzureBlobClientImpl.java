@@ -57,6 +57,11 @@ public class AzureBlobClientImpl implements AzureClient {
      */
     private final AtomicBoolean closed = new AtomicBoolean();
 
+    /**
+     * The class provides implementation of the methods declared in AzureClient.
+     * AzureBlobClientImpl constructor for initializing the following parameters and pre-checking the conditions.
+     * @param config Configuration for Azure Storage Account.
+     */
     public AzureBlobClientImpl(AzureStorageConfig config) {
         this.config = config;
         this.blobContainerClient = getBlobContainerClient(config);
@@ -99,6 +104,11 @@ public class AzureBlobClientImpl implements AzureClient {
         }
     }
 
+    /**
+     * Creates blob container client with the given config.
+     * @param config Configuration for the Azure Storage component.
+     * @return BlobContainerClient.
+     */
     private BlobContainerClient getBlobContainerClient(AzureStorageConfig config) {
         BlobServiceClient storageClient = new BlobServiceClientBuilder()
                 .endpoint(config.getEndpoint())
