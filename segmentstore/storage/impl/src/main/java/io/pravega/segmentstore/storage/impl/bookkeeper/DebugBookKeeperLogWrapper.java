@@ -145,7 +145,8 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
      * @throws DurableDataLogException If an exception occurred.
      */
     public void markAsdisabled() throws DurableDataLogException {
-        this.log.disable();
+        this.initialized.set(true);
+        this.log.markAsDisabled();
     }
 
     /**
@@ -353,6 +354,11 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
 
         @Override
         public void disable() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void markAsDisabled() {
             throw new UnsupportedOperationException();
         }
 

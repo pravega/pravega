@@ -68,6 +68,8 @@ public interface DurableDataLog extends AutoCloseable {
      */
     void disable() throws DurableDataLogException;
 
+    void markAsDisabled() throws DurableDataLogException;
+
     /**
      * Adds a new entry to the log. Multiple concurrent calls to this method are allowed.
      *

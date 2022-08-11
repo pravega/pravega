@@ -48,10 +48,12 @@ public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
         }
         outputLogSummary(logId, m);
 
-        log.markAsdisabled();
+        if (m.isEnabled()) {
+            log.markAsdisabled();
+        }
 
         output("Ledgers will be permanently deleted from bookkeeper log '%s' " +
-                "starting with ledger id '%s' and reconcile will happen automatically ", logId, startId);
+                "starting with ledger id '%s' ", logId, startId);
         if (!confirmContinue()) {
             output("Exiting delete-ledgers command");
             return;
