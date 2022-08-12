@@ -27,7 +27,7 @@ include the internal Segments as well as the User Segments. Metadata about these
 about the why and how part of Journals can be found in this PDP [here](https://github.com/pravega/pravega/wiki/PDP-34-(Simplified-Tier-2)#why-slts-needs-system-journal)
 Pravega Journals is precisely what we would be attempting to update as part of the recovery procedure in this document.
 
-It is precisely at this point here in the Table Segment Recovery procedure, that one would have to jump to the below steps in the case where we are
+It is precisely at this point [here](https://github.com/abhinb/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md#note) in the Table Segment Recovery procedure, that one would have to jump to the below steps in the case where we are
 dealing with Metadata Segments.
 
 

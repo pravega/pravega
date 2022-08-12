@@ -67,6 +67,7 @@ Also please note that the below described procedure assumes the use of "File Sys
     ```
 
 
+#### 
 2) Go to the Tier-2 directory having the Segment chunks. Usually the root of this directory is `/mnt/tier-2`. And many Table Segment Chunks can be found under `/mnt/tier2/_system/_tables`.
 
 
@@ -135,7 +136,7 @@ Also please note that the below described procedure assumes the use of "File Sys
         data-recovery tableSegment-recovery /copied/chunk/directory completedTransactionsBatch-0 /output/chunk/directory
     ```
  
-##### *Note        
+### Note:        
    Once we are done with the above step, we would have the recovered or corrected Attribute Index Segment Chunks created in `\output\chunk\directory`
    A very important thing to do at this juncture would be to identify if we are dealing with a Metadata Segment. Please note that all Metadata Segments
    in Pravega either begin with `metadata_<containerId>` or `storage_metadata_<containerId>`, where <containerId> reflects the container of these 
