@@ -91,7 +91,7 @@ dealing with Metadata Segments.
 6) Copy over the snapshot file generated in the output directory of Step 5 above, back to its tier-2 path which is `\mnt\tier2\_system\containers`.
 
 
-7) Copy over the segment chunks created in [Step 2](https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md#detailed-steps) of the Table Segment recovery procedure to `\mnt\tier2\_system\containers`.
+7) Copy over the segment chunks created in [Step 4](https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md#detailed-steps) of the Table Segment recovery procedure to `\mnt\tier2\_system\containers`.
 
 
 8) Delete all the journal files for the affected container except the newly copied snapshot file. 

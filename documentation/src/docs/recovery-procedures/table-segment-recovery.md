@@ -67,8 +67,7 @@ Also please note that the below described procedure assumes the use of "File Sys
     ```
 
 
-#### 
-2) Go to the Tier-2 directory having the Segment chunks. Usually the root of this directory is `/mnt/tier-2`. And many Table Segment Chunks can be found under `/mnt/tier2/_system/_tables`.
+2) [Go](#step2) to the Tier-2 directory having the Segment chunks. Usually the root of this directory is `/mnt/tier-2`. And many Table Segment Chunks can be found under `/mnt/tier2/_system/_tables`.
 
 
 3) Copy over the main Table Segment Chunks to a directory of your choice as described below:
@@ -127,7 +126,7 @@ Also please note that the below described procedure assumes the use of "File Sys
    that form the main Table Segment and those are the two chunks we would be copying over to a directory of our choice.
 
 
-4) Start the Pravega Admin CLI (assuming its configured correctly to run, as appears in the [docs](https://github.com/pravega/pravega/blob/master/cli/admin/README.md)) and enter the below command.
+4) [Start](#step4) the Pravega Admin CLI (assuming its configured correctly to run, as appears in the [docs](https://github.com/pravega/pravega/blob/master/cli/admin/README.md)) and enter the below command.
 
     ```
       data-recovery tableSegment-recovery <directory_where_you_copied to in step 3> <Table Segment name> <directory where you want to copy the output chunks to>
