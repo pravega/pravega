@@ -21,16 +21,26 @@ import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.cli.admin.utils.ZKHelper;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Position;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
+import io.pravega.controller.task.EventHelper;
+import io.pravega.shared.controller.event.CreateReaderGroupEvent;
+import io.pravega.shared.controller.event.RGStreamCutRecord;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.utils.SetupUtils;
+import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
+import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -341,6 +351,47 @@ public abstract class AbstractControllerMetadataCommandsTest {
         checkpointStore.addReaderGroup(process, readerGroup);
         String commandResult = TestUtils.executeCommand("controller-metadata get-reader " + process + " " + readerGroup + " " + reader, STATE.get() );
         Assert.assertTrue(commandResult.contains("Exception accessing to reader metadata"));
+    }
+
+    private CreateReaderGroupEvent buildCreateRGEvent(String scope, String rgName, ReaderGroupConfig config,
+                                                      final long requestId, final long createTimestamp) {
+        Map<String, RGStreamCutRecord> startStreamCuts = config.getStartingStreamCuts().entrySet().stream()
+                                                               .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                                                                       e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+        Map<String, RGStreamCutRecord> endStreamCuts = config.getEndingStreamCuts().entrySet().stream()
+                                                             .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                                                                     e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+        return new CreateReaderGroupEvent(requestId, scope, rgName, config.getGroupRefreshTimeMillis(),
+                config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
+                config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
+                startStreamCuts, endStreamCuts, createTimestamp);
+    }
+
+    @Test
+    public void testControllerMetadataViewPendingEventsCommand() throws Exception {
+        final String host = UUID.randomUUID().toString();
+        final String requestId = UUID.randomUUID().toString();
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "cli-test");
+        ZKHelper zkHelper = ZKHelper.create(SETUP_UTILS.getZkTestServer().getConnectString(), "pravega-cluster");
+        EventHelper eventHelper = new EventHelper(executorService, host, zkHelper.getZkHostIndex(executorService));
+
+        String scopedStreamName = "scope/stream";
+        ReaderGroupConfig rgConf = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                                    .stream(scopedStreamName)
+                                                    .retentionType(ReaderGroupConfig.StreamDataRetention.NONE)
+                                                    .build();
+        CreateReaderGroupEvent createEventOne = buildCreateRGEvent("scope", "rg1", rgConf, 1L, System.currentTimeMillis());
+
+        eventHelper.addRequestToIndex(host, requestId, createEventOne);
+        String commandResult = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
+        Assert.assertTrue(commandResult.contains("rg1"));
+
+        //Exception scenario : Remove the event from the host index. This will remove entry from xk hostIndex.
+
+        eventHelper.removeTaskFromIndex(host, requestId );
+        String commandResultAfterRemoval = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
+        Assert.assertTrue(commandResultAfterRemoval.contains("Exception accessing pending events metadata"));
     }
 
     @After

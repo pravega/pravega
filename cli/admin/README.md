@@ -109,6 +109,7 @@ All available commands:
         controller list-streams <scope-name>: Lists all the existing Streams in a given Scope.
         controller-metadata get <qualified-table-segment-name> <key> <segmentstore-endpoint> [json-file]: Get the value for the specified key from the specified controller metadata table.
         controller-metadata get-reader <host-id> <reader-group-name> <reader-id>: Get the reader metadata of reader belonging to internal reader group for a particular controller host
+        controller-metadata get request-detail <host-id> <request-uuid>: Get the pending events detail for a request in a particular controller host. 
         controller-metadata list-entries <qualified-table-segment-name> <entry-count> <segmentstore-endpoint>: List at most the required number of entries from the controller metadata table. Unsupported for stream metadata tables.
         controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
         controller-metadata tables-info : List all the controller metadata tables.
