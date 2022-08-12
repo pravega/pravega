@@ -67,7 +67,7 @@ Also please note that the below described procedure assumes the use of "File Sys
     ```
 
 
-2) [Go](#step2) to the Tier-2 directory having the Segment chunks. Usually the root of this directory is `/mnt/tier-2`. And many Table Segment Chunks can be found under `/mnt/tier2/_system/_tables`.
+2) Go to the Tier-2 directory having the Segment chunks. Usually the root of this directory is `/mnt/tier-2`. And many Table Segment Chunks can be found under `/mnt/tier2/_system/_tables`.
 
 
 3) Copy over the main Table Segment Chunks to a directory of your choice as described below:

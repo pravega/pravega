@@ -23,17 +23,17 @@ That is we need to perform some of the steps mentioned in the above referenced d
 
 The below outlined steps refer to recovery of Table Segments but only in cases of Metadata Segments which are a special case, as they need to 
 be handled a little differently. Metadata Segments in Pravega are Table Segments, that hold metadata about all other "non-metadata" segments, which 
-include the internal Segments as well as the User Segments. Metadata about these Metadata Segments in Pravega, are stored in Pravega Journals. More details
-about the why and how part of Journals can be found in this PDP [here](https://github.com/pravega/pravega/wiki/PDP-34-(Simplified-Tier-2)#why-slts-needs-system-journal)
-Pravega Journals is precisely what we would be attempting to update as part of the recovery procedure in this document.
+include the internal Segments as well as the User Segments. Metadata about these Metadata Segments themselves in Pravega, are stored in Pravega Journals. More details
+about the why and how part of Journals can be found in this PDP [here](https://github.com/pravega/pravega/wiki/PDP-34-(Simplified-Tier-2)#why-slts-needs-system-journal).
+Pravega Journals, is concretely what we would be attempting to update as part of the recovery procedure in this document.
 
-It is precisely at this point [here](https://github.com/abhinb/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md#note) in the Table Segment Recovery procedure, that one would have to jump to the below steps in the case where we are
-dealing with Metadata Segments.
+It is precisely at this point [here](https://github.com/abhinb/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md#note) in 
+the Table Segment Recovery procedure, that one would have to jump to the below steps, in the case, where we are dealing with Metadata Segments.
 
 
 # Detailed Steps
-1) Once we determine that the table segment under repair is a Metadata Table Segment, we copy over the Attribute Index Chunks generated 
-   in the output directory of [Step 4](https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md#detailed-steps) to a separate directory of our choice.
+1) Once we determine that the Table Segment under repair is a Metadata Table Segment, we copy over the Attribute Index Chunks generated 
+   in the output directory of [Step 4](https://github.com/pravega/pravega/blob/a5088a464275d5ea90adb09ac39027332e87a8e3/documentation/src/docs/recovery-procedures/table-segment-recovery.md?plain=1#L129) to a separate directory of our choice.
 
 
 2) Open the Admin CLI, and disable the Tier-1 of Container for which we would be doing the repair. To disable the Tier-1  
@@ -47,8 +47,8 @@ dealing with Metadata Segments.
 
 3) Identify the latest journal file for the affected container. One can identify the latest journal file by simply listing the journal files 
    for the affected container. Before listing the journal files, go to the directory `\mnt\tier2\_system\containers` 
-   where `\mnt\tier2` is the configured tier2 directory as mentioned in [Step2](https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md#detailed-steps).
-   Identify the latest journal file by doing a simple list for e.g: 
+   where `\mnt\tier2` is the configured tier2 directory as mentioned in [Step2](https://github.com/pravega/pravega/blob/a5088a464275d5ea90adb09ac39027332e87a8e3/documentation/src/docs/recovery-procedures/table-segment-recovery.md?plain=1#L70).
+   Identify the latest journal file by doing a simple `ls` for e.g: 
    ```
           ls -ltr | grep "container3"   
           for example could produce a listing like below:
@@ -86,23 +86,27 @@ dealing with Metadata Segments.
            journal-snapshot-path: is the path ponting to the latest snapshot file in Step 4 above.
            output-directory:  Path where one wants the latest modified snapshot file to be saved.
    ```
+    What the above command does is list the corrected/fixed Segment chunks pointed to by the path `segment-chunk-path`, sort them based on their epoch
+    and offsets. And then reads them in the sorted order, and build metadata about these chunks from their names and length. Once this metadata is 
+    built, it updates this metadata for the Segment in question, and generates a Pravega Journal Snapshot with this updated metadata.
 
 
 6) Copy over the snapshot file generated in the output directory of Step 5 above, back to its tier-2 path which is `\mnt\tier2\_system\containers`.
 
 
-7) Copy over the segment chunks created in [Step 4](https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md#detailed-steps) of the Table Segment recovery procedure to `\mnt\tier2\_system\containers`.
+7) Copy over the Segment chunks created in [Step 4](https://github.com/pravega/pravega/blob/a5088a464275d5ea90adb09ac39027332e87a8e3/documentation/src/docs/recovery-procedures/table-segment-recovery.md?plain=1#L129) of the Table Segment recovery procedure to `\mnt\tier2\_system\containers`.
 
 
-8) Delete all the journal files for the affected container except the newly copied snapshot file. 
-   For example one can perform the delete like below:
+8) Remove all the journal files for the affected container except the newly copied snapshot file. To do so make sure you are in the same Tier-2 path
+   which is `\mnt\tier2\_system\containers`.
+   For example one can perform the removal like below:
    ```
         rm $(ls | grep container3 | grep -v snapshot)
 
    ```
 
    
-8) Enable the Tier-1 of container again. One can run the below command:
+8) Enable the Tier-1 of Container again. One can run the below command:
    ```
        bk enable <containerId>
        Ex:
@@ -110,4 +114,4 @@ dealing with Metadata Segments.
    ```
 
    
-9) Restart segment store.
+9) Restart Segment Store.
