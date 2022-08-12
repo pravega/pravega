@@ -36,18 +36,19 @@ the Table Segment Recovery procedure, that one would have to jump to the below s
    in the output directory of [Step 4](https://github.com/pravega/pravega/blob/a5088a464275d5ea90adb09ac39027332e87a8e3/documentation/src/docs/recovery-procedures/table-segment-recovery.md?plain=1#L129) to a separate directory of our choice.
 
 
-2) Open the Admin CLI, and disable the Tier-1 of Container for which we would be doing the repair. To disable the Tier-1  
-   run the below command:
+2) Open the Admin CLI, and disable Tier-1 for the Container owning the Metadata Segment. The owning Container ID can be figured out from the Metadata Segment Chunk 
+   name. For example if one of the Metadata Chunk file is say `metadata_2.E-1-O-0.88990c40-58a3-463e-8936-652d89fa95ba` then the container is 2 from `metadata_2` in file name.
+   To disable the Tier-1, run the below command:
    ```
        bk disable <containerId>
        Ex:-
-          bk disable 3
+          bk disable 2
    ```
 
 
-3) Identify the latest journal file for the affected container. One can identify the latest journal file by simply listing the journal files 
-   for the affected container. Before listing the journal files, go to the directory `\mnt\tier2\_system\containers` 
-   where `\mnt\tier2` is the configured tier2 directory as mentioned in [Step2](https://github.com/pravega/pravega/blob/a5088a464275d5ea90adb09ac39027332e87a8e3/documentation/src/docs/recovery-procedures/table-segment-recovery.md?plain=1#L70).
+3) Identify the latest journal file for the affected container. One can identify the latest Journal file by simply listing the Journal files for the affected Container. 
+   Before listing the Journal files, go to the directory `\mnt\tier2\_system\containers`  where `\mnt\tier2` is the configured Tier2 directory 
+   as mentioned in [Step2](https://github.com/pravega/pravega/blob/a5088a464275d5ea90adb09ac39027332e87a8e3/documentation/src/docs/recovery-procedures/table-segment-recovery.md?plain=1#L70).
    Identify the latest journal file by doing a simple `ls` for e.g: 
    ```
           ls -ltr | grep "container3"   
@@ -110,7 +111,7 @@ the Table Segment Recovery procedure, that one would have to jump to the below s
    ```
        bk enable <containerId>
        Ex:
-         bk enable 3
+         bk enable 2
    ```
 
    
