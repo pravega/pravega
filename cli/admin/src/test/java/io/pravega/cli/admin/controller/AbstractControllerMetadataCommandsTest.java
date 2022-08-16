@@ -30,6 +30,7 @@ import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
+import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.shared.controller.event.CreateReaderGroupEvent;
 import io.pravega.shared.controller.event.RGStreamCutRecord;
@@ -374,7 +375,8 @@ public abstract class AbstractControllerMetadataCommandsTest {
         @Cleanup("shutdownNow")
         ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "cli-test");
         ZKHelper zkHelper = ZKHelper.create(SETUP_UTILS.getZkTestServer().getConnectString(), "pravega-cluster");
-        EventHelper eventHelper = new EventHelper(executorService, host, zkHelper.getZkHostIndex(executorService));
+        ZKHostIndex hostIndex = zkHelper.getZkHostIndex(executorService);
+        EventHelper eventHelper = new EventHelper(executorService, host, hostIndex);
 
         String scopedStreamName = "scope/stream";
         ReaderGroupConfig rgConf = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
@@ -387,7 +389,14 @@ public abstract class AbstractControllerMetadataCommandsTest {
         String commandResult = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
         Assert.assertTrue(commandResult.contains("rg1"));
 
-        //Exception scenario : Remove the event from the host index. This will remove entry from xk hostIndex.
+        //No metadata found scenario.
+        byte[] emptyByteData = new byte[0];
+        hostIndex.removeEntity(host, requestId, false );
+        hostIndex.addEntity(host, requestId, emptyByteData);
+        commandResult = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
+        Assert.assertTrue(commandResult.contains("No metadata found"));
+
+        //Exception scenario : Remove the event from the host index. This will remove entry from zk hostIndex.
         eventHelper.removeTaskFromIndex(host, requestId );
         String commandResultAfterRemoval = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
         Assert.assertTrue(commandResultAfterRemoval.contains("Exception accessing pending events metadata"));

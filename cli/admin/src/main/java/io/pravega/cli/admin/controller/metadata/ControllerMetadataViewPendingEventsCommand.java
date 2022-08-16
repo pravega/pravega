@@ -18,6 +18,9 @@ package io.pravega.cli.admin.controller.metadata;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.ZKHelper;
 
+/**
+ * To view pending event detail for a request in a particular controller host.
+ */
 public class ControllerMetadataViewPendingEventsCommand extends ControllerMetadataCommand {
 
     /**
@@ -43,7 +46,7 @@ public class ControllerMetadataViewPendingEventsCommand extends ControllerMetada
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "request-detail", "Get the pending events detail for a request in a particular controller host.",
+        return new CommandDescriptor(COMPONENT, "request-detail", "Get the pending event detail for a request in a particular controller host.",
                 new ArgDescriptor("host-id", "Id of controller host"),
                 new ArgDescriptor("request-id", "Request UUID"));
     }
