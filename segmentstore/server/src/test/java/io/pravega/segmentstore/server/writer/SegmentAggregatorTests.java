@@ -2266,6 +2266,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             context.segmentAggregator.add(o);
         }
 
+        // One flush iteration for checking reconciliation, and the next one for doing the actual flush.
+        flushAllSegments(context);
         flushAllSegments(context);
 
         // Verify that in the end, the contents of the parents is as expected.

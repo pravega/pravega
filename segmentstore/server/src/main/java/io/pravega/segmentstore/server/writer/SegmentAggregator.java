@@ -473,7 +473,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             // has not yet been written. Also, we trigger reconciliation to check that the partially written data is correct.
             long delta = aggregatedAppend.getLastStreamSegmentOffset() - operation.getStreamSegmentOffset();
             remainingLength -= delta;
-            log.warn("{}: Skipping {} bytes from the beginning of '{}' since it has already been partially written to Storage. Triggering reconciliation.",
+            log.info("{}: Skipping {} bytes from the beginning of '{}' since it has already been partially written to Storage. Triggering reconciliation.",
                     this.traceObjectId, delta, operation);
             setState(AggregatorState.ReconciliationNeeded);
         }
@@ -1233,6 +1233,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                     }
 
                     // If we get here, it means we have work to do. Set the state accordingly and move on.
+                    log.info("{}: Starting reconciliation on Segment {}.", this.traceObjectId, this.metadata);
                     this.reconciliationState.set(new ReconciliationState(this.metadata, sp));
                     setState(AggregatorState.Reconciling);
                 }, this.executor)
