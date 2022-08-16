@@ -391,7 +391,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
 
         //No metadata found scenario.
         byte[] emptyByteData = new byte[0];
-        hostIndex.removeEntity(host, requestId, false );
+        hostIndex.removeEntity(host, requestId, false);
         hostIndex.addEntity(host, requestId, emptyByteData);
         commandResult = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
         Assert.assertTrue(commandResult.contains("No metadata found"));
