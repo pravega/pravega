@@ -207,7 +207,7 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
      * Method to get path of request in a particular controller instance.
      *
      * @param hostId Host id of controller instance
-     * @param requestId request UUID
+     * @param requestId Request UUID
      * @return Full path of request
      */
     protected String getRequestPath(String hostId, String requestId) {

@@ -388,7 +388,6 @@ public abstract class AbstractControllerMetadataCommandsTest {
         Assert.assertTrue(commandResult.contains("rg1"));
 
         //Exception scenario : Remove the event from the host index. This will remove entry from xk hostIndex.
-
         eventHelper.removeTaskFromIndex(host, requestId );
         String commandResultAfterRemoval = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
         Assert.assertTrue(commandResultAfterRemoval.contains("Exception accessing pending events metadata"));

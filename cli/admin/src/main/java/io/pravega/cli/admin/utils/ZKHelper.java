@@ -137,9 +137,9 @@ public class ZKHelper implements AutoCloseable {
 
     /**
      * Get the pending events detail for a request in a particular controller host.
-     * @param readerPath path of reader
-     * @throws Exception if unable to get the znode for readerpath.
-     * @return event detail for a request.
+     * @param readerPath Path of reader.
+     * @throws Exception If unable to get the znode for readerpath.
+     * @return Event detail for a request.
      */
     public String getPendingEventsForRequest(String readerPath) throws Exception {
         byte[] data = zkClient.getData().forPath(readerPath);
