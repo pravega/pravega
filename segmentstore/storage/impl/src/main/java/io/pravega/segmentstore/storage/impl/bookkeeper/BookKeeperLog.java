@@ -307,31 +307,6 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     @Override
-    public void markAsDisabled() throws DurableDataLogException {
-        // Get the current metadata, disable it, and then persist it back.
-        synchronized (this.lock) {
-            LogMetadata oldMetadata = loadMetadata();
-            WriteHandle newLedger = Ledgers.create(this.bookKeeper, this.config, this.logId);
-            log.info("{}: Created Ledger {}.", this.traceObjectId, newLedger.getId());
-            // Update Metadata with new Ledger and persist to ZooKeeper.
-            LogMetadata newMetadata = updateMetadata(oldMetadata, newLedger, true);
-            LedgerMetadata ledgerMetadata = newMetadata.getLedger(newLedger.getId());
-            assert ledgerMetadata != null : "cannot find newly added ledger metadata";
-            this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
-            this.logMetadata = newMetadata;
-            LogMetadata metadata = getLogMetadata();
-            Preconditions.checkState(metadata.isEnabled(), "BookKeeperLog is already disabled.");
-            metadata = this.logMetadata.asDisabled();
-            persistMetadata(metadata, false);
-            this.logMetadata = metadata;
-            log.info("{}: Disabled (Epoch = {}, UpdateVersion = {}).", this.traceObjectId, metadata.getEpoch(), metadata.getUpdateVersion());
-        }
-
-        // Close this instance of the BookKeeperLog. This ensures the proper cancellation of any ongoing writes.
-        close();
-    }
-
-    @Override
     public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
         ensurePreconditions();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "append", data.getLength());

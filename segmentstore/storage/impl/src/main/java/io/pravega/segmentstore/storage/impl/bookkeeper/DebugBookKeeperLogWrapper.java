@@ -145,8 +145,8 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
      * @throws DurableDataLogException If an exception occurred.
      */
     public void markAsdisabled() throws DurableDataLogException {
-        this.initialized.set(true);
-        this.log.markAsDisabled();
+        val metadata = this.log.loadMetadata();
+        forceMetadataOverWrite(metadata.asDisabled());
     }
 
     /**
@@ -356,12 +356,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         public void disable() {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public void markAsDisabled() {
-            throw new UnsupportedOperationException();
-        }
-
+        
         @Override
         public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
             throw new UnsupportedOperationException();

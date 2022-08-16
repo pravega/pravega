@@ -129,15 +129,6 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public void markAsDisabled() throws DurableDataLogException {
-        synchronized (this.entries) {
-            this.entries.disable(this.clientId);
-        }
-
-        close();
-    }
-
-    @Override
     public WriteSettings getWriteSettings() {
         return new WriteSettings(this.entries.getMaxAppendSize(), Duration.ofMinutes(1), Integer.MAX_VALUE);
     }

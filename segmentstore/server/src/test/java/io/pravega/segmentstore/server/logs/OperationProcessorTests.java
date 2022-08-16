@@ -1017,11 +1017,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
         }
 
         @Override
-        public void markAsDisabled() throws DurableDataLogException {
-
-        }
-
-        @Override
         public CompletableFuture<Void> truncate(LogAddress upToAddress, Duration timeout) {
             return CompletableFuture.completedFuture(null);
         }
