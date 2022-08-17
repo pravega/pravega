@@ -99,7 +99,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     private final AtomicReference<Duration> lastFlush;
     private final AtomicReference<AggregatorState> state;
     private final AtomicReference<ReconciliationState> reconciliationState;
-    private final AtomicLong operationSequenceTracker;
+    private final AtomicLong lastAddedSequenceNumber;
 
     //endregion
 
@@ -134,7 +134,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         this.state = new AtomicReference<>(AggregatorState.NotInitialized);
         this.reconciliationState = new AtomicReference<>();
         this.handle = new AtomicReference<>();
-        this.operationSequenceTracker = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
+        this.lastAddedSequenceNumber = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
     }
 
     //endregion
@@ -145,6 +145,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     public void close() {
         if (!isClosed()) {
             setState(AggregatorState.Closed);
+            this.lastAddedSequenceNumber.set(Operation.NO_SEQUENCE_NUMBER);
         }
     }
 
@@ -1532,8 +1533,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         }
 
         // Check that operations being processed follow a monotonically increasing order.
-        Preconditions.checkArgument(operation.getSequenceNumber() > this.operationSequenceTracker.getAndSet(operation.getSequenceNumber()),
-                "Operations for Segment %s do not follow monotonically increasing order.", operation.getStreamSegmentId());
+        Preconditions.checkArgument(operation.getSequenceNumber() > this.lastAddedSequenceNumber.get(),
+                "Operation %s for Segment %s does not follow monotonically increasing order.", operation, operation.getStreamSegmentId());
+        this.lastAddedSequenceNumber.set(operation.getSequenceNumber());
     }
 
     /**
