@@ -36,7 +36,10 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 /**
  * {@link ChunkStorage} for GCP (Google Cloud Platform) based storage.
@@ -78,7 +81,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
 
     @Override
     public boolean supportsConcat() {
-        return false;
+        return true;
     }
 
     @Override
@@ -138,8 +141,14 @@ public class GCPChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    public int doConcat(ConcatArgument[] chunks) throws UnsupportedOperationException {
-        throw new UnsupportedOperationException("GCP chunk storage does not support doConcat");
+    public int doConcat(ConcatArgument[] chunks) {
+        String targetObjectPath = getObjectPath(chunks[0].getName());
+        List<String> chunkNames = Arrays.stream(chunks).map(chunk -> getObjectPath(chunk.getName())).collect(Collectors.toList());
+        Storage.ComposeRequest composeRequest = Storage.ComposeRequest.newBuilder().addSource(chunkNames)
+                .setTarget(BlobInfo.newBuilder(this.config.getBucket(), targetObjectPath).build()).build();
+        Blob blob = this.storage.compose(composeRequest);
+        Long l = blob.getSize();
+        return Math.toIntExact(l);
     }
 
     @Override
@@ -169,7 +178,7 @@ public class GCPChunkStorage extends BaseChunkStorage {
         BlobId blobId = BlobId.of(this.config.getBucket(), getObjectPath(chunkName));
         BlobInfo blobInfo = BlobInfo.newBuilder(blobId).setContentType("application/octet-stream").build();
         try (InputStream inputStream = data) {
-            this.storage.createFrom(blobInfo, inputStream);
+            Blob blob = this.storage.createFrom(blobInfo, inputStream);
             return ChunkHandle.writeHandle(chunkName);
         } catch (IOException e) {
             throw convertException(chunkName, "doCreateWithContent", e);

@@ -26,6 +26,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Unit tests for {@link GCPChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
@@ -119,7 +120,7 @@ public class GCPSimpleStorageTests extends SimpleStorageTests {
         public void testCapabilities() {
             assertFalse(getChunkStorage().supportsAppend());
             assertFalse(getChunkStorage().supportsTruncation());
-            assertFalse(getChunkStorage().supportsConcat());
+            assertTrue(getChunkStorage().supportsConcat());
         }
     }
 

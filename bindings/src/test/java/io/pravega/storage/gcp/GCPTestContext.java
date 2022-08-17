@@ -15,10 +15,16 @@
  */
 package io.pravega.storage.gcp;
 
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
+import com.google.cloud.storage.testing.RemoteStorageHelper;
+import com.google.gson.JsonObject;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.UUID;
 
 /**
@@ -39,7 +45,27 @@ public class GCPTestContext {
                 .with(GCPStorageConfig.PREFIX, prefix)
                 .build();
 
-        storage = LocalStorageHelper.getOptions().getService();
+        try {
+            GoogleCredentials credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(getServiceAcountJSON().toString().getBytes()));
+            storage = StorageOptions.newBuilder().setCredentials(credentials).build().getService();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        //storage = LocalStorageHelper.getOptions().getService();
     }
 
+    private JsonObject getServiceAcountJSON() {
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("type", "service_account");
+        //sonObject.addProperty("project_id", "pravega-amit");
+        jsonObject.addProperty("private_key_id", "79c7633cdab4e612fd924cb4b1c77d86df907fbd");
+        jsonObject.addProperty("private_key", "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDS+QCb5vrCQoei\n6vMhhLDkCjbcFeIwsHIpYPgeh1ZgNc6V99C82pKUFps9PQLLcM4vdZTqKVvKp+wJ\nFn+TeOoCTpIYEfPtzBbqEoU+TzQrvFMMiBPNz4r+40/KvPDn5TfIAaiSIKx+X2wL\ngWKX8/0Fm45bPjbfOIFGdvWBrwebz5bFKTlXFvQemfh62+HTgHSRTyJGSkEled+f\n4Odqji+tUEACOkdli1X51PHm7sjir76sKF2WNG8ksqoiNfO9u3C9K4kqHyh6vJAZ\nrbr0MkVLitq4NiZWe5GoKxX79cXp+ctE2NWyzhb8BjPvDe4knymirwstYLnzuTJ5\noFlhjqXPAgMBAAECggEAQXEd4D5Y4HNUsZOh0W7glAwbEk/zdtj0wKMktAuVHojy\nSRCy/jHqr+cHRoqrWEHoo04c4DnuEEHgdL02257xL8ABj1faS5Q4M2mFTVuyOjLT\nrBp10iyj2AbY1HGhZL10fSUOji12dEjTMgpzc+EqRlgHY4Q77ygO6bWy2ARcHtdI\nn3ImjvLkful2qAfi4KT02VCZ348lCXkoGgsoCARhrM2qV7CmvlJF5wDf/Uoo44kH\n02sU+pRPh70PcCFg3NDcZb2UM3soZznba7DjVgiQSExMgflnDhxPkWcONx9gNDHq\nhVDnwZpNkJRgfwc01pfJI4JywveHx+icwV0iBhFVGQKBgQDtFuTyknQCi4/WaWPH\njdCKndEQHISHojdvSNWBi6p0ItpcOARr3brAyLRQc0cv5miZzHzNVLxCIl/rbWnZ\n0GJO9votrR8WQ5aLPi4w1s1w8JGMnUYROCw8x5dM4BzPJX3i5tDoRFoq8MNAlpKi\nwr5KktnPKQI2bI60SQtkLhvsXQKBgQDjzNUYGQcwkPZXsehk6nqwtpZ5OJTRsiCu\nyRHLTcoinGnjEU9G7DRqguIOkRUQokpZxUbXRWUO+XnBX58epaKorH24nJQgcMUl\niqK5PP2W4PrH6ZMygO617xbH/FuixBrOzQgT4jSdngG3+lQh5DTed10rurKGGp+P\nbf+juQQYGwKBgQC8IcKiyZvMuTn2BcLrgpjMpdZTVo3DovEiGUVyeoVTiqSDMOAx\nR8z9VUXf4NnIJKk0AZO2y1pnkCdVBYlNEZIw3sI+pHVakV9QNpMopgp3aC3WyqXi\n3BQeVrK0idHSfgmal1WGOVbjZBFLmy/Yf3fIbSbwv7XFwfarEJs9b2kw8QKBgGxk\nesEMp68kSxNPRBVAvUB4oQDtO2LML2D7q8vhJ91wL7Ir+lz057wGqynjPvK7RkWQ\n6TRlgMCvVI/+v+gFSHCaIvhFCPamsig631LlAoVYZ/vX2IKfdvZ63YwrOC8qwNbG\nGKHdcMvO82JnasD1pXJ1uY+lNm05HdNRs+Jjlt8hAoGBALPoOQhkl3A51PDU5TGp\npELBoTAZTLPq7qcmH2gnm8BXeIwmDwHbS55TeMs5Qj3u6qJHx0Sa1/eCAaz50UoG\nyHoyr1UjW/BTWN3xXOIO9AOJpSXab/5uTrncmuTLEMLmtarTKH4pFTqQsI6tqSzu\na8cKSUs/ImzmpUXKDrtVUYBC\n-----END PRIVATE KEY-----\n");
+        jsonObject.addProperty("client_email", "amitsa@pravega-amit.iam.gserviceaccount.com");
+        jsonObject.addProperty("client_id", "113833936441999013298");
+        //sonObject.addProperty("auth_uri", "https://accounts.google.com/o/oauth2/auth");
+        //sonObject.addProperty("token_uri", "https://oauth2.googleapis.com/token");
+        //sonObject.addProperty("auth_provider_x509_cert_url", "https://www.googleapis.com/oauth2/v1/certs");
+        //sonObject.addProperty("client_x509_cert_url", "https://www.googleapis.com/robot/v1/metadata/x509/amitsa%40pravega-amit.iam.gserviceaccount.com");
+        return jsonObject;
+    }
 }
