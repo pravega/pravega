@@ -20,11 +20,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
 import io.pravega.controller.util.RetryHelper;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.recipes.cache.PathChildrenCache;
-import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
-import org.apache.curator.utils.ZKPaths;
-
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,18 +27,26 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.recipes.cache.PathChildrenCache;
+import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
+import org.apache.curator.framework.recipes.leader.LeaderSelector;
+import org.apache.curator.utils.ZKPaths;
 
 @SuppressWarnings("deprecation")
 @Slf4j
 public class ZooKeeperBucketManager extends BucketManager {
     private final ZookeeperBucketStore bucketStore;
     private final ConcurrentMap<BucketStore.ServiceType, PathChildrenCache> bucketOwnershipCacheMap;
+    private LeaderSelector leaderSelector;
+    private final String processId;
 
     ZooKeeperBucketManager(String processId, ZookeeperBucketStore bucketStore, BucketStore.ServiceType serviceType, ScheduledExecutorService executor,
                            Function<Integer, BucketService> bucketServiceSupplier) {
-        super(processId, serviceType, executor, bucketServiceSupplier);
+        super(processId, serviceType, executor, bucketServiceSupplier, bucketStore);
         bucketOwnershipCacheMap = new ConcurrentHashMap<>();
         this.bucketStore = bucketStore;
+        this.processId = processId;
     }
 
     /**
@@ -73,9 +76,11 @@ public class ZooKeeperBucketManager extends BucketManager {
                     break;
                 case CHILD_REMOVED:
                     int bucketId = Integer.parseInt(ZKPaths.getNodeFromPath(event.getData().getPath()));
-                    RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(bucketId),
-                            e -> log.warn("{}: exception while attempting to take ownership for bucket {}: {}", getServiceType(),
-                                    bucketId, e.getMessage()), getExecutor());
+                    if (bucketStore.getBucketsForController(processId, getServiceType()).join().contains(bucketId)) {
+                        RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(bucketId),
+                                e -> log.warn("{}: exception while attempting to take ownership for bucket {}: {}", getServiceType(),
+                                        bucketId, e.getMessage()), getExecutor());
+                    }
                     break;
                 case CONNECTION_LOST:
                     log.warn("{}: Received connectivity error", getServiceType());
@@ -126,5 +131,49 @@ public class ZooKeeperBucketManager extends BucketManager {
     public CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
         Preconditions.checkArgument(bucket < bucketStore.getBucketCount(getServiceType()));
         return bucketStore.takeBucketOwnership(getServiceType(), bucket, processId);
+    }
+
+    @Override
+    public void startLeaderElection(BucketManagerLeader bucketManagerLeader) {
+        String leaderZKPath = ZKPaths.makePath("cluster", "bucketDistributorLeader");
+        leaderSelector = new LeaderSelector(bucketStore.getClient(), leaderZKPath, bucketManagerLeader);
+        //Listen for any zookeeper connection state changes
+        bucketStore.getClient().getConnectionStateListenable().addListener(
+                (curatorClient, newState) -> {
+                    switch (newState) {
+                        case LOST:
+                            log.warn("Connection to zookeeper lost, attempting to interrrupt the leader thread");
+                            leaderSelector.interruptLeadership();
+                            break;
+                        case SUSPENDED:
+                            if (leaderSelector.hasLeadership()) {
+                                log.info("Zookeeper session suspended, pausing the bucket manager");
+                                bucketManagerLeader.suspend();
+                            }
+                            break;
+                        case RECONNECTED:
+                            if (leaderSelector.hasLeadership()) {
+                                log.info("Zookeeper session reconnected, resume the bucket manager");
+                                bucketManagerLeader.resume();
+                            }
+                            break;
+                        //$CASES-OMITTED$
+                        default:
+                            log.debug("Connection state to zookeeper updated: " + newState.toString());
+                    }
+                }
+        );
+    }
+
+    @Override
+    public void startLeader() {
+        leaderSelector.autoRequeue();
+        leaderSelector.start();
+    }
+
+    @Override
+    public void stopLeader() {
+        leaderSelector.interruptLeadership();
+        leaderSelector.close();
     }
 }

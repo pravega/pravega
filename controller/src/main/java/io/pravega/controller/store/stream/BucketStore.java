@@ -17,11 +17,11 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.controller.store.client.StoreType;
 import io.pravega.shared.NameUtils;
-import lombok.Getter;
-
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import lombok.Getter;
 
 /**
  * Bucket Store interface. 
@@ -73,6 +73,31 @@ public interface BucketStore {
      * @return future, which when completed will indicate that stream is removed from the store.
      */
     CompletableFuture<Void> removeStreamFromBucketStore(ServiceType serviceType, String scope, String stream, Executor executor);
+
+    /**
+     * Get the existing controller to bucket map.
+     *
+     * @param serviceType   service type.
+     * @return future, which when completed will have map of process and associated set of buckets.
+     */
+    CompletableFuture<Map<String, Set<Integer>>> getBucketControllerMap(ServiceType serviceType);
+
+    /**
+     * Update the existing controller to bucket map with the new one. This operation has to be atomic.
+     *
+     * @param newMapping    The new controllers to bucket mapping which needs to be persisted.
+     * @param serviceType   service type.
+     * @return future, which when completed will indicate that bucket updated successfully.
+     */
+    CompletableFuture<Void> updateBucketControllerMap(Map<String, Set<Integer>> newMapping, ServiceType serviceType);
+
+    /**
+     * Get the buckets associated with a particular controller.
+     * @param processId     processId of Controller.
+     * @param serviceType   service type.
+     * @return future, which when complete will give set of buckets.
+     */
+    CompletableFuture<Set<Integer>> getBucketsForController(String processId, ServiceType serviceType);
 
     enum ServiceType {
         // Naming the service id as "buckets" for backward compatibility

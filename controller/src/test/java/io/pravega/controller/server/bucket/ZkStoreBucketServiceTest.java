@@ -18,6 +18,10 @@ package io.pravega.controller.server.bucket;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.cluster.Cluster;
+import io.pravega.common.cluster.ClusterType;
+import io.pravega.common.cluster.Host;
+import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
@@ -274,5 +278,11 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
 
         // stream 4's work should be called and completed
         streamWorkLatch.get(stream4).join();
+    }
+
+    @Override
+    protected void addEntryToZkCluster(String hostId) {
+        Cluster cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
+        cluster.registerHost(new Host(hostId, 9090, null));
     }
 }

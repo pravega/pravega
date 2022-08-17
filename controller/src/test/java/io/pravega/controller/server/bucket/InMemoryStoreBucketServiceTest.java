@@ -25,6 +25,11 @@ import java.util.concurrent.ScheduledExecutorService;
 public class InMemoryStoreBucketServiceTest extends BucketServiceTest {
 
     @Override
+    protected void addEntryToZkCluster(String hostId) {
+
+    }
+
+    @Override
     public StreamMetadataStore createStreamStore(ScheduledExecutorService executor) {
         return StreamStoreFactory.createInMemoryStore();
     }

@@ -19,21 +19,20 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * This class is central to bucket management. This is instantiated once per service type. It is responsible for acquiring
@@ -54,23 +53,30 @@ public abstract class BucketManager extends AbstractService {
     private final Map<Integer, BucketService> buckets;
     @Getter(AccessLevel.PROTECTED)
     private final ScheduledExecutorService executor;
+    private final BucketStore bucketStore;
 
     BucketManager(final String processId, final BucketStore.ServiceType serviceType, final ScheduledExecutorService executor,
-                  final Function<Integer, BucketService> bucketServiceSupplier) {
+                  final Function<Integer, BucketService> bucketServiceSupplier, final BucketStore bucketStore) {
         this.processId = processId;
         this.serviceType = serviceType;
         this.executor = executor;
         this.lock = new Object();
         this.buckets = new HashMap<>();
         this.bucketServiceSupplier = bucketServiceSupplier;
+        this.bucketStore = bucketStore;
     }
 
     @Override
     protected void doStart() {
+        //The leader which monitors the data cluster and ensures all buckets are mapped to available controllers.
+        startLeaderElection(new BucketManagerLeader(bucketStore, 1000
+                , new UniformBucketDistributor(), serviceType, this));
+        startLeader();
         initializeService()
                 .thenCompose(s ->
-                        Futures.allOf(IntStream.range(0, getBucketCount()).boxed().map(x -> initializeBucket(x)
-                                .thenCompose(v -> tryTakeOwnership(x))).collect(Collectors.toList())))
+                        Futures.allOf(bucketStore.getBucketsForController(processId, serviceType).join().stream()
+                                                 .map(x -> initializeBucket(x).thenCompose(v -> tryTakeOwnership(x)))
+                                                 .collect(Collectors.toList())))
                 .thenAccept(x -> startBucketOwnershipListener())
                 .whenComplete((r, e) -> {
                     if (e != null) {
@@ -84,6 +90,23 @@ public abstract class BucketManager extends AbstractService {
     protected abstract int getBucketCount();
 
     public abstract boolean isHealthy();
+
+    public abstract void startLeaderElection(BucketManagerLeader bucketManagerLeader);
+    public abstract void startLeader();
+    public abstract void stopLeader();
+
+    public void manageBuckets() {
+        Set<Integer> newBuckets = bucketStore.getBucketsForController(processId, getServiceType()).join();
+        log.debug("Buckets assigned to process : {} are {} ", processId, newBuckets);
+        Set<BucketService> removeableBuckets;
+        synchronized (lock)
+        {
+            removeableBuckets = buckets.keySet().stream().filter(x -> !newBuckets.contains(x))
+                                                                 .map(x -> buckets.get(x)).collect(Collectors.toSet());
+        }
+
+        stopBucketServices(removeableBuckets);
+    }
 
     CompletableFuture<Void> tryTakeOwnership(int bucket) {
         return takeBucketOwnership(bucket, processId, executor)
@@ -141,36 +164,40 @@ public abstract class BucketManager extends AbstractService {
         synchronized (lock) { 
             tmp = buckets.values();
         }
-        
-        Futures.allOf(tmp.stream().map(bucketService -> {
-            CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
-            bucketService.addListener(new Listener() {
-                @Override
-                public void terminated(State from) {
-                    super.terminated(from);
-                    bucketFuture.complete(null);
-                }
+        stopBucketServices(tmp);
+        stopLeader();
+    }
 
-                @Override
-                public void failed(State from, Throwable failure) {
-                    super.failed(from, failure);
-                    bucketFuture.completeExceptionally(failure);
-                }
-            }, executor);
-            bucketService.stopAsync();
+    private void stopBucketServices(Collection<BucketService> bucketServices) {
+        Futures.allOf(bucketServices.stream().map(bucketService -> {
+                   CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
+                   bucketService.addListener(new Listener() {
+                       @Override
+                       public void terminated(State from) {
+                           super.terminated(from);
+                           bucketFuture.complete(null);
+                       }
 
-            return bucketFuture;
-        }).collect(Collectors.toList()))
-                .whenComplete((r, e) -> {
-                    stopBucketOwnershipListener();
-                    if (e != null) {
-                        log.error("{}: bucket service shutdown failed with exception", serviceType, e);
-                        notifyFailed(e);
-                    } else {
-                        log.info("{}: bucket service stopped", serviceType);
-                        notifyStopped();
-                    }
-                });
+                       @Override
+                       public void failed(State from, Throwable failure) {
+                           super.failed(from, failure);
+                           bucketFuture.completeExceptionally(failure);
+                       }
+                   }, executor);
+                   bucketService.stopAsync();
+
+                   return bucketFuture;
+               }).collect(Collectors.toList()))
+               .whenComplete((r, e) -> {
+                   stopBucketOwnershipListener();
+                   if (e != null) {
+                       log.error("{}: bucket service shutdown failed with exception", serviceType, e);
+                       notifyFailed(e);
+                   } else {
+                       log.info("{}: bucket service stopped", serviceType);
+                       notifyStopped();
+                   }
+               });
     }
     
     abstract void startBucketOwnershipListener();

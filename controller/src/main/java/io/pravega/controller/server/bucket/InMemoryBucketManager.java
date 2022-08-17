@@ -18,6 +18,8 @@ package io.pravega.controller.server.bucket;
 import com.google.common.base.Preconditions;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.InMemoryBucketStore;
+import java.util.Map;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -28,11 +30,13 @@ import java.util.function.Function;
 @Slf4j
 public class InMemoryBucketManager extends BucketManager {
     private final BucketStore bucketStore;
+    private final String processId;
     
     InMemoryBucketManager(String processId, InMemoryBucketStore bucketStore, BucketStore.ServiceType serviceType, 
                           ScheduledExecutorService executor, Function<Integer, BucketService> bucketServiceSupplier) {
-        super(processId, serviceType, executor, bucketServiceSupplier);
+        super(processId, serviceType, executor, bucketServiceSupplier, bucketStore);
         this.bucketStore = bucketStore;
+        this.processId = processId;
     }
 
     @Override
@@ -48,6 +52,24 @@ public class InMemoryBucketManager extends BucketManager {
     @Override
     public boolean isHealthy() {
         return true;
+    }
+
+    @Override
+    public void startLeaderElection(BucketManagerLeader bucketManagerLeader) {
+        Map<String, Set<Integer>> newMap = bucketManagerLeader.getBucketDistributor()
+                                                              .distribute(bucketStore.getBucketControllerMap(getServiceType()).join()
+                                                                      ,Set.of(processId), getBucketCount());
+        bucketStore.updateBucketControllerMap(newMap, getServiceType());
+    }
+
+    @Override
+    public void startLeader() {
+
+    }
+
+    @Override
+    public void stopLeader() {
+
     }
 
     @Override

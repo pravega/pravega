@@ -16,6 +16,10 @@
 package io.pravega.controller.server.bucket;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.common.cluster.Cluster;
+import io.pravega.common.cluster.ClusterType;
+import io.pravega.common.cluster.Host;
+import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
@@ -66,5 +70,11 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, bucketCount,
                 BucketStore.ServiceType.WatermarkingService, bucketCount);
         return StreamStoreFactory.createZKBucketStore(map, zkClient, executor);
+    }
+
+    @Override
+    protected void addEntryToZkCluster(String hostId) {
+        Cluster cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
+        cluster.registerHost(new Host(hostId, 9090, null));
     }
 }

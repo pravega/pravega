@@ -64,6 +64,7 @@ public abstract class BucketServiceTest {
     public void setup() throws Exception {
         executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
         hostId = UUID.randomUUID().toString();
+        addEntryToZkCluster(hostId);
 
         streamMetadataStore = createStreamStore(executor);
         bucketStore = createBucketStore(3);
@@ -88,6 +89,8 @@ public abstract class BucketServiceTest {
         watermarkingService.startAsync();
         watermarkingService.awaitRunning();
     }
+
+    protected abstract void addEntryToZkCluster(String hostId);
 
     @After
     public void tearDown() throws Exception {
