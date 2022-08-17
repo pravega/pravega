@@ -372,6 +372,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
     public void testControllerMetadataViewPendingEventsCommand() throws Exception {
         final String host = UUID.randomUUID().toString();
         final String requestId = UUID.randomUUID().toString();
+
         @Cleanup("shutdownNow")
         ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "cli-test");
         ZKHelper zkHelper = ZKHelper.create(SETUP_UTILS.getZkTestServer().getConnectString(), "pravega-cluster");
