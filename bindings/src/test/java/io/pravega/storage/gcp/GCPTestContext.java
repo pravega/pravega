@@ -18,8 +18,6 @@ package io.pravega.storage.gcp;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
-import com.google.cloud.storage.testing.RemoteStorageHelper;
 import com.google.gson.JsonObject;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 

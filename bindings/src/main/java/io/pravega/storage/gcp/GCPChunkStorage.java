@@ -141,14 +141,18 @@ public class GCPChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    public int doConcat(ConcatArgument[] chunks) {
+    public int doConcat(ConcatArgument[] chunks) throws ChunkNotFoundException {
         String targetObjectPath = getObjectPath(chunks[0].getName());
         List<String> chunkNames = Arrays.stream(chunks).map(chunk -> getObjectPath(chunk.getName())).collect(Collectors.toList());
-        Storage.ComposeRequest composeRequest = Storage.ComposeRequest.newBuilder().addSource(chunkNames)
-                .setTarget(BlobInfo.newBuilder(this.config.getBucket(), targetObjectPath).build()).build();
-        Blob blob = this.storage.compose(composeRequest);
-        Long l = blob.getSize();
-        return Math.toIntExact(l);
+        try {
+            Storage.ComposeRequest composeRequest = Storage.ComposeRequest.newBuilder().addSource(chunkNames)
+                    .setTarget(BlobInfo.newBuilder(this.config.getBucket(), targetObjectPath).build()).build();
+            Blob blob = this.storage.compose(composeRequest);
+            Long l = blob.getSize();
+            return Math.toIntExact(l);
+        } catch (StorageException ex) {
+            throw new ChunkNotFoundException("", "");
+        }
     }
 
     @Override
