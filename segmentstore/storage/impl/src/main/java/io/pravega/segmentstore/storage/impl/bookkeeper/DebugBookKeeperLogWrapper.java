@@ -144,7 +144,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
      * Disables the BookKeeperLog and updates the metadata in ZooKeeper by setting its Enabled flag to false.
      * @throws DurableDataLogException If an exception occurred.
      */
-    public void markAsdisabled() throws DurableDataLogException {
+    public void markAsDisabled() throws DurableDataLogException {
         val metadata = this.log.loadMetadata();
         forceMetadataOverWrite(metadata.asDisabled());
     }

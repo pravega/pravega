@@ -49,7 +49,7 @@ public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
         outputLogSummary(logId, m);
 
         if (m.isEnabled()) {
-            log.markAsdisabled();
+            log.markAsDisabled();
         }
 
         output("Ledgers will be permanently deleted from bookkeeper log '%s' " +
