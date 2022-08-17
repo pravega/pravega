@@ -39,22 +39,6 @@ import io.pravega.segmentstore.storage.ThrottlerSourceListenerCollection;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.segmentstore.storage.WriteTooLongException;
-
-import java.time.Duration;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import javax.annotation.concurrent.GuardedBy;
-import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -67,6 +51,20 @@ import org.apache.bookkeeper.client.api.WriteHandle;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
+
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * Apache BookKeeper implementation of the DurableDataLog interface.
@@ -1010,34 +1008,6 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     //endregion
-
-    /**
-     * Deletes all ledgers followed by/including given ledgerId
-     *
-     * @param startId     starting ledger id to delete
-     */
-
-    @VisibleForTesting
-    int deleteLedgersStartingWithId(long startId) throws DataLogInitializationException {
-        AtomicInteger count = new AtomicInteger(0);
-        LogMetadata metadata = loadMetadata();
-        val ledgersToDelete = metadata.getLedgers().stream()
-                .map(LedgerMetadata::getLedgerId)
-                .filter(ledgerId -> ledgerId >= startId )
-                .collect(Collectors.toList());
-
-        log.info("{}: List of ledgers to be deleted are: {}.", this.traceObjectId, ledgersToDelete);
-        ledgersToDelete.forEach(id -> {
-            try {
-                Ledgers.delete(id, this.bookKeeper);
-                count.incrementAndGet();
-                log.info("{}: Deleted ledger with ledger id {} from bookkeeper log {}.", this.traceObjectId, id, this.logId);
-            } catch (DurableDataLogException ex) {
-                log.warn("{}: Unable to delete ledger {} from bookkeeper log {}.", this.traceObjectId, id, this.logId, ex);
-            }
-        });
-        return count.get();
-    }
 
     //region Helpers
 

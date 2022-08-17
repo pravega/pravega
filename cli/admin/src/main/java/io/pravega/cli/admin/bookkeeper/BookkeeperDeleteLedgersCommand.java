@@ -59,8 +59,8 @@ public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
             return;
         }
         try {
-            log.deleteLedgersStartingWithId(startId);
-            output("Deleted ledgers from bookkeeper log '%s' starting with ledger id '%s' ", logId, startId);
+            val deletedCount = log.deleteLedgersStartingWithId(startId);
+            output("Total number of deleted ledgers from log '%s' :", logId, deletedCount);
         } catch (Exception ex) {
             output("Delete ledgers failed: Exiting " + ex.getMessage());
             return;

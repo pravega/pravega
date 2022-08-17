@@ -273,7 +273,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         }
     }
 
-    public void deleteLedgersStartingWithId(long startId) throws DurableDataLogException {
+    public int deleteLedgersStartingWithId(long startId) throws DurableDataLogException {
         LogMetadata metadata = this.log.loadMetadata();
         List<LedgerMetadata> ledgers = metadata.getLedgers();
         List<Long> ids = ledgers.stream()
@@ -283,7 +283,20 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
             throw new DurableDataLogException(String.format("No such ledger exist with ledger id: %d.", this.log.getLogId()));
         }
         // Start deleting the ledgers with starting ledger id
-        this.log.deleteLedgersStartingWithId(startId);
+        AtomicInteger count = new AtomicInteger(0);
+        val ledgersToDelete = ids.stream()
+                .filter(ledgerId -> ledgerId >= startId )
+                .collect(Collectors.toList());
+
+        ledgersToDelete.forEach(id -> {
+            try {
+                Ledgers.delete(id, this.bkClient);
+                count.incrementAndGet();
+            } catch (DurableDataLogException ex) {
+                ex.printStackTrace();
+            }
+        });
+        return count.get();
     }
 
     private void initialize() throws DurableDataLogException {
