@@ -43,7 +43,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Long> READ_INDEX_BLOCK_SIZE = Property.named("readindex.block.size", 1024 * 1024L);
 
     public static final Property<Boolean> APPENDS_ENABLED = Property.named("appends.enable", true);
-    public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", true);
+    public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", false);
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
 
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", 128 * 1024 * 1024L);
@@ -88,7 +88,7 @@ public class ChunkedSegmentStorageConfig {
             .maxIndexedChunksPerSegment(1024)
             .maxIndexedChunks(16 * 1024)
             .appendEnabled(true)
-            .lazyCommitEnabled(true)
+            .lazyCommitEnabled(false)
             .inlineDefragEnabled(true)
             .lateWarningThresholdInMillis(100)
             .garbageCollectionDelay(Duration.ofSeconds(60))

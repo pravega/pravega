@@ -1334,9 +1334,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         int maxRollingLength = OWNER_EPOCH;
         long[] chunks = new long[]{10};
         int lastChunkLengthInStorage = 24;
+        int lastChunkLengthInMetadata = 10;
 
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, true);
-
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, true, true);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInMetadata, true, false);
     }
 
     @Test
@@ -1347,7 +1348,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         long[] chunks = new long[]{10};
         int lastChunkLengthInStorage = 10;
 
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false, true);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false, false);
 
     }
 
@@ -1364,7 +1366,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         long[] chunks = new long[]{10};
         int lastChunkLengthInStorage = 10;
 
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false, true);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false, false);
 
     }
 
@@ -1375,14 +1378,15 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         int maxRollingLength = OWNER_EPOCH;
         long[] chunks = new long[]{10};
         int lastChunkLengthInStorage = 24;
-
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, true);
-
+        int lastChunkLengthInMetadata = 10;
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, true, true);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInMetadata, true, false);
     }
 
-    private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, boolean shouldAppend) throws Exception {
+    private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, boolean shouldAppend, boolean useLazyCommit) throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .lazyCommitEnabled(useLazyCommit)
                 .appendEnabled(shouldAppend)
                 .build());
         testContext.chunkedSegmentStorage.initialize(ownerEpoch);
@@ -1401,9 +1405,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, testSegmentName);
     }
 
-    private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, boolean shouldAppend) throws Exception {
+    private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, boolean shouldAppend, boolean useLazyCommit) throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .lazyCommitEnabled(useLazyCommit)
                 .appendEnabled(shouldAppend)
                 .build());
         testContext.chunkedSegmentStorage.initialize(ownerEpoch);

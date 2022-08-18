@@ -331,11 +331,14 @@ public class SystemJournal {
                 }, executor)
                 .thenComposeAsync(v -> {
                     // Step 3: Adjust the length of the last chunk.
+                    /* TEMP FIX - system journals do not fully support appends + non-lazy mode yet.
                     if (config.isLazyCommitEnabled()) {
                         return adjustLastChunkLengths(txn);
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
+                    */
+                    return adjustLastChunkLengths(txn);
                 }, executor)
                 .thenComposeAsync(v -> {
                     // Step 4: Apply the truncate offsets.
