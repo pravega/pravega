@@ -105,7 +105,7 @@ public class ChunkedSegmentStorageConfigTests {
 
     private void testDefaultValues(ChunkedSegmentStorageConfig config) {
         Assert.assertEquals(config.isAppendEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isAppendEnabled());
-        //Assert.assertEquals(config.isLazyCommitEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isLazyCommitEnabled());
+        Assert.assertEquals(config.isLazyCommitEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isLazyCommitEnabled());
         Assert.assertEquals(config.isInlineDefragEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isInlineDefragEnabled());
         Assert.assertEquals(config.getMaxBufferSizeForChunkDataTransfer(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxBufferSizeForChunkDataTransfer());
         Assert.assertEquals(config.getMaxSizeLimitForConcat(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxSizeLimitForConcat());
