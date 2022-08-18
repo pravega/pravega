@@ -61,21 +61,8 @@ public class TruncateableArray implements ArrayView {
 
     //endregion
 
-    @Override
-    public int hashCode() {
-        return (int) hash();
-    }
-
-    /**
-     * Because slicing is not supported equals is based on equality.
-     */
-    @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj);
-    }
-
     //region ArrayView Implementation
-    
+
     @Override
     public byte get(int index) {
         Preconditions.checkElementIndex(index, this.length, "index must be non-negative and less than the length of the array.");
@@ -178,7 +165,6 @@ public class TruncateableArray implements ArrayView {
     @Override
     public ArrayView slice(int offset, int length) {
         throw new UnsupportedOperationException("slice() not supported.");
-        // If support is added equals will also need to be implemented.
     }
 
     @Override

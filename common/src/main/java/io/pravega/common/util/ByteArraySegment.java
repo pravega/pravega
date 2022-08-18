@@ -27,7 +27,6 @@ import java.util.Iterator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 /**
  * Allows segmenting a byte array and operating only on that segment.
@@ -120,7 +119,7 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
 
     @Override
     public Reader getBufferViewReader() {
-        return new Reader(buffer.slice());
+        return new Reader();
     }
 
     @Override
@@ -272,54 +271,63 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
     //endregion
 
     //region Reader
-    @RequiredArgsConstructor
-    public
-    static final class Reader extends AbstractReader implements BufferView.Reader {
-        private final ByteBuffer buffer;
+
+    private class Reader extends AbstractReader implements BufferView.Reader {
+        private int position = 0;
 
         @Override
         public int available() {
-            return buffer.remaining();
+            return ByteArraySegment.this.length - this.position;
         }
 
         @Override
         public int readBytes(ByteBuffer byteBuffer) {
-            return ByteBufferUtils.copy(buffer, byteBuffer);
+            int len = Math.min(available(), byteBuffer.remaining());
+            byteBuffer.put(array(), arrayOffset() + this.position, len);
+            this.position += len;
+            return len;
         }
 
         @Override
         public byte readByte() {
-            try {
-                return buffer.get();
-            } catch (IndexOutOfBoundsException ex) {
+            if (this.position >= ByteArraySegment.this.length) {
                 throw new OutOfBoundsException();
             }
+
+            byte result = ByteArraySegment.this.get(this.position);
+            this.position++;
+            return result;
         }
 
         @Override
         public int readInt() {
-            try {
-                return buffer.getInt();
-            } catch (IndexOutOfBoundsException ex) {
+            int nextPos = this.position + Integer.BYTES;
+            if (nextPos > ByteArraySegment.this.length) {
                 throw new OutOfBoundsException();
             }
+
+            int r = ByteArraySegment.this.getInt(this.position);
+            this.position = nextPos;
+            return r;
         }
 
         @Override
         public long readLong() {
-            try {
-                return buffer.getLong();
-            } catch (IndexOutOfBoundsException ex) {
+            int nextPos = this.position + Long.BYTES;
+            if (nextPos > ByteArraySegment.this.length) {
                 throw new OutOfBoundsException();
             }
+
+            long r = ByteArraySegment.this.getLong(this.position);
+            this.position = nextPos;
+            return r;
         }
 
         @Override
         public BufferView readSlice(int length) {
             try {
-                ByteBuffer slice = ByteBufferUtils.slice(buffer, buffer.position(), length);
-                BufferView result = new ByteArraySegment(slice);
-                buffer.position(buffer.position() + length);
+                BufferView result = ByteArraySegment.this.slice(this.position, length);
+                this.position += length;
                 return result;
             } catch (IndexOutOfBoundsException ex) {
                 throw new OutOfBoundsException();
