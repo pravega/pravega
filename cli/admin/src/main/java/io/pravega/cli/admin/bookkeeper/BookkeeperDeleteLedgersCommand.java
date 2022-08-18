@@ -20,7 +20,7 @@ import lombok.Cleanup;
 import lombok.val;
 
 /**
- * This command delete all the ledgers of the log starting with and including given ledger-id.
+ * This command deletes all the ledgers of the log starting with and including given ledger-id.
  * It disables the log if enabled before deleting the ledgers.
  * It can be used as last resort to recover the log in case recovery fails with missing ledger(s).
  */
