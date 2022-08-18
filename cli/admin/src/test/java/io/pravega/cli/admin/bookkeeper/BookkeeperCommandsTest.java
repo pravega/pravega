@@ -255,9 +255,6 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         // Try the command against a non-existent log.
         Assert.assertTrue(TestUtils.executeCommand("bk delete-ledgers 5 1", STATE.get()).contains("does not exist."));
         createLedgerInBookkeeperTestCluster(0);
-        // Try the command against an enabled log.
-        Assert.assertTrue(TestUtils.executeCommand("bk delete-ledgers 0 5",
-                STATE.get()).contains("Please, disable it before executing this command"));
         System.setIn(new ByteArrayInputStream("yes".getBytes()));
         TestUtils.executeCommand("bk disable 0", STATE.get());
         // Now, let's try the command under the expected conditions.

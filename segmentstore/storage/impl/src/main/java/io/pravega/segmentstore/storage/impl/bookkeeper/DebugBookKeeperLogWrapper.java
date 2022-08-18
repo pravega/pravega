@@ -142,6 +142,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
 
     /**
      * Disables the BookKeeperLog and updates the metadata in ZooKeeper by setting its Enabled flag to false.
+     * It ignores fence-out and should be used wisely and for administration purpose only.
      * @throws DurableDataLogException If an exception occurred.
      */
     public void markAsDisabled() throws DurableDataLogException {
@@ -273,6 +274,15 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         }
     }
 
+    /**
+     * Deletes all the ledgers of the log starting (including) given starting ledger id.
+     * CAUTION: This is a destructive operation and should be
+     * used wisely for administration purposes (e.g., repair a damaged BookkeeperLog).
+     *
+     * @param startId It refers to the ledger id from where deletion happens.
+     * @return The total number of ledgers deleted.
+     * @throws DurableDataLogException in case there is a problem while deleting ledger.
+     */
     public int deleteLedgersStartingWithId(long startId) throws DurableDataLogException {
         LogMetadata metadata = this.log.loadMetadata();
         List<LedgerMetadata> ledgers = metadata.getLedgers();
