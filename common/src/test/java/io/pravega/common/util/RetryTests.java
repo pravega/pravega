@@ -26,7 +26,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Test;
@@ -267,21 +266,6 @@ public class RetryTests {
                 }),
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals(1, attempts.get());
-    }
-    
-    @Test
-    public void testNoBackoff() {
-        AtomicInteger attempts = new AtomicInteger(0);
-        val policy = Retry.withoutBackoff(2).retryingOn(IntentionalException.class).throwingOn(RuntimeException.class);
-        assertEquals(0, policy.params.getMaxDelay());
-        assertEquals(0, policy.params.getInitialMillis());
-        AssertExtensions.assertThrows("",
-                () -> policy.run(() -> {
-                    attempts.incrementAndGet();
-                    throw new IntentionalException();
-                }),
-                ex -> ex instanceof RetriesExhaustedException && ex.getCause() instanceof IntentionalException);
-        Assert.assertEquals(2, attempts.get());
     }
 
     private int retry(long delay,
