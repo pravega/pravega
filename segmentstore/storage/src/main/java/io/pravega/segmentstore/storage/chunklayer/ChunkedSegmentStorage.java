@@ -311,7 +311,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         // Get the last chunk
         val lastChunkName = segmentMetadata.getLastChunk();
         final CompletableFuture<Boolean> f;
-        if (shouldAppend() && null != lastChunkName) {
+        if (needsToClaimOwnership(lastChunkName)) {
             f = txn.get(lastChunkName)
                     .thenComposeAsync(storageMetadata -> {
                         val lastChunk = (ChunkMetadata) storageMetadata;
@@ -383,6 +383,21 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
             txn.update(segmentMetadata);
             return txn.commit();
         }, executor);
+    }
+
+    /**
+     * Returns whether it is necessary to run the SLTS internal reconciliation process for a Segment. Note that executing
+     * this process is only needed in case of lazy commits of SLTS metadata when append mode. An exception to that are
+     * Attribute Segment, for which claim ownership is not needed as we always flush metadata for their updates.
+     *
+     * @param lastChunkName Name of the last chunk for this Segment.
+     * @return Whether it is necessary or not to run internal SLTS reconciliation process for that Segment.
+     */
+    private boolean needsToClaimOwnership(String lastChunkName) {
+        return shouldAppend()
+                && null != lastChunkName
+                && this.config.isLazyCommitEnabled()
+                && !NameUtils.isAttributeSegment(lastChunkName);
     }
 
     @Override
