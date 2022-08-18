@@ -87,6 +87,15 @@ public interface BufferView {
     default BufferView slice() {
         return this;
     }
+
+    /**
+     * Hashes the contents of the buffer in a fast and consistent way.
+     * 
+     * @return A hash of the buffer view's data.
+     */
+    default long hash() {
+        return HashHelper.hashBufferView(this);
+    }
     
     /**
      * Creates a new {@link BufferView} that represents a sub-range of this {@link BufferView} instance. The new instance
@@ -97,15 +106,6 @@ public interface BufferView {
      * @return A new {@link BufferView}.
      */
     BufferView slice(int offset, int length);
-
-    /**
-     * Hashes the contents of the buffer in a fast and consistent way.
-     *
-     * @return A hash of the buffer view's data.
-     */
-    default long hash() {
-        return HashHelper.hashBufferView(this);
-    }
 
     /**
      * Returns a copy of the contents of this {@link BufferView}.

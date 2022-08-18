@@ -15,7 +15,6 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.hash.HashHelper;
 import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
@@ -75,7 +74,7 @@ public class AbstractBufferViewTests {
         val b2Data = b.getCopy();
 
         // Verify the hashcode stays the same if we make a copy of the buffer.
-        Assert.assertEquals(b.hash(), HashHelper.hashBufferView(BufferView.wrap(b2Data)));
+        Assert.assertEquals(b.hashCode(), AbstractBufferView.hashCode(b2Data));
 
         // Verify the hashcode changes if we alter the data.
         b2Data[1] = (byte) (b2Data[1] + 1);
