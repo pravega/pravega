@@ -396,7 +396,6 @@ public abstract class AbstractControllerMetadataCommandsTest {
         hostIndex.addEntity(host, requestId, emptyByteData).join();
         commandResult = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
         Assert.assertTrue(commandResult.contains("No metadata found"));
-
         //Exception scenario : Remove the event from the host index. This will remove entry from zk hostIndex.
         eventHelper.removeTaskFromIndex(host, requestId ).join();
         String commandResultAfterRemoval = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
