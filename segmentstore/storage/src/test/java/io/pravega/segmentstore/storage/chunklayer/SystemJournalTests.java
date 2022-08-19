@@ -987,12 +987,20 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             String newChunk = "chunk" + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
             totalBytesWritten += policy.getMaxLength();
-            systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
+            val journalRecords = new ArrayList<SystemJournal.SystemJournalRecord>();
+            journalRecords.add(SystemJournal.ChunkAddedRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(policy.getMaxLength() * i)
                     .newChunkName(newChunk)
                     .oldChunkName(lastChunk)
-                    .build()).join();
+                    .build());
+            journalRecords.add(SystemJournal.AppendRecord.builder()
+                    .segmentName(systemSegmentName)
+                    .chunkName(newChunk)
+                    .offset(0)
+                    .length(Math.toIntExact(policy.getMaxLength()))
+                    .build());
+            systemJournalBefore.commitRecords(journalRecords).join();
             lastChunk = newChunk;
         }
         Assert.assertEquals(policy.getMaxLength() * 10, totalBytesWritten);
@@ -1070,12 +1078,20 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             String newChunk = "chunk" + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
             totalBytesWritten += policy.getMaxLength();
-            systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
+            val journalRecords = new ArrayList<SystemJournal.SystemJournalRecord>();
+            journalRecords.add(SystemJournal.ChunkAddedRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(policy.getMaxLength() * i)
                     .newChunkName(newChunk)
                     .oldChunkName(lastChunk)
-                    .build()).join();
+                    .build());
+            journalRecords.add(SystemJournal.AppendRecord.builder()
+                    .segmentName(systemSegmentName)
+                    .chunkName(newChunk)
+                    .offset(0)
+                    .length(Math.toIntExact(policy.getMaxLength()))
+                    .build());
+            systemJournalBefore.commitRecords(journalRecords).join();
             lastChunk = newChunk;
         }
         Assert.assertEquals(policy.getMaxLength() * 10, totalBytesWritten);
@@ -1155,12 +1171,20 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             String newChunk = "chunk" + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
             totalBytesWritten += policy.getMaxLength();
-            systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
+            val journalRecords = new ArrayList<SystemJournal.SystemJournalRecord>();
+            journalRecords.add(SystemJournal.ChunkAddedRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(policy.getMaxLength() * i)
                     .newChunkName(newChunk)
                     .oldChunkName(lastChunk)
-                    .build()).join();
+                    .build());
+            journalRecords.add(SystemJournal.AppendRecord.builder()
+                    .segmentName(systemSegmentName)
+                    .offset(0)
+                    .chunkName(newChunk)
+                    .length(Math.toIntExact(policy.getMaxLength()))
+                    .build());
+            systemJournalBefore.commitRecords(journalRecords).join();
             lastChunk = newChunk;
         }
         Assert.assertEquals(policy.getMaxLength() * 10, totalBytesWritten);

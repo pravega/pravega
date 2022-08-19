@@ -194,10 +194,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     private CompletableFuture<Void> commit(MetadataTransaction txn) {
         // commit all system log records if required.
-        if (isSystemSegment && chunksAddedCount.get() > 0) {
+        if (isSystemSegment && systemLogRecords.size() > 0) {
             // commit all system log records.
-            Preconditions.checkState(chunksAddedCount.get() == systemLogRecords.size(),
-                    "Number of chunks added (%s) must match number of system log records(%s)", chunksAddedCount.get(), systemLogRecords.size());
             txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecords(systemLogRecords));
         }
 
@@ -427,6 +425,16 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     txn.update(segmentMetadata);
                     bytesRemaining.addAndGet(-bytesWritten);
                     currentOffset.addAndGet(bytesWritten);
+                    // Add system journal record for append.
+                    if (isSystemSegment) {
+                        systemLogRecords.add(
+                                SystemJournal.AppendRecord.builder()
+                                        .segmentName(segmentMetadata.getName())
+                                        .chunkName(chunkWrittenMetadata.getName())
+                                        .offset(offsetToWriteAt)
+                                        .length(bytesWritten)
+                                        .build());
+                    }
                 }, chunkedSegmentStorage.getExecutor())
                 .handleAsync((v, e) -> {
                     if (null != e) {
