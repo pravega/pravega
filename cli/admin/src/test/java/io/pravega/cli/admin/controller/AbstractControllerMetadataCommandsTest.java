@@ -377,6 +377,7 @@ public abstract class AbstractControllerMetadataCommandsTest {
         ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "cli-test");
         ZKHelper zkHelper = ZKHelper.create(SETUP_UTILS.getZkTestServer().getConnectString(), "pravega-cluster");
         ZKHostIndex hostIndex = zkHelper.getZkHostIndex(executorService);
+        @Cleanup
         EventHelper eventHelper = new EventHelper(executorService, host, hostIndex);
 
         String scopedStreamName = "scope/stream";
@@ -385,20 +386,19 @@ public abstract class AbstractControllerMetadataCommandsTest {
                                                     .retentionType(ReaderGroupConfig.StreamDataRetention.NONE)
                                                     .build();
         CreateReaderGroupEvent createEventOne = buildCreateRGEvent("scope", "rg1", rgConf, 1L, System.currentTimeMillis());
-
-        eventHelper.addRequestToIndex(host, requestId, createEventOne);
+        eventHelper.addRequestToIndex(host, requestId, createEventOne).join();
         String commandResult = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
         Assert.assertTrue(commandResult.contains("rg1"));
 
         //No metadata found scenario.
         byte[] emptyByteData = new byte[0];
-        hostIndex.removeEntity(host, requestId, false);
-        hostIndex.addEntity(host, requestId, emptyByteData);
+        hostIndex.removeEntity(host, requestId, false).join();
+        hostIndex.addEntity(host, requestId, emptyByteData).join();
         commandResult = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
         Assert.assertTrue(commandResult.contains("No metadata found"));
 
         //Exception scenario : Remove the event from the host index. This will remove entry from zk hostIndex.
-        eventHelper.removeTaskFromIndex(host, requestId );
+        eventHelper.removeTaskFromIndex(host, requestId ).join();
         String commandResultAfterRemoval = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
         Assert.assertTrue(commandResultAfterRemoval.contains("Exception accessing pending events metadata"));
     }

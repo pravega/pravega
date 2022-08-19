@@ -20,6 +20,9 @@ import io.pravega.cli.admin.utils.ZKHelper;
 
 /**
  * To view pending event detail for a request in a particular controller host.
+ * When Controller submits events for processing various operations like updating s stream, creating a KVT, a reader Group etc.
+ * these events are also added to a zookeeper znode belonging to that particular Controller host with path.
+ * Controller events in this znode indicates the pending events that controller has not yet processed.
  */
 public class ControllerMetadataViewPendingEventsCommand extends ControllerMetadataCommand {
 
@@ -35,8 +38,8 @@ public class ControllerMetadataViewPendingEventsCommand extends ControllerMetada
     @Override
     public void execute() throws Exception {
         ensureArgCount(2);
-        final String hostId =  getArg(0);
-        final String requestUuid =  getArg(1);
+        final String hostId = getArg(0);
+        final String requestUuid = getArg(1);
         try {
             ZKHelper zkHelper = ZKHelper.create(getServiceConfig().getZkURL(), getServiceConfig().getClusterName());
             output("request-detail: \n %s", zkHelper.getPendingEventsForRequest(getRequestPath(hostId, requestUuid)));
