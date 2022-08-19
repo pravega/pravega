@@ -801,33 +801,20 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         Assert.assertNotNull(wrapper.fetchMetadata());
         wrapper.deleteDurableLogMetadata();
         Assert.assertNull(wrapper.fetchMetadata());
-        LogMetadata metadata = new LogMetadata(1);
-        metadata.addLedger(2);
-        metadata.addLedger(3);
-        wrapper.forceMetadataOverWrite(metadata);
-        wrapper.deleteLedgersStartingWithId(2);
-        Assert.assertNotNull(wrapper.fetchMetadata().getLedgers());
     }
 
 
     @Test
     public void testDeleteLedgersStartingWithId() throws Exception {
         final int initialLedgerCount = 5;
-        final int midPoint = initialLedgerCount / 2;
-        final BookKeeper bk = this.factory.get().getBookKeeperClient();
-        long sameLogSmallIdLedger = -1; // BK Ledger that belongs to this log, but has small id.
-
-        // Create a Log and add a few ledgers.
         for (int i = 0; i < initialLedgerCount; i++) {
             try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
                 log.initialize(TIMEOUT);
                 log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
         }
-
         BookKeeperLog log = (BookKeeperLog) createDurableDataLog();
         val wrapper = this.factory.get().createDebugLogWrapper(log.getLogId());
-        val ledgers = wrapper.fetchMetadata().getLedgers();
         wrapper.deleteLedgersStartingWithId(3);
         Assert.assertNotNull(wrapper.fetchMetadata().getLedgers().size());
     }
