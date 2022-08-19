@@ -815,8 +815,16 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         }
         BookKeeperLog log = (BookKeeperLog) createDurableDataLog();
         val wrapper = this.factory.get().createDebugLogWrapper(log.getLogId());
+        Assert.assertTrue(wrapper.fetchMetadata().isEnabled());
+        wrapper.markAsDisabled();
+        Assert.assertFalse(wrapper.fetchMetadata().isEnabled());
         wrapper.deleteLedgersStartingWithId(3);
         Assert.assertNotNull(wrapper.fetchMetadata().getLedgers().size());
+
+        AssertExtensions.assertThrows(
+                "No such ledger exist",
+                () -> wrapper.deleteLedgersStartingWithId(6),
+                ex -> ex instanceof DurableDataLogException);
     }
 
     @Override
