@@ -401,6 +401,9 @@ public abstract class AbstractControllerMetadataCommandsTest {
         eventHelper.removeTaskFromIndex(host, requestId ).join();
         String commandResultAfterRemoval = TestUtils.executeCommand("controller-metadata request-detail " + host + " " + requestId, STATE.get());
         Assert.assertTrue(commandResultAfterRemoval.contains("Exception accessing pending events metadata"));
+        if (eventHelper != null) {
+            eventHelper.close();
+        }
     }
 
     @After
