@@ -801,6 +801,8 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         Assert.assertNotNull(wrapper.fetchMetadata());
         wrapper.deleteDurableLogMetadata();
         Assert.assertNull(wrapper.fetchMetadata());
+        wrapper.deleteLedgersStartingWithId(1);
+        Assert.assertNotNull(wrapper.fetchMetadata().getLedgers());
     }
 
     @Override
