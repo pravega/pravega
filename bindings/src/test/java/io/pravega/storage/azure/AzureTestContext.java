@@ -59,7 +59,7 @@ public class AzureTestContext {
                 .with(AzureStorageConfig.CONTAINER, "azureunittests" + System.currentTimeMillis())
                 .with(AzureStorageConfig.PREFIX, prefix)
                 .with(AzureStorageConfig.ACCESS_KEY, "access")
-                .with(AzureStorageConfig.CREATE_CONTAINER, true)
+                .with(AzureStorageConfig.CREATE_CONTAINER, false)
                 .build();
     }
 
