@@ -1001,7 +1001,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
             assertEquals(cmd.getErrorCode().getExceptionType(), exceptionType);
             assertEquals(WireCommands.ErrorMessage.ErrorCode.valueOf(exceptionType), code);
 
-            Exception exception = cmd.getThrowableException();
+            RuntimeException exception = cmd.getThrowableException();
             AssertExtensions.assertThrows(exceptionType, () -> {
                 throw exception;
             });
