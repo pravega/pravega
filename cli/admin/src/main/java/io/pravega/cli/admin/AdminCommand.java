@@ -44,6 +44,7 @@ import io.pravega.cli.admin.controller.metadata.ControllerMetadataGetEntryComman
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListEntriesCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListKeysCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataUpdateEntryCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewPendingEventsCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewReaderInfoCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogInspectCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
@@ -412,6 +413,7 @@ public abstract class AdminCommand {
                         .put(ControllerMetadataUpdateEntryCommand::descriptor, ControllerMetadataUpdateEntryCommand::new)
                         .put(ControllerMetadataViewReaderInfoCommand::descriptor, ControllerMetadataViewReaderInfoCommand::new)
                         .put(ListChunksCommand::descriptor, ListChunksCommand::new)
+                        .put(ControllerMetadataViewPendingEventsCommand::descriptor, ControllerMetadataViewPendingEventsCommand::new)
                         .build());
 
         /**
