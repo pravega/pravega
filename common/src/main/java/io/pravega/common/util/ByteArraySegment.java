@@ -22,6 +22,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.stream.Collectors;
@@ -291,7 +292,7 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
         public byte readByte() {
             try {
                 return buffer.get();
-            } catch (IndexOutOfBoundsException ex) {
+            } catch (BufferUnderflowException ex) {
                 throw new OutOfBoundsException();
             }
         }
@@ -300,7 +301,7 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
         public int readInt() {
             try {
                 return buffer.getInt();
-            } catch (IndexOutOfBoundsException ex) {
+            } catch (BufferUnderflowException ex) {
                 throw new OutOfBoundsException();
             }
         }
@@ -309,19 +310,22 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
         public long readLong() {
             try {
                 return buffer.getLong();
-            } catch (IndexOutOfBoundsException ex) {
+            } catch (BufferUnderflowException ex) {
                 throw new OutOfBoundsException();
             }
         }
 
         @Override
         public BufferView readSlice(int length) {
+            if (buffer.remaining() < length) {
+                throw new OutOfBoundsException();
+            }
             try {
                 ByteBuffer slice = ByteBufferUtils.slice(buffer, buffer.position(), length);
                 BufferView result = new ByteArraySegment(slice);
                 buffer.position(buffer.position() + length);
                 return result;
-            } catch (IndexOutOfBoundsException ex) {
+            } catch (BufferUnderflowException ex) {
                 throw new OutOfBoundsException();
             }
         }
