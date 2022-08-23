@@ -170,6 +170,8 @@ public class HashHelper {
     /**
      * Hashes a bufferview in-place. (in contrast to murmur above which needs to copy data into a single array)
      * (This passes the smhasher quality test suite)
+     *
+     * @param bufferView The input.
      */
     public static final long hashBufferView(BufferView bufferView) {
         long multiple = 6364136223846793005L; // From knuth
