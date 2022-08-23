@@ -57,8 +57,8 @@ public class InMemoryBucketManager extends BucketManager {
     @Override
     public void startLeaderElection(BucketManagerLeader bucketManagerLeader) {
         Map<String, Set<Integer>> newMap = bucketManagerLeader.getBucketDistributor()
-                                                              .distribute(bucketStore.getBucketControllerMap(getServiceType()).join()
-                                                                      ,Set.of(processId), getBucketCount());
+                                                              .distribute(bucketStore.getBucketControllerMap(getServiceType()).join(),
+                                                                      Set.of(processId), getBucketCount());
         bucketStore.updateBucketControllerMap(newMap, getServiceType());
     }
 

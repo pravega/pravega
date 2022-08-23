@@ -51,8 +51,8 @@ public class ZooKeeperBucketManager extends BucketManager {
         this.processId = processId;
         addBucketControllerMapListener();
         //The leader which monitors the data cluster and ensures all buckets are mapped to available controllers.
-        startLeaderElection(new BucketManagerLeader(bucketStore, 10
-                , new UniformBucketDistributor(), serviceType, this));
+        startLeaderElection(new BucketManagerLeader(bucketStore, 10,
+                new UniformBucketDistributor(), serviceType, this));
         startLeader();
     }
 

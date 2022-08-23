@@ -1,25 +1,3 @@
-package io.pravega.controller.server.bucket;
-
-import com.google.common.base.Preconditions;
-import io.pravega.common.cluster.Cluster;
-import io.pravega.common.cluster.ClusterException;
-import io.pravega.common.cluster.ClusterType;
-import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
-import io.pravega.controller.store.host.HostStoreException;
-import io.pravega.controller.store.stream.BucketStore;
-import java.io.IOException;
-import java.time.Duration;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.recipes.leader.LeaderSelectorListener;
-import org.apache.curator.framework.state.ConnectionState;
-
 /**
  * Copyright Pravega Authors.
  * <p>
@@ -35,6 +13,24 @@ import org.apache.curator.framework.state.ConnectionState;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+package io.pravega.controller.server.bucket;
+
+import com.google.common.base.Preconditions;
+import io.pravega.common.cluster.Cluster;
+import io.pravega.common.cluster.ClusterType;
+import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.controller.store.stream.BucketStore;
+import java.time.Duration;
+import java.util.Set;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.leader.LeaderSelectorListener;
+import org.apache.curator.framework.state.ConnectionState;
 @Slf4j
 public class BucketManagerLeader implements LeaderSelectorListener {
 

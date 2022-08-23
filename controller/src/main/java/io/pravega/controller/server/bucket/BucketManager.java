@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -88,7 +87,9 @@ public abstract class BucketManager extends AbstractService {
     public abstract boolean isHealthy();
 
     public abstract void startLeaderElection(BucketManagerLeader bucketManagerLeader);
+
     public abstract void startLeader();
+
     public abstract void stopLeader();
 
     protected void manageBuckets() {
@@ -205,6 +206,7 @@ public abstract class BucketManager extends AbstractService {
     abstract CompletableFuture<Void> initializeService();
     
     abstract CompletableFuture<Void> initializeBucket(int bucket);
+
     abstract void addBucketControllerMapListener();
 
     /**

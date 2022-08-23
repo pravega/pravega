@@ -1,17 +1,3 @@
-package io.pravega.controller.store.stream;
-
-import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.RevisionDataInput;
-import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.common.io.serialization.VersionedSerializer;
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
-import lombok.Builder;
-import lombok.Getter;
-
 /**
  * Copyright Pravega Authors.
  * <p>
@@ -27,6 +13,20 @@ import lombok.Getter;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+package io.pravega.controller.store.stream;
+
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+import lombok.Builder;
+import lombok.Getter;
 @Builder
 public class BucketSet {
     static final BucketSet.BucketSetSerializer SERIALIZER = new BucketSet.BucketSetSerializer();

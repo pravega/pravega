@@ -1,13 +1,3 @@
-package io.pravega.controller.store.stream;
-
-import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.RevisionDataInput;
-import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.common.io.serialization.VersionedSerializer;
-import java.io.IOException;
-import lombok.Builder;
-import lombok.Getter;
-
 /**
  * Copyright Pravega Authors.
  * <p>
@@ -23,6 +13,17 @@ import lombok.Getter;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+package io.pravega.controller.store.stream;
+
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import java.io.IOException;
+import lombok.Builder;
+import lombok.Getter;
+
 @Builder
 public class ProcessId {
     static final ProcessId.ProcessIdSerializer SERIALIZER = new ProcessId.ProcessIdSerializer();

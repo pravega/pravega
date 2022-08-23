@@ -1,18 +1,3 @@
-package io.pravega.controller.store.stream;
-
-import com.google.common.collect.ImmutableMap;
-import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.RevisionDataInput;
-import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.common.io.serialization.VersionedSerializer;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-import lombok.Builder;
-import lombok.SneakyThrows;
-
 /**
  * Copyright Pravega Authors.
  * <p>
@@ -28,6 +13,22 @@ import lombok.SneakyThrows;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+package io.pravega.controller.store.stream;
+
+import com.google.common.collect.ImmutableMap;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import lombok.Builder;
+import lombok.SneakyThrows;
+
 public class BucketControllerMap {
     public static final BucketControllerMapSerializer SERIALIZER = new BucketControllerMapSerializer();
     public static final BucketControllerMap EMPTY = new BucketControllerMap(Collections.emptyMap());

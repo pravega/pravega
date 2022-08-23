@@ -37,7 +37,7 @@ import org.junit.Before;
 public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     private TestingServer zkServer;
     private CuratorFramework zkClient;
-    Cluster cluster ;
+    private Cluster cluster;
 
     @Override
     @Before

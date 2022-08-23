@@ -1,3 +1,19 @@
+/**
+ * Copyright Pravega Authors.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.pravega.controller.server.bucket;
 
 import com.google.common.base.Preconditions;
@@ -15,22 +31,6 @@ import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Copyright Pravega Authors.
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-/**
  * This implements the BucketDistributor by uniformly distributing buckets across all controllers in the cluster.
  * This is based only on the number of buckets running on a given controller and does not consider any other metric.
  *
@@ -42,7 +42,7 @@ import lombok.extern.slf4j.Slf4j;
  * - The balanced condition happens when the difference between min and max containers is at most 1.
  */
 @Slf4j
-public class UniformBucketDistributor implements BucketDistributor{
+public class UniformBucketDistributor implements BucketDistributor {
     @Override
     public Map<String, Set<Integer>> distribute(Map<String, Set<Integer>> previousBucketControllerMapping,
                                                 Set<String> currentControllers, int bucketCount) {

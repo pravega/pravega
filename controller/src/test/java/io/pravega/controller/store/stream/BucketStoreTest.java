@@ -94,7 +94,7 @@ public abstract class BucketStoreTest {
         assertTrue(streams.contains(NameUtils.getScopedStreamName(scope, stream3)));
         assertFalse(streams.contains(NameUtils.getScopedStreamName(scope, stream2)));
 
-        Map<String , Set<Integer>> bucketMap = bucketStore.getBucketControllerMap(serviceType).join();
+        Map<String, Set<Integer>> bucketMap = bucketStore.getBucketControllerMap(serviceType).join();
         assertEquals(0, bucketMap.size());
         Map<String, Set<Integer>> newBucketMap = new HashMap<>();
         //update empty bucket map
