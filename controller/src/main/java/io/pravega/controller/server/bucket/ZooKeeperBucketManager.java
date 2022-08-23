@@ -27,7 +27,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
@@ -47,6 +49,11 @@ public class ZooKeeperBucketManager extends BucketManager {
         bucketOwnershipCacheMap = new ConcurrentHashMap<>();
         this.bucketStore = bucketStore;
         this.processId = processId;
+        addBucketControllerMapListener();
+        //The leader which monitors the data cluster and ensures all buckets are mapped to available controllers.
+        startLeaderElection(new BucketManagerLeader(bucketStore, 10
+                , new UniformBucketDistributor(), serviceType, this));
+        startLeader();
     }
 
     /**
@@ -76,11 +83,14 @@ public class ZooKeeperBucketManager extends BucketManager {
                     break;
                 case CHILD_REMOVED:
                     int bucketId = Integer.parseInt(ZKPaths.getNodeFromPath(event.getData().getPath()));
-                    if (bucketStore.getBucketsForController(processId, getServiceType()).join().contains(bucketId)) {
-                        RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(bucketId),
-                                e -> log.warn("{}: exception while attempting to take ownership for bucket {}: {}", getServiceType(),
-                                        bucketId, e.getMessage()), getExecutor());
-                    }
+                    bucketStore.getBucketsForController(processId, getServiceType())
+                            .thenAccept(buckets -> {
+                                if (buckets.contains(bucketId)) {
+                                    RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(bucketId),
+                                            e -> log.warn("{}: exception while attempting to take ownership for bucket {}: {}", getServiceType(),
+                                                    bucketId, e.getMessage()), getExecutor());
+                                }
+                            }).join();
                     break;
                 case CONNECTION_LOST:
                     log.warn("{}: Received connectivity error", getServiceType());
@@ -125,6 +135,16 @@ public class ZooKeeperBucketManager extends BucketManager {
         Preconditions.checkArgument(bucket < bucketStore.getBucketCount(getServiceType()));
         
         return bucketStore.createBucket(getServiceType(), bucket);
+    }
+
+    @SneakyThrows(Exception.class)
+    @Override
+    void addBucketControllerMapListener() {
+            NodeCache cache = bucketStore.getBucketControllerMapNodeCache(getServiceType());
+            cache.getListenable().addListener(this::manageBuckets);
+            log.info("Bucket controller map listener registered for service {}", getServiceType());
+            cache.start(true);
+            manageBuckets();
     }
 
     @Override

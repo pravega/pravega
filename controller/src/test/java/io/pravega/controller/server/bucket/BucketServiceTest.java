@@ -20,6 +20,7 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -63,8 +64,9 @@ public abstract class BucketServiceTest {
     @Before
     public void setup() throws Exception {
         executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
-        hostId = UUID.randomUUID().toString();
-        addEntryToZkCluster(hostId);
+        Host controller = new Host(UUID.randomUUID().toString(), 9090, null);
+        hostId = controller.getHostId();
+        addEntryToZkCluster(controller);
 
         streamMetadataStore = createStreamStore(executor);
         bucketStore = createBucketStore(3);
@@ -90,7 +92,7 @@ public abstract class BucketServiceTest {
         watermarkingService.awaitRunning();
     }
 
-    protected abstract void addEntryToZkCluster(String hostId);
+    protected abstract void addEntryToZkCluster(Host host);
 
     @After
     public void tearDown() throws Exception {

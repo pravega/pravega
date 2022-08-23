@@ -130,7 +130,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
                 log.info("Received distribute buckets");
 
                 // Wait here until distribution can be performed.
-                //waitForReDistribute();
+                waitForReDistribute();
 
                 // Clear all events that has been received until this point since this will be included in the current
                 // distribution operation.
@@ -167,22 +167,17 @@ public class BucketManagerLeader implements LeaderSelectorListener {
         Thread.sleep(minRebalanceInterval.toMillis());
     }
 
-    private void triggerDistribution() throws IOException {
+    private void triggerDistribution() {
         //Read the current mapping from the bucket store and write back the update after distribution.
-        try {
-            Set<String> currentControllers = pravegaServiceCluster.getClusterMembers().stream().map( controller ->
-                                                                          controller.getHostId()).collect(Collectors.toSet());
-            Map<String, Set<Integer>> newMapping = bucketDistributor.distribute(bucketStore.getBucketControllerMap(serviceType).join(),
-                    currentControllers, bucketStore.getBucketCount(serviceType));
-            Map<String, Set<Integer>> oldMapping = bucketStore.getBucketControllerMap(serviceType).join();
-            bucketStore.updateBucketControllerMap(newMapping, serviceType);
-            bucketManager.manageBuckets();
-          //  hostContainerMetrics.updateHostContainerMetrics(oldMapping, newMapping);
-        } catch (ClusterException e) {
-            throw new IOException(e);
-        } catch (Exception e) {
-            throw new HostStoreException("Failed to persist bucket controller map to zookeeper", e);
-        }
+        Set<String> currentControllers = pravegaServiceCluster.getClusterMembers().stream().map(controller ->
+                controller.getHostId()).collect(Collectors.toSet());
+
+            bucketStore.getBucketControllerMap(serviceType)
+                       .thenApply(controllers -> bucketDistributor.distribute(controllers, currentControllers,
+                               bucketStore.getBucketCount(serviceType)))
+                       .thenCompose(newMapping -> bucketStore.updateBucketControllerMap(newMapping, serviceType))
+                       .join();
+
     }
 
     @Override

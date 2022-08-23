@@ -93,6 +93,11 @@ public class InMemoryBucketManager extends BucketManager {
     }
 
     @Override
+    void addBucketControllerMapListener() {
+
+    }
+
+    @Override
     CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
         Preconditions.checkArgument(bucket < getBucketCount());
         return CompletableFuture.completedFuture(true);

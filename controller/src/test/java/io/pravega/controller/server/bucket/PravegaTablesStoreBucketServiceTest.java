@@ -26,6 +26,7 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.test.common.TestingServerStarter;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -36,6 +37,7 @@ import org.junit.Before;
 public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     private TestingServer zkServer;
     private CuratorFramework zkClient;
+    Cluster cluster ;
 
     @Override
     @Before
@@ -47,6 +49,7 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
                 (r, e, s) -> false);
 
         zkClient.start();
+        cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
         super.setup();
     }
 
@@ -54,6 +57,7 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
+        cluster.close();
         streamMetadataStore.close();
         zkClient.close();
         zkServer.close();
@@ -73,8 +77,14 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     }
 
     @Override
-    protected void addEntryToZkCluster(String hostId) {
-        Cluster cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
-        cluster.registerHost(new Host(hostId, 9090, null));
+    protected void addEntryToZkCluster(Host host)  {
+        final CountDownLatch latch = new CountDownLatch(1);
+        cluster.addListener((type, host1) -> latch.countDown());
+        cluster.registerHost(host);
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 }

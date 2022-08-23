@@ -28,6 +28,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.utils.ZKPaths;
 
@@ -121,26 +122,27 @@ public class ZookeeperBucketStore implements BucketStore {
 
     @Override
     public CompletableFuture<Map<String, Set<Integer>>> getBucketControllerMap(final ServiceType serviceType) {
-        String bucketHostMapPath = getBucketHostMapPath(serviceType);
+        String bucketHostMapPath = getBucketControllerMapPath(serviceType);
         return storeHelper.createZNodeIfNotExist(bucketHostMapPath, BucketControllerMap.EMPTY.toBytes())
                 .thenCompose(created -> storeHelper.getData(bucketHostMapPath, BucketControllerMap::fromBytes))
-                .thenCompose(bucketHostMap -> CompletableFuture.completedFuture(bucketHostMap.getObject().getBucketControllerMap()));
+                .thenApply(bucketControllerMap -> bucketControllerMap.getObject().getBucketControllerMap());
     }
 
     @Override
     public CompletableFuture<Void> updateBucketControllerMap(final Map<String, Set<Integer>> newMapping,
                                                              final ServiceType serviceType) {
         Preconditions.checkNotNull(newMapping, "newMapping");
-        String bucketHostMapPath = getBucketHostMapPath(serviceType);
-        return Futures.toVoid(storeHelper.createZNodeIfNotExist(bucketHostMapPath, BucketControllerMap.EMPTY.toBytes())
+        String bucketHostMapPath = getBucketControllerMapPath(serviceType);
+        return storeHelper.createZNodeIfNotExist(bucketHostMapPath, BucketControllerMap.EMPTY.toBytes())
                 .thenCompose(created -> storeHelper.setData(bucketHostMapPath,
-                        BucketControllerMap.createBucketControllerMap(newMapping).toBytes(), null)));
+                        BucketControllerMap.createBucketControllerMap(newMapping).toBytes(), null))
+                          .thenAccept(result -> log.debug("updateBucketControllerMap is {}", result));
     }
 
     @Override
     public CompletableFuture<Set<Integer>> getBucketsForController(final String processId, final ServiceType serviceType) {
-        return getBucketControllerMap(serviceType).thenCompose(map -> CompletableFuture.completedFuture(map.get(processId) == null
-                ? new HashSet<>() : map.get(processId)));
+        return getBucketControllerMap(serviceType).thenApply(map -> map.get(processId) == null
+                ? new HashSet<>() : map.get(processId));
     }
 
     public CompletableFuture<Boolean> takeBucketOwnership(final ServiceType serviceType, int bucketId, String processId) {
@@ -162,6 +164,10 @@ public class ZookeeperBucketStore implements BucketStore {
 
     public PathChildrenCache getServiceOwnershipPathChildrenCache(ServiceType serviceType) {
         return storeHelper.getPathChildrenCache(getBucketOwnershipPath(serviceType), true);
+    }
+
+    public NodeCache getBucketControllerMapNodeCache(ServiceType serviceType) {
+        return storeHelper.getNodeCache(getBucketControllerMapPath(serviceType), true);
     }
 
     public StreamImpl getStreamFromPath(String path) {
@@ -193,14 +199,10 @@ public class ZookeeperBucketStore implements BucketStore {
         return ZKPaths.makePath(bucketRootPath, "" + bucket);
     }
 
-    private String getBucketHostMapPath(final ServiceType serviceType) {
+    private String getBucketControllerMapPath(final ServiceType serviceType) {
         String cluster = "cluster" ;
-        String bucketHostMapping = "bucketHostMapping";
+        String bucketHostMapping = "bucketControllerMapping";
         String bucketHostMapRoot = ZKPaths.makePath(cluster, serviceType.getName());
         return ZKPaths.makePath(bucketHostMapRoot, bucketHostMapping);
-    }
-
-    private void tryInit () {
-
     }
 }

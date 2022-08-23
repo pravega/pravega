@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -68,23 +69,18 @@ public abstract class BucketManager extends AbstractService {
 
     @Override
     protected void doStart() {
-        //The leader which monitors the data cluster and ensures all buckets are mapped to available controllers.
-        startLeaderElection(new BucketManagerLeader(bucketStore, 1000
-                , new UniformBucketDistributor(), serviceType, this));
-        startLeader();
-        initializeService()
-                .thenCompose(s ->
-                        Futures.allOf(bucketStore.getBucketsForController(processId, serviceType).join().stream()
-                                                 .map(x -> initializeBucket(x).thenCompose(v -> tryTakeOwnership(x)))
-                                                 .collect(Collectors.toList())))
-                .thenAccept(x -> startBucketOwnershipListener())
-                .whenComplete((r, e) -> {
-                    if (e != null) {
-                        notifyFailed(e);
-                    } else {
-                        notifyStarted();
-                    }
-                });
+        initializeService().thenCompose(v -> bucketStore.getBucketsForController(processId, serviceType))
+                           .thenCompose(buckets -> Futures.allOf(buckets.stream()
+                                                                        .map(x -> initializeBucket(x).thenCompose(v -> tryTakeOwnership(x)))
+                                                                        .collect(Collectors.toList())))
+                           .thenAccept(x -> startBucketOwnershipListener())
+                           .whenComplete((r, e) -> {
+                               if (e != null) {
+                                   notifyFailed(e);
+                               } else {
+                                   notifyStarted();
+                               }
+                           }).join();
     }
 
     protected abstract int getBucketCount();
@@ -95,17 +91,19 @@ public abstract class BucketManager extends AbstractService {
     public abstract void startLeader();
     public abstract void stopLeader();
 
-    public void manageBuckets() {
-        Set<Integer> newBuckets = bucketStore.getBucketsForController(processId, getServiceType()).join();
-        log.debug("Buckets assigned to process : {} are {} ", processId, newBuckets);
-        Set<BucketService> removeableBuckets;
-        synchronized (lock)
-        {
-            removeableBuckets = buckets.keySet().stream().filter(x -> !newBuckets.contains(x))
-                                                                 .map(x -> buckets.get(x)).collect(Collectors.toSet());
-        }
-
-        stopBucketServices(removeableBuckets);
+    protected void manageBuckets() {
+        bucketStore.getBucketsForController(processId, getServiceType())
+                   .thenAccept(newBuckets -> {
+                       log.debug("Buckets assigned to process : {} are {} ", processId, newBuckets);
+                       Set<BucketService> removeableBuckets;
+                       synchronized (lock) {
+                           removeableBuckets = buckets.keySet().stream().filter(x -> !newBuckets.contains(x))
+                                                      .map(x -> buckets.get(x)).collect(Collectors.toSet());
+                       }
+                       if (removeableBuckets.size() > 0) {
+                           stopBucketServices(removeableBuckets);
+                       }
+                   }).join();
     }
 
     CompletableFuture<Void> tryTakeOwnership(int bucket) {
@@ -207,6 +205,7 @@ public abstract class BucketManager extends AbstractService {
     abstract CompletableFuture<Void> initializeService();
     
     abstract CompletableFuture<Void> initializeBucket(int bucket);
+    abstract void addBucketControllerMapListener();
 
     /**
      * Method to take ownership of a bucket.

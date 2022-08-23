@@ -281,8 +281,8 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
     }
 
     @Override
-    protected void addEntryToZkCluster(String hostId) {
+    protected void addEntryToZkCluster(Host host) {
         Cluster cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
-        cluster.registerHost(new Host(hostId, 9090, null));
+        cluster.registerHost(host);
     }
 }
