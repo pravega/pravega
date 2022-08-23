@@ -31,6 +31,7 @@ import io.pravega.cli.admin.bookkeeper.BookKeeperListCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperLogReconcileCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerContinuousRecoveryCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerRecoverCommand;
+import io.pravega.cli.admin.controller.ControllerDeleteReaderGroupCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeReaderGroupCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeScopeCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeStreamCommand;
@@ -42,6 +43,7 @@ import io.pravega.cli.admin.controller.metadata.ControllerMetadataGetEntryComman
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListEntriesCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListKeysCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataUpdateEntryCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewPendingEventsCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewReaderInfoCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogInspectCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
@@ -378,6 +380,7 @@ public abstract class AdminCommand {
                         .put(ControllerDescribeScopeCommand::descriptor, ControllerDescribeScopeCommand::new)
                         .put(ControllerListStreamsInScopeCommand::descriptor, ControllerListStreamsInScopeCommand::new)
                         .put(ControllerListReaderGroupsInScopeCommand::descriptor, ControllerListReaderGroupsInScopeCommand::new)
+                        .put(ControllerDeleteReaderGroupCommand::descriptor, ControllerDeleteReaderGroupCommand::new)
                         .put(ControllerDescribeReaderGroupCommand::descriptor, ControllerDescribeReaderGroupCommand::new)
                         .put(ControllerDescribeStreamCommand::descriptor, ControllerDescribeStreamCommand::new)
                         .put(GetClusterNodesCommand::descriptor, GetClusterNodesCommand::new)
@@ -408,6 +411,7 @@ public abstract class AdminCommand {
                         .put(ControllerMetadataUpdateEntryCommand::descriptor, ControllerMetadataUpdateEntryCommand::new)
                         .put(ControllerMetadataViewReaderInfoCommand::descriptor, ControllerMetadataViewReaderInfoCommand::new)
                         .put(ListChunksCommand::descriptor, ListChunksCommand::new)
+                        .put(ControllerMetadataViewPendingEventsCommand::descriptor, ControllerMetadataViewPendingEventsCommand::new)
                         .build());
 
         /**

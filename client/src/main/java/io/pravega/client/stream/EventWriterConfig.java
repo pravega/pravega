@@ -69,14 +69,6 @@ public class EventWriterConfig implements Serializable {
      * @return Backoff multiplier used in the retry logic of the writer.
      */
     private final int backoffMultiple;
-    
-    /**
-     * The number of milliseconds to wait while attempting to establish a connection before abandoning the attempt and retrying.
-     * 
-     * @param connectionTimeoutMillis The timeout in milliseconds
-     * @return The timeout in milliseconds
-     */
-    private final int connectTimeoutMillis;
 
     /**
      * Enable or disable connection pooling for writer. The default value is false.
@@ -133,7 +125,6 @@ public class EventWriterConfig implements Serializable {
         private int maxBackoffMillis = 20000;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
-        private int connectionTimeoutMillis = 60000;
         private long transactionTimeoutTime = 600 * 1000 - 1;
         private boolean automaticallyNoteTime = false; 
         // connection pooling for event writers is disabled by default.
@@ -148,7 +139,6 @@ public class EventWriterConfig implements Serializable {
             Preconditions.checkArgument(maxBackoffMillis >= 0, "Backoff times must be positive numbers");
             Preconditions.checkArgument(retryAttempts >= 0, "Retry attempts must be a positive number");
             return new EventWriterConfig(initialBackoffMillis, maxBackoffMillis, retryAttempts, backoffMultiple,
-                                         connectionTimeoutMillis,
                                          enableConnectionPooling,
                                          transactionTimeoutTime,
                                          automaticallyNoteTime,

@@ -101,6 +101,7 @@ All available commands:
         container flush-to-storage <container-id> <segmentstore-endpoint>: Persist the given Segment Container into Storage.
         container recover <container-id>: Executes a local, non-invasive recovery for a SegmentContainer.
         controller describe-readergroup <scope-name> <readergroup-id>: Get the details of a given ReaderGroup in a Scope.
+        controller delete-readergroup <scope-name> <readergroup>: Delete ReaderGroup in a given Scope.
         controller describe-scope <scope-name>: Get the details of a given Scope.
         controller describe-stream <scope-name> <stream-name>: Get the details of a given Stream.
         controller list-readergroups <scope-name>: Lists all the existing ReaderGroups in a given Scope.
@@ -108,6 +109,7 @@ All available commands:
         controller list-streams <scope-name>: Lists all the existing Streams in a given Scope.
         controller-metadata get <qualified-table-segment-name> <key> <segmentstore-endpoint> [json-file]: Get the value for the specified key from the specified controller metadata table.
         controller-metadata get-reader <host-id> <reader-group-name> <reader-id>: Get the reader metadata of reader belonging to internal reader group for a particular controller host
+        controller-metadata request-detail <host-id> <request-uuid>: Get the pending event detail for a request in a particular controller host. 
         controller-metadata list-entries <qualified-table-segment-name> <entry-count> <segmentstore-endpoint>: List at most the required number of entries from the controller metadata table. Unsupported for stream metadata tables.
         controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
         controller-metadata tables-info : List all the controller metadata tables.
