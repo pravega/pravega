@@ -45,6 +45,8 @@ import lombok.val;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.client.api.Handle;
 import org.apache.curator.framework.CuratorFramework;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Wrapper for a BookKeeperLog which only exposes methods that should be used for debugging/admin tools.
@@ -54,11 +56,13 @@ import org.apache.curator.framework.CuratorFramework;
 public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
     //region Members
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(DebugBookKeeperLogWrapper.class);
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
     private final BookKeeperLog log;
     private final BookKeeper bkClient;
     private final BookKeeperConfig config;
     private final AtomicBoolean initialized;
+    private final String traceObjectId;
 
     //endregion
 
@@ -78,6 +82,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         this.bkClient = bookKeeper;
         this.config = config;
         this.initialized = new AtomicBoolean();
+        this.traceObjectId = String.format("DebugBookKeeperLogWrapper[%s]", this.log.getLogId());
     }
 
     //endregion
@@ -301,11 +306,13 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         ledgersToDelete.forEach(id -> {
             try {
                 Ledgers.delete(id, this.bkClient);
+                LOGGER.info("{}: Deleted ledger {}.", this.traceObjectId, id);
                 count.incrementAndGet();
             } catch (DurableDataLogException ex) {
-                ex.printStackTrace();
+                LOGGER.error("{}: Unable to delete ledger {}.", this.traceObjectId, id, ex);
             }
         });
+        forceMetadataOverWrite(metadata);
         return count.get();
     }
 
