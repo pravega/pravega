@@ -160,7 +160,6 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Check all the appended data.
         checkReadIndex("PostAppend", segmentContents, context);
     }
-
     
     @Test
     public void testModifyUnderlyingBuffer() {
@@ -176,10 +175,6 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         @Cleanup
         val readIndex = new ContainerReadIndex(DEFAULT_CONFIG, metadata, storage, cacheManager, executorService());
         int a = cacheManager.getCacheStorage().getBlockAlignment();
-        val maxExpectedStorageReadLength = DEFAULT_CONFIG.getStorageReadAlignment() +
-                (DEFAULT_CONFIG.getStorageReadAlignment() % a == 0 ? 0 : a - DEFAULT_CONFIG.getStorageReadAlignment() % a);
-        
-        
         int numWriters = 25;
         ReusableLatch latch = new ReusableLatch();
         
@@ -212,7 +207,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 int randNum = Integer.hashCode(reads);
                 int readOffset = (randNum % 1000000) * dataLength;
                 try {
-                    ReadResult readResult = readIndex.read((randNum/1000000)%numWriters, readOffset, dataLength, Duration.ofSeconds(10));
+                    ReadResult readResult = readIndex.read((randNum / 1000000) % numWriters, readOffset, dataLength, Duration.ofSeconds(10));
                     byte[] readData = new byte[dataLength];
                     readResult.readRemaining(readData, Duration.ofSeconds(10));
                     Preconditions.checkState(Arrays.equals(hasher.numToBytes(readOffset / dataLength), readData));
@@ -222,8 +217,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             }
         };
         List<CompletableFuture<Void>> writerFutures = new ArrayList<>();
-        for (int i=0; i< numWriters; i++) {
-            long segmentNumber = (long)i;
+        for (int i = 0; i < numWriters; i++) {
+            long segmentNumber = i;
             writerFutures.add(CompletableFuture.runAsync(() -> writer.accept(segmentNumber), executorService));
         }
         latch.release();

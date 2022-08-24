@@ -15,7 +15,6 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.hash.HashHelper;
 import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
