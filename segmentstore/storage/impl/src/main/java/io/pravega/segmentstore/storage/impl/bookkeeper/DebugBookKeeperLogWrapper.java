@@ -312,7 +312,6 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
                 LOGGER.error("{}: Unable to delete ledger {}.", this.traceObjectId, id, ex);
             }
         });
-        forceMetadataOverWrite(metadata);
         return count.get();
     }
 

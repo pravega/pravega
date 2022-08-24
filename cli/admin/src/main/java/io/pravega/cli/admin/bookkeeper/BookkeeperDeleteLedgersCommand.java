@@ -61,14 +61,14 @@ public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
         }
         try {
             val deletedCount = log.deleteLedgersStartingWithId(startId);
-            output("Total number of deleted ledgers from log '%s' :", logId, deletedCount);
+            output("Total number of deleted ledgers from log %d : %d", logId, deletedCount);
         } catch (Exception ex) {
             output("Delete ledgers failed: Exiting " + ex.getMessage());
             return;
         }
         val updatedLog = log.fetchMetadata();
         outputLogSummary(logId, updatedLog);
-        output("Delete ledgers command completed");
+        output("Delete ledgers command completed. Please run reconcile to recover the log");
     }
 
     public static CommandDescriptor descriptor() {
