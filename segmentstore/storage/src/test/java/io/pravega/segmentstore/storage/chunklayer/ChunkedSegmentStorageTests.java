@@ -38,6 +38,7 @@ import io.pravega.segmentstore.storage.mocks.AbstractInMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -1332,12 +1333,15 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
-        long[] chunks = new long[]{10};
-        int lastChunkLengthInStorage = 24;
-        int lastChunkLengthInMetadata = 10;
 
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, true, true);
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInMetadata, true, false);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 24, true, true);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, true, false);
+
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
+
+        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
+        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
     }
 
     @Test
@@ -1345,11 +1349,15 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
-        long[] chunks = new long[]{10};
-        int lastChunkLengthInStorage = 10;
 
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false, true);
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false, false);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 10, 10, false, true);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 10, 10, false, false);
+
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, true);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, false);
+
+        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, true);
+        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, false);
 
     }
 
@@ -1363,12 +1371,14 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
-        long[] chunks = new long[]{10};
-        int lastChunkLengthInStorage = 10;
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 10, 10, false, true);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 10, 10, false, false);
 
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false, true);
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false, false);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, true);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, false);
 
+        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, true);
+        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, false);
     }
 
     @Test
@@ -1376,14 +1386,17 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
-        long[] chunks = new long[]{10};
-        int lastChunkLengthInStorage = 24;
-        int lastChunkLengthInMetadata = 10;
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, true, true);
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInMetadata, true, false);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 24, true, true);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, true, false);
+
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
+
+        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
+        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
     }
 
-    private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, boolean shouldAppend, boolean useLazyCommit) throws Exception {
+    private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, int expectedLastChunkLength, boolean shouldAppend, boolean useLazyCommit) throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .lazyCommitEnabled(useLazyCommit)
@@ -1391,21 +1404,25 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 .build());
         testContext.chunkedSegmentStorage.initialize(ownerEpoch);
         val inserted = testContext.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1, chunks);
-        // Set bigger offset
+        // Set bigger offset for last chunk
         TestUtils.addChunk(testContext.chunkStorage, inserted.getLastChunk(), lastChunkLengthInStorage);
+
+        // Open with new instance
         val hWrite = testContext.chunkedSegmentStorage.openWrite(testSegmentName).get();
         Assert.assertEquals(hWrite.getSegmentName(), testSegmentName);
         Assert.assertFalse(hWrite.isReadOnly());
 
+        // Check metadata
         val metadataAfter = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
         Assert.assertEquals(ownerEpoch, metadataAfter.getOwnerEpoch());
-        Assert.assertEquals(lastChunkLengthInStorage, metadataAfter.getLength());
-        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, chunks, lastChunkLengthInStorage);
+        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, chunks, expectedLastChunkLength);
         TestUtils.checkReadIndexEntries(testContext.chunkedSegmentStorage, testContext.metadataStore, testSegmentName, 0, Arrays.stream(chunks).sum(), true);
         TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, testSegmentName);
+
+        Assert.assertEquals(metadataAfter.getLength(), testContext.chunkedSegmentStorage.getStreamSegmentInfo(testSegmentName, null).get().getLength());
     }
 
-    private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, boolean shouldAppend, boolean useLazyCommit) throws Exception {
+    private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, int expectedLastChunkLength, boolean shouldAppend, boolean useLazyCommit) throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .lazyCommitEnabled(useLazyCommit)
@@ -1413,18 +1430,22 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 .build());
         testContext.chunkedSegmentStorage.initialize(ownerEpoch);
         val inserted = testContext.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1, chunks);
-        // Set bigger offset
+        // Set bigger offset for last chunk
         TestUtils.addChunk(testContext.chunkStorage, inserted.getLastChunk(), lastChunkLengthInStorage);
+
+        // Open with new instance
         val hRead = testContext.chunkedSegmentStorage.openRead(testSegmentName).get();
         Assert.assertEquals(hRead.getSegmentName(), testSegmentName);
         Assert.assertTrue(hRead.isReadOnly());
 
+        // Check metadata
         val metadataAfter = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
         Assert.assertEquals(ownerEpoch, metadataAfter.getOwnerEpoch());
-        Assert.assertEquals(lastChunkLengthInStorage, metadataAfter.getLength());
-        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, chunks, lastChunkLengthInStorage);
+        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, chunks, expectedLastChunkLength);
         TestUtils.checkReadIndexEntries(testContext.chunkedSegmentStorage, testContext.metadataStore, testSegmentName, 0, Arrays.stream(chunks).sum(), true);
         TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, testSegmentName);
+
+        Assert.assertEquals(metadataAfter.getLength(), testContext.chunkedSegmentStorage.getStreamSegmentInfo(testSegmentName, null).get().getLength());
     }
 
     /**
