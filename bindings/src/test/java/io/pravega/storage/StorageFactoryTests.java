@@ -25,6 +25,7 @@ import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.storage.azure.AzureChunkStorage;
 import io.pravega.storage.azure.AzureTestContext;
 import io.pravega.storage.azure.AzureStorageFactoryCreator;
 import io.pravega.storage.azure.AzureSimpleStorageFactory;
@@ -246,10 +247,15 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
 
         // Simple Storage
         ConfigSetup configSetup1 = mock(ConfigSetup.class);
-        val config = AzureTestContext.getLocalAzureStorageConfig("samplePrefix");
+        val config = AzureTestContext.getLocalAzureStorageConfig("sampleprefix");
         when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof AzureSimpleStorageFactory);
+
+        @Cleanup
+        Storage storage1 = ((AzureSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
+        Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof AzureChunkStorage);
 
         AssertExtensions.assertThrows(
                 "createStorageAdapter should throw UnsupportedOperationException.",
