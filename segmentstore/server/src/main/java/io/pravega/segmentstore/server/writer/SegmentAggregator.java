@@ -828,14 +828,6 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                 }
                 throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for '%s'.", appendOp));
             }
-
-            // Check that the offset of the AggregatedAppendOperation we are adding matches with the offset of the
-            // Segment in Storage. Otherwise, we might be inadvertently writing wrong contents to Storage, even though
-            // storage-related offsets match.
-            if (this.metadata.getStorageLength() != appendOp.getStreamSegmentOffset()) {
-                throw new DataCorruptionException(String.format("Mismatch in the offsets of Appends being written to Storage '%s' " +
-                        "and the actual offset of the Segment in Storage '%s'.", appendOp, this.metadata.getStorageLength()));
-            }
         }
 
         appendOp.seal();
