@@ -330,31 +330,23 @@ public class SystemJournal {
                     return applySystemLogOperations(txn, state, latestSnapshot);
                 }, executor)
                 .thenComposeAsync(v -> {
-                    // Step 3: Adjust the length of the last chunk.
-                    if (config.isLazyCommitEnabled()) {
-                        return adjustLastChunkLengths(txn);
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                }, executor)
-                .thenComposeAsync(v -> {
-                    // Step 4: Apply the truncate offsets.
+                    // Step 3: Apply the truncate offsets.
                     return applyFinalTruncateOffsets(txn, state);
                 }, executor)
                 .thenComposeAsync(v -> {
-                    // Step 5: Check invariants. These should never fail.
+                    // Step 4: Check invariants. These should never fail.
                     if (config.isSelfCheckEnabled()) {
                         Preconditions.checkState(currentFileIndex.get() == 0, "currentFileIndex must be zero");
                         Preconditions.checkState(systemJournalOffset.get() == 0, "systemJournalOffset must be zero");
                         Preconditions.checkState(newChunkRequired.get(), "newChunkRequired must be true");
                     }
-                    // Step 6: Create a snapshot record and validate it. Save it in journals.
+                    // Step 5: Create a snapshot record and validate it. Save it in journals.
                     return createSystemSnapshotRecord(txn, true, config.isSelfCheckEnabled())
                             .thenComposeAsync(systemSnapshotRecord -> writeRecordBatch(Collections.singletonList(systemSnapshotRecord)), executor)
                             .thenRunAsync(() -> newChunkRequired.set(true), executor);
                 }, executor)
                 .thenComposeAsync(v -> {
-                    // Step 7: Finally commit all data.
+                    // Step 6: Finally commit all data.
                     return txn.commit(true, true);
                 }, executor)
                 .whenCompleteAsync((v, e) -> {
@@ -973,51 +965,6 @@ public class SystemJournal {
             retValue = CompletableFuture.failedFuture(new IllegalStateException(String.format("Unknown record type encountered. record = %s", record)));
         }
         return retValue;
-    }
-
-    /**
-     * Adjusts the lengths of last chunks for each segment.
-     */
-    private CompletableFuture<Void> adjustLastChunkLengths(MetadataTransaction txn) {
-        val futures = new ArrayList<CompletableFuture<Void>>();
-        for (val systemSegment : systemSegments) {
-            val f = txn.get(systemSegment)
-                    .thenComposeAsync(m -> {
-                        val segmentMetadata = (SegmentMetadata) m;
-                        segmentMetadata.checkInvariants();
-                        CompletableFuture<Void> ff;
-                        // Update length of last chunk in metadata to what we actually find on LTS.
-                        if (null != segmentMetadata.getLastChunk()) {
-                            ff = chunkStorage.getInfo(segmentMetadata.getLastChunk())
-                                    .thenComposeAsync(chunkInfo -> {
-                                        long length = chunkInfo.getLength();
-                                        return txn.get(segmentMetadata.getLastChunk())
-                                                .thenAcceptAsync(mm -> {
-                                                    val lastChunk = (ChunkMetadata) mm;
-                                                    Preconditions.checkState(null != lastChunk, "lastChunk must not be null. Segment=%s", segmentMetadata);
-                                                    lastChunk.setLength(length);
-                                                    txn.update(lastChunk);
-                                                    val newLength = segmentMetadata.getLastChunkStartOffset() + length;
-                                                    segmentMetadata.setLength(newLength);
-                                                    log.debug("SystemJournal[{}] Adjusting length of last chunk segment. segment={}, length={} chunk={}, chunk length={}",
-                                                            containerId, segmentMetadata.getName(), length, lastChunk.getName(), newLength);
-
-                                                }, executor);
-                                    }, executor);
-                        } else {
-                            ff = CompletableFuture.completedFuture(null);
-                        }
-                        return ff.thenApplyAsync(v -> {
-                            Preconditions.checkState(segmentMetadata.isOwnershipChanged(), "ownershipChanged must be true. Segment=%s", segmentMetadata);
-                            segmentMetadata.checkInvariants();
-
-                            return segmentMetadata;
-                        }, executor);
-                    }, executor)
-                    .thenAcceptAsync(segmentMetadata -> txn.update(segmentMetadata), executor);
-            futures.add(f);
-        }
-        return Futures.allOf(futures);
     }
 
     /**

@@ -1340,7 +1340,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
         testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
 
-        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
+        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, true);
         testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
     }
 
@@ -1392,7 +1392,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
         testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
 
-        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
+        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, true);
         testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
     }
 

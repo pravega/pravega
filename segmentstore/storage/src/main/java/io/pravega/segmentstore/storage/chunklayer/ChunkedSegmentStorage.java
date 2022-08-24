@@ -311,7 +311,13 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         // Get the last chunk
         val lastChunkName = segmentMetadata.getLastChunk();
         final CompletableFuture<Boolean> f;
-        if (config.isLazyCommitEnabled() && shouldAppend() && null != lastChunkName) {
+        val shouldReconcile = config.isLazyCommitEnabled()
+                && shouldAppend()
+                && null != lastChunkName
+                && !segmentMetadata.isStorageSystemSegment()
+                && !NameUtils.isAttributeSegment(segmentMetadata.getName());
+
+        if (shouldReconcile) {
             f = txn.get(lastChunkName)
                     .thenComposeAsync(storageMetadata -> {
                         val lastChunk = (ChunkMetadata) storageMetadata;
