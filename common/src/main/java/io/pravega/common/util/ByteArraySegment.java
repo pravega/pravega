@@ -274,7 +274,6 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
 
     //region Reader
     @RequiredArgsConstructor
-    public
     static final class Reader extends AbstractReader implements BufferView.Reader {
         private final ByteBuffer buffer;
 

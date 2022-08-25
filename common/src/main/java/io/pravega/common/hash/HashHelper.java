@@ -56,6 +56,7 @@ public class HashHelper {
         return hash.hashBytes(array, offset, length).asInt();
     }
 
+    @VisibleForTesting
     public byte[] numToBytes(int num) {
         return hash.hashInt(num).asBytes();
     }
