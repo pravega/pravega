@@ -28,6 +28,19 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.test.common.AssertExtensions;
+import lombok.Cleanup;
+import lombok.SneakyThrows;
+import org.apache.bookkeeper.test.BookKeeperClusterTestCase;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -42,18 +55,6 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.Cleanup;
-import lombok.SneakyThrows;
-import org.apache.bookkeeper.test.BookKeeperClusterTestCase;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.ArgumentMatchers;
-import org.mockito.Mockito;
 
 /**
  * Test basic functionality of Bookkeeper commands.
@@ -247,6 +248,24 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         System.setIn(new ByteArrayInputStream("yes".getBytes()));
         String commandResult = TestUtils.executeCommand("bk reconcile 0", STATE.get());
         Assert.assertTrue(commandResult.contains("reconciliation completed"));
+    }
+
+    @Test
+    public void testBookKeeperDeleteLedgersCommand() throws Exception {
+        // Try the command against a non-existent log.
+        Assert.assertTrue(TestUtils.executeCommand("bk delete-ledgers 5 1", STATE.get()).contains("does not exist."));
+        createLedgerInBookkeeperTestCluster(0);
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        TestUtils.executeCommand("bk disable 0", STATE.get());
+        // Now, let's try the command under the expected conditions.
+        String commandResult = TestUtils.executeCommand("bk details 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("log_summary") && commandResult.contains("logId\": 0"));
+        System.out.println("CommandResult: " + commandResult);
+        System.setIn(new ByteArrayInputStream("no".getBytes()));
+        TestUtils.executeCommand("bk delete-ledgers 0 0", STATE.get());
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        commandResult = TestUtils.executeCommand("bk delete-ledgers 0 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("Delete ledgers command completed"));
     }
 
     @Test
