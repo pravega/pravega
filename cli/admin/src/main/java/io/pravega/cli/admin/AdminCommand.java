@@ -29,6 +29,7 @@ import io.pravega.cli.admin.bookkeeper.BookKeeperEnableCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperListAllLedgersCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperListCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperLogReconcileCommand;
+import io.pravega.cli.admin.bookkeeper.BookkeeperDeleteLedgersCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerContinuousRecoveryCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerRecoverCommand;
 import io.pravega.cli.admin.controller.ControllerDeleteReaderGroupCommand;
@@ -43,6 +44,7 @@ import io.pravega.cli.admin.controller.metadata.ControllerMetadataGetEntryComman
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListEntriesCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListKeysCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataUpdateEntryCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewPendingEventsCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewReaderInfoCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogInspectCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
@@ -369,6 +371,7 @@ public abstract class AdminCommand {
                         .put(ConfigSetCommand::descriptor, ConfigSetCommand::new)
                         .put(BookKeeperCleanupCommand::descriptor, BookKeeperCleanupCommand::new)
                         .put(BookKeeperListCommand::descriptor, BookKeeperListCommand::new)
+                        .put(BookkeeperDeleteLedgersCommand::descriptor, BookkeeperDeleteLedgersCommand::new)
                         .put(BookKeeperDetailsCommand::descriptor, BookKeeperDetailsCommand::new)
                         .put(BookKeeperEnableCommand::descriptor, BookKeeperEnableCommand::new)
                         .put(BookKeeperDisableCommand::descriptor, BookKeeperDisableCommand::new)
@@ -412,6 +415,7 @@ public abstract class AdminCommand {
                         .put(ControllerMetadataUpdateEntryCommand::descriptor, ControllerMetadataUpdateEntryCommand::new)
                         .put(ControllerMetadataViewReaderInfoCommand::descriptor, ControllerMetadataViewReaderInfoCommand::new)
                         .put(ListChunksCommand::descriptor, ListChunksCommand::new)
+                        .put(ControllerMetadataViewPendingEventsCommand::descriptor, ControllerMetadataViewPendingEventsCommand::new)
                         .build());
 
         /**

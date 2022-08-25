@@ -86,6 +86,7 @@ From that point onwards, you can check the available commands by typing `help`:
 > help
 All available commands:
         bk cleanup : Removes orphan BookKeeper Ledgers that are not used by any BookKeeperLog.
+        bk delete-ledgers <log-id> <ledger-id>: Deletes all the ledgers for a bookkeeper log starting with and including given ledger-id as the starting index. Note that this is a destructive operation that should be used only to remove missing or corrupted ledgers that prevent a container from recovering.
         bk details <log-id>: Lists metadata details about a BookKeeperLog, including BK Ledger information.
         bk disable <log-id>: Disables a BookKeeperLog by open-fencing it and updating its metadata in ZooKeeper (with the Enabled flag set to 'false').
         bk enable <log-id>: Enables a BookKeeperLog by updating its metadata in ZooKeeper (with the Enabled flag set to 'true').
@@ -109,6 +110,7 @@ All available commands:
         controller list-streams <scope-name>: Lists all the existing Streams in a given Scope.
         controller-metadata get <qualified-table-segment-name> <key> <segmentstore-endpoint> [json-file]: Get the value for the specified key from the specified controller metadata table.
         controller-metadata get-reader <host-id> <reader-group-name> <reader-id>: Get the reader metadata of reader belonging to internal reader group for a particular controller host
+        controller-metadata request-detail <host-id> <request-uuid>: Get the pending event detail for a request in a particular controller host. 
         controller-metadata list-entries <qualified-table-segment-name> <entry-count> <segmentstore-endpoint>: List at most the required number of entries from the controller metadata table. Unsupported for stream metadata tables.
         controller-metadata list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the controller metadata table.
         controller-metadata tables-info : List all the controller metadata tables.
