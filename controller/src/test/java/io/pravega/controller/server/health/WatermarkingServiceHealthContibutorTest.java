@@ -51,7 +51,7 @@ public class WatermarkingServiceHealthContibutorTest {
         ZookeeperBucketStore bucketStore = mock(ZookeeperBucketStore.class);
         doReturn(StoreType.Zookeeper).when(bucketStore).getStoreType();
         String hostId = UUID.randomUUID().toString();
-        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2);
+        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2, 10);
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         PeriodicWatermarking periodicWatermarking = mock(PeriodicWatermarking.class);
         watermarkingService = spy(bucketStoreFactory.createWatermarkingService(Duration.ofMillis(10), periodicWatermarking::watermark, executor));

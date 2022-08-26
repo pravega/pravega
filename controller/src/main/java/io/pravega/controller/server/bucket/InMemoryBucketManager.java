@@ -31,12 +31,15 @@ import java.util.function.Function;
 public class InMemoryBucketManager extends BucketManager {
     private final BucketStore bucketStore;
     private final String processId;
+    private final BucketManagerLeader bucketManagerLeader;
     
     InMemoryBucketManager(String processId, InMemoryBucketStore bucketStore, BucketStore.ServiceType serviceType, 
-                          ScheduledExecutorService executor, Function<Integer, BucketService> bucketServiceSupplier) {
+                          ScheduledExecutorService executor, Function<Integer, BucketService> bucketServiceSupplier,
+                          BucketManagerLeader bucketManagerLeader) {
         super(processId, serviceType, executor, bucketServiceSupplier, bucketStore);
         this.bucketStore = bucketStore;
         this.processId = processId;
+        this.bucketManagerLeader = bucketManagerLeader;
     }
 
     @Override
@@ -55,7 +58,7 @@ public class InMemoryBucketManager extends BucketManager {
     }
 
     @Override
-    public void startLeaderElection(BucketManagerLeader bucketManagerLeader) {
+    public void startLeaderElection() {
         Map<String, Set<Integer>> newMap = bucketManagerLeader.getBucketDistributor()
                                                               .distribute(bucketStore.getBucketControllerMap(getServiceType()).join(),
                                                                       Set.of(processId), getBucketCount());

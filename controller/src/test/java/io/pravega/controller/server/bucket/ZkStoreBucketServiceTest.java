@@ -161,7 +161,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         String streamName2 = "stream2";
         bucketStore2.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope2, streamName2, executor2).join();
 
-        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore2, 5);
+        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore2, 5, 10);
 
         BucketManager service2 = bucketStoreFactory.createRetentionService(Duration.ofMillis(5000), stream -> CompletableFuture.completedFuture(null), executor2);
         service2.startAsync();

@@ -52,7 +52,7 @@ public class RetentionServiceHealthContributorTest {
         BucketStore bucketStore = mock(ZookeeperBucketStore.class);
         doReturn(StoreType.Zookeeper).when(bucketStore).getStoreType();
         String hostId = UUID.randomUUID().toString();
-        BucketServiceFactory bucketStoreFactory = spy(new BucketServiceFactory(hostId, bucketStore, 2));
+        BucketServiceFactory bucketStoreFactory = spy(new BucketServiceFactory(hostId, bucketStore, 2, 10));
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         PeriodicRetention periodicRetention = mock(PeriodicRetention.class);
         retentionService = spy(bucketStoreFactory.createWatermarkingService(Duration.ofMillis(5), periodicRetention::retention, executor));

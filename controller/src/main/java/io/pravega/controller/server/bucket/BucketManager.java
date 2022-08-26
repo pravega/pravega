@@ -19,14 +19,15 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -54,7 +55,11 @@ public abstract class BucketManager extends AbstractService {
     @Getter(AccessLevel.PROTECTED)
     private final ScheduledExecutorService executor;
     private final BucketStore bucketStore;
-
+    /**
+     * The tests can add listeners to get notification when the update has happened in the store.
+     */
+    @Getter
+    private final AtomicReference<BucketListener> listenerRef;
     BucketManager(final String processId, final BucketStore.ServiceType serviceType, final ScheduledExecutorService executor,
                   final Function<Integer, BucketService> bucketServiceSupplier, final BucketStore bucketStore) {
         this.processId = processId;
@@ -64,13 +69,16 @@ public abstract class BucketManager extends AbstractService {
         this.buckets = new HashMap<>();
         this.bucketServiceSupplier = bucketServiceSupplier;
         this.bucketStore = bucketStore;
+        listenerRef = new AtomicReference<>();
     }
 
     @Override
     protected void doStart() {
-        initializeService().thenCompose(v -> bucketStore.getBucketsForController(processId, serviceType))
-                           .thenCompose(buckets -> Futures.allOf(buckets.stream()
-                                                                        .map(x -> initializeBucket(x).thenCompose(v -> tryTakeOwnership(x)))
+        initializeService().thenAccept(v -> addBucketControllerMapListener())
+                           .thenAccept(v -> startLeaderElection())
+                           .thenCompose(v -> bucketStore.getBucketsForController(processId, serviceType))
+                           .thenCompose(buckets -> Futures.allOf(buckets.stream().map(x -> initializeBucket(x)
+                                                                                .thenCompose(v -> tryTakeOwnership(x)))
                                                                         .collect(Collectors.toList())))
                            .thenAccept(x -> startBucketOwnershipListener())
                            .whenComplete((r, e) -> {
@@ -79,32 +87,48 @@ public abstract class BucketManager extends AbstractService {
                                } else {
                                    notifyStarted();
                                }
-                           }).join();
+                           });
     }
 
     protected abstract int getBucketCount();
 
     public abstract boolean isHealthy();
 
-    public abstract void startLeaderElection(BucketManagerLeader bucketManagerLeader);
+    public abstract void startLeaderElection();
 
     public abstract void startLeader();
 
     public abstract void stopLeader();
 
-    protected void manageBuckets() {
-        bucketStore.getBucketsForController(processId, getServiceType())
-                   .thenAccept(newBuckets -> {
-                       log.debug("Buckets assigned to process : {} are {} ", processId, newBuckets);
-                       Set<BucketService> removeableBuckets;
-                       synchronized (lock) {
-                           removeableBuckets = buckets.keySet().stream().filter(x -> !newBuckets.contains(x))
-                                                      .map(x -> buckets.get(x)).collect(Collectors.toSet());
-                       }
-                       if (removeableBuckets.size() > 0) {
-                           stopBucketServices(removeableBuckets);
-                       }
-                   }).join();
+    protected CompletableFuture<Void> manageBuckets(int noOfClusters) {
+        AtomicReference<Set<Integer>> removeableBuckets = new AtomicReference<>();
+        return bucketStore.getBucketsForController(processId, getServiceType())
+                          .thenCompose(newBuckets -> {
+                              Set<Integer> addBuckets;
+                              synchronized (lock) {
+                                  addBuckets = newBuckets.stream().filter(x -> !buckets.containsKey(x))
+                                                         .collect(Collectors.toSet());
+                                  removeableBuckets.set(buckets.keySet().stream().filter(x -> !newBuckets.contains(x))
+                                                               .collect(Collectors.toSet()));
+                              }
+                              log.debug("{} : Buckets added to process : {} are {}", serviceType, processId, addBuckets);
+                              log.debug("{} : Total no of controllers are {}", serviceType, noOfClusters);
+                              //If there is only one controller instance, then will try to take ownership from here as there
+                              //controller will not wait for stopping the service from other instance.
+                              if (noOfClusters == 1) {
+                                  return Futures.allOf(addBuckets.stream()
+                                                                 .map(x -> initializeBucket(x).thenCompose(v -> tryTakeOwnership(x)))
+                                                                 .collect(Collectors.toList()));
+                              } else {
+                                  return CompletableFuture.completedFuture(null);
+                              }
+                          })
+                          .thenAccept(v -> {
+                              if (removeableBuckets.get().size() > 0) {
+                                  stopBucketServices(removeableBuckets.get());
+                              }
+                              log.debug("{} : Buckets remove from process : {} are {} for ", serviceType, processId, removeableBuckets.get());
+                          });
     }
 
     CompletableFuture<Void> tryTakeOwnership(int bucket) {
@@ -159,21 +183,28 @@ public abstract class BucketManager extends AbstractService {
     @Override
     protected void doStop() {
         log.info("{}: Stop request received for bucket manager", serviceType);
-        Collection<BucketService> tmp;
+        Set<Integer> tmp;
         synchronized (lock) { 
-            tmp = buckets.values();
+            tmp = buckets.keySet();
         }
         stopBucketServices(tmp);
+        stopBucketOwnershipListener();
         stopLeader();
     }
 
-    private void stopBucketServices(Collection<BucketService> bucketServices) {
-        Futures.allOf(bucketServices.stream().map(bucketService -> {
+    public void stopBucketServices(Set<Integer> bucketIds) {
+        Set<Integer> bInt = new HashSet<>();
+        Futures.allOf(bucketIds.stream().map(bucketId -> {
+                   BucketService bucketService;
+                   synchronized (lock) {
+                       bucketService = buckets.get(bucketId);
+                   }
                    CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
                    bucketService.addListener(new Listener() {
                        @Override
                        public void terminated(State from) {
                            super.terminated(from);
+                           bInt.add(bucketId);
                            bucketFuture.complete(null);
                        }
 
@@ -188,7 +219,9 @@ public abstract class BucketManager extends AbstractService {
                    return bucketFuture;
                }).collect(Collectors.toList()))
                .whenComplete((r, e) -> {
-                   stopBucketOwnershipListener();
+                   synchronized ("lock") {
+                       bInt.stream().forEach(x -> buckets.remove(x));
+                   }
                    if (e != null) {
                        log.error("{}: bucket service shutdown failed with exception", serviceType, e);
                        notifyFailed(e);
@@ -222,5 +255,19 @@ public abstract class BucketManager extends AbstractService {
     @VisibleForTesting
     Map<Integer, BucketService> getBucketServices() {
         return Collections.unmodifiableMap(buckets);
+    }
+
+    @VisibleForTesting
+    public void addListener(BucketListener listener) {
+        this.listenerRef.set(listener);
+    }
+
+    /**
+     * Functional interface to notify tests about changes to the map as they occur.
+     */
+    @VisibleForTesting
+    @FunctionalInterface
+    public interface BucketListener {
+        void signal();
     }
 }

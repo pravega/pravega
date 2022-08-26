@@ -32,12 +32,12 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
-import io.pravega.test.common.AssertExtensions;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
@@ -60,13 +60,13 @@ public abstract class BucketServiceTest {
     private ConnectionFactory connectionFactory;
     private String hostId;
     private RequestTracker requestTracker = new RequestTracker(true);
+    private Host controller;
 
     @Before
     public void setup() throws Exception {
         executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
-        Host controller = new Host(UUID.randomUUID().toString(), 9090, null);
+        controller = new Host(UUID.randomUUID().toString(), 9090, null);
         hostId = controller.getHostId();
-        addEntryToZkCluster(controller);
 
         streamMetadataStore = createStreamStore(executor);
         bucketStore = createBucketStore(3);
@@ -78,7 +78,7 @@ public abstract class BucketServiceTest {
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, taskMetadataStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
-        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2);
+        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2, 5);
         PeriodicRetention periodicRetention = new PeriodicRetention(streamMetadataStore, streamMetadataTasks, executor, requestTracker);
         retentionService = bucketStoreFactory.createRetentionService(Duration.ofMillis(5), periodicRetention::retention, executor);
         retentionService.startAsync();
@@ -110,18 +110,17 @@ public abstract class BucketServiceTest {
 
     abstract BucketStore createBucketStore(int bucketCount);
 
-    @Test(timeout = 10000)
-    public void testRetentionService() {
+    @Test //(timeout = 10000)
+    public void testRetentionService() throws Exception {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        retentionService.addListener(() ->
+                countDownLatch.countDown()
+        );
+        addEntryToZkCluster(controller);
+        countDownLatch.await();
         Map<Integer, BucketService> bucketServices = retentionService.getBucketServices();
-                                          
         assertNotNull(bucketServices);
         assertEquals(3, bucketServices.size());
-        assertTrue(retentionService.takeBucketOwnership(0, hostId, executor).join());
-        assertTrue(retentionService.takeBucketOwnership(1, hostId, executor).join());
-        assertTrue(retentionService.takeBucketOwnership(2, hostId, executor).join());
-        AssertExtensions.assertThrows("", () -> retentionService.takeBucketOwnership(3, hostId, executor).join(),
-                e -> e instanceof IllegalArgumentException);
-        retentionService.tryTakeOwnership(0).join();
 
         String scope = "scope";
         String streamName = "stream";
@@ -146,18 +145,16 @@ public abstract class BucketServiceTest {
         assertEquals(0, bucketService.getKnownStreams().size());
     }
 
-    @Test(timeout = 10000)
-    public void testWatermarkingService() {
+    @Test //(timeout = 10000)
+    public void testWatermarkingService() throws Exception {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        retentionService.addListener(() -> System.out.println("retention listener called"));
+        watermarkingService.addListener(() -> countDownLatch.countDown());
+        addEntryToZkCluster(controller);
+        countDownLatch.await();
         Map<Integer, BucketService> bucketServices = watermarkingService.getBucketServices();
-                                          
         assertNotNull(bucketServices);
         assertEquals(3, bucketServices.size());
-        assertTrue(watermarkingService.takeBucketOwnership(0, hostId, executor).join());
-        assertTrue(watermarkingService.takeBucketOwnership(1, hostId, executor).join());
-        assertTrue(watermarkingService.takeBucketOwnership(2, hostId, executor).join());
-        AssertExtensions.assertThrows("", () -> watermarkingService.takeBucketOwnership(3, hostId, executor).join(),
-                e -> e instanceof IllegalArgumentException);
-        watermarkingService.tryTakeOwnership(0).join();
 
         String scope = "scope";
         String streamName = "stream";

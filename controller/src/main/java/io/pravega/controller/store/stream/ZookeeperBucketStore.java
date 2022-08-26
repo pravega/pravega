@@ -22,8 +22,13 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.controller.store.client.StoreType;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
@@ -31,12 +36,6 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.utils.ZKPaths;
-
-import java.util.Base64;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 
 @SuppressWarnings("deprecation")
 @Slf4j
@@ -167,7 +166,7 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     public NodeCache getBucketControllerMapNodeCache(ServiceType serviceType) {
-        return storeHelper.getNodeCache(getBucketControllerMapPath(serviceType), true);
+        return storeHelper.getNodeCache(getBucketControllerMapPath(serviceType), false);
     }
 
     public StreamImpl getStreamFromPath(String path) {
@@ -199,7 +198,7 @@ public class ZookeeperBucketStore implements BucketStore {
         return ZKPaths.makePath(bucketRootPath, "" + bucket);
     }
 
-    private String getBucketControllerMapPath(final ServiceType serviceType) {
+    public String getBucketControllerMapPath(final ServiceType serviceType) {
         String cluster = "cluster";
         String bucketHostMapping = "bucketControllerMapping";
         String bucketHostMapRoot = ZKPaths.makePath(cluster, serviceType.getName());

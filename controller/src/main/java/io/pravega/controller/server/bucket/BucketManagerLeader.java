@@ -55,10 +55,9 @@ public class BucketManagerLeader implements LeaderSelectorListener {
     private final BucketDistributor bucketDistributor;
     //Service type
     private final BucketStore.ServiceType serviceType;
-    private final BucketManager bucketManager;
 
     public BucketManagerLeader(BucketStore bucketStore, int minRebalanceInterval, BucketDistributor bucketDistributor,
-                               BucketStore.ServiceType serviceType, BucketManager bucketManager) {
+                               BucketStore.ServiceType serviceType) {
         Preconditions.checkNotNull(bucketStore, "bucketStore");
         Preconditions.checkArgument(minRebalanceInterval >= 0, "minRebalanceInterval should not be negative");
 
@@ -66,7 +65,6 @@ public class BucketManagerLeader implements LeaderSelectorListener {
         this.minRebalanceInterval = Duration.ofSeconds(minRebalanceInterval);
         this.bucketDistributor = bucketDistributor;
         this.serviceType = serviceType;
-        this.bucketManager = bucketManager;
     }
 
     /**
@@ -87,9 +85,9 @@ public class BucketManagerLeader implements LeaderSelectorListener {
 
     @Override
     public void takeLeadership(CuratorFramework client) throws Exception {
-        log.info("Obtained leadership to monitor the controller to buckets Mapping");
+        log.info("{}: Obtained leadership to monitor the controller to buckets Mapping", serviceType);
 
-        //Attempt a rebalance whenever leadership is obtained to ensure no Controllers events are missed.
+        //Attempt a distribution whenever leadership is obtained to ensure no Controllers events are missed.
         controllerChange.release();
 
         //Start cluster monitor.
@@ -102,13 +100,13 @@ public class BucketManagerLeader implements LeaderSelectorListener {
                 case HOST_REMOVED:
                     //We don't keep track of the controllers and we always query for the entire set from the cluster
                     //when changes occur. This is to avoid any inconsistencies if we miss any notifications.
-                    log.info("Received event: {} for host: {}. Wake up leader for rebalancing", type, controller);
+                    log.info("{}: Received event: {} for host: {}. Wake up leader for distribution", serviceType, type, controller);
                     controllerChange.release();
                     break;
                 case ERROR:
                     //This event should be due to ZK connection errors and would have been received by the monitor too,
                     //hence not handling it explicitly here.
-                    log.info("Received error event when monitoring the pravega host cluster, ignoring...");
+                    log.info("{}: Received error event when monitoring the pravega host cluster, ignoring...", serviceType);
                     break;
             }
         });
@@ -117,13 +115,13 @@ public class BucketManagerLeader implements LeaderSelectorListener {
         while (true) {
             try {
                 if (suspended.get()) {
-                    log.info("Monitor is suspended, waiting for notification to resume");
+                    log.info("{}: Monitor is suspended, waiting for notification to resume", serviceType);
                     suspendMonitor.acquire();
-                    log.info("Resuming monitor");
+                    log.info("{}: Resuming monitor", serviceType);
                 }
 
                 controllerChange.acquire();
-                log.info("Received distribute buckets");
+                log.info("{}: Received distribute buckets", serviceType);
 
                 // Wait here until distribution can be performed.
                 waitForReDistribute();
@@ -133,7 +131,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
                 controllerChange.drainPermits();
                 triggerDistribution();
             } catch (InterruptedException e) {
-                log.warn("Leadership interrupted, releasing monitor thread");
+                log.warn("{}: Leadership interrupted, releasing monitor thread", serviceType);
 
                 //Stop watching the pravega cluster.
                 pravegaServiceCluster.close();
@@ -141,7 +139,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
             } catch (Exception e) {
                 //We will not release leadership if in suspended mode.
                 if (!suspended.get()) {
-                    log.warn("Failed to perform distribution, relinquishing leadership");
+                    log.warn("{}: Failed to perform distribution, relinquishing leadership", serviceType);
 
                     //Stop watching the pravega cluster.
                     pravegaServiceCluster.close();
@@ -159,7 +157,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
      *      Fresh cluster start, cluster/multi-host/host restarts, etc.
      */
     private void waitForReDistribute() throws InterruptedException {
-        log.info("Waiting for {} seconds before attempting to distribute", minRebalanceInterval.getSeconds());
+        log.info("{}: Waiting for {} seconds before attempting to distribute", serviceType, minRebalanceInterval.getSeconds());
         Thread.sleep(minRebalanceInterval.toMillis());
     }
 
@@ -168,17 +166,22 @@ public class BucketManagerLeader implements LeaderSelectorListener {
         Set<String> currentControllers = pravegaServiceCluster.getClusterMembers().stream().map(controller ->
                 controller.getHostId()).collect(Collectors.toSet());
 
-            bucketStore.getBucketControllerMap(serviceType)
-                       .thenApply(controllers -> bucketDistributor.distribute(controllers, currentControllers,
-                               bucketStore.getBucketCount(serviceType)))
-                       .thenCompose(newMapping -> bucketStore.updateBucketControllerMap(newMapping, serviceType))
-                       .join();
-
+        bucketStore.getBucketControllerMap(serviceType)
+                   .thenApply(controllers -> bucketDistributor.distribute(controllers, currentControllers,
+                           bucketStore.getBucketCount(serviceType)))
+                   .thenCompose(newMapping -> bucketStore.updateBucketControllerMap(newMapping, serviceType))
+                   .whenComplete((r, e) -> {
+                       if (e != null) {
+                           log.debug("{}: Bucket redistribution is failed with exception {}.", serviceType, e);
+                       } else {
+                           log.debug("{}: Bucket redistribution is successful.", serviceType);
+                       }
+                   });
     }
 
     @Override
     public void stateChanged(CuratorFramework client, ConnectionState newState) {
         //Nothing to do here. We are already monitoring the state changes for shutdown.
-        log.info("Zookeeper connection state changed to: " + newState.toString());
+        log.info("{}: Zookeeper connection state changed to: " + newState.toString(), serviceType);
     }
 }
