@@ -57,8 +57,8 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
     private static final String EPOCH_SPLITTER = ".E-";
     private static final String SEGMENT_PART_SPLITTER = "\\/";
     private static final String OFFSET_SPLITTER = "O-";
-    private final AtomicInteger CHUNK_COUNT = new AtomicInteger();
-    private final AtomicLong SEGMENT_LENGTH = new AtomicLong();
+    private final AtomicInteger chunkCount = new AtomicInteger();
+    private final AtomicLong segmentLength = new AtomicLong();
 
     /**
      * Creates a new instance of the StorageUpdateSnapshotCommand.
@@ -169,8 +169,8 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
             SystemJournal.SegmentSnapshotRecord record = segmentIterator.next();
             if (isSegmentBeingEdited(record.getSegmentMetadata().getName(), chunkFiles.get(0).getName())) {
                 output("Updating SystemSnapshot with relevant data.");
-                record.getSegmentMetadata().setLength(SEGMENT_LENGTH.get());
-                record.getSegmentMetadata().setChunkCount(CHUNK_COUNT.get());
+                record.getSegmentMetadata().setLength(segmentLength.get());
+                record.getSegmentMetadata().setChunkCount(chunkCount.get());
                 record.getSegmentMetadata().setStartOffset(0);
                 record.getSegmentMetadata().setFirstChunk(chunks.get(0).getName());
                 record.getSegmentMetadata().setFirstChunkStartOffset(deriveStartOffset(chunks.get(0).getName()));
@@ -205,8 +205,8 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
         ChunkMetadata.ChunkMetadataBuilder chunkBuilder = ChunkMetadata.builder();
         AtomicReference<ChunkMetadata> previousChunk = new AtomicReference<>();
         chunkFiles.forEach(file -> {
-            CHUNK_COUNT.incrementAndGet();
-            SEGMENT_LENGTH.addAndGet(file.length());
+            chunkCount.incrementAndGet();
+            segmentLength.addAndGet(file.length());
             ChunkMetadata ch = chunkBuilder.name(INTERNAL_CONTAINER_PREFIX + file.getName()).length(file.length()).build();
             if (previousChunk.get() != null) {
                 previousChunk.get().setNextChunk(ch.getName());
