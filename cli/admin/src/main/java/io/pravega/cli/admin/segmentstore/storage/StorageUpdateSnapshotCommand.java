@@ -1,12 +1,12 @@
 /**
  * Copyright Pravega Authors.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -40,10 +40,10 @@ import java.util.stream.Collectors;
 
 
 /**
- * This command in short helps us to update a storage journal snapshot file. Storage today stores metadata about the 4 special metadata segments
- * in something called as journals. There are also snapshots of these journals created on reaching a fixed size and stored as a journal snapshot file. A snapshot is
- * a self contained  state of all the 4 special metadata segments.
- * There can be scnearios where one might want to change/update the state stored in these journal files. For e.g there could be situations where data stored in one of the
+ * This command helps us to update a storage journal snapshot file. SLTS today stores metadata about the 4 special metadata segments
+ * in something called as Journals.More about SLTS Journals here(https://github.com/pravega/pravega/wiki/PDP-34-(Simplified-Tier-2)#bootstrap). There are also snapshots of these journals created on reaching a fixed size and stored as a journal snapshot file. A snapshot is
+ * a self contained  state of all the 4 special metadata segments ( storage_metadata, container_metadata and their corresponding attribute index segments)
+ * There can be scenarios where one might want to change/update the state stored in these journal files. For example, there could be situations where data stored in one of the
  * special segment's attribute index is corrupted and we use recovery tools to help fix this corruption. Further on fixing this corruption, there arises a need to update
  * the metadata of this fixed attribute index in the cluster to help recover the cluster. That's where a command like this can be useful to
  * help us perform such updates on the journal files themselves.
@@ -55,9 +55,10 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
     private static final SystemJournal.SystemSnapshotRecord.Serializer SYSTEM_SNAPSHOT_SERIALIZER = new SystemJournal.SystemSnapshotRecord.Serializer();
     private static final String SNAPSHOT = "snapshot";
     private static final String EPOCH_SPLITTER = ".E-";
+    private static final String SEGMENT_PART_SPLITTER = "\\/";
     private static final String OFFSET_SPLITTER = "O-";
-    private static final AtomicInteger CHUNK_COUNT = new AtomicInteger();
-    private static final AtomicLong SEGMENT_LENGTH = new AtomicLong();
+    private final AtomicInteger CHUNK_COUNT = new AtomicInteger();
+    private final AtomicLong SEGMENT_LENGTH = new AtomicLong();
 
     /**
      * Creates a new instance of the StorageUpdateSnapshotCommand.
@@ -68,6 +69,14 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
         super(args);
     }
 
+    /**
+     * What this method does:-
+     * a) Reads chunks of the segment that needs to be updated
+     * b) Reads the latest journal index file.
+     * c) Builds the chunk and segment metadata from the chunks read.
+     * d) Updates the SystemSnapshotRecord read from the latest journal file
+     *    with the built metadata in step c).
+     */
     @Override
     public void execute() throws Exception {
         ensureArgCount(4);
@@ -81,9 +90,9 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
         File latestSnapshotFile = new File(latestSnapshot);
         Preconditions.checkState(journalFile.isFile(), "journal-path provided should point to a valid journal file");
         Preconditions.checkState(latestSnapshotFile.isFile(), "snapshot file path provided should point to a valid file");
-        //check whether we are deserializing a snapshot file or a journal index file
+        // Check whether we are deserializing a snapshot file or a journal index file
         JournalDeserializer deserializer = journalFile.getName().contains(SNAPSHOT) ? new JournalSnapshotDeserializer() : new JournalFileDeserializer();
-        //list all segment chunks sorted based on epoch and offset
+        // List all segment chunks sorted based on epoch and offset
         File[] segmentChunkFiles = new File(segmentChunkPath).listFiles();
         assert segmentChunkFiles != null;
         Preconditions.checkState(segmentChunkFiles.length > 0, "No segment chunks found");
@@ -169,6 +178,7 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
                 record.getSegmentMetadata().setLastChunkStartOffset(deriveStartOffset(chunks.get(chunks.size() - 1).getName()));
                 record.getSegmentMetadata().setLastModified(System.currentTimeMillis());
                 recordToBeSaved = record.toBuilder().segmentMetadata(record.getSegmentMetadata()).chunkMetadataCollection(chunks).build();
+                recordToBeSaved.checkInvariants();
                 segmentIterator.remove();
                 records.add(recordToBeSaved);
                 break;
@@ -181,12 +191,9 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
      * is the same as the one we have from journal file.
      */
     private boolean isSegmentBeingEdited(String segmentFromJournal, String segmentFromChunks) {
-        String[] segmentParts = segmentFromJournal.split("\\/");
+        String[] segmentParts = segmentFromJournal.split(SEGMENT_PART_SPLITTER);
         segmentFromJournal = segmentParts[segmentParts.length - 1];
-        if (segmentFromJournal.split(EPOCH_SPLITTER)[0].equalsIgnoreCase(segmentFromChunks.split(EPOCH_SPLITTER)[0])) {
-            return true;
-        }
-        return false;
+        return segmentFromJournal.split(EPOCH_SPLITTER)[0].equalsIgnoreCase(segmentFromChunks.split(EPOCH_SPLITTER)[0]);
     }
 
     /**
@@ -202,7 +209,7 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
             SEGMENT_LENGTH.addAndGet(file.length());
             ChunkMetadata ch = chunkBuilder.name(INTERNAL_CONTAINER_PREFIX + file.getName()).length(file.length()).build();
             if (previousChunk.get() != null) {
-                previousChunk.get().setNextChunk(INTERNAL_CONTAINER_PREFIX + ch.getName());
+                previousChunk.get().setNextChunk(ch.getName());
             }
             ch.setActive(true);
             previousChunk.set(ch);
