@@ -770,5 +770,10 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         public void close() {
             connection.close();
         }
+
+        @Override
+        public PravegaNodeUri getLocation() {
+            return connection.getLocation();
+        }
     }
 }

@@ -18,6 +18,7 @@ package io.pravega.client.connection.impl;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -68,6 +69,12 @@ public class FlowClientConnection implements ClientConnection {
         if (closed.compareAndSet(false, true)) {
             handler.closeFlow(this);
         }
+    }
+
+    @Override
+    public PravegaNodeUri getLocation() {
+        return new PravegaNodeUri("FlowConnectionEP", 111);    // TODO: check on this
+        //  return null;
     }
 
 }

@@ -69,6 +69,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -337,10 +338,15 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void connectionDropped() {
             failConnection(new ConnectionFailedException("Connection dropped for writer " + writerId));
         }
-
+        @SneakyThrows   // TODO: check on this
         @Override
         public void wrongHost(WrongHost wrongHost) {
-            failConnection(new ConnectionFailedException(wrongHost.toString()));
+            log.info("*************Entered WrongHost in SOS***************");
+            getConnection().thenAccept(conn -> {
+                log.info("^^^^^^^^^^^^PRAVEGA NODE INFO : WH ^^^^^^^^^^^^^"+ conn.getLocation().getEndpoint() +":port "+ conn.getLocation().getPort());
+                controller.updateStaleValueInCache(wrongHost.getSegment(), conn.getLocation());
+            }).thenRunAsync(() -> failConnection(new ConnectionFailedException(wrongHost.toString())));
+            log.info("*************Entered WrongHost in SOS***************");
         }
 
         /**

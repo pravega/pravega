@@ -358,4 +358,10 @@ public class TcpClientConnection implements ClientConnection {
         return this.reader.flowToBatchSizeTracker;
     }
 
+    @Override
+    public PravegaNodeUri getLocation() {
+        return new PravegaNodeUri("TCPConnectionEP", 222);
+        //return location;
+    }
+
 }

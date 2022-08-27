@@ -49,6 +49,7 @@ import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -111,6 +112,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
 
 import java.io.File;
 import java.io.IOException;
@@ -142,12 +144,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for ControllerImpl.
@@ -2540,6 +2537,28 @@ public class ControllerImplTest {
         deleteKVTableStatus = controllerClient.deleteKeyValueTable("scope1", "kvtable3");
         assertFalse(deleteKVTableStatus.join());
     }
+
+    @Test
+    public void testGetEndPointForSegment() throws Exception {
+        CompletableFuture<PravegaNodeUri> endpointForSegment;
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get()); // picks the value from network TODO: check what to assert
+
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get()); // picks from cache // TODO: check what to assert // verify times here
+    }
+
+    @Test
+    public void updateStaleValueInCacheTest() throws Exception { // covers updateStaleValueInCache code// TODO: check what to assert
+        CompletableFuture<PravegaNodeUri> endpointForSegment;
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
+
+        PravegaNodeUri errorNodeInfo = new PravegaNodeUri("localhost", 12345);
+        controllerClient.updateStaleValueInCache("scope1/stream1/0", errorNodeInfo);
+    }
+
+
 
 
 }
