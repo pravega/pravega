@@ -63,6 +63,7 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
     private static final int ATTRIBUTES_PER_SEGMENT = 10;
     private static final ContainerConfig CONFIG = ContainerConfig.builder()
             .with(ContainerConfig.MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT, ATTRIBUTES_PER_SEGMENT / 2)
+            .with(ContainerConfig.DATA_INTEGRITY_CHECKS_ENABLED, true)
             .build();
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 

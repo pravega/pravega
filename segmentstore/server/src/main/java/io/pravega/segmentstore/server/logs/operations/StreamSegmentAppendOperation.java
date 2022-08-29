@@ -25,6 +25,10 @@ import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.server.writer.AggregatedAppendIntegrityChecker;
+import lombok.Getter;
+import lombok.Setter;
+
 import java.io.IOException;
 
 /**
@@ -38,6 +42,12 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
     protected long streamSegmentOffset;
     protected BufferView data;
     protected AttributeUpdateCollection attributeUpdates;
+
+    // Hash of the Append contents. Note that this is only used internally within the Segment Store to
+    // check data integrity and should not be considered for serialization.
+    @Getter
+    @Setter
+    private transient long contentHash = AggregatedAppendIntegrityChecker.NO_HASH;
 
     //endregion
 
