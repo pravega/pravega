@@ -360,8 +360,6 @@ public class TcpClientConnection implements ClientConnection {
 
     @Override
     public PravegaNodeUri getLocation() {
-        return new PravegaNodeUri("TCPConnectionEP", 222);
-        //return location;
+        return location;
     }
-
 }

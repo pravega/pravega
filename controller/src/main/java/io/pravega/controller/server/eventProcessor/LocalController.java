@@ -746,7 +746,6 @@ public class LocalController implements Controller {
 
     @Override
     public void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri) {
-        log.info("In local controller's updateStaleValueInCache"); // TODO: check on this
     }
 
     private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {

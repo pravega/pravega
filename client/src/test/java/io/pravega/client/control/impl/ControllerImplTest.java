@@ -49,7 +49,6 @@ import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
-import io.pravega.common.Timer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -112,7 +111,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-import org.mockito.Mockito;
 
 import java.io.File;
 import java.io.IOException;
@@ -1425,6 +1423,7 @@ public class ControllerImplTest {
 
     @After
     public void tearDown() {
+
         ExecutorServiceHelpers.shutdown(executor);
         testGRPCServer.shutdownNow();
     }
@@ -2542,14 +2541,16 @@ public class ControllerImplTest {
     public void testGetEndPointForSegment() throws Exception {
         CompletableFuture<PravegaNodeUri> endpointForSegment;
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
-        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get()); // picks the value from network TODO: check what to assert
+        // reads from network and store in cache
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
 
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
-        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get()); // picks from cache // TODO: check what to assert // verify times here
+        // picks from cache
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
     }
 
     @Test
-    public void updateStaleValueInCacheTest() throws Exception { // covers updateStaleValueInCache code// TODO: check what to assert
+    public void updateStaleValueInCacheTest() throws Exception {
         CompletableFuture<PravegaNodeUri> endpointForSegment;
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
         assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());

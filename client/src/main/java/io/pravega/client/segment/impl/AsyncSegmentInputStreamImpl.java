@@ -23,7 +23,6 @@ import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.Flow;
-import io.pravega.client.control.impl.CachedPravegaNodeUri;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.control.impl.Controller;
@@ -87,12 +86,10 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         @Override
         public void wrongHost(WireCommands.WrongHost wrongHost) {
-            log.info("*************Entered WrongHost***************");
+            log.info("Received wrongHost {}", wrongHost);
             connection.thenAccept(conn -> {
-                log.info("^^^^^^^^^^^^PRAVEGA NODE INFO : WH ^^^^^^^^^^^^^"+ conn.getLocation().getEndpoint() +":port "+ conn.getLocation().getPort());
                 controller.updateStaleValueInCache(wrongHost.getSegment(), conn.getLocation());
             }).thenRunAsync(() -> closeConnection(new ConnectionFailedException(wrongHost.toString())));
-            log.info("*************EXit WrongHost***************");
         }
 
         @Override

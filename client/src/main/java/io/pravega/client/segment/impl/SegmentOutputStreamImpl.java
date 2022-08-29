@@ -338,15 +338,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void connectionDropped() {
             failConnection(new ConnectionFailedException("Connection dropped for writer " + writerId));
         }
-        @SneakyThrows   // TODO: check on this
+
+        @SneakyThrows
         @Override
         public void wrongHost(WrongHost wrongHost) {
-            log.info("*************Entered WrongHost in SOS***************");
+            log.info("Received wrongHost {}", wrongHost);
             getConnection().thenAccept(conn -> {
-                log.info("^^^^^^^^^^^^PRAVEGA NODE INFO : WH ^^^^^^^^^^^^^"+ conn.getLocation().getEndpoint() +":port "+ conn.getLocation().getPort());
                 controller.updateStaleValueInCache(wrongHost.getSegment(), conn.getLocation());
             }).thenRunAsync(() -> failConnection(new ConnectionFailedException(wrongHost.toString())));
-            log.info("*************Entered WrongHost in SOS***************");
         }
 
         /**

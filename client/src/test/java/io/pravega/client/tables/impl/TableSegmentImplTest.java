@@ -746,7 +746,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
 
         @Override
         public PravegaNodeUri getLocation() {
-            throw new UnsupportedOperationException("not needed for this test");
+            return null;
         }
 
         @Override

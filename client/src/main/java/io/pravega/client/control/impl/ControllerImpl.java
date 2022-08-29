@@ -235,11 +235,11 @@ public class ControllerImpl implements Controller {
     /**
      * Maximum time that segment endpoint details are held in the cache.
      */
-    private static final Duration SEGMENT_ENTRY_EXPIRATION_TIME = Duration.ofMinutes(5);
+    private final Duration segmentEntryExpirationTime = Duration.ofMinutes(5);
     /**
      * Maximum number of segment endpoint entries in the cache.
      */
-    private static final int MAX_CACHE_SIZE = 1000; // TODO: to be revised based on testing
+    private final int maxCacheSize = 1000;
 
     @Getter(value = AccessLevel.PACKAGE)
     private final SimpleCache<Long, CachedPravegaNodeUri> endPointCacheMap;
@@ -274,7 +274,7 @@ public class ControllerImpl implements Controller {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
         this.executor = executor;
         this.retryConfig = createRetryConfig(config);
-        this.endPointCacheMap = new SimpleCache<>(MAX_CACHE_SIZE, SEGMENT_ENTRY_EXPIRATION_TIME,
+        this.endPointCacheMap = new SimpleCache<>(maxCacheSize, segmentEntryExpirationTime,
                 (segment, cachedEndPointUri) -> log.info("Evicting segment : {} from cache", segment));
 
         if (config.getClientConfig().isEnableTlsToController()) {
@@ -1303,47 +1303,41 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotNullOrEmpty(qualifiedSegmentName, "qualifiedSegmentName");
         Segment segment = Segment.fromScopedName(qualifiedSegmentName);
         long segmentId = segment.getSegmentId();
-        final long requestId = requestIdGenerator.get(); // TODO: check if we need it in this?
         CachedPravegaNodeUri nodeUri = getSegmentEndpointFromCache(segmentId);
-        //Read from cache if the segment endpoint already exists and the refresh interval is not expired
-        if(nodeUri != null && nodeUri.getTimer().getElapsedMillis() <= CachedPravegaNodeUri.maxBackoffMillis) {
-            log.info(requestId, "Fetching the endpoint details for segment {} from cache", segmentId);  // TODO: change the log to debug
+        //Read from cache if the segment endpoint already exists and the refresh interval is not expired.
+        if (nodeUri != null && nodeUri.getTimer().getElapsedMillis() <= CachedPravegaNodeUri.MAX_BACKOFF_MILLIS) {
+            log.info("Fetching the endpoint details for segment {} from cache", segmentId);
             return nodeUri.getPravegaNodeUri();
-        } else if(nodeUri != null && nodeUri.getTimer().getElapsedMillis() > CachedPravegaNodeUri.maxBackoffMillis) {
-            log.info(requestId, "--Fetching the endpoint details for segment {} from cache : case when maxTimeOff expired", segmentId);
+        } else if (nodeUri != null && nodeUri.getTimer().getElapsedMillis() > CachedPravegaNodeUri.MAX_BACKOFF_MILLIS) {
             CompletableFuture<PravegaNodeUri> existingNodeInfo = nodeUri.getPravegaNodeUri();
-            // This will trigger a background call and refresh the cache.
+            // Trigger a background call and refresh the cache.
             endPointCacheMap.put(segment.getSegmentId(), new CachedPravegaNodeUri(new Timer(), getPravegaNodeUri(qualifiedSegmentName)));
             return existingNodeInfo;
         } else {
-            log.info(requestId, "--Fetching the endpoint details for segment {} from Network", segmentId);
             endPointCacheMap.put(segment.getSegmentId(), new CachedPravegaNodeUri(new Timer(), getPravegaNodeUri(qualifiedSegmentName)));
             return endPointCacheMap.get(segment.getSegmentId()).getPravegaNodeUri();
         }
     }
 
     public void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri) {
-        log.info("--Entered UpdateStaleValueInCache---");
         Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
         Segment segment = Segment.fromScopedName(segmentName);
         long segmentId = segment.getSegmentId();
-        final long requestId = requestIdGenerator.get(); // TODO: handle requestID and traceID
+        final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "updateStaleValueInCache", segmentName, errNodeUri, requestId);
         CachedPravegaNodeUri cachedNode = getSegmentEndpointFromCache(segmentId);
         cachedNode.getPravegaNodeUri().thenAccept(cachedNodeUri -> {
-            if(cachedNodeUri.getEndpoint().equals(errNodeUri.getEndpoint()) && cachedNodeUri.getPort() == errNodeUri.getPort()) { // TODO: check what if the errored node recovered on same host and port
-                // enforce cache refresh if stale value
-                log.info("--Cached node details : ---"+ cachedNodeUri.getEndpoint() +" :: "+ cachedNodeUri.getPort());
-                log.info(requestId, "--Refreshing the cache value for segment {}", segmentId);
+            if (cachedNodeUri.getEndpoint().equals(errNodeUri.getEndpoint()) && cachedNodeUri.getPort() == errNodeUri.getPort()) {
+                // enforce cache refresh in case of stale value
+                log.info(requestId, "Refreshing stale value in cache for segment {}", segmentId);
                 endPointCacheMap.put(segment.getSegmentId(), new CachedPravegaNodeUri(new Timer(), getPravegaNodeUri(segmentName)));
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("--updateStaleValueInCache failed for segment {}: ", segmentName, e);
+                log.warn("updateStaleValueInCache failed for segment {}: ", segmentName, e);
                 endPointCacheMap.remove(segmentId);
             }
             LoggerHelpers.traceLeave(log, "updateStaleValueInCache", traceId, requestId);
-            log.info("--Exit UpdateStaleValueInCache---");
         });
     }
 
@@ -1371,7 +1365,7 @@ public class ControllerImpl implements Controller {
                 });
     }
 
-    private CachedPravegaNodeUri getSegmentEndpointFromCache (long segmentId) {
+    private CachedPravegaNodeUri getSegmentEndpointFromCache(long segmentId) {
         return endPointCacheMap.get(segmentId);
     }
 
