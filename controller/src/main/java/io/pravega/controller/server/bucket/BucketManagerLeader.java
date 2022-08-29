@@ -31,6 +31,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelectorListener;
 import org.apache.curator.framework.state.ConnectionState;
+
+/**
+ * BucketManagerLeader is responsible for distributing the buckets whenever any instance of controller is up/down.
+ */
 @Slf4j
 public class BucketManagerLeader implements LeaderSelectorListener {
 

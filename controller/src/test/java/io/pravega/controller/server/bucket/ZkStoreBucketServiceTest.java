@@ -44,6 +44,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
@@ -61,6 +62,7 @@ import static org.junit.Assert.assertTrue;
 public class ZkStoreBucketServiceTest extends BucketServiceTest {
     private TestingServer zkServer;
     private CuratorFramework zkClient;
+    private Cluster cluster;
 
     @Override
     @Before
@@ -72,6 +74,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
                 (r, e, s) -> false);
 
         zkClient.start();
+        cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
         super.setup();
     }
 
@@ -79,6 +82,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
+        cluster.close();
         streamMetadataStore.close();
         zkClient.close();
         zkServer.close();
@@ -99,6 +103,12 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
 
     @Test(timeout = 10000)
     public void testBucketOwnership() throws Exception {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        retentionService.addListener(() ->
+                countDownLatch.countDown()
+        );
+        addEntryToZkCluster(controller);
+        countDownLatch.await();
         // verify that ownership is not taken up by another host
         assertFalse(retentionService.takeBucketOwnership(0, "", executor).join());
 
@@ -281,8 +291,15 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
     }
 
     @Override
-    protected void addEntryToZkCluster(Host host) {
-        Cluster cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
+    protected void addEntryToZkCluster(Host host)  {
+        final CountDownLatch latch = new CountDownLatch(1);
+        cluster.addListener((type, host1) -> latch.countDown());
         cluster.registerHost(host);
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
+
 }

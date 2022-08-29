@@ -67,7 +67,7 @@ public class InMemoryBucketManager extends BucketManager {
 
     @Override
     public void startLeader() {
-
+        handleBuckets();
     }
 
     @Override
@@ -104,6 +104,13 @@ public class InMemoryBucketManager extends BucketManager {
     CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
         Preconditions.checkArgument(bucket < getBucketCount());
         return CompletableFuture.completedFuture(true);
+    }
+
+    private void handleBuckets() {
+        BucketListener consumer = getListenerRef().get();
+        if (consumer != null) {
+            consumer.signal();
+        }
     }
 
 }

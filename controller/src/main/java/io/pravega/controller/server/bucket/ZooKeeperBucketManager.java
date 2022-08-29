@@ -145,7 +145,7 @@ public class ZooKeeperBucketManager extends BucketManager {
 
     @SneakyThrows(Exception.class)
     @Override
-    void addBucketControllerMapListener() {
+    public void addBucketControllerMapListener() {
             ZKUtils.createPathIfNotExists(bucketStore.getClient(), bucketStore.getBucketControllerMapPath(getServiceType()),
                     BucketControllerMap.EMPTY.toBytes());
             NodeCache cache = bucketStore.getBucketControllerMapNodeCache(getServiceType());

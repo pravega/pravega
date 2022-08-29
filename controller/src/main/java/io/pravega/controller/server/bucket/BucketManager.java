@@ -219,7 +219,7 @@ public abstract class BucketManager extends AbstractService {
                    return bucketFuture;
                }).collect(Collectors.toList()))
                .whenComplete((r, e) -> {
-                   synchronized ("lock") {
+                   synchronized (lock) {
                        bInt.stream().forEach(x -> buckets.remove(x));
                    }
                    if (e != null) {

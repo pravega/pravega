@@ -56,11 +56,11 @@ public abstract class BucketServiceTest {
     BucketManager watermarkingService;
     ScheduledExecutorService executor;
     StreamMetadataTasks streamMetadataTasks;
+    Host controller;
     private PeriodicWatermarking periodicWatermarking;
     private ConnectionFactory connectionFactory;
     private String hostId;
     private RequestTracker requestTracker = new RequestTracker(true);
-    private Host controller;
 
     @Before
     public void setup() throws Exception {
@@ -110,7 +110,7 @@ public abstract class BucketServiceTest {
 
     abstract BucketStore createBucketStore(int bucketCount);
 
-    @Test //(timeout = 10000)
+    @Test
     public void testRetentionService() throws Exception {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         retentionService.addListener(() ->
@@ -145,10 +145,9 @@ public abstract class BucketServiceTest {
         assertEquals(0, bucketService.getKnownStreams().size());
     }
 
-    @Test //(timeout = 10000)
+    @Test
     public void testWatermarkingService() throws Exception {
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        retentionService.addListener(() -> System.out.println("retention listener called"));
         watermarkingService.addListener(() -> countDownLatch.countDown());
         addEntryToZkCluster(controller);
         countDownLatch.await();
