@@ -1224,12 +1224,20 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
             boolean done = false;
             while (!done) {
                 try {
-                    systemJournal.commitRecord(SystemJournal.ChunkAddedRecord.builder()
+                    val journalRecords = new ArrayList<SystemJournal.SystemJournalRecord>();
+                    journalRecords.add(SystemJournal.ChunkAddedRecord.builder()
                             .newChunkName(chunkName)
                             .oldChunkName(oldChunkName)
                             .offset(offset)
                             .segmentName(segmentName)
-                            .build()).join();
+                            .build());
+                    journalRecords.add(SystemJournal.AppendRecord.builder()
+                            .segmentName(segmentName)
+                            .chunkName(chunkName)
+                            .offset(0)
+                            .length(metadataLength)
+                            .build());
+                    systemJournal.commitRecords(journalRecords).join();
                     done = true;
                 } catch (RuntimeException e) {
                     throw e;
