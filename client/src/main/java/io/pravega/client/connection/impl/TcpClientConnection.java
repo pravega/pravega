@@ -328,7 +328,7 @@ public class TcpClientConnection implements ClientConnection {
             }
         }
     }
-    
+
     @VisibleForTesting
     boolean isClosed() {
         return closed.get();
@@ -356,6 +356,11 @@ public class TcpClientConnection implements ClientConnection {
     @VisibleForTesting
     FlowToBatchSizeTracker getConnectionReaderFlowToBatchSizeTracker() {
         return this.reader.flowToBatchSizeTracker;
+    }
+
+    @Override
+    public PravegaNodeUri getLocation() {
+        return location;
     }
 
 }
