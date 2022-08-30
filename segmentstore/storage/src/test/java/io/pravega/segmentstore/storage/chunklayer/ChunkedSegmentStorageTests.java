@@ -34,6 +34,7 @@ import io.pravega.segmentstore.storage.StorageWrapper;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
+import io.pravega.segmentstore.storage.metadata.StatusFlags;
 import io.pravega.segmentstore.storage.mocks.AbstractInMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
@@ -1324,86 +1325,114 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Test failover scenario for segment with only one chunk.
+     * Test failover scenario for segment with default settings.
      *
      * @throws Exception
      */
     @Test
-    public void testOpenWriteAfterFailoverWithSingleChunk() throws Exception {
+    public void testOpenWriteAfterFailoverWithAppend() throws Exception {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
 
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 24, true, true);
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, true, false);
+        // Migration from lazy mode before to lazy mode after
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 24, true, true, true);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true, true);
+        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true, true);
 
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
+        // Migration from lazy mode before to NO lazy mode after
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 24, true, true, false);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true, false);
+        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true, false);
 
-        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, true);
-        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
+        // Migration from NO lazy mode before to lazy mode after
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, true, false, true);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false, true);
+        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false, true);
+
+        // Migration from NO lazy mode before to NO lazy mode after
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, true, false, false);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false, false);
+        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false, false);
+
     }
 
     @Test
-    public void testOpenWriteAfterFailoverWithSingleChunkNoAppend() throws Exception {
+    public void testOpenWriteAfterFailoverWithNoAppend() throws Exception {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
 
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 10, 10, false, true);
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 10, 10, false, false);
-
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, true);
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, false);
-
-        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, true);
-        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, false);
-
+        for (boolean useLazyCommitsBefore : new boolean[]{ true, false}) {
+            for (boolean useLazyCommitsAfter : new boolean[]{ true, false}) {
+                testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, false, useLazyCommitsBefore, useLazyCommitsAfter);
+                testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, false, useLazyCommitsBefore, useLazyCommitsAfter);
+                testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, false, useLazyCommitsBefore, useLazyCommitsAfter);
+            }
+        }
     }
+
 
     /**
-     * Test failover scenario for segment with only one chunk.
+     * Test failover scenario for segment with default settings.
      *
      * @throws Exception
      */
     @Test
-    public void testOpenReadAfterFailoverWithSingleChunkNoAppend() throws Exception {
+    public void testOpenReadAfterFailoverWithAppend() throws Exception {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 10, 10, false, true);
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 10, 10, false, false);
 
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, true);
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, false);
+        // Migration from lazy mode before to lazy mode after
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 24, true, true, true);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true, true);
+        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true, true);
 
-        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, true);
-        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 10, 10, false, false);
+        // Migration from lazy mode before to NO lazy mode after
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 24, true, true, false);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true, false);
+        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true, false);
+
+        // Migration from NO lazy mode before to lazy mode after
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, true, false, true);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false, true);
+        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false, true);
+
+        // Migration from NO lazy mode before to NO lazy mode after
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, true, false, false);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false, false);
+        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false, false);
+
     }
 
     @Test
-    public void testOpenReadAfterFailoverWithSingleChunk() throws Exception {
+    public void testOpenReadAfterFailoverWithNoAppend() throws Exception {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 24, true, true);
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, true, false);
 
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
-
-        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, true);
-        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
+        for (boolean useLazyCommitsBefore : new boolean[]{ true, false}) {
+            for (boolean useLazyCommitsAfter : new boolean[]{ true, false}) {
+                testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, false, useLazyCommitsBefore, useLazyCommitsAfter);
+                testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, false, useLazyCommitsBefore, useLazyCommitsAfter);
+                testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, false, useLazyCommitsBefore, useLazyCommitsAfter);
+            }
+        }
     }
 
-    private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, int expectedLastChunkLength, boolean shouldAppend, boolean useLazyCommit) throws Exception {
+    private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, int expectedLastChunkLength, boolean shouldAppend, boolean useLazyCommitBefore, boolean useLazyCommitAfter) throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .lazyCommitEnabled(useLazyCommit)
+                .lazyCommitEnabled(useLazyCommitAfter)
                 .appendEnabled(shouldAppend)
                 .build());
         testContext.chunkedSegmentStorage.initialize(ownerEpoch);
-        val inserted = testContext.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1, chunks);
+        val inserted = TestUtils.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1,
+                chunks, chunks,
+                true, true,
+                testContext.metadataStore, testContext.chunkedSegmentStorage,
+                useLazyCommitBefore ? StatusFlags.ACTIVE : StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES);
         // Set bigger offset for last chunk
         TestUtils.addChunk(testContext.chunkStorage, inserted.getLastChunk(), lastChunkLengthInStorage);
 
@@ -1422,14 +1451,18 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         Assert.assertEquals(metadataAfter.getLength(), testContext.chunkedSegmentStorage.getStreamSegmentInfo(testSegmentName, null).get().getLength());
     }
 
-    private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, int expectedLastChunkLength, boolean shouldAppend, boolean useLazyCommit) throws Exception {
+    private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, int expectedLastChunkLength, boolean shouldAppend, boolean useLazyCommitBefore, boolean useLazyCommitAfter) throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .lazyCommitEnabled(useLazyCommit)
+                .lazyCommitEnabled(useLazyCommitAfter)
                 .appendEnabled(shouldAppend)
                 .build());
         testContext.chunkedSegmentStorage.initialize(ownerEpoch);
-        val inserted = testContext.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1, chunks);
+        val inserted = TestUtils.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1,
+                chunks, chunks,
+                true, true,
+                testContext.metadataStore, testContext.chunkedSegmentStorage,
+                useLazyCommitBefore ? StatusFlags.ACTIVE : StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES);
         // Set bigger offset for last chunk
         TestUtils.addChunk(testContext.chunkStorage, inserted.getLastChunk(), lastChunkLengthInStorage);
 
@@ -3444,7 +3477,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             return TestUtils.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch,
                     chunkLengths, chunkLengths,
                     addIndex, addIndexMetadata,
-                    metadataStore, chunkedSegmentStorage);
+                    metadataStore,
+                    chunkedSegmentStorage,
+                    StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES );
         }
 
         /*

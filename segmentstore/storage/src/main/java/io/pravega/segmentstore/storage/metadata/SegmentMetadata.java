@@ -173,6 +173,16 @@ public class SegmentMetadata extends StorageMetadata {
     }
 
     /**
+     * Sets whether writes should be atomic.
+     * @param value Value to set.
+     * @return This instance so that these calls can be chained.
+     */
+    public SegmentMetadata setAtomicWrites(boolean value) {
+        return setFlag(StatusFlags.ATOMIC_WRITES, value);
+    }
+
+
+    /**
      * Gets active status.
      * @return True if active, false otherwise.
      */
@@ -194,6 +204,15 @@ public class SegmentMetadata extends StorageMetadata {
      */
     public boolean isOwnershipChanged() {
         return getFlag(StatusFlags.OWNERSHIP_CHANGED);
+    }
+
+
+    /**
+     * Gets whether writes are atomic.
+     * @return True if changed, false otherwise.
+     */
+    public boolean isAtomicWrite() {
+        return getFlag(StatusFlags.ATOMIC_WRITES);
     }
 
     /**

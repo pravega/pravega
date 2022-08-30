@@ -29,7 +29,6 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutException;
-import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -200,10 +199,9 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecords(systemLogRecords));
         }
         // if layout did not change, and it is eligible segment then commit with lazyWrite.
-        val shouldLazyCommit = chunkedSegmentStorage.getConfig().isLazyCommitEnabled()
+        val shouldLazyCommit = !segmentMetadata.isAtomicWrite()
                 && !didSegmentLayoutChange
-                && !isSystemSegment
-                && !NameUtils.isAttributeSegment(segmentMetadata.getName());
+                && !isSystemSegment;
 
         // Commit
         return txn.commit(shouldLazyCommit)
