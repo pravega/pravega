@@ -24,6 +24,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.Map;
 
 public class UserCLIRunnerTest {
 
@@ -57,8 +59,9 @@ public class UserCLIRunnerTest {
 
     @Test
     public void testCommandDetails() {
-        UserCLIRunner.printCommandDetails(Parser.parse("kvt create test", InteractiveConfig.getDefault()));
-        UserCLIRunner.printCommandDetails(Parser.parse("wrong command", InteractiveConfig.getDefault()));
+        Map<String, String> environment = Collections.singletonMap("TestKey", "TestValue");
+        UserCLIRunner.printCommandDetails(Parser.parse("kvt create test", InteractiveConfig.getDefault(environment)));
+        UserCLIRunner.printCommandDetails(Parser.parse("wrong command", InteractiveConfig.getDefault(environment)));
     }
 
 }

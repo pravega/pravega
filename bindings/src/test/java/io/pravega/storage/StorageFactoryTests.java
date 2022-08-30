@@ -25,6 +25,11 @@ import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.storage.azure.AzureChunkStorage;
+import io.pravega.storage.azure.AzureTestContext;
+import io.pravega.storage.azure.AzureStorageFactoryCreator;
+import io.pravega.storage.azure.AzureSimpleStorageFactory;
+import io.pravega.storage.azure.AzureStorageConfig;
 import io.pravega.storage.extendeds3.ExtendedS3ChunkStorage;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
@@ -35,6 +40,10 @@ import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageFactoryCreator;
+import io.pravega.storage.gcp.GCPChunkStorage;
+import io.pravega.storage.gcp.GCPSimpleStorageFactory;
+import io.pravega.storage.gcp.GCPStorageConfig;
+import io.pravega.storage.gcp.GCPStorageFactoryCreator;
 import io.pravega.storage.hdfs.HDFSChunkStorage;
 import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
@@ -207,7 +216,6 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
 
         // Simple Storage
         ConfigSetup configSetup1 = mock(ConfigSetup.class);
-
         when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof S3SimpleStorageFactory);
@@ -216,6 +224,38 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         Storage storage1 = ((S3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
         Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof S3ChunkStorage);
+
+        AssertExtensions.assertThrows(
+                "createStorageAdapter should throw UnsupportedOperationException.",
+                () -> factory1.createStorageAdapter(),
+                ex -> ex instanceof UnsupportedOperationException);
+    }
+
+    @Test
+    public void testAzureStorageFactoryCreator() {
+        StorageFactoryCreator factoryCreator = new AzureStorageFactoryCreator();
+        val expected = new StorageFactoryInfo[]{
+                StorageFactoryInfo.builder()
+                        .name("AZURE")
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
+                        .build(),
+        };
+
+        val factoryInfoList = factoryCreator.getStorageFactories();
+        Assert.assertEquals(1, factoryInfoList.length);
+        Assert.assertArrayEquals(expected, factoryInfoList);
+
+        // Simple Storage
+        ConfigSetup configSetup1 = mock(ConfigSetup.class);
+        val config = AzureTestContext.getLocalAzureStorageConfig("sampleprefix");
+        when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
+        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
+        Assert.assertTrue(factory1 instanceof AzureSimpleStorageFactory);
+
+        @Cleanup
+        Storage storage1 = ((AzureSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
+        Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof AzureChunkStorage);
 
         AssertExtensions.assertThrows(
                 "createStorageAdapter should throw UnsupportedOperationException.",
@@ -272,6 +312,81 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testGCPStorageFactoryCreatorWithException() {
+        val config = GCPStorageConfig.builder()
+                .with(GCPStorageConfig.BUCKET, "bucket")
+                .with(GCPStorageConfig.PREFIX, "samplePrefix")
+                .with(GCPStorageConfig.ACCOUNT_TYPE, "testAccountType")
+                .with(GCPStorageConfig.PROJECT_ID, "testProjectId")
+                .with(GCPStorageConfig.CLIENT_EMAIL, "testClientEmail")
+                .with(GCPStorageConfig.CLIENT_ID, "testClientId")
+                .with(GCPStorageConfig.PRIVATE_KEY_ID, "testPrivateKeyId")
+                .with(GCPStorageConfig.PRIVATE_KEY, "testPrivateKey")
+                .with(GCPStorageConfig.USE_MOCK, false)
+                .build();
+
+        StorageFactoryCreator factoryCreator = new GCPStorageFactoryCreator();
+        val expected = new StorageFactoryInfo[]{
+                StorageFactoryInfo.builder()
+                        .name("GCP")
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
+                        .build()
+        };
+
+        val factoryInfoList = factoryCreator.getStorageFactories();
+        Assert.assertEquals(1, factoryInfoList.length);
+        Assert.assertArrayEquals(expected, factoryInfoList);
+
+        // Simple Storage
+        ConfigSetup configSetup1 = mock(ConfigSetup.class);
+
+        when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
+        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
+        Assert.assertTrue(factory1 instanceof GCPSimpleStorageFactory);
+
+        GCPSimpleStorageFactory gcpSimpleStorageFactory = (GCPSimpleStorageFactory) factory1;
+        Assert.assertThrows(RuntimeException.class, () -> gcpSimpleStorageFactory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService())));
+    }
+
+    @Test
+    public void testGCPStorageFactoryCreator() {
+        val config = GCPStorageConfig.builder()
+                .with(GCPStorageConfig.BUCKET, "bucket")
+                .with(GCPStorageConfig.PREFIX, "samplePrefix")
+                .with(GCPStorageConfig.USE_MOCK, true)
+                .build();
+
+        StorageFactoryCreator factoryCreator = new GCPStorageFactoryCreator();
+        val expected = new StorageFactoryInfo[]{
+                StorageFactoryInfo.builder()
+                        .name("GCP")
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
+                        .build()
+        };
+
+        val factoryInfoList = factoryCreator.getStorageFactories();
+        Assert.assertEquals(1, factoryInfoList.length);
+        Assert.assertArrayEquals(expected, factoryInfoList);
+
+        // Simple Storage
+        ConfigSetup configSetup1 = mock(ConfigSetup.class);
+
+        when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
+        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
+        Assert.assertTrue(factory1 instanceof GCPSimpleStorageFactory);
+
+        @Cleanup
+        Storage storage1 = ((GCPSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
+        Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof GCPChunkStorage);
+
+        AssertExtensions.assertThrows(
+                "createStorageAdapter should throw UnsupportedOperationException.",
+                () -> factory1.createStorageAdapter(),
+                ex -> ex instanceof UnsupportedOperationException);
+    }
+
+    @Test
     public void testNull() {
         AssertExtensions.assertThrows(
                 " should throw exception.",
@@ -287,6 +402,10 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows(
                 " should throw exception.",
+                () -> new AzureSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, null, executorService()),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
                 () -> new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, FileSystemStorageConfig.builder().build(), null),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows(
@@ -299,6 +418,10 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows(
                 " should throw exception.",
+                () -> new AzureSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, AzureStorageConfig.builder().build(), null),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
                 () -> new FileSystemSimpleStorageFactory(null, FileSystemStorageConfig.builder().build(), executorService()),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows(
@@ -308,6 +431,22 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 " should throw exception.",
                 () -> new HDFSSimpleStorageFactory(null, HDFSStorageConfig.builder().build(), executorService()),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
+                () -> new AzureSimpleStorageFactory(null, AzureStorageConfig.builder().build(), executorService()),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
+                () -> new GCPSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, null, executorService()),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
+                () -> new GCPSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, GCPStorageConfig.builder().build(), null),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
+                () -> new GCPSimpleStorageFactory(null, GCPStorageConfig.builder().build(), executorService()),
                 ex -> ex instanceof NullPointerException);
     }
 }

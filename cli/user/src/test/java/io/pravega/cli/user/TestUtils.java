@@ -22,6 +22,7 @@ import io.pravega.test.integration.utils.ClusterWrapper;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 
 /**
  * Class to contain convenient utilities for writing test cases.
@@ -88,7 +89,7 @@ public final class TestUtils {
      * @param tlsEnabled whether the cli requires TLS to access the cluster
      */
     public static InteractiveConfig createCLIConfig(String controllerUri, boolean authEnabled, boolean tlsEnabled) {
-        InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
+        InteractiveConfig interactiveConfig = InteractiveConfig.getDefault(Collections.singletonMap("TestKey", "TestValue"));
         interactiveConfig.setControllerUri(controllerUri);
         interactiveConfig.setDefaultSegmentCount(4);
         interactiveConfig.setMaxListItems(100);

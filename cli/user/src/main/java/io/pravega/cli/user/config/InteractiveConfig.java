@@ -56,9 +56,19 @@ public class InteractiveConfig {
     private long rolloverSizeBytes;
     private Level logLevel;
 
-    public static InteractiveConfig getDefault() {
+    public static InteractiveConfig getDefault(Map<String, String> env) {
+        //Default tls based configurations for pravega cli
+        boolean tlsEnabled = false;
+        String systemEnvURI = env.get("PRAVEGA_CONTROLLER_URI");
+        String controllerURI = systemEnvURI != null ? systemEnvURI : "localhost:9090";
+        if (controllerURI.startsWith("tls://")) {
+            tlsEnabled = true;
+            controllerURI = controllerURI.replace("tls://", "");
+        } else if (controllerURI.startsWith("tcp://")) {
+            controllerURI = controllerURI.replace("tcp://", "");
+        }
         return InteractiveConfig.builder()
-                .controllerUri("localhost:9090")
+                .controllerUri(controllerURI)
                 .defaultSegmentCount(4)
                 .timeoutMillis(60000)
                 .maxListItems(1000)
@@ -66,7 +76,7 @@ public class InteractiveConfig {
                 .authEnabled(false)
                 .userName("")
                 .password("")
-                .tlsEnabled(false)
+                .tlsEnabled(tlsEnabled)
                 .truststore("")
                 .rolloverSizeBytes(0)
                 .logLevel(Level.ERROR)

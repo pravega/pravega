@@ -71,10 +71,6 @@ public final class Retry {
     private Retry() {
     }
 
-    public static RetryWithBackoff withoutBackoff(int attempts) {
-        return new RetryWithBackoff(0, 1, attempts, 0);
-    }
-    
     public static RetryWithBackoff withExpBackoff(long initialMillis, int multiplier, int attempts) {
         return withExpBackoff(initialMillis, multiplier, attempts, Long.MAX_VALUE);
     }
@@ -88,9 +84,9 @@ public final class Retry {
     }
 
     public static RetryUnconditionally indefinitelyWithExpBackoff(long initialMillis, int multiplier, long maxDelay, Consumer<Throwable> consumer) {
-        Preconditions.checkArgument(initialMillis >= 0, "InitialMillis cannot be negative.");
+        Preconditions.checkArgument(initialMillis >= 1, "InitialMillis must be a positive integer.");
         Preconditions.checkArgument(multiplier >= 1, "multiplier must be a positive integer.");
-        Preconditions.checkArgument(maxDelay >= 0, "maxDelay cannot be negative.");
+        Preconditions.checkArgument(maxDelay >= 1, "maxDelay must be a positive integer.");
         RetryWithBackoff params = new RetryWithBackoff(initialMillis, multiplier, Integer.MAX_VALUE, maxDelay);
         return new RetryUnconditionally(consumer, params);
     }
