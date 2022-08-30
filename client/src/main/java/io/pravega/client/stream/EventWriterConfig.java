@@ -98,6 +98,9 @@ public class EventWriterConfig implements Serializable {
      * The maximum allowed lease time is a configuration parameter of the controller
      * and can be changed accordingly. Note that being a controller-wide parameter,
      * it affects all transactions.
+     *
+     * @param transactionTimeoutTime Transaction timeout parameter
+     * @return Transaction timeout parameter corresponding to lease renewal period
      */
     private final long transactionTimeoutTime;
 
