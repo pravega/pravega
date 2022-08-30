@@ -68,7 +68,7 @@ public class ControllerWrapper implements AutoCloseable {
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount) {
-        this(connectionString, disableEventProcessor, true, controllerPort, serviceHost,
+        this(connectionString, disableEventProcessor, false, controllerPort, serviceHost,
                 servicePort, containerCount, -1);
     }
 
