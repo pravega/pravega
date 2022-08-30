@@ -73,7 +73,7 @@ public class EventWriterConfig implements Serializable {
     /**
      * The number of milliseconds to wait while attempting to establish a connection before abandoning the attempt and retrying.
      * 
-     * @param connectionTimeoutMillis The timeout in milliseconds
+     * @param connectTimeoutMillis The timeout in milliseconds
      * @return The timeout in milliseconds
      */
     private final int connectTimeoutMillis;
@@ -106,6 +106,9 @@ public class EventWriterConfig implements Serializable {
      * The maximum allowed lease time is a configuration parameter of the controller
      * and can be changed accordingly. Note that being a controller-wide parameter,
      * it affects all transactions.
+     *
+     * @param transactionTimeoutTime Total amount of time that a txn can remain open. Corresponds to lease renewal period.
+     * @return Total amount of time that a txn can remain open. Corresponds to lease renewal period.
      */
     private final long transactionTimeoutTime;
 

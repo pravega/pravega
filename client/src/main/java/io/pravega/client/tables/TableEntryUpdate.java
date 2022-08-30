@@ -25,6 +25,8 @@ import lombok.NonNull;
 public abstract class TableEntryUpdate extends TableModification {
     /**
      * The new value to associate the {@link TableKey} with.
+     *
+     * @return The new value to associate the {@link TableKey} with.
      */
     @Getter
     private final ByteBuffer value;
