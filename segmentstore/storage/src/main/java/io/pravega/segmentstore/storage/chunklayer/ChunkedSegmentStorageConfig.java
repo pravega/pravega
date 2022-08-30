@@ -43,6 +43,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Long> READ_INDEX_BLOCK_SIZE = Property.named("readindex.block.size", 1024 * 1024L);
 
     public static final Property<Boolean> APPENDS_ENABLED = Property.named("appends.enable", true);
+    public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", false);
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
 
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", 128 * 1024 * 1024L);
@@ -87,6 +88,7 @@ public class ChunkedSegmentStorageConfig {
             .maxIndexedChunksPerSegment(1024)
             .maxIndexedChunks(16 * 1024)
             .appendEnabled(true)
+            .lazyCommitEnabled(false)
             .inlineDefragEnabled(true)
             .lateWarningThresholdInMillis(100)
             .garbageCollectionDelay(Duration.ofSeconds(60))
@@ -169,6 +171,15 @@ public class ChunkedSegmentStorageConfig {
      */
     @Getter
     final private boolean appendEnabled;
+
+    /**
+     * Whether the lazy commit functionality is enabled or disabled.
+     * Underlying implementation might buffer frequently or recently updated metadata keys to optimize read/write performance.
+     * To further optimize it may provide "lazy committing" of changes where there is application specific way to recover from failures.(Eg. when only length of chunk is changed.)
+     * Note that otherwise for each commit the data is written to underlying key-value store.
+     */
+    @Getter
+    final private boolean lazyCommitEnabled;
 
     /**
      * Whether the inline defrag functionality is enabled or disabled.
@@ -309,6 +320,7 @@ public class ChunkedSegmentStorageConfig {
      */
     ChunkedSegmentStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.appendEnabled = properties.getBoolean(APPENDS_ENABLED);
+        this.lazyCommitEnabled = properties.getBoolean(LAZY_COMMIT_ENABLED);
         this.inlineDefragEnabled = properties.getBoolean(INLINE_DEFRAG_ENABLED);
         this.maxBufferSizeForChunkDataTransfer = properties.getPositiveInt(MAX_BUFFER_SIZE_FOR_APPENDS);
         // Don't use appends for concat when appends are disabled.
