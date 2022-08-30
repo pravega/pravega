@@ -803,6 +803,30 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         Assert.assertNull(wrapper.fetchMetadata());
     }
 
+
+    @Test
+    public void testDeleteLedgersStartingWithId() throws Exception {
+        final int initialLedgerCount = 5;
+        for (int i = 0; i < initialLedgerCount; i++) {
+            try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
+                log.initialize(TIMEOUT);
+                log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            }
+        }
+        BookKeeperLog log = (BookKeeperLog) createDurableDataLog();
+        val wrapper = this.factory.get().createDebugLogWrapper(log.getLogId());
+        Assert.assertTrue(wrapper.fetchMetadata().isEnabled());
+        wrapper.markAsDisabled();
+        Assert.assertFalse(wrapper.fetchMetadata().isEnabled());
+        wrapper.deleteLedgersStartingWithId(3);
+        Assert.assertNotNull(wrapper.fetchMetadata().getLedgers().size());
+
+        AssertExtensions.assertThrows(
+                "No such ledger exist",
+                () -> wrapper.deleteLedgersStartingWithId(6),
+                ex -> ex instanceof DurableDataLogException);
+    }
+
     @Override
     protected int getThreadPoolSize() {
         return THREAD_POOL_SIZE;
