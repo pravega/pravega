@@ -115,7 +115,7 @@ public abstract class BucketManager extends AbstractService {
                               log.debug("{} : Total no of controllers are {}", serviceType, noOfClusters);
                               //If there is only one controller instance, then will try to take ownership from here as there
                               //controller will not wait for stopping the service from other instance.
-                              if (noOfClusters == 1) {
+                              if (noOfClusters == 1 || buckets.isEmpty()) {
                                   return Futures.allOf(addBuckets.stream()
                                                                  .map(x -> initializeBucket(x).thenCompose(v -> tryTakeOwnership(x)))
                                                                  .collect(Collectors.toList()));
@@ -218,10 +218,13 @@ public abstract class BucketManager extends AbstractService {
 
                    return bucketFuture;
                }).collect(Collectors.toList()))
-               .whenComplete((r, e) -> {
+               .thenAccept(x -> {
                    synchronized (lock) {
-                       bInt.stream().forEach(x -> buckets.remove(x));
+                       bInt.stream().forEach(id -> buckets.remove(id));
                    }
+                   log.debug("{}: New buckets size is {}", serviceType, buckets.size());
+               })
+               .whenComplete((r, e) -> {
                    if (e != null) {
                        log.error("{}: bucket service shutdown failed with exception", serviceType, e);
                        notifyFailed(e);
