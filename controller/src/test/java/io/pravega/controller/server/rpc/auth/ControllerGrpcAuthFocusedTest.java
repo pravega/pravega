@@ -99,8 +99,11 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.junit.*;
-import org.junit.rules.ExpectedException;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.Assert;
 
 import static io.pravega.auth.AuthFileUtils.credentialsAndAclAsString;
 
