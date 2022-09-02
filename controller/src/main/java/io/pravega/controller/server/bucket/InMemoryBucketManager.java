@@ -18,14 +18,12 @@ package io.pravega.controller.server.bucket;
 import com.google.common.base.Preconditions;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.InMemoryBucketStore;
-import java.util.Map;
 import java.util.Set;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class InMemoryBucketManager extends BucketManager {
@@ -59,15 +57,22 @@ public class InMemoryBucketManager extends BucketManager {
 
     @Override
     public void startLeaderElection() {
-        Map<String, Set<Integer>> newMap = bucketManagerLeader.getBucketDistributor()
-                                                              .distribute(bucketStore.getBucketControllerMap(getServiceType()).join(),
-                                                                      Set.of(processId), getBucketCount());
-        bucketStore.updateBucketControllerMap(newMap, getServiceType());
+        //As there is no use of zookeeper in Inmemory, so directly start distributing the buckets to controller.
+        bucketStore.getBucketControllerMap(getServiceType())
+                   .thenApply(x -> bucketManagerLeader.getBucketDistributor().distribute(x, Set.of(processId), getBucketCount()))
+                   .thenAccept(newMap -> bucketStore.updateBucketControllerMap(newMap, getServiceType()))
+                   .thenAccept(v -> startLeader())
+                   .whenComplete((r, e) -> {
+                       if (e == null) {
+                           log.debug("{}: started in InMemory mode", getServiceType());
+                       } else {
+                           log.warn("{}: starting fails in InMemory mode", getServiceType());
+                       }
+                   });
     }
 
     @Override
     public void startLeader() {
-        handleBuckets();
     }
 
     @Override
@@ -104,13 +109,6 @@ public class InMemoryBucketManager extends BucketManager {
     CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
         Preconditions.checkArgument(bucket < getBucketCount());
         return CompletableFuture.completedFuture(true);
-    }
-
-    private void handleBuckets() {
-        BucketListener consumer = getListenerRef().get();
-        if (consumer != null) {
-            consumer.signal();
-        }
     }
 
 }
