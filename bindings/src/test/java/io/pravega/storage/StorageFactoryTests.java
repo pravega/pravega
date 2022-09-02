@@ -15,13 +15,11 @@
  */
 package io.pravega.storage;
 
-import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
 import io.pravega.segmentstore.storage.StorageLayoutType;
-import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
@@ -33,12 +31,10 @@ import io.pravega.storage.azure.AzureStorageConfig;
 import io.pravega.storage.extendeds3.ExtendedS3ChunkStorage;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
-import io.pravega.storage.extendeds3.ExtendedS3StorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageFactoryCreator;
 import io.pravega.storage.filesystem.FileSystemChunkStorage;
 import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
-import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageFactoryCreator;
 import io.pravega.storage.gcp.GCPChunkStorage;
 import io.pravega.storage.gcp.GCPSimpleStorageFactory;
@@ -47,7 +43,6 @@ import io.pravega.storage.gcp.GCPStorageFactoryCreator;
 import io.pravega.storage.hdfs.HDFSChunkStorage;
 import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
-import io.pravega.storage.hdfs.HDFSStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageFactoryCreator;
 import io.pravega.storage.s3.S3ChunkStorage;
 import io.pravega.storage.s3.S3SimpleStorageFactory;
@@ -80,14 +75,10 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
                 StorageFactoryInfo.builder()
                         .name("HDFS")
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
-                        .build(),
-                StorageFactoryInfo.builder()
-                        .name("HDFS")
-                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
         val factoryInfoList = factoryCreator.getStorageFactories();
-        Assert.assertEquals(2, factoryInfoList.length);
+        Assert.assertEquals(1, factoryInfoList.length);
         Assert.assertArrayEquals(expected, factoryInfoList);
 
         // Simple Storage
@@ -100,18 +91,6 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         Storage storage1 = ((HDFSSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
         Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof HDFSChunkStorage);
-        // Legacy Storage
-        ConfigSetup configSetup2 = mock(ConfigSetup.class);
-        when(configSetup2.getConfig(any())).thenReturn(HDFSStorageConfig.builder().build());
-        val factory2 = factoryCreator.createFactory(expected[1], configSetup2, executorService());
-        Assert.assertTrue(factory2 instanceof HDFSStorageFactory);
-
-        @Cleanup
-        Storage storage2 = factory2.createStorageAdapter();
-        Assert.assertTrue(storage2 instanceof AsyncStorageWrapper);
-
-        SyncStorage syncStorage = factory2.createSyncStorage();
-        Assert.assertNotNull(syncStorage);
 
         AssertExtensions.assertThrows(
                 "createStorageAdapter should throw UnsupportedOperationException.",
@@ -126,15 +105,11 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
                 StorageFactoryInfo.builder()
                         .name("EXTENDEDS3")
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
-                        .build(),
-                StorageFactoryInfo.builder()
-                        .name("EXTENDEDS3")
-                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
 
         val factoryInfoList = factoryCreator.getStorageFactories();
-        Assert.assertEquals(2, factoryInfoList.length);
+        Assert.assertEquals(1, factoryInfoList.length);
         Assert.assertArrayEquals(expected, factoryInfoList);
 
         // Simple Storage
@@ -152,20 +127,6 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         Storage storage1 = ((ExtendedS3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
         Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof ExtendedS3ChunkStorage);
-
-        // Legacy Storage
-        ConfigSetup configSetup2 = mock(ConfigSetup.class);
-        when(configSetup2.getConfig(any())).thenReturn(config);
-        val factory2 = factoryCreator.createFactory(expected[1], configSetup2, executorService());
-
-        Assert.assertTrue(factory2 instanceof ExtendedS3StorageFactory);
-        @Cleanup
-        Storage storage2 = factory2.createStorageAdapter();
-        Assert.assertTrue(storage2 instanceof AsyncStorageWrapper);
-
-        @Cleanup
-        SyncStorage syncStorage = factory2.createSyncStorage();
-        Assert.assertNotNull(syncStorage);
 
         AssertExtensions.assertThrows(
                 "createStorageAdapter should throw UnsupportedOperationException.",
@@ -270,15 +231,11 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
                 StorageFactoryInfo.builder()
                         .name("FILESYSTEM")
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
-                        .build(),
-                StorageFactoryInfo.builder()
-                        .name("FILESYSTEM")
-                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
 
         val factoryInfoList = factoryCreator.getStorageFactories();
-        Assert.assertEquals(2, factoryInfoList.length);
+        Assert.assertEquals(1, factoryInfoList.length);
         Assert.assertArrayEquals(expected, factoryInfoList);
 
         // Simple Storage
@@ -291,19 +248,6 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         Storage storage1 = ((FileSystemSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
         Assert.assertTrue(((ChunkedSegmentStorage) storage1).getChunkStorage() instanceof FileSystemChunkStorage);
-
-        // Legacy Storage
-        ConfigSetup configSetup2 = mock(ConfigSetup.class);
-        when(configSetup2.getConfig(any())).thenReturn(FileSystemStorageConfig.builder().build());
-        val factory2 = factoryCreator.createFactory(expected[1], configSetup2, executorService());
-
-        Assert.assertTrue(factory2 instanceof FileSystemStorageFactory);
-        Storage storage2 = factory2.createStorageAdapter();
-        Assert.assertTrue(storage2 instanceof AsyncStorageWrapper);
-
-        @Cleanup
-        SyncStorage syncStorage = factory2.createSyncStorage();
-        Assert.assertNotNull(syncStorage);
 
         AssertExtensions.assertThrows(
                 "createStorageAdapter should throw UnsupportedOperationException.",

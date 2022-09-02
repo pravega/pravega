@@ -23,7 +23,6 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.storage.hdfs.HDFSClusterHelpers;
 import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
-import io.pravega.storage.hdfs.HDFSStorageFactory;
 import lombok.val;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
@@ -83,8 +82,7 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
         ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withStorageFactory(setup -> useChunkedSegmentStorage ?
-                        new HDFSSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .withStorageFactory(setup -> new HDFSSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                                 .journalSnapshotInfoUpdateFrequency(Duration.ofMillis(10))
                                 .maxJournalUpdatesPerSnapshot(5)
                                 .garbageCollectionDelay(Duration.ofMillis(10))
@@ -92,8 +90,7 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
                                 .selfCheckEnabled(true)
                                 .build(),
                                 setup.getConfig(HDFSStorageConfig::builder),
-                                setup.getStorageExecutor())
-                        : new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor()))
+                                setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), getBookkeeper().getZkClient(), setup.getCoreExecutor()));
     }
 

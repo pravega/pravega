@@ -96,16 +96,9 @@ public class GCPIntegrationTest extends BookKeeperIntegrationTestBase {
     }
 
     @Override
-    public void testEndToEnd() {
-    }
-
-    @Override
     public void testFlushToStorage() {
     }
 
-    @Override
-    public void testEndToEndWithFencing() {
-    }
     //endregion
 
     private class LocalGCPSimpleStorageFactory implements SimpleStorageFactory {

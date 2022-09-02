@@ -107,22 +107,9 @@ public class AzureIntegrationTest extends BookKeeperIntegrationTestBase {
      * AzureChunkStorage does not support rolling storage.
      */
     @Override
-    public void testEndToEnd() {
-    }
-
-    /**
-     * AzureChunkStorage does not support rolling storage.
-     */
-    @Override
     public void testFlushToStorage() {
     }
 
-    /**
-     * AzureChunkStorage does not support rolling storage.
-     */
-    @Override
-    public void testEndToEndWithFencing() {
-    }
     //endregion
 
     private class LocalAzureSimpleStorageFactory implements SimpleStorageFactory {
