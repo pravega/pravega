@@ -964,6 +964,58 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testTableSegmentRecoveryCommandVersioned() throws Exception {
+        // set pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "CHUNKED_STORAGE");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", "/pravega/bookkeeper/ledgers0");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Create the data to test.
+        File testDataDir = Files.createTempDirectory("test-data-table-segment-recovery").toFile().getAbsoluteFile();
+        File pravegaStorageDir = Files.createTempDirectory("table-segment-recovery-command").toFile().getAbsoluteFile();
+
+        List<TableEntry> tableSegmentVersionedPuts = List.of(
+                TableEntry.versioned(new ByteArraySegment("kv1".getBytes()), new ByteArraySegment("vv1".getBytes()), 1l ),
+                TableEntry.versioned(new ByteArraySegment("kv2".getBytes()), new ByteArraySegment("vv2".getBytes()), 2l ),
+                TableEntry.versioned(new ByteArraySegment("kv1".getBytes()), new ByteArraySegment("vv4".getBytes()), 4l ));
+
+        List<TableKey> tableSegmentRemovals = List.of(TableKey.versioned(new ByteArraySegment("kv1".getBytes()), 1l));
+
+        EntrySerializer entrySerializer = new EntrySerializer();
+        BufferView serializedEntries = BufferView.builder().add(entrySerializer.serializeUpdate(tableSegmentVersionedPuts))
+                .add(entrySerializer.serializeRemoval(tableSegmentRemovals))
+                .build();
+        InputStream serializedEntriesReader = serializedEntries.getReader();
+
+        Path p1 = Files.createTempFile(testDataDir.toPath(), "chunk-v1", ".txt");
+        Path p2 = Files.createTempFile(testDataDir.toPath(), "chunk-v2", ".txt");
+        Files.write(p1, serializedEntriesReader.readNBytes(serializedEntries.getLength() / 2), StandardOpenOption.WRITE);
+        Files.write(p2, serializedEntriesReader.readAllBytes(), StandardOpenOption.WRITE);
+
+        // Command under test
+        TestUtils.executeCommand("data-recovery tableSegment-recovery " + testDataDir.getAbsolutePath() + " testVersioned " + pravegaStorageDir, STATE.get());
+        Assert.assertNotNull(TableSegmentRecoveryCommand.descriptor());
+
+        // After that, we need to check that the storage data chunk in Pravega instance is the same as the one generated in the test.
+        File[] potentialFiles = new File(pravegaStorageDir.toString()).listFiles();
+        assert potentialFiles != null;
+        List<File> listOfFiles = Arrays.stream(potentialFiles)
+                .filter(File::isFile)
+                .filter(f -> !f.getName().contains("$attributes.index")) // We are interested in the data, not the attribute segments.
+                .sorted()
+                .collect(Collectors.toList());
+        // There should one only one data chunk for this Table Segment.
+        Assert.assertEquals(1, listOfFiles.size());
+        // The contents of the test data chunks and the contents of the Pravega Table Segment data chunks should be the same.
+        Assert.assertArrayEquals(Files.readAllBytes(Paths.get(pravegaStorageDir.toString(), listOfFiles.get(0).getName())), serializedEntries.getCopy());
+    }
+
+    @Test
     public void testDurableLogInspectCommandExpectedLogOutput() throws Exception {
         int instanceId = 0;
         int bookieCount = 3;
