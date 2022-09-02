@@ -87,6 +87,15 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof HDFSSimpleStorageFactory);
 
+        // Rolling Storage
+        AssertExtensions.assertThrows(
+                "createFactory should throw UnsupportedOperationException.",
+                () -> factoryCreator.createFactory(StorageFactoryInfo.builder()
+                        .name("HDFS")
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
+                        .build(), configSetup1, executorService()),
+                ex -> ex instanceof UnsupportedOperationException);
+
         @Cleanup
         Storage storage1 = ((HDFSSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
@@ -122,6 +131,15 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof ExtendedS3SimpleStorageFactory);
+
+        // Rolling Storage
+        AssertExtensions.assertThrows(
+                "createFactory should throw UnsupportedOperationException.",
+                () -> factoryCreator.createFactory(StorageFactoryInfo.builder()
+                        .name("EXTENDEDS3")
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
+                        .build(), configSetup1, executorService()),
+                ex -> ex instanceof UnsupportedOperationException);
 
         @Cleanup
         Storage storage1 = ((ExtendedS3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
@@ -181,6 +199,15 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof S3SimpleStorageFactory);
 
+        // Rolling Storage
+        AssertExtensions.assertThrows(
+                "createFactory should throw UnsupportedOperationException.",
+                () -> factoryCreator.createFactory(StorageFactoryInfo.builder()
+                        .name("S3")
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
+                        .build(), configSetup1, executorService()),
+                ex -> ex instanceof UnsupportedOperationException);
+
         @Cleanup
         Storage storage1 = ((S3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
@@ -213,6 +240,15 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof AzureSimpleStorageFactory);
 
+        // Rolling Storage
+        AssertExtensions.assertThrows(
+                "createFactory should throw UnsupportedOperationException.",
+                () -> factoryCreator.createFactory(StorageFactoryInfo.builder()
+                        .name("AZURE")
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
+                        .build(), configSetup1, executorService()),
+                ex -> ex instanceof UnsupportedOperationException);
+
         @Cleanup
         Storage storage1 = ((AzureSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
@@ -243,6 +279,15 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, FileSystemStorageConfig.builder().build());
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof FileSystemSimpleStorageFactory);
+
+        // Rolling Storage
+        AssertExtensions.assertThrows(
+                "createFactory should throw UnsupportedOperationException.",
+                () -> factoryCreator.createFactory(StorageFactoryInfo.builder()
+                        .name("FILESYSTEM")
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
+                        .build(), configSetup1, executorService()),
+                ex -> ex instanceof UnsupportedOperationException);
 
         @Cleanup
         Storage storage1 = ((FileSystemSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
@@ -287,6 +332,15 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof GCPSimpleStorageFactory);
+
+        // Rolling Storage
+        AssertExtensions.assertThrows(
+                "createFactory should throw UnsupportedOperationException.",
+                () -> factoryCreator.createFactory(StorageFactoryInfo.builder()
+                        .name("GCP")
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
+                        .build(), configSetup1, executorService()),
+                ex -> ex instanceof UnsupportedOperationException);
 
         GCPSimpleStorageFactory gcpSimpleStorageFactory = (GCPSimpleStorageFactory) factory1;
         Assert.assertThrows(RuntimeException.class, () -> gcpSimpleStorageFactory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService())));
