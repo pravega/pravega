@@ -51,7 +51,7 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
      * Tests the basic ability dequeue items using poll() as they are added.
      */
     @Test
-    public void testAddSinglePoll() throws Exception {
+    public void testAddSinglePoll() {
         @Cleanup
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
 
@@ -60,6 +60,7 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected first element.", i, (int) queue.peek());
             Queue<Integer> entries = queue.poll(MAX_READ_COUNT);
             Assert.assertEquals("Unexpected number of items polled.", 1, entries.size());
+            Assert.assertFalse(entries.isEmpty());
             Assert.assertEquals("Unexpected value polled from queue.", i, (int) entries.peek());
             Assert.assertNull("Unexpected first element after removal", queue.peek());
         }
@@ -72,7 +73,7 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
      * Tests the basic ability to dequeue items using take() as they are added.
      */
     @Test
-    public void testAddSingleTake() throws Exception {
+    public void testAddSingleTake() {
         @Cleanup
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
 
@@ -82,6 +83,7 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
             Assert.assertTrue("take() returned an incomplete Future when data is available.", Futures.isSuccessful(takeResult));
             val entries = takeResult.join();
             Assert.assertEquals("Unexpected number of items polled.", 1, entries.size());
+            Assert.assertFalse(entries.isEmpty());
             Assert.assertEquals("Unexpected value polled from queue.", i, (int) entries.peek());
         }
 
@@ -93,7 +95,7 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
      * Tests the basic ability to dequeue items as a batch using poll().
      */
     @Test
-    public void testAddMultiPoll() throws Exception {
+    public void testAddMultiPoll() {
         @Cleanup
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
         populate(queue);
@@ -114,7 +116,7 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
      * Tests the basic ability to dequeue items as a batch using take().
      */
     @Test
-    public void testAddMultiTake() throws Exception {
+    public void testAddMultiTake() {
         @Cleanup
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
         populate(queue);
@@ -169,6 +171,7 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
         Assert.assertTrue("Queue did not unblock after adding a value.", Futures.isSuccessful(takeResult));
         Queue<Integer> result = takeResult.join();
         Assert.assertEquals("Unexpected number of items polled.", 1, result.size());
+        Assert.assertFalse(result.isEmpty());
         Assert.assertEquals("Unexpected value polled from queue.", valueToQueue, (int) result.peek());
 
         val remainingItems = queue.poll(MAX_READ_COUNT);
@@ -207,6 +210,7 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
         val result = finalTake.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
         Assert.assertEquals("Unexpected number of items polled.", 1, result.size());
+        Assert.assertFalse(result.isEmpty());
         Assert.assertEquals("Unexpected value polled from queue.", valueToQueue, (int) result.peek());
 
         val remainingItems = queue.poll(MAX_READ_COUNT);
@@ -249,6 +253,7 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
         // Verify result is as expected.
         val takeResult = takeFuture.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         Assert.assertEquals(1, takeResult.size());
+        Assert.assertFalse(takeResult.isEmpty());
         Assert.assertEquals(valueToQueue, (long) takeResult.peek());
     }
 
@@ -269,8 +274,10 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
 
         val takeResult2 = queue.take(MAX_READ_COUNT);
         queue.add(valueToQueue);
+        val takeResult2Value = takeResult2.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        Assert.assertFalse(takeResult2Value.isEmpty());
         Assert.assertEquals("take() did not work again after being cancelled.", valueToQueue,
-                (int) takeResult2.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS).poll());
+                (int) takeResult2Value.poll());
     }
 
     /**
