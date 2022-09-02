@@ -1958,7 +1958,7 @@ public class ControllerImplTest {
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
         assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
 
-        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream2/0");
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream2/1");
         AssertExtensions.assertFutureThrows("Should throw Exception", endpointForSegment, throwable -> true);
     }
 
@@ -2559,7 +2559,37 @@ public class ControllerImplTest {
         controllerClient.updateStaleValueInCache("scope1/stream1/0", errorNodeInfo);
     }
 
+    @Test
+    public void testRunTimeINCaseOfCacheRead() throws Exception {
+        long start = System. currentTimeMillis();
+        System.out.println("start time cache read----"+ start);
+        for (int i = 0; i < 500; i++) {
+            try {
+                CompletableFuture<PravegaNodeUri> uri = controllerClient.getEndpointForSegment("scope1/stream1/0");
+                assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), uri.get());
+            } catch (Exception e) {
+                System.out.println("In exception of performance test");
+            }
+        }
+        long elapsed = System. currentTimeMillis() - start;
+        System.out.println("End time cache read----"+ elapsed);
 
+    }
 
+    @Test
+    public void testRunTimeINCaseOfNetworkRead() throws Exception {
+        long start = System. currentTimeMillis();
+        System.out.println("start time NW read----"+ start);
+        for (int i = 0; i < 500; i++) {
+            try {
+                CompletableFuture<PravegaNodeUri> uri = controllerClient.getPravegaNodeUriForTesting("scope1/stream1/0");
+                assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), uri.get());
+            } catch (Exception e) {
+                System.out.println("In exception of performance test");
+            }
+        }
+        long elapsed = System. currentTimeMillis() - start;
+        System.out.println("End time NW read----"+ elapsed);
 
+    }
 }
