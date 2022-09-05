@@ -145,6 +145,9 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
 
     @Override
     protected int doConcat(ConcatArgument[] chunks) throws ChunkStorageException {
+        if (!supportsConcat()) {
+            throw new UnsupportedOperationException("Chunk storage does not support doConcat");
+        }
         int total = 0;
         for (ConcatArgument chunk : chunks) {
             val chunkData = chunkMetadata.get(chunk.getName());
