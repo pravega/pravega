@@ -22,7 +22,7 @@ Please note that the steps outlined below are in continuation to the ones outlin
 That is we need to perform some of the steps mentioned in the above referenced doc, before continuing any of the steps present here.
 
 The below outlined steps refer to recovery of Table Segments but only in cases of Metadata Segments which are a special case, as they need to 
-be handled a little differently. Metadata Segments in Pravega are Table Segments, that hold metadata about all other "non-metadata" segments, which 
+be handled a little differently. Metadata Segments in Pravega are Table Segments, that hold metadata about all other "non-metadata" Segments, which 
 include the internal Segments as well as the User Segments. Metadata about these Metadata Segments themselves in Pravega, are stored in Pravega Journals. More details
 about the why and how part of Journals can be found in this PDP [here](https://github.com/pravega/pravega/wiki/PDP-34-(Simplified-Tier-2)#why-slts-needs-system-journal).
 Pravega Journals, is concretely what we would be attempting to update as part of the recovery procedure in this document.
@@ -46,10 +46,10 @@ the Table Segment Recovery procedure, that one would have to jump to the below s
    ```
 
 
-3) Identify the latest journal file for the affected container. One can identify the latest Journal file by simply listing the Journal files for the affected Container. 
-   Before listing the Journal files, go to the directory `\mnt\tier2\_system\containers`  where `\mnt\tier2` is the configured Tier2 directory 
+3) Identify the latest Journal file for the affected Container. One can identify the latest Journal file by simply listing the Journal files for the affected Container. 
+   Before listing the Journal files, go to the directory `/mnt/tier2/_system/containers` where `/mnt/tier2` is the configured Tier2 directory 
    as mentioned in [Step2](https://github.com/pravega/pravega/blob/a5088a464275d5ea90adb09ac39027332e87a8e3/documentation/src/docs/recovery-procedures/table-segment-recovery.md?plain=1#L70).
-   Identify the latest journal file by doing a simple `ls` for e.g: 
+   Identify the latest Journal file by doing a simple `ls` for e.g: 
    ```
           ls -ltr | grep "container3"   
           for example could produce a listing like below:
@@ -58,12 +58,12 @@ the Table Segment Recovery procedure, that one would have to jump to the below s
              -rw-r--r-- 1 root root  1443 Aug 12 02:26 _sysjournal.epoch3.container3.file1
 
    ```
-   We can see from the above listing that `_sysjournal.epoch3.container3.file1` is the latest journal file created.
+   We can see from the above listing that `_sysjournal.epoch3.container3.file1` is the latest Journal file created.
    Copy over this file to a separate directory of your choice.
 
 
-4) Identify the latest journal snapshot for the affected container. One can identify the latest journal snapshot by simply listing all the
-   journal files for the affected container. Before listing make sure we are in the same directory `\mnt\tier2\_system\containers`
+4) Identify the latest Journal Snapshot for the affected Container. One can identify the latest Journal Snapshot by simply listing all the
+   Journal files for the affected container. Before listing make sure we are in the same directory `/mnt/tier2/_system/containers`
    and can run the below command. e.g:
    ```
          ls -ltr | grep container3 | grep snapshot
@@ -74,32 +74,32 @@ the Table Segment Recovery procedure, that one would have to jump to the below s
              -rw-r--r-- 1 root root  1443 Aug 12 02:26 _sysjournal.epoch3.container3.file1         
 
    ```
-   We can see from the above listing that `_sysjournal.epoch1.container3.snapshot2` is the latest journal snapshot created.
-   Copy over the latest snapshot identified above to a separate directory of your choice.
+   We can see from the above listing that `_sysjournal.epoch1.container3.snapshot2` is the latest Journal Snapshot created.
+   Copy over the latest Snapshot identified above to a separate directory of your choice.
 
 
 5) Open the Admin CLI again, and run the below command:
    ```
         update-latest-journal-snapshot <segment-chunk-path> <journal-file-path> <journal-snapshot-path> <output-directory>
         where:-
-           segment-chunk-path: is the path containing the segment chunks created in Step 2 of Table Segment recovery.
+           segment-chunk-path: is the path containing the Segment Chunks created in Step 2 of Table Segment recovery.
            journal-file-path: is the path pointing to the journal file in the Step 3 above.
            journal-snapshot-path: is the path ponting to the latest snapshot file in Step 4 above.
-           output-directory:  Path where one wants the latest modified snapshot file to be saved.
+           output-directory: Path where one wants the latest modified Snapshot file to be saved.
    ```
     What the above command does is list the corrected/fixed Segment chunks pointed to by the path `segment-chunk-path`, sort them based on their epoch
-    and offsets. And then reads them in the sorted order, and build metadata about these chunks from their names and length. Once this metadata is 
-    built, it updates this metadata for the Segment in question, and generates a Pravega Journal Snapshot with this updated metadata.
+    and offsets. And then reads them in the sorted order, and builds metadata about these chunks from their names and length. Once this metadata is 
+    generated, it updates this metadata for the Segment in question, and generates a Pravega Journal Snapshot with this updated metadata.
 
 
-6) Copy over the snapshot file generated in the output directory of Step 5 above, back to its tier-2 path which is `\mnt\tier2\_system\containers`.
+6) Copy over the Snapshot file generated in the output directory of Step 5 above, back to its Tier-2 path which is `/mnt/tier2/_system/containers`.
 
 
-7) Copy over the Segment chunks created in [Step 4](https://github.com/pravega/pravega/blob/a5088a464275d5ea90adb09ac39027332e87a8e3/documentation/src/docs/recovery-procedures/table-segment-recovery.md?plain=1#L129) of the Table Segment recovery procedure to `\mnt\tier2\_system\containers`.
+7) Copy over the Segment Chunks created in [Step 4](https://github.com/pravega/pravega/blob/a5088a464275d5ea90adb09ac39027332e87a8e3/documentation/src/docs/recovery-procedures/table-segment-recovery.md?plain=1#L129) of the Table Segment recovery procedure to `/mnt/tier2/_system/containers`.
 
 
-8) Remove all the journal files for the affected container except the newly copied snapshot file. To do so make sure you are in the same Tier-2 path
-   which is `\mnt\tier2\_system\containers`.
+8) Remove all the Journal files for the affected Container except the newly copied Snapshot file. To do so make sure you are in the same Tier-2 path
+   which is `/mnt/tier2/_system/containers`.
    For example one can perform the removal like below:
    ```
         rm $(ls | grep container3 | grep -v snapshot)
