@@ -2558,38 +2558,4 @@ public class ControllerImplTest {
         PravegaNodeUri errorNodeInfo = new PravegaNodeUri("localhost", 12345);
         controllerClient.updateStaleValueInCache("scope1/stream1/0", errorNodeInfo);
     }
-
-    @Test
-    public void testRunTimeINCaseOfCacheRead() throws Exception {
-        long start = System. currentTimeMillis();
-        System.out.println("start time cache read----"+ start);
-        for (int i = 0; i < 500; i++) {
-            try {
-                CompletableFuture<PravegaNodeUri> uri = controllerClient.getEndpointForSegment("scope1/stream1/0");
-                assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), uri.get());
-            } catch (Exception e) {
-                System.out.println("In exception of performance test");
-            }
-        }
-        long elapsed = System. currentTimeMillis() - start;
-        System.out.println("End time cache read----"+ elapsed);
-
-    }
-
-    @Test
-    public void testRunTimeINCaseOfNetworkRead() throws Exception {
-        long start = System. currentTimeMillis();
-        System.out.println("start time NW read----"+ start);
-        for (int i = 0; i < 500; i++) {
-            try {
-                CompletableFuture<PravegaNodeUri> uri = controllerClient.getPravegaNodeUriForTesting("scope1/stream1/0");
-                assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), uri.get());
-            } catch (Exception e) {
-                System.out.println("In exception of performance test");
-            }
-        }
-        long elapsed = System. currentTimeMillis() - start;
-        System.out.println("End time NW read----"+ elapsed);
-
-    }
 }

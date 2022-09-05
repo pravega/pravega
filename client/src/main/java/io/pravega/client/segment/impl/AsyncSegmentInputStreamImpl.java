@@ -86,11 +86,13 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         @Override
         public void wrongHost(WireCommands.WrongHost wrongHost) {
-            log.info("Received wrongHost ASIS *******{}", wrongHost);
-           /* connection.thenAccept(conn -> {
+            log.info("Received wrongHost {}", wrongHost);
+            log.info("******RECEIVED WH in ASIS*********");
+            connection.thenAccept(conn -> {
+                log.info("******Conn object in ASIS*********"+ conn);
                 controller.updateStaleValueInCache(wrongHost.getSegment(), conn.getLocation());
-            }).thenRunAsync(() -> closeConnection(new ConnectionFailedException(wrongHost.toString())));*/
-            closeConnection(new ConnectionFailedException(wrongHost.toString()));
+            }).thenRunAsync(() -> closeConnection(new ConnectionFailedException(wrongHost.toString())));
+            log.info("******EXIT WH in ASIS*********");
         }
 
         @Override

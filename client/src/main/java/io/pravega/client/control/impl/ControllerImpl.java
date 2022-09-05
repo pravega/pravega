@@ -140,7 +140,10 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -1296,7 +1299,6 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName) {
-        log.info("%%%%%%%%%%%%%%%%%%%ENTERED THE GEPS%%%%%%%%%%%%%%%%%%%%");
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(qualifiedSegmentName, "qualifiedSegmentName");
         Segment segment = Segment.fromScopedName(qualifiedSegmentName);
@@ -1304,34 +1306,35 @@ public class ControllerImpl implements Controller {
         CachedPravegaNodeUri nodeUri = getSegmentEndpointFromCache(segmentId);
         //Read from cache if the segment endpoint already exists and the refresh interval is not expired.
         if (nodeUri != null && nodeUri.getTimer().getElapsedMillis() <= CachedPravegaNodeUri.MAX_BACKOFF_MILLIS) {
-            log.info("Fetching the endpoint details for segment {} from cache", segmentId);
+            log.info("******READING DATA FROM CACHE*********");
+            log.debug("Fetching the endpoint details for segment {} from cache", segmentId);
             return nodeUri.getPravegaNodeUri();
         } else if (nodeUri != null && nodeUri.getTimer().getElapsedMillis() > CachedPravegaNodeUri.MAX_BACKOFF_MILLIS) {
-            log.info("%%%%%%%%%%%%%%%%%%%WHEN TIMER EXPIRED%%%%%%%%%%%%%%%%%%%%");
+            log.info("******REFRESHING DATA IN CACHE*********");
             CompletableFuture<PravegaNodeUri> existingNodeInfo = nodeUri.getPravegaNodeUri();
             // Trigger a background call and refresh the cache.
             endPointCacheMap.put(segment.getSegmentId(), new CachedPravegaNodeUri(new Timer(), getPravegaNodeUri(qualifiedSegmentName)));
             return existingNodeInfo;
         } else {
-            log.info("%%%%%%%%%%%%%%%%%%%READ FROM N/W%%%%%%%%%%%%%%%%%%%%");
+            log.info("******READING DATA FROM N/W*********");
             endPointCacheMap.put(segment.getSegmentId(), new CachedPravegaNodeUri(new Timer(), getPravegaNodeUri(qualifiedSegmentName)));
             return endPointCacheMap.get(segment.getSegmentId()).getPravegaNodeUri();
         }
     }
 
     public void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri) {
+        log.info("******in UPDATESTALE VALUE FOR CACHE*********");
         Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
         Segment segment = Segment.fromScopedName(segmentName);
         long segmentId = segment.getSegmentId();
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "updateStaleValueInCache", segmentName, errNodeUri, requestId);
         CachedPravegaNodeUri cachedNode = getSegmentEndpointFromCache(segmentId);
-        log.info("%%%%%%%%%%%%%%%%%%%IN UPDATE STALE VALUE IN CACHE%%%%%%%%%%%%%%%%%%%%");
-        log.info("%%%%%%%%%%%%%%%%%%%ERROR NODE%%%%%%%%%%%%%%%%%%%%"+ errNodeUri.getEndpoint() +"---"+errNodeUri.getPort());
         cachedNode.getPravegaNodeUri().thenAccept(cachedNodeUri -> {
             if (cachedNodeUri.getEndpoint().equals(errNodeUri.getEndpoint()) && cachedNodeUri.getPort() == errNodeUri.getPort()) {
+                log.info("******Refreshing stale value in cache for segment *********");
                 // enforce cache refresh in case of stale value
-                log.info(requestId, "Refreshing stale value in cache for segment {} !!!!!!!!!!!!!", segmentId);
+                log.debug(requestId, "Refreshing stale value in cache for segment {}", segmentId);
                 endPointCacheMap.put(segment.getSegmentId(), new CachedPravegaNodeUri(new Timer(), getPravegaNodeUri(segmentName)));
             }
         }).whenComplete((x, e) -> {
