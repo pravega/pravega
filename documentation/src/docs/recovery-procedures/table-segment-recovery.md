@@ -140,7 +140,7 @@ Also please note that the below described procedure assumes the use of "File Sys
    A very important thing to do at this juncture would be to identify if we are dealing with a Metadata Segment. Please note that all Metadata Segments
    in Pravega either begin with `metadata_<containerId>` or `storage_metadata_<containerId>`, where <containerId> reflects the container of these 
    Metadata Segments.
-   If we are dealing with Metadata Segments, we can skip the steps that follow and directly continue with steps outline in [here]();
+   If we are dealing with Metadata Segments, we can skip the steps that follow and directly continue with steps outline in [here](https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/metadata-table-segment-recovery.md);
 
 
 5) Copy the generated Table Segment Attribute Index chunks back to the Tier-2 directory we identified in step 2.
