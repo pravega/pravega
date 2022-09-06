@@ -40,13 +40,14 @@ import java.util.stream.Collectors;
 
 
 /**
- * This command helps us to update a storage journal snapshot file. SLTS today stores metadata about the 4 special metadata segments
- * in something called as Journals.More about SLTS Journals here(https://github.com/pravega/pravega/wiki/PDP-34-(Simplified-Tier-2)#bootstrap). There are also snapshots of these journals created on reaching a fixed size and stored as a journal snapshot file. A snapshot is
- * a self contained  state of all the 4 special metadata segments ( storage_metadata, container_metadata and their corresponding attribute index segments)
- * There can be scenarios where one might want to change/update the state stored in these journal files. For example, there could be situations where data stored in one of the
- * special segment's attribute index is corrupted and we use recovery tools to help fix this corruption. Further on fixing this corruption, there arises a need to update
+ * This command helps us to update a storage Journal Snapshot file. SLTS today stores metadata about the 4 special metadata Segments
+ * in something called as Journals. More about SLTS Journals here (https://github.com/pravega/pravega/wiki/PDP-34-(Simplified-Tier-2)#bootstrap ).
+ * There are also Snapshots of these Journals created on reaching a fixed size and stored as a Journal Snapshot file. A Snapshot is
+ * a self contained  state of all the 4 special metadata Segments (Storage Metadata, Container Metadata and their corresponding Attribute Index Segments).
+ * There can be scenarios where one might want to change/update the state stored in these Journal files. For example, if in one of the
+ * special Segment's Attribute index is corrupted and we use recovery tools to help fix this corruption. Further on fixing this corruption, there arises a need to update
  * the metadata of this fixed attribute index in the cluster to help recover the cluster. That's where a command like this can be useful to
- * help us perform such updates on the journal files themselves.
+ * help us perform such updates on the Journal files themselves.
  */
 public class StorageUpdateSnapshotCommand extends StorageCommand {
 
@@ -70,8 +71,8 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
     }
 
     /**
-     * What this method does:-
-     * a) Reads chunks of the segment that needs to be updated
+     * What this method does:
+     * a) Reads chunks of the segment that needs to be updated.
      * b) Reads the latest journal index file.
      * c) Builds the chunk and segment metadata from the chunks read.
      * d) Updates the SystemSnapshotRecord read from the latest journal file
@@ -90,9 +91,9 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
         File latestSnapshotFile = new File(latestSnapshot);
         Preconditions.checkState(journalFile.isFile(), "journal-path provided should point to a valid journal file");
         Preconditions.checkState(latestSnapshotFile.isFile(), "snapshot file path provided should point to a valid file");
-        // Check whether we are deserializing a snapshot file or a journal index file
+        // Check whether we are deserializing a snapshot file or a journal index file.
         JournalDeserializer deserializer = journalFile.getName().contains(SNAPSHOT) ? new JournalSnapshotDeserializer() : new JournalFileDeserializer();
-        // List all segment chunks sorted based on epoch and offset
+        // List all segment chunks sorted based on epoch and offset.
         File[] segmentChunkFiles = new File(segmentChunkPath).listFiles();
         assert segmentChunkFiles != null;
         Preconditions.checkState(segmentChunkFiles.length > 0, "No segment chunks found");
@@ -103,7 +104,7 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
         byte[] journalBytesRead = Files.readAllBytes(journalFile.toPath());
         val journalRecords = deserializer.deserialize(journalBytesRead);
         SystemJournal.SystemSnapshotRecord systemSnapshot = null;
-        // There could be other type of records like ChunkAddedRecord when using a JournalFileDeserializer
+        // There could be other type of records like ChunkAddedRecord when using a JournalFileDeserializer;
         // Make sure we are picking the SystemSnapShotRecord in it.
         for (SystemJournal.SystemJournalRecord record : journalRecords) {
             if (record instanceof SystemJournal.SystemSnapshotRecord) {
