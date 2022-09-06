@@ -321,6 +321,45 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     }
 
     @Override
+    public void deleteReaderGroup(final String scopeName, final String readerGroupName,
+                                  final SecurityContext securityContext, final AsyncResponse asyncResponse) {
+        long traceId = LoggerHelpers.traceEnter(log, "deleteReaderGroup");
+        long requestId =  requestIdGenerator.nextLong();
+
+        try {
+            restAuthHelper.authenticateAuthorize(
+                    getAuthorizationHeader(),
+                    authorizationResource.ofReaderGroupInScope(scopeName, readerGroupName),
+                    READ_UPDATE);
+        } catch (AuthException e) {
+            log.warn(requestId, "delete reader group for {} failed due to authentication failure.",
+                    scopeName + "/" + readerGroupName);
+            asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
+            LoggerHelpers.traceLeave(log, "deleteReaderGroup", traceId);
+            return;
+        }
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this.localController, this.clientConfig);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, this.localController, clientFactory);
+        CompletableFuture.supplyAsync(() -> {
+            readerGroupManager.deleteReaderGroup(readerGroupName);
+            return Response.status(Status.NO_CONTENT).build();
+        }, controllerService.getExecutor()).exceptionally(exception -> {
+            log.warn(requestId, "deleteReaderGroup for {} failed with exception: ", readerGroupName, exception);
+            if (exception.getCause() instanceof ReaderGroupNotFoundException ||
+                    exception.getCause().getCause() instanceof ReaderGroupNotFoundException) {
+                return Response.status(Status.NOT_FOUND).build();
+            } else {
+                return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+            }
+        }).thenAccept(response -> {
+            asyncResponse.resume(response);
+            readerGroupManager.close();
+            clientFactory.close();
+            LoggerHelpers.traceLeave(log, "deleteReaderGroup", traceId);
+        });
+    }
+
+    @Override
     public void getReaderGroup(final String scopeName, final String readerGroupName,
                                final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "getReaderGroup");

@@ -496,7 +496,50 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         InvalidEventNumberV5 commandV5 = new InvalidEventNumberV5(uuid, i);
         commandV5.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.InvalidEventNumber(uuid, i, ""));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.InvalidEventNumber(uuid, i, "", b));
+    }
+
+    @Data
+    public static final class InvalidEventNumberV15 implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.INVALID_EVENT_NUMBER;
+        final UUID writerId;
+        final long eventNumber;
+        final String serverStackTrace;
+
+        @Override
+        public void process(ReplyProcessor cp) {}
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeUTF(serverStackTrace);
+        }
+
+        @Override
+        public String toString() {
+            return "Invalid event number: " + eventNumber + " for writer: " + writerId;
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
+    }
+
+    @Test
+    public void testCompatibilityInvalidEventNumberV15() throws IOException {
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        InvalidEventNumberV15 commandV5 = new InvalidEventNumberV15(uuid, i, "");
+        commandV5.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.InvalidEventNumber(uuid, i, "", b));
     }
 
     @Data
@@ -801,7 +844,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testInvalidEventNumber() throws IOException {
-        testCommand(new WireCommands.InvalidEventNumber(uuid, i, "SomeException"));
+        testCommand(new WireCommands.InvalidEventNumber(uuid, i, "SomeException", l));
     }
 
     @Test
@@ -1041,7 +1084,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
             assertEquals(cmd.getErrorCode().getExceptionType(), exceptionType);
             assertEquals(WireCommands.ErrorMessage.ErrorCode.valueOf(exceptionType), code);
 
-            Exception exception = cmd.getThrowableException();
+            RuntimeException exception = cmd.getThrowableException();
             AssertExtensions.assertThrows(exceptionType, () -> {
                 throw exception;
             });

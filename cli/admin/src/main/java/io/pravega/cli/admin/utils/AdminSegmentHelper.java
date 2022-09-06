@@ -212,7 +212,6 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
         final WireCommandType type = WireCommandType.LIST_STORAGE_CHUNKS;
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
-
         WireCommands.ListStorageChunks request = new WireCommands.ListStorageChunks(qualifiedName, delegationToken, requestId);
 
         return sendRequest(connection, requestId, request)

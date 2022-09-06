@@ -361,8 +361,9 @@ public final class WireCommands {
     public static final class InvalidEventNumber implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.INVALID_EVENT_NUMBER;
         final UUID writerId;
-        final long eventNumber;
+        final long requestId;
         final String serverStackTrace;
+        final long eventNumber;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -373,15 +374,17 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
-            out.writeLong(eventNumber);
+            out.writeLong(requestId);
             out.writeUTF(serverStackTrace);
+            out.writeLong(eventNumber);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
-            long eventNumber = in.readLong();
+            long requestId = in.readLong();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
-            return new InvalidEventNumber(writerId, eventNumber, serverStackTrace);
+            long eventNumber = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
+            return new InvalidEventNumber(writerId, requestId, serverStackTrace, eventNumber);
         }
 
         @Override
@@ -396,7 +399,7 @@ public final class WireCommands {
 
         @Override
         public long getRequestId() {
-            return eventNumber;
+            return requestId;
         }
     }
 
@@ -2212,7 +2215,7 @@ public final class WireCommands {
             return new ErrorMessage(in.readLong(), in.readUTF(), in.readUTF(), ErrorCode.valueOf(in.readInt()));
         }
 
-        public Exception getThrowableException() {
+        public RuntimeException getThrowableException() {
             switch (errorCode) {
                 case ILLEGAL_ARGUMENT_EXCEPTION:
                     return new IllegalArgumentException(message);

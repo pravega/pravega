@@ -15,7 +15,6 @@
  */
 package io.pravega.cli.user;
 
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
@@ -25,11 +24,13 @@ import lombok.Cleanup;
 import lombok.val;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -39,19 +40,20 @@ public class UserCLIRunner {
     private static final String CMD_HELP = "help";
     private static final String CMD_EXIT = "exit";
 
+    private static final AtomicBoolean RUNNING = new AtomicBoolean(true);
+
     public static void main(String[] args) {
-        doMain(args);
+        doMain(args, System.in);
         System.exit(0);
     }
 
     @VisibleForTesting
-    public static void doMain(String[] args) {
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        context.getLoggerList().get(0).setLevel(Level.ERROR);
-
+    public static void doMain(String[] args, InputStream interactiveStream) {
         System.out.println("Pravega User CLI Tool.");
         System.out.println("\tUsage instructions: https://github.com/pravega/pravega/wiki/Pravega-User-CLI\n");
-        val config = InteractiveConfig.getDefault();
+        val config = InteractiveConfig.getDefault(System.getenv());
+        LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+        loggerContext.getLoggerList().get(0).setLevel(config.getLogLevel());
 
         // Output loaded config.
         System.out.println("Initial configuration:");
@@ -59,21 +61,23 @@ public class UserCLIRunner {
         initialConfigCmd.execute();
 
         if (args == null || args.length == 0) {
-            interactiveMode(config);
+            interactiveMode(config, loggerContext, interactiveStream);
         } else {
             String commandLine = Arrays.stream(args).collect(Collectors.joining(" ", "", ""));
             processCommand(commandLine, config);
         }
     }
 
-    private static void interactiveMode(InteractiveConfig config) {
+    private static void interactiveMode(InteractiveConfig config, LoggerContext loggerContext, InputStream interactiveStream) {
         // Continuously accept new commands as long as the user entered one.
         System.out.println(String.format("%nType \"%s\" for list of commands, or \"%s\" to exit.", CMD_HELP, CMD_EXIT));
         @Cleanup
-        Scanner input = new Scanner(System.in);
-        while (true) {
+        Scanner input = new Scanner(interactiveStream);
+        while (RUNNING.get()) {
             System.out.print(System.lineSeparator() + "> ");
             String line = input.nextLine();
+
+            loggerContext.getLoggerList().get(0).setLevel(config.getLogLevel());
             processCommand(line, config);
         }
     }
@@ -90,7 +94,7 @@ public class UserCLIRunner {
                 printHelp(null);
                 break;
             case CMD_EXIT:
-                System.exit(0);
+                RUNNING.set(false);
                 break;
             default:
                 execCommand(pc);

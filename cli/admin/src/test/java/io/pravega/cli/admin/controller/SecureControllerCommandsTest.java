@@ -19,10 +19,13 @@ import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.test.integration.demo.ClusterWrapper;
+import io.pravega.test.integration.utils.ClusterWrapper;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -72,6 +75,16 @@ public class SecureControllerCommandsTest {
                 .build());
         // Check if stream created successfully.
         assertTrue("Failed to create the stream ", isStreamCreated);
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                                                               .stream(Stream.of("testScope", "testStream"))
+                                                               .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                                                               .automaticCheckpointIntervalMillis(1000L)
+                                                               .groupRefreshTimeMillis(1000L)
+                                                               .build();
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope("testScope", clientConfig);
+        boolean isRGCreated = readerGroupManager.createReaderGroup("testRG", readerGroupConfig);
+        assertTrue("Failed to create reader group ", isRGCreated);
     }
 
     protected AdminCommandState cliConfig() {
@@ -157,5 +170,20 @@ public class SecureControllerCommandsTest {
         Assert.assertTrue(commandResult.contains("testStream"));
     }
 
+
+    @Test
+    @SneakyThrows
+    public void testDeleteReaderGroupCommand() {
+        String commandResult = TestUtils.executeCommand("controller delete-readergroup _system testRG", cliConfig());
+        Assert.assertTrue(commandResult.contains("404"));
+        Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
+
+        //execute the delete reader group command
+        commandResult = TestUtils.executeCommand("controller delete-readergroup testScope testRG", cliConfig());
+        Assert.assertTrue(commandResult.contains("Successful REST request."));
+        //verify that reader group not exists after api call
+        commandResult = TestUtils.executeCommand("controller list-readergroups testScope", cliConfig());
+        Assert.assertFalse(commandResult.contains("testRG"));
+    }
 }
 

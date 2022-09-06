@@ -18,10 +18,13 @@ package io.pravega.cli.admin.controller;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.test.integration.demo.ClusterWrapper;
+import io.pravega.test.integration.utils.ClusterWrapper;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import org.junit.AfterClass;
@@ -71,6 +74,16 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
 
         // Check if stream created successfully.
         assertTrue("Failed to create the stream ", isStreamCreated);
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                                                               .stream(Stream.of("testScope", "testStream"))
+                                                               .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                                                               .automaticCheckpointIntervalMillis(1000L)
+                                                               .groupRefreshTimeMillis(1000L)
+                                                               .build();
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope("testScope", CLIENT_CONFIG);
+        boolean isRGCreated = readerGroupManager.createReaderGroup("testRG", readerGroupConfig);
+        assertTrue("Failed to create reader group ", isRGCreated);
     }
 
     @Override
