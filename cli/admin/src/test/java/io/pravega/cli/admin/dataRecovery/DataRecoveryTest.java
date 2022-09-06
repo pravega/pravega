@@ -99,7 +99,6 @@ import java.util.stream.Stream;
  * Tests Data recovery commands.
  */
 @Slf4j
-@Ignore
 public class DataRecoveryTest extends ThreadPooledTestSuite {
 
     private static final String SCOPE = "testScope";
@@ -156,6 +155,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
      * @throws Exception    In case of any exception thrown while execution.
      */
     @Test
+    @Ignore("ChunkedSegmentStorage not supported by this command.")
     public void testDataRecoveryCommand() throws Exception {
         int instanceId = 0;
         int bookieCount = 3;
@@ -220,6 +220,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
      * @throws Exception    In case of any exception thrown while execution.
      */
     @Test
+    @Ignore("ChunkedSegmentStorage not supported by this command.")
     public void testListSegmentsCommand() throws Exception {
         int instanceId = 0;
         int bookieCount = 3;
