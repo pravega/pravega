@@ -100,7 +100,7 @@ public class ContainerConfig {
 
     /**
      * Whether to enable data integrity checks in the ingestion pipeline (i.e., hash data to validate integrity).
-     * Note that this feature is mainly devised for testing or development environments, as it may induce significant
+     * Note that this feature is mainly devised for testing or development environments, as it may induce additional
      * computation cost that may be detrimental to performance.
      */
     @Getter
