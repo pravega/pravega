@@ -66,9 +66,7 @@ import org.junit.rules.Timeout;
 import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class ConnectionPoolingTest {
     @Rule
@@ -438,6 +436,7 @@ public class ConnectionPoolingTest {
                         ((FlowClientConnection) connection4).getChannel());
         assertEquals(((FlowClientConnection) connection2).getChannel(),
                      ((FlowClientConnection) connection4).getChannel());
+        assertNull("Location would be null", ((FlowClientConnection) connection3).getLocation());
     }
 
     @Test
