@@ -434,5 +434,6 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
         assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
         WireCommands.WrongHost wrongHost = new WireCommands.WrongHost(in.getRequestId(), segment.getScopedName(), "newHost", "SomeException");
         processor.process(wrongHost);
+        verify(c).close();
     }
 }
