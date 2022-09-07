@@ -178,7 +178,7 @@ public class HashHelper {
         long multiple = 6364136223846793005L; // From knuth
         long inc = 1442695040888963407L; // From knuth
         long state = 0xc3a5c85c97cb3127L; // (arbitrary, from farmhash) 
-        long wheil = 0x9ae16a3b2f90404fL; // (arbitrary, from farmhash) 
+        long weyl = 0x9ae16a3b2f90404fL; // (arbitrary, from farmhash) 
         ByteBuffer leftOvers = ByteBuffer.wrap(new byte[16]);
         val iter = bufferView.iterateBuffers();
         while (iter.hasNext()) {
@@ -187,14 +187,14 @@ public class HashHelper {
                 ByteBufferUtils.copy(buffer, leftOvers);
                 if (!leftOvers.hasRemaining()) {
                     leftOvers.flip(); 
-                    state = updateHashState(state, wheil, leftOvers);
-                    wheil += inc; 
+                    state = updateHashState(state, weyl, leftOvers);
+                    weyl += inc; 
                     leftOvers.clear();
                 }
             }
             while (buffer.remaining() >= 16) {
-                state = updateHashState(state, wheil, buffer);
-                wheil += inc;
+                state = updateHashState(state, weyl, buffer);
+                weyl += inc;
             }
             if (buffer.hasRemaining()) {
                 ByteBufferUtils.copy(buffer, leftOvers);
@@ -203,9 +203,9 @@ public class HashHelper {
         leftOvers.flip();
         while (leftOvers.hasRemaining()) {
             byte b = leftOvers.get();
-            state = (state ^ b) * wheil;
+            state = (state ^ b) * weyl;
             state ^= state >> 47;
-            wheil += inc;
+        	weyl += inc;
         }
         int rot = (int) state & 63; //RR permutation from PCG
         return Long.rotateRight(state * multiple + inc, rot);
