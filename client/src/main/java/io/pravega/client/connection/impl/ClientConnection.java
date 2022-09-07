@@ -71,7 +71,7 @@ public interface ClientConnection extends AutoCloseable {
     }
 
     /**
-     * Get the endpoint details of a segment.
+     * Get the location details of a segment.
      */
     PravegaNodeUri getLocation();
 
