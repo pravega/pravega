@@ -206,7 +206,7 @@ public class HashHelper {
             byte b = leftOvers.get();
             state = (state ^ b) * weyl;
             state ^= state >> shift;
-        	weyl += inc;
+            weyl += inc;
         }
         int rot = (int) state & 63; // RR permutation from PCG
         return Long.rotateRight(state * multiple + inc, rot); // LGC step + RR
