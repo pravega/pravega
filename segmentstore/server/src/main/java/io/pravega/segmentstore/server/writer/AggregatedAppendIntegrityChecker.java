@@ -15,16 +15,17 @@
  */
 package io.pravega.segmentstore.server.writer;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import lombok.AccessLevel;
 import lombok.Data;
-import lombok.NonNull;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -36,10 +37,12 @@ import java.util.concurrent.atomic.AtomicReference;
  * verify that the integrity of such Appends at the end of the ingestion pipeline (StorageWriter level).
  */
 @Slf4j
-public class AggregatedAppendIntegrityChecker implements AutoCloseable {
+class AggregatedAppendIntegrityChecker implements AutoCloseable {
     //region Members
 
     @GuardedBy("this")
+    @Getter(AccessLevel.PACKAGE)
+    @VisibleForTesting
     private final Queue<AggregatedAppendIntegrityInfo> appendIntegrityInfo;
     private final AtomicReference<BufferView> previousPartialAppendData;
     private final String traceObjectId;
@@ -49,7 +52,7 @@ public class AggregatedAppendIntegrityChecker implements AutoCloseable {
 
     //region Constructor
 
-    public AggregatedAppendIntegrityChecker(long containerId, long segmentId) {
+    AggregatedAppendIntegrityChecker(long containerId, long segmentId) {
         this.traceObjectId = String.format("AggregatedAppendIntegrityChecker[%d-%d]", containerId, segmentId);
         this.segmentId = segmentId;
         this.appendIntegrityInfo = new LinkedBlockingQueue<>();
@@ -70,11 +73,6 @@ public class AggregatedAppendIntegrityChecker implements AutoCloseable {
 
     //region AppendIntegrityChecker Implementation
 
-    public static long computeDataHash(@NonNull BufferView data) {
-        // FIXME: Before using BufferView.hashCode(), we need to have a common implementation of that method to all subclasses
-        return Arrays.hashCode(data.getCopy());
-    }
-
     /**
      * Adds the original information about the Append, including the computed hash of its contents, to the
      * appendIntegrityInfo queue.
@@ -90,10 +88,21 @@ public class AggregatedAppendIntegrityChecker implements AutoCloseable {
             return;
         }
         Preconditions.checkArgument(this.segmentId == segmentId, "Appending integrity information for a wrong segment: " + segmentId);
-        this.appendIntegrityInfo.add(new AggregatedAppendIntegrityInfo(segmentId, offset, length, hash));
+        this.appendIntegrityInfo.add(new AggregatedAppendIntegrityInfo(offset, length, hash));
     }
 
-    public synchronized void checkAppendIntegrity(long segmentId, long offset, BufferView aggregatedAppends) throws DataCorruptionException {
+    /**
+     * Validates that the {@link BufferView} contents associated to multiple appends to be flushed to LTS match with the
+     * individual Append hashes that were originally ingested (or recovered). This method also deals with cases in which
+     * an Append may be split across two consecutive flushes.
+     *
+     * @param segmentId Segment related to the Append.
+     * @param offset Initial offset where aggregatedAppends start.
+     * @param aggregatedAppends Data contents of multiple Appends to eb flushed to LTS.
+     * @throws DataCorruptionException If there is a mismatch between the original Append hashes and the contents of the
+     * aggregatedAppends at the same offset.
+     */
+    synchronized void checkAppendIntegrity(long segmentId, long offset, BufferView aggregatedAppends) throws DataCorruptionException {
         Preconditions.checkArgument(this.segmentId == segmentId, "Appending integrity information for a wrong segment: " + segmentId);
         if (aggregatedAppends == null || this.appendIntegrityInfo.isEmpty()) {
             // No data to check, do nothing.
@@ -105,48 +114,54 @@ public class AggregatedAppendIntegrityChecker implements AutoCloseable {
         int accumulatedLength = 0;
         int checkedBytes = 0;
         AggregatedAppendIntegrityInfo integrityInfo;
+
+        // If we had a partial append in the previous block, prepend it to the current aggregated appends to check integrity.
+        if (this.previousPartialAppendData.get() != null) {
+            aggregatedAppends = BufferView.builder(2).add(this.previousPartialAppendData.get()).add(aggregatedAppends).build();
+            offset -= this.previousPartialAppendData.get().getLength();
+            this.previousPartialAppendData.set(null);
+        }
+
         while (iterator.hasNext() && accumulatedLength < aggregatedAppends.getLength()) {
             integrityInfo = iterator.next();
             if (integrityInfo.getContentHash() == StreamSegmentAppendOperation.NO_HASH || integrityInfo.getOffset() < offset) {
                 // Old or not hashed operation, just remove.
                 iterator.remove();
-            } else {
-                // If we had a partial append in the previous block, prepend it to the current aggregated appends to check integrity.
-                if (this.previousPartialAppendData.get() != null) {
-                    aggregatedAppends = BufferView.builder(2).add(this.previousPartialAppendData.get()).add(aggregatedAppends).build();
-                    offset -= this.previousPartialAppendData.get().getLength();
-                    this.previousPartialAppendData.set(null);
-                }
-
-                // If the last AggregatedAppend from the previous flush had a partial Append, but we do not have the partial data,
-                // we need to skip the second part of that Append to continue checking integrity from the right offset.
-                if (accumulatedLength == 0 && integrityInfo.getOffset() != offset) {
-                    accumulatedLength += integrityInfo.getOffset() - offset;
-                }
-
-                // Do the integrity check if the input data contains the whole contents of the original Append.
-                // Otherwise, it means that the input data ends with a partial Append, and we need to handle it.
-                if (aggregatedAppends.getLength() >= accumulatedLength + integrityInfo.getLength()) {
-                    long hash = computeDataHash(aggregatedAppends.slice(accumulatedLength, (int) integrityInfo.getLength()));
-                    if (hash != integrityInfo.getContentHash()) {
-                        log.error("Append integrity check failed. SegmentId = {}, Offset = {}, Length = {}, Original Hash = {}, " +
-                                        "Current Hash = {}.", segmentId, integrityInfo.getOffset() + accumulatedLength,
-                                   integrityInfo.getLength(), integrityInfo.getContentHash(), hash);
-                        throw new DataCorruptionException(String.format("Data read from cache for Segment %s (hash = %s) " +
-                                        "differs from original data appended (hash = %s).", integrityInfo.getSegmentId(), hash,
-                                integrityInfo.getContentHash()));
-                    }
-                    checkedBytes = accumulatedLength;
-                } else {
-                    // An Append has been split across 2 blocks of data to be flushed to LTS. We keep the first part of
-                    // the Append at the end of the current block, so it can be used in the next execution of this method
-                    // to check the hash of the Append using the second part of it at the beginning of the next block.
-                    previousPartialAppendData.set(aggregatedAppends.slice(accumulatedLength, aggregatedAppends.getLength() - accumulatedLength));
-                }
-                accumulatedLength += integrityInfo.getLength();
+                continue;
             }
+
+            // The available append integrity information belongs to a greater offset (e.g., data lost after a recovery).
+            // We cannot check the data up to that offset, so skipping it.
+            if (accumulatedLength == 0 && integrityInfo.getOffset() > offset) {
+                long toSkip = integrityInfo.getOffset() - offset;
+                accumulatedLength += toSkip;
+                log.info("{}: Setting offset to check in aggregated append to {} (skipping {} bytes).", this.traceObjectId,
+                        accumulatedLength, toSkip);
+            }
+
+            // Do the integrity check if the input data contains the whole contents of the original Append.
+            // Otherwise, it means that the input data ends with a partial Append, and we need to handle it.
+            if (aggregatedAppends.getLength() >= accumulatedLength + integrityInfo.getLength()) {
+                long hash = aggregatedAppends.slice(accumulatedLength, (int) integrityInfo.getLength()).hash();
+                if (hash != integrityInfo.getContentHash()) {
+                    log.error("Append integrity check failed. SegmentId = {}, Offset = {}, Length = {}, Original Hash = {}, " +
+                                    "Current Hash = {}.", segmentId, integrityInfo.getOffset() + accumulatedLength,
+                               integrityInfo.getLength(), integrityInfo.getContentHash(), hash);
+                    throw new DataCorruptionException(String.format("Data read from cache for Segment %s (hash = %s) " +
+                                    "differs from original data appended (hash = %s).", this.segmentId, hash,
+                            integrityInfo.getContentHash()));
+                }
+                checkedBytes = accumulatedLength;
+            } else {
+                // An Append has been split across 2 blocks of data to be flushed to LTS. We keep the first part of
+                // the Append at the end of the current block, so it can be used in the next execution of this method
+                // to check the hash of the Append using the second part of it at the beginning of the next block.
+                previousPartialAppendData.set(aggregatedAppends.slice(accumulatedLength, aggregatedAppends.getLength() - accumulatedLength));
+            }
+            accumulatedLength += integrityInfo.getLength();
         }
-        log.info("{}: Checked integrity of {} bytes to be flushed to LTS ({} trailing bytes will be checked in next flush).",
+
+        log.debug("{}: Checked integrity of {} bytes to be flushed to LTS ({} trailing bytes will be checked in next flush).",
                 this.traceObjectId, checkedBytes, aggregatedAppends.getLength() - checkedBytes);
     }
 
@@ -156,7 +171,6 @@ public class AggregatedAppendIntegrityChecker implements AutoCloseable {
 
     @Data
     private static class AggregatedAppendIntegrityInfo {
-        private final long segmentId;
         private final long offset;
         private final long length;
         private final long contentHash;
