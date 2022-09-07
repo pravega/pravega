@@ -208,7 +208,7 @@ public class HashHelper {
             state ^= state >> shift;
             weyl += inc;
         }
-        int rot = (int) state & 63; // RR permutation from PCG
+        int rot = (int) state & 0b0111111; // (63) RR permutation from PCG
         return Long.rotateRight(state * multiple + inc, rot); // LGC step + RR
     }
     
