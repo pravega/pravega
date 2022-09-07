@@ -171,12 +171,13 @@ public class HashHelper {
     /**
      * Hashes a bufferview in-place. (in contrast to murmur above which needs to copy data into a single array)
      * (This passes the smhasher quality test suite)
-     *
+     * (See updateHashState below for explanation of the hashing function)
      * @param bufferView The input.
      */
     public static final long hashBufferView(BufferView bufferView) {
-        long multiple = 6364136223846793005L; // From knuth
-        long inc = 1442695040888963407L; // From knuth
+        final long multiple = 6364136223846793005L; // From knuth's LCG
+        final long inc = 1442695040888963407L; // From knuth' LCG
+        final int shift = 47; //(arbitrary odd number between 32 and 56)
         long state = 0xc3a5c85c97cb3127L; // (arbitrary, from farmhash) 
         long weyl = 0x9ae16a3b2f90404fL; // (arbitrary, from farmhash) 
         ByteBuffer leftOvers = ByteBuffer.wrap(new byte[16]);
@@ -204,11 +205,11 @@ public class HashHelper {
         while (leftOvers.hasRemaining()) {
             byte b = leftOvers.get();
             state = (state ^ b) * weyl;
-            state ^= state >> 47;
+            state ^= state >> shift;
         	weyl += inc;
         }
-        int rot = (int) state & 63; //RR permutation from PCG
-        return Long.rotateRight(state * multiple + inc, rot);
+		int rot = (int) state & 63; // RR permutation from PCG
+		return Long.rotateRight(state * multiple + inc, rot); // LGC step + RR
     }
     
     /**
@@ -232,12 +233,13 @@ public class HashHelper {
      */
     private static long updateHashState(long state, long multiple, final ByteBuffer buffer) {
         assert buffer.remaining() >= 16;
-        long offset = 1013904223; // (arbitrary,From Numerical Recipes)
+        final long offset = 1013904223; // (arbitrary,From Numerical Recipes)
+        final int shift = 47; //(arbitrary odd number between 32 and 56)
         long new1 = buffer.getLong();
         long new2 = buffer.getLong();
         state = (state ^ new1) * (multiple ^ Long.reverseBytes(new2)); //Changing rather than fixed multiple removes linearity
         state = (state ^ new2) * ((multiple + offset) ^ Long.reverseBytes(new1)); //Reversing bytes prevents low impact high order bits.
-        state ^= state >> 47; // xorshift some good bits to the bottom
+        state ^= state >> shift; // xorshift some good bits to the bottom
         return state;
     } 
 }
