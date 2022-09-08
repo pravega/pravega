@@ -146,7 +146,7 @@ public class HashHelperTest {
     }
     
     @Test
-    public void testSpeed() {
+    public void testMultipleParts() {
        val r = new Random(0);
        val bytes = new byte[1000];
        r.nextBytes(bytes);
@@ -165,6 +165,23 @@ public class HashHelperTest {
        BufferView recombined = BufferView.wrap(components);
        assertEquals(buffer.hash(), recombined.hash());
        assertEquals(312908254654539963L, buffer.hash()); //Asserts that algorithm does not change.
+    }
+    
+    @Test
+    public void testSlicedInput() {
+        val r = new Random(0);
+        val bytes = new byte[100];
+        r.nextBytes(bytes);
+        for (int i = 0; i < bytes.length; i++) {
+            BufferView buffer = BufferView.wrap(bytes);
+            BufferView part1 = buffer.slice(0, i);
+            BufferView part2 = buffer.slice(i, bytes.length - i);
+            List<BufferView> components = new ArrayList<>();
+            components.add(part1);
+            components.add(part2);
+            BufferView combined = BufferView.wrap(components);
+            assertEquals(buffer.hash(), combined.hash());
+        }
     }
     
     private <T> void testHashToRangeUniformity(HashToRangeFunction<T> toTest, Supplier<T> generator) {
