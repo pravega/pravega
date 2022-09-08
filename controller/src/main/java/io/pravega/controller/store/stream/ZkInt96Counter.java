@@ -19,6 +19,8 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.ZKStoreHelper;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -34,6 +36,8 @@ import java.util.concurrent.CompletionException;
  * Once it exhausts the range, it refreshes the range by contacting zookeeper and repeating the steps described above. 
  */
 @Slf4j
+@EqualsAndHashCode
+@ToString
 public class ZkInt96Counter {
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
