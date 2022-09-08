@@ -165,7 +165,7 @@ jobs:
             ${{github.ref}}-${{github.run_id}}
             ${{github.ref}}
       - name: Controller Unit tests
-        run: ./gradlew controller:test shared:controller-api:test --parallel ${{env.GRADLE_OPTS}}
+        run: ./gradlew controller:test shared:controller-api:test ${{env.GRADLE_OPTS}}
       - name: Tar Reports
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
