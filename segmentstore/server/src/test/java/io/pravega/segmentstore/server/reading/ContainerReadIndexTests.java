@@ -15,9 +15,12 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.HashHelper;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ReusableLatch;
@@ -27,6 +30,7 @@ import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
+import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.EvictableMetadata;
 import io.pravega.segmentstore.server.MetadataBuilder;
@@ -63,6 +67,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -155,7 +160,72 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Check all the appended data.
         checkReadIndex("PostAppend", segmentContents, context);
     }
+    
+    @Test
+    public void testModifyUnderlyingBuffer() {
+        CachePolicy cachePolicy = new CachePolicy(100 * 1024 * 1024, Duration.ZERO, Duration.ofMillis(1));
+        @Cleanup
+        val cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+        val metadata = new MetadataBuilder(CONTAINER_ID).build();
+        @Cleanup
+        val storage = new TestStorage(new InMemoryStorage(), executorService());
+        storage.initialize(1);
+        @Cleanup
+        val cacheManager = new CacheManager(cachePolicy, cacheStorage, executorService());
+        @Cleanup
+        val readIndex = new ContainerReadIndex(DEFAULT_CONFIG, metadata, storage, cacheManager, executorService());
+        int a = cacheManager.getCacheStorage().getBlockAlignment();
+        int numWriters = 25;
+        ReusableLatch latch = new ReusableLatch();
+        
+        @Cleanup("shutdown")
+        ExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(numWriters, "test");
 
+        Consumer<Long> writer = (Long segmentId) -> {
+            String name = getSegmentName(segmentId);
+            metadata.mapStreamSegmentId(name, segmentId);
+            val segmentMetadata = metadata.getStreamSegmentMetadata(segmentId);
+            segmentMetadata.setLength(0);
+            segmentMetadata.setStorageLength(0);
+
+            int dataLength = 16;
+            long segmentLength = 0;
+            HashHelper hasher = HashHelper.seededWith("Seed");
+            for (int writes = 0; writes < 1000000; writes++) {
+                byte[] data = hasher.numToBytes(writes);
+                val append = new ByteArraySegment(data);
+                segmentLength += data.length;
+                segmentMetadata.setLength(segmentLength);
+                try {
+                    readIndex.append(segmentId, segmentLength - data.length, append);
+                } catch (StreamSegmentNotExistsException e) {
+                    Exceptions.sneakyThrow(e);
+                }
+            }
+            latch.awaitUninterruptibly();
+            for (int reads = 0; reads < 100000; reads++) {
+                int randNum = Integer.hashCode(reads);
+                int readOffset = (randNum % 1000000) * dataLength;
+                try {
+                    ReadResult readResult = readIndex.read((randNum / 1000000) % numWriters, readOffset, dataLength, Duration.ofSeconds(10));
+                    byte[] readData = new byte[dataLength];
+                    readResult.readRemaining(readData, Duration.ofSeconds(10));
+                    Preconditions.checkState(Arrays.equals(hasher.numToBytes(readOffset / dataLength), readData));
+                } catch (StreamSegmentNotExistsException e) {
+                    Exceptions.sneakyThrow(e);
+                }
+            }
+        };
+        List<CompletableFuture<Void>> writerFutures = new ArrayList<>();
+        for (int i = 0; i < numWriters; i++) {
+            long segmentNumber = i;
+            writerFutures.add(CompletableFuture.runAsync(() -> writer.accept(segmentNumber), executorService));
+        }
+        latch.release();
+        Futures.allOf(writerFutures).join();
+    }
+    
+    
     /**
      * Tests the ability for the ReadIndex to batch multiple index entries together into a bigger read. This test
      * writes a lot of very small appends to the index, then issues a full read (from the beginning) while configuring

@@ -29,6 +29,8 @@ import lombok.RequiredArgsConstructor;
 public abstract class TableModification {
     /**
      * The {@link TableKey} affected.
+     *
+     * @return The {@link TableKey} affected.
      */
     @NonNull
     private final TableKey key;
