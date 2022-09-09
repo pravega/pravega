@@ -1115,7 +1115,7 @@ public class SystemJournal {
     }
 
     /**
-     * Apply chunk addition.
+     * Apply chunk append.
      */
     private CompletableFuture<Void> applyAppend(MetadataTransaction txn, String segmentName, String chunkName, long offset, long length) {
         Preconditions.checkState(null != chunkName && !chunkName.isEmpty(), "chunkName must not be null or empty");
