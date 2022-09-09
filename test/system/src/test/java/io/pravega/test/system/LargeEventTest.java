@@ -109,7 +109,7 @@ public class LargeEventTest extends AbstractReadWriteTest {
         @Cleanup
         EventStreamWriter<ByteBuffer> writer = clientFactory.createEventWriter(STREAM_NAME,
                                                                                  new ByteBufferSerializer(),
-                                                                                 EventWriterConfig.builder().build());
+                                                                                 EventWriterConfig.builder().enableLargeEvents(true).build());
         byte[] payload = new byte[Serializer.MAX_EVENT_SIZE];
         for (int i = 0; i < NUM_EVENTS; i++) {
             log.debug("Producing event: {} ", i);
