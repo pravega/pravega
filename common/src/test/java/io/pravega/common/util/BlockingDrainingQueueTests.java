@@ -235,17 +235,17 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
         val e = new MockExecutor(1);
 
         // Register a take() with a timeout (the timeout value is irrelevant for this test).
-        val takeFuture = queue.take(1, shortTimeout, e);
+        InterceptableFuture<Queue<Integer>> takeFuture = (InterceptableFuture<Queue<Integer>>) queue.take(1, shortTimeout, e);
 
         // Fetch the intercepted calls.
         val timeoutRunnable = e.lastScheduledRunnable;
         Assert.assertNotNull("Unable to intercept the schedule() runnable.", timeoutRunnable);
-        Assert.assertTrue("Unable to intercept take() future creation.", takeFuture instanceof InterceptableFuture);
+        Assert.assertNotNull("Unable to intercept take() future creation.", takeFuture);
 
         // When CompletableFuture.complete() is invoked (from the BlockingDrainingQueue.add() method), we want to
         // immediately invoke the timeout runnable, before we actually complete the CompletableFuture. We want to verify
         // that the timeout won't preempt the normal completion of the future, which would have caused us to lose data.
-        ((InterceptableFuture<Queue<Integer>>) takeFuture).completeInterceptor = timeoutRunnable;
+        takeFuture.completeInterceptor = timeoutRunnable;
 
         // Add a value, which should trigger the take() future to complete.
         queue.add(valueToQueue);
