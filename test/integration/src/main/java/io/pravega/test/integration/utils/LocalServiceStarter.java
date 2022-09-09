@@ -51,7 +51,7 @@ import static io.pravega.segmentstore.server.store.ServiceConfig.TLS_PROTOCOL_VE
 public class LocalServiceStarter {
 
     /**
-     * Sets up a new BookKeeper & ZooKeeper.
+     * Sets up a new BookKeeper &amp; ZooKeeper.
      */
     public static class BookKeeperRunner implements AutoCloseable {
         @Getter
