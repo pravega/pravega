@@ -68,6 +68,19 @@ public class ZKCounterTest {
         zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
+    @Test
+    public void flakyTest() {
+        ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
+        storeHelper.createZNodeIfNotExist("/store/scope").join();
+
+        ZkInt96Counter zkStore = spy(new ZkInt96Counter(storeHelper));
+
+        // first call should get the new range from store
+        Int96 counter = zkStore.getNextCounter().join();
+
+        // verify that the generated counter is from new range
+        assertEquals(0, counter.getMsb());
+    }
 
     @Test(timeout = 30000)
     public void testCounter() throws Exception {
