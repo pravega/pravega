@@ -1313,7 +1313,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         garbageCollector3.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, garbageCollector3, config, executorService());
 
-        systemJournalAfter2.bootstrap(epoch + 2, snapshotInfoStore).join();
+        systemJournalAfter2.bootstrap(epoch + 3, snapshotInfoStore).join();
 
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash2, systemSegmentName, policy.getMaxLength(), 10);
     }
@@ -1390,7 +1390,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         chunkStorage.createWithContent(NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, 1),
                 snapshotContent.getLength(), snapshotContent.getReader()).join();
 
-        data.setSnapshotId(containerId, SnapshotInfo.builder().epoch(epoch).snapshotId(1).build());
+        data.setSnapshotId(containerId, SnapshotInfo.builder().epoch(epoch).snapshotId(1).build()).join();
 
         // Write to journal
         val serializer = new SystemJournal.SystemJournalRecordBatch.SystemJournalRecordBatchSerializer();
@@ -1433,7 +1433,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         garbageCollector3.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, garbageCollector3, config, executorService());
 
-        systemJournalAfter2.bootstrap(epoch + 2, snapshotInfoStore).join();
+        systemJournalAfter2.bootstrap(epoch + 3, snapshotInfoStore).join();
 
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash2, systemSegmentName, policy.getMaxLength(), 10);
     }
