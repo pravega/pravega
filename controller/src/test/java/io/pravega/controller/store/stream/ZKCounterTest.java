@@ -68,6 +68,7 @@ public class ZKCounterTest {
         zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
+
     @Test
     public void flakyTest() {
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
