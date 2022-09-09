@@ -81,6 +81,7 @@ public class ZKCounterTest {
 
         // verify that the generated counter is from new range
         assertEquals(0, counter.getMsb());
+        assertEquals(1L, counter.getLsb());
     }
 
     @Test(timeout = 30000)
