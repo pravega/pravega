@@ -45,6 +45,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.spy;
 
 public class ClientConnectionTest {
 
@@ -333,5 +334,11 @@ public class ClientConnectionTest {
                 .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
                 .join();
         Assert.assertEquals("localhost", clientConnection.getLocation().getEndpoint());
+    }
+
+    @Test
+    public void testGetLocationWithSpy() {
+        ClientConnection mockTableStore = spy(ClientConnection.class);
+        assertNull("location returned is not null!", mockTableStore.getLocation());
     }
 }
