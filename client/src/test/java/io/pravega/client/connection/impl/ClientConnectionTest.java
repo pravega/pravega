@@ -334,5 +334,4 @@ public class ClientConnectionTest {
                 .join();
         Assert.assertEquals("localhost", clientConnection.getLocation().getEndpoint());
     }
-
 }

@@ -69,7 +69,6 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertNull;
 
 public class ConnectionPoolingTest {
     @Rule
@@ -439,8 +438,6 @@ public class ConnectionPoolingTest {
                         ((FlowClientConnection) connection4).getChannel());
         assertEquals(((FlowClientConnection) connection2).getChannel(),
                      ((FlowClientConnection) connection4).getChannel());
-        assertNull("Location would be null", ((FlowClientConnection) connection3).getLocation());
-
     }
 
     @Test

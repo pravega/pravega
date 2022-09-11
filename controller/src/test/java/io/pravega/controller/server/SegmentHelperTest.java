@@ -1099,10 +1099,5 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         public void close() {
 
         }
-
-        @Override
-        public PravegaNodeUri getLocation() {
-            return null;
-        }
     }
 }

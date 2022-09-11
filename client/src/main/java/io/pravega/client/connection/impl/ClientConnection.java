@@ -27,6 +27,9 @@ import java.util.List;
  */
 public interface ClientConnection extends AutoCloseable {
 
+
+    PravegaNodeUri NODE_LOCATION = null;
+
     /**
      * Sends the provided command. This operation may block. (Though buffering is used to try to
      * prevent it)
@@ -73,6 +76,8 @@ public interface ClientConnection extends AutoCloseable {
     /**
      * Get the location details of a segment.
      */
-    PravegaNodeUri getLocation();
+    default PravegaNodeUri getLocation() {
+        return NODE_LOCATION;
+    }
 
 }

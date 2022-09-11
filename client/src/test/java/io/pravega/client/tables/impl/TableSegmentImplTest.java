@@ -745,11 +745,6 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         }
 
         @Override
-        public PravegaNodeUri getLocation() {
-            return null;
-        }
-
-        @Override
         public void send(WireCommand cmd) throws ConnectionFailedException {
             if (this.closed) {
                 throw new ConnectionFailedException("Connection closed");

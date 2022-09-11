@@ -362,5 +362,4 @@ public class TcpClientConnection implements ClientConnection {
     public PravegaNodeUri getLocation() {
         return location;
     }
-
 }
