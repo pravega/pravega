@@ -332,6 +332,6 @@ public class ClientConnectionTest {
         TcpClientConnection clientConnection = TcpClientConnection
                 .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
                 .join();
-        Assert.assertEquals("localhost", clientConnection.getLocation().getEndpoint());
+        Assert.assertEquals("localhost", clientConnection.getLocation().getEndpoint()); 
     }
 }
