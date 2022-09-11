@@ -339,6 +339,6 @@ public class ClientConnectionTest {
     @Test
     public void testGetLocationWithSpy() {
         ClientConnection mockTableStore = spy(ClientConnection.class);
-        assertNull("location returned is not null!", mockTableStore.getLocation());
+        assertNull("location returned is not null!", mockTableStore.getLocation()); 
     }
 }
