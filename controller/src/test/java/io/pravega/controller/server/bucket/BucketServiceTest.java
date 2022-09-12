@@ -110,7 +110,7 @@ public abstract class BucketServiceTest {
 
     abstract BucketStore createBucketStore(int bucketCount);
 
-    @Test
+    @Test (timeout = 30000)
     public void testRetentionService() throws Exception {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         retentionService.addListener(() ->
@@ -145,7 +145,7 @@ public abstract class BucketServiceTest {
         assertEquals(0, bucketService.getKnownStreams().size());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testWatermarkingService() throws Exception {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         watermarkingService.addListener(() -> countDownLatch.countDown());

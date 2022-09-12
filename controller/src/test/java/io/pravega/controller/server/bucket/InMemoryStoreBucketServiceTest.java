@@ -55,7 +55,7 @@ public class InMemoryStoreBucketServiceTest extends BucketServiceTest {
         return StreamStoreFactory.createInMemoryBucketStore(map);
     }
 
-    @Test //(timeout = 10000)
+    @Test (timeout = 10000)
     public void testRetentionService() throws Exception {
 
         Map<Integer, BucketService> bucketServices = retentionService.getBucketServices();

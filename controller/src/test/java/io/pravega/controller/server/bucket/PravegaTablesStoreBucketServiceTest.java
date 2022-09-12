@@ -26,6 +26,8 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.test.common.TestingServerStarter;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
@@ -33,6 +35,11 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
+
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     private TestingServer zkServer;
@@ -86,5 +93,51 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+
+    private void removeEntryToZkCluster(Host host)  {
+        final CountDownLatch latch = new CountDownLatch(1);
+        cluster.addListener((type, host1) -> latch.countDown());
+        cluster.deregisterHost(host);
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Test(timeout = 30000)
+    public void testFailover() throws Exception {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        watermarkingService.addListener(() -> countDownLatch.countDown());
+        addEntryToZkCluster(controller);
+        countDownLatch.await();
+
+        Map<Integer, BucketService> bucketServices = watermarkingService.getBucketServices();
+        assertNotNull(bucketServices);
+        assertEquals(3, bucketServices.size());
+
+        Map<Integer, BucketService> retentionBucketServices = retentionService.getBucketServices();
+        assertNotNull(retentionBucketServices);
+        assertEquals(3, retentionBucketServices.size());
+
+        //add new controller instance in pravgea cluster.
+        Host controller1 = new Host(UUID.randomUUID().toString(), 9090, null);
+        addEntryToZkCluster(controller1);
+        assertEventuallyEquals(2, () -> retentionService.getBucketServices().size(), 10000);
+        assertEquals(2, watermarkingService.getBucketServices().size());
+
+        //add new controller instance in pravgea cluster.
+        Host controller2 = new Host(UUID.randomUUID().toString(), 9090, null);
+        addEntryToZkCluster(controller2);
+        assertEventuallyEquals(1, () -> retentionService.getBucketServices().size(), 10000);
+        assertEquals(1, watermarkingService.getBucketServices().size());
+
+        //remove controller instances from pravega cluster.
+        removeEntryToZkCluster(controller1);
+        removeEntryToZkCluster(controller2);
+        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
+        assertEquals(3, watermarkingService.getBucketServices().size());
     }
 }
