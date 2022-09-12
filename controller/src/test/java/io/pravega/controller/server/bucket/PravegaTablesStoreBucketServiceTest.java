@@ -109,8 +109,9 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
 
     @Test(timeout = 30000)
     public void testFailover() throws Exception {
-        CountDownLatch countDownLatch = new CountDownLatch(1);
+        CountDownLatch countDownLatch = new CountDownLatch(2);
         watermarkingService.addListener(() -> countDownLatch.countDown());
+        retentionService.addListener(() -> countDownLatch.countDown());
         addEntryToZkCluster(controller);
         countDownLatch.await();
 
@@ -126,18 +127,18 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         Host controller1 = new Host(UUID.randomUUID().toString(), 9090, null);
         addEntryToZkCluster(controller1);
         assertEventuallyEquals(2, () -> retentionService.getBucketServices().size(), 10000);
-        assertEquals(2, watermarkingService.getBucketServices().size());
+        assertEventuallyEquals(2, () -> watermarkingService.getBucketServices().size(), 10000);
 
         //add new controller instance in pravgea cluster.
         Host controller2 = new Host(UUID.randomUUID().toString(), 9090, null);
         addEntryToZkCluster(controller2);
         assertEventuallyEquals(1, () -> retentionService.getBucketServices().size(), 10000);
-        assertEquals(1, watermarkingService.getBucketServices().size());
+        assertEventuallyEquals(1, () -> watermarkingService.getBucketServices().size(), 10000);
 
         //remove controller instances from pravega cluster.
         removeEntryToZkCluster(controller1);
         removeEntryToZkCluster(controller2);
         assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
-        assertEquals(3, watermarkingService.getBucketServices().size());
+        assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
     }
 }
