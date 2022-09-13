@@ -343,11 +343,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @Override
         public void wrongHost(WrongHost wrongHost) {
             log.info("Received wrongHost {}", wrongHost);
-            log.info("Received wrongHost {} SOSSSSSSSSS", wrongHost);
-            ClientConnection conn = state.getConnection();
-            log.info("COnn obj ******", conn);
-            controller.updateStaleValueInCache(wrongHost.getSegment(), conn.getLocation());
-            log.info("******EXIT WH in SOS *********");
+            ClientConnection connection = state.getConnection();
+            controller.updateStaleValueInCache(wrongHost.getSegment(), connection.getLocation());
             failConnection(new ConnectionFailedException(wrongHost.toString()));
         }
 
