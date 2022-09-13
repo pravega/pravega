@@ -26,9 +26,9 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.util.ArrayDeque;
 import java.util.Iterator;
 import java.util.Queue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -55,7 +55,7 @@ class AggregatedAppendIntegrityChecker implements AutoCloseable {
     AggregatedAppendIntegrityChecker(long containerId, long segmentId) {
         this.traceObjectId = String.format("AggregatedAppendIntegrityChecker[%d-%d]", containerId, segmentId);
         this.segmentId = segmentId;
-        this.appendIntegrityInfo = new LinkedBlockingQueue<>();
+        this.appendIntegrityInfo = new ArrayDeque<>();
         this.previousPartialAppendData = new AtomicReference<>();
     }
 

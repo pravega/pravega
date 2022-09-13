@@ -830,9 +830,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                 throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for '%s'.", appendOp));
             }
 
-            // Verify that the data received here is the same that was initially sent by the client (if data integrity checks are enabled).
-            log.debug("{}: Integrity check for AggregatedAppendOperation. Start Offset = {}, Length = {}, BufferView Length = {}.",
-                    this.traceObjectId, first.getStreamSegmentOffset(), first.getLength(), data.getLength());
+            // If configured, verify that the data received here is the same that was initially sent by the client.
             this.dataIntegrityChecker.checkAppendIntegrity(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), data);
         }
 

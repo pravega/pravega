@@ -41,7 +41,7 @@ public class ContainerConfig {
     public static final Property<Integer> EVENT_PROCESSOR_ITERATION_DELAY_MS = Property.named("eventprocessor.iteration.delay.ms", 1000);
     public static final Property<Integer> EVENT_PROCESSOR_OPERATION_TIMEOUT_MS = Property.named("eventprocessor.operation.timeout.ms", 5000);
     public static final Property<Integer> TRANSIENT_SEGMENT_DELETE_TIMEOUT_MS = Property.named("segment.transient.delete.timeout.ms", 30000);
-    public static final Property<Boolean> DATA_INTEGRITY_CHECKS_ENABLED = Property.named("data.integrity.checks.enabled", false);
+    public static final Property<Boolean> DATA_INTEGRITY_CHECKS_ENABLED = Property.named("data.integrity.checks.enabled", true);
     private static final String COMPONENT_CODE = "containers";
 
     /**
