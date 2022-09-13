@@ -93,11 +93,14 @@ public class EventWriterConfig implements Serializable {
      *
      * The maximum allowed lease time by default is 600s, see:
      *
-     * {@link io.pravega.controller.util.Config.PROPERTY_TXN_MAX_LEASE}
+     * io.pravega.controller.util.Config.PROPERTY_TXN_MAX_LEASE
      *
      * The maximum allowed lease time is a configuration parameter of the controller
      * and can be changed accordingly. Note that being a controller-wide parameter,
      * it affects all transactions.
+     *
+     * @param transactionTimeoutTime Transaction timeout parameter
+     * @return Transaction timeout parameter corresponding to lease renewal period
      */
     private final long transactionTimeoutTime;
 
@@ -112,7 +115,7 @@ public class EventWriterConfig implements Serializable {
 
     /**
      * Enable or disable whether LargeEvent writes should be processed and sent to the SegmentStore. A LargeEvent
-     * is defined as any event containing a number of bytes greater than {@link Serializer.MAX_EVENT_SIZE}.
+     * is defined as any event containing a number of bytes greater than {@link Serializer#MAX_EVENT_SIZE}.
      *
      * @param enableLargeEvents Enable or disables LargeEvent processing.
      * @return LargeEvent processing is enabled or disabled.
