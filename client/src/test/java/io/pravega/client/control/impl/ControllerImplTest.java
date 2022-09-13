@@ -1962,7 +1962,7 @@ public class ControllerImplTest {
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
         assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
 
-        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream2/0");
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream2/1");
         AssertExtensions.assertFutureThrows("Should throw Exception", endpointForSegment, throwable -> true);
     }
 
@@ -2541,5 +2541,26 @@ public class ControllerImplTest {
         assertFalse(deleteKVTableStatus.join());
     }
 
+    @Test
+    public void testGetEndPointForSegment() throws Exception {
+        CompletableFuture<PravegaNodeUri> endpointForSegment;
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
+        // reads from network and store in cache
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
+
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
+        // picks from cache
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
+    }
+
+    @Test
+    public void updateStaleValueInCacheTest() throws Exception {
+        CompletableFuture<PravegaNodeUri> endpointForSegment;
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
+
+        PravegaNodeUri errorNodeInfo = new PravegaNodeUri("localhost", 12345);
+        controllerClient.updateStaleValueInCache("scope1/stream1/0", errorNodeInfo);
+    }
 
 }

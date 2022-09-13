@@ -17,6 +17,7 @@ package io.pravega.client.connection.impl;
 
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
 
@@ -25,6 +26,8 @@ import java.util.List;
  * server.
  */
 public interface ClientConnection extends AutoCloseable {
+
+    PravegaNodeUri NODE_LOCATION = null;
 
     /**
      * Sends the provided command. This operation may block. (Though buffering is used to try to
@@ -67,6 +70,13 @@ public interface ClientConnection extends AutoCloseable {
          * @param e The exception that was encountered (Or null if it is a success)
          */
         void complete(ConnectionFailedException e);
+    }
+
+    /**
+     * Get the location details of a segment.
+     */
+    default PravegaNodeUri getLocation() {
+        return NODE_LOCATION;
     }
 
 }

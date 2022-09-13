@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
@@ -86,7 +87,17 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         @Override
         public void wrongHost(WireCommands.WrongHost wrongHost) {
-            closeConnection(new ConnectionFailedException(wrongHost.toString()));
+            log.info("Received wrongHost {}", wrongHost);
+            ClientConnection conn;
+            try {
+                conn = connection.get();
+                if (conn != null) {
+                    controller.updateStaleValueInCache(wrongHost.getSegment(), conn.getLocation());
+                }
+            } catch (InterruptedException | ExecutionException e) {
+            } finally {
+                closeConnection(new ConnectionFailedException(wrongHost.toString()));
+            }
         }
 
         @Override
