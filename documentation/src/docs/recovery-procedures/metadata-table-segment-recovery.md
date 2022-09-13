@@ -29,7 +29,7 @@ Please note that the steps outlined below are in continuation to the ones outlin
 That is, we need to perform some of the steps mentioned in the above referenced doc, before continuing any of the steps present here.
 
 
-It is precisely at this point [here](https://github.com/abhinb/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md#note) in 
+It is precisely at this point [here](https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md#important) in 
 the Table Segment Recovery procedure, that one would have to jump to the below steps in the case of dealing with Metadata Segments.
 
 
