@@ -15,20 +15,22 @@ limitations under the License.
 -->
 
 
-# Metadata Table Segment Recovery
+# Metadata Table Segment Attribute Index Recovery
 
 
-Please note that the steps outlined below are in continuation to the ones outlined as part of the recovery procedure described [here](https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md)
-That is we need to perform some of the steps mentioned in the above referenced doc, before continuing any of the steps present here.
-
-The below outlined steps refer to recovery of Table Segments but only in cases of Metadata Segments which are a special case, as they need to 
-be handled a little differently. Metadata Segments in Pravega are Table Segments, that hold metadata about all other "non-metadata" Segments, which 
+The below outlined steps refer to recovery of Attribute Index Table Segments but only in cases of Metadata Segments which are a special case, as they need to
+be handled a little differently. Metadata Segments in Pravega are Table Segments, that hold metadata about all other "non-metadata" Segments, which
 include the internal Segments as well as the User Segments. Metadata about these Metadata Segments themselves in Pravega, are stored in Pravega Journals. More details
 about the why and how part of Journals can be found in this PDP [here](https://github.com/pravega/pravega/wiki/PDP-34-(Simplified-Tier-2)#why-slts-needs-system-journal).
 Pravega Journals, is concretely what we would be attempting to update as part of the recovery procedure in this document.
 
+
+Please note that the steps outlined below are in continuation to the ones outlined as part of the recovery procedure described [here](https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md).
+That is, we need to perform some of the steps mentioned in the above referenced doc, before continuing any of the steps present here.
+
+
 It is precisely at this point [here](https://github.com/abhinb/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md#note) in 
-the Table Segment Recovery procedure, that one would have to jump to the below steps, in the case, where we are dealing with Metadata Segments.
+the Table Segment Recovery procedure, that one would have to jump to the below steps in the case of dealing with Metadata Segments.
 
 
 # Detailed Steps
@@ -37,7 +39,7 @@ the Table Segment Recovery procedure, that one would have to jump to the below s
 
 
 2) Open the Admin CLI, and disable Tier-1 for the Container owning the Metadata Segment. The owning Container ID can be figured out from the Metadata Segment Chunk 
-   name. For example if one of the Metadata Chunk file is say `metadata_2.E-1-O-0.88990c40-58a3-463e-8936-652d89fa95ba` then the container is 2 from `metadata_2` in file name.
+   name. For example, if one of the Metadata Chunk file is say `metadata_2.E-1-O-0.88990c40-58a3-463e-8936-652d89fa95ba` then the container is 2 from `metadata_2` in file name.
    To disable the Tier-1, run the below command:
    ```
        bk disable <containerId>
@@ -52,7 +54,7 @@ the Table Segment Recovery procedure, that one would have to jump to the below s
    Identify the latest Journal file by doing a simple `ls` for e.g: 
    ```
           ls -ltr | grep "container3"   
-          for example could produce a listing like below:
+          For example, could produce a listing like below:
              -rw-r--r-- 1 root root   321 Aug 12 02:23 _sysjournal.epoch1.container3.snapshot1
              -rw-r--r-- 1 root root  1114 Aug 12 02:25 _sysjournal.epoch1.container3.file2
              -rw-r--r-- 1 root root  1443 Aug 12 02:26 _sysjournal.epoch3.container3.file1
@@ -67,7 +69,7 @@ the Table Segment Recovery procedure, that one would have to jump to the below s
    and can run the below command. e.g:
    ```
          ls -ltr | grep container3 | grep snapshot
-         for example could produce a listing like below:
+         For example, could produce a listing like below:
              -rw-r--r-- 1 root root   321 Aug 12 02:23 _sysjournal.epoch1.container3.snapshot1
              -rw-r--r-- 1 root root   321 Aug 12 02:24 _sysjournal.epoch1.container3.snapshot2
              -rw-r--r-- 1 root root  1114 Aug 12 02:25 _sysjournal.epoch1.container3.file2
