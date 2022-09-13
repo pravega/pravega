@@ -76,7 +76,7 @@ public class SealedSegmentsMapShard {
      * support million segments in each shard with a shard size of 1000.
      *
      * Each shard consequently contains segments from a range of epochs in batches of 1000.
-     * To get a sealed segment record -> extract segment epoch from segment id, and compute the shard
+     * To get a sealed segment record -&gt; extract segment epoch from segment id, and compute the shard
      * by taking the modulo of the segment number by the SHARD_SIZE. Fetch the size from the shard map.
      **/
     private final Map<Long, Long> sealedSegmentsSizeMap;

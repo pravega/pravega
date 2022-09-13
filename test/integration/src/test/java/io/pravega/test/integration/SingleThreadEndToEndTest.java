@@ -167,7 +167,7 @@ public class SingleThreadEndToEndTest {
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroup, serializer, ReaderConfig.builder().build());
         EventPointer pointer = reader.readNextEvent(50000).getEventPointer();
-        List<CompletableFuture<String>> futureList = new ArrayList();
+        List<CompletableFuture<String>> futureList = new ArrayList<>();
         while ( pointer != null ) {
             CompletableFuture<String> cf = streamManager.fetchEvent(pointer, serializer);
             futureList.add(cf);
