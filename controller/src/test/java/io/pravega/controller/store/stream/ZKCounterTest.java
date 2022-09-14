@@ -16,16 +16,14 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.test.common.TestingServerStarter;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -94,7 +92,14 @@ public class ZKCounterTest {
         CompletableFuture<Int96> future2 = zkStore.getNextCounter();
         CompletableFuture<Int96> future3 = zkStore.getNextCounter();
 
-        List<Int96> values = Futures.allOfWithResults(Arrays.asList(future1, future2, future3)).join();
+        CompletableFuture<Int96>[] futures = new CompletableFuture[]{future1, future2, future3};
+        List<Int96> values = new ArrayList<>();
+        CompletableFuture<Void> allDoneFuture = CompletableFuture.allOf(futures);
+
+        allDoneFuture.thenAccept(v -> {
+            for (CompletableFuture<Int96> completableFuture: futures) {
+                values.add(completableFuture.join());
+            } } ).join();
 
         // second and third should result in refresh being called. Verify method call count is 3, twice for now and
         // once for first time when counter is set
