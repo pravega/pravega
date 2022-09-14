@@ -308,10 +308,15 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      *                        throws StorageMetadataException In case of any chunk metadata store related errors.
      */
     private CompletableFuture<Void> claimOwnership(MetadataTransaction txn, SegmentMetadata segmentMetadata) {
+        Preconditions.checkState(!segmentMetadata.isStorageSystemSegment(), "claimOwnership called on system segment %s", segmentMetadata);
         // Get the last chunk
         val lastChunkName = segmentMetadata.getLastChunk();
         final CompletableFuture<Boolean> f;
-        if (shouldAppend() && null != lastChunkName) {
+        val shouldReconcile = !segmentMetadata.isAtomicWrite()
+                && shouldAppend()
+                && null != lastChunkName;
+
+        if (shouldReconcile) {
             f = txn.get(lastChunkName)
                     .thenComposeAsync(storageMetadata -> {
                         val lastChunk = (ChunkMetadata) storageMetadata;
@@ -377,12 +382,17 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
             if (shouldChange) {
                 segmentMetadata.setOwnerEpoch(this.epoch);
                 segmentMetadata.setOwnershipChanged(true);
+                segmentMetadata.setAtomicWrites(isAlwaysAtomic(segmentMetadata) || !config.isLazyCommitEnabled());
             }
             // Update and commit
             // If This instance is fenced this update will fail.
             txn.update(segmentMetadata);
             return txn.commit();
         }, executor);
+    }
+
+    boolean isAlwaysAtomic(SegmentMetadata segmentMetadata) {
+        return NameUtils.isAttributeSegment(segmentMetadata.getName());
     }
 
     @Override
@@ -409,6 +419,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                     .build();
 
                             newSegmentMetadata.setActive(true);
+                            newSegmentMetadata.setAtomicWrites(isAlwaysAtomic(newSegmentMetadata) || !config.isLazyCommitEnabled());
                             txn.create(newSegmentMetadata);
                             // commit.
                             return txn.commit()

@@ -331,11 +331,7 @@ public class SystemJournal {
                 }, executor)
                 .thenComposeAsync(v -> {
                     // Step 3: Adjust the length of the last chunk.
-                    if (config.isLazyCommitEnabled()) {
-                        return adjustLastChunkLengths(txn);
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
+                    return adjustLastChunkLengths(txn);
                 }, executor)
                 .thenComposeAsync(v -> {
                     // Step 4: Apply the truncate offsets.
@@ -953,6 +949,12 @@ public class SystemJournal {
                     nullToEmpty(chunkAddedRecord.getOldChunkName()),
                     chunkAddedRecord.getNewChunkName(),
                     chunkAddedRecord.getOffset());
+        } else if (record instanceof AppendRecord) {
+            val appendRecord = (AppendRecord) record;
+            retValue = applyAppend(txn, appendRecord.getSegmentName(),
+                    appendRecord.getChunkName(),
+                    appendRecord.getOffset(),
+                    appendRecord.getLength());
         } else if (record instanceof TruncationRecord) {
             // TruncationRecord.
             val truncationRecord = (TruncationRecord) record;
@@ -981,7 +983,7 @@ public class SystemJournal {
                         segmentMetadata.checkInvariants();
                         CompletableFuture<Void> ff;
                         // Update length of last chunk in metadata to what we actually find on LTS.
-                        if (null != segmentMetadata.getLastChunk()) {
+                        if (!segmentMetadata.isAtomicWrite() && null != segmentMetadata.getLastChunk()) {
                             ff = chunkStorage.getInfo(segmentMetadata.getLastChunk())
                                     .thenComposeAsync(chunkInfo -> {
                                         long length = chunkInfo.getLength();
@@ -1002,9 +1004,10 @@ public class SystemJournal {
                             ff = CompletableFuture.completedFuture(null);
                         }
                         return ff.thenApplyAsync(v -> {
+                            // Always set as atomic write
+                            segmentMetadata.setAtomicWrites(true);
                             Preconditions.checkState(segmentMetadata.isOwnershipChanged(), "ownershipChanged must be true. Segment=%s", segmentMetadata);
                             segmentMetadata.checkInvariants();
-
                             return segmentMetadata;
                         }, executor);
                     }, executor)
@@ -1108,6 +1111,41 @@ public class SystemJournal {
                             return CompletableFuture.completedFuture(null);
                         }
                     }, executor);
+                }, executor);
+    }
+
+    /**
+     * Apply chunk append.
+     */
+    private CompletableFuture<Void> applyAppend(MetadataTransaction txn, String segmentName, String chunkName, long offset, long length) {
+        Preconditions.checkState(null != chunkName && !chunkName.isEmpty(), "chunkName must not be null or empty");
+        Preconditions.checkState(offset >= 0, "offset must be non-negative");
+        Preconditions.checkState(length > 0, "length must be positive");
+
+        return validateSegment(txn, segmentName)
+                .thenComposeAsync(v -> txn.get(segmentName), executor)
+                .thenComposeAsync(m -> {
+                    val segmentMetadata = (SegmentMetadata) m;
+                    segmentMetadata.checkInvariants();
+                    // set length.
+                    return txn.get(segmentMetadata.getLastChunk())
+                            .thenAcceptAsync( metadata -> {
+                                Preconditions.checkState(metadata != null, "metadata must not be null");
+                                ChunkMetadata lastChunkMetadata = (ChunkMetadata) metadata;
+                                Preconditions.checkState(lastChunkMetadata.getName().equals(chunkName), "Invalid chunk name expected= %s actual=%s in segment=%s",
+                                        lastChunkMetadata.getName(), chunkName, segmentMetadata);
+                                Preconditions.checkState(lastChunkMetadata.getLength() == offset, "Invalid offset expected= %s actual=%s in segment=%s",
+                                        lastChunkMetadata.getLength(), offset, segmentMetadata);
+                                segmentMetadata.setLength(segmentMetadata.getLength() + length);
+                                lastChunkMetadata.setLength(lastChunkMetadata.getLength() + length);
+                                segmentMetadata.setAtomicWrites(true);
+                                txn.update(segmentMetadata);
+                                txn.update(lastChunkMetadata);
+                                log.debug("SystemJournal[{}] Appending to last chunk segment. segment={}, segment length={} chunk={}, chunk length={}",
+                                        containerId, segmentMetadata.getName(), segmentMetadata.getLength(), lastChunkMetadata.getName(), lastChunkMetadata.getLength());
+
+                            });
+
                 }, executor);
     }
 
@@ -1407,7 +1445,8 @@ public class SystemJournal {
                 builder.serializer(ChunkAddedRecord.class, 1, new ChunkAddedRecord.Serializer())
                         .serializer(TruncationRecord.class, 2, new TruncationRecord.Serializer())
                         .serializer(SystemSnapshotRecord.class, 3, new SystemSnapshotRecord.Serializer())
-                        .serializer(SegmentSnapshotRecord.class, 4, new SegmentSnapshotRecord.Serializer());
+                        .serializer(SegmentSnapshotRecord.class, 4, new SegmentSnapshotRecord.Serializer())
+                        .serializer(AppendRecord.class, 5, new AppendRecord.Serializer());
             }
         }
     }
@@ -1598,6 +1637,76 @@ public class SystemJournal {
                 b.offset(input.readCompactLong());
                 b.firstChunkName(input.readUTF());
                 b.startOffset(input.readCompactLong());
+            }
+        }
+    }
+
+    /**
+     * Journal record for segment append.
+     */
+    @Builder(toBuilder = true)
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    static class AppendRecord extends SystemJournalRecord {
+        /**
+         * Name of the segment.
+         */
+        @NonNull
+        private final String segmentName;
+
+        /**
+         * Offset at which chunk is appended.
+         */
+        private final long offset;
+
+        /**
+         * Size of append.
+         */
+        private final long length;
+
+        /**
+         * Name of the chunk.
+         */
+        @NonNull
+        private final String chunkName;
+
+        /**
+         * Builder that implements {@link ObjectBuilder}.
+         */
+        public static class AppendRecordBuilder implements ObjectBuilder<AppendRecord> {
+        }
+
+        /**
+         * Serializer that implements {@link VersionedSerializer}.
+         */
+        public static class Serializer extends VersionedSerializer.WithBuilder<AppendRecord, AppendRecord.AppendRecordBuilder> {
+            @Override
+            protected AppendRecord.AppendRecordBuilder newBuilder() {
+                return AppendRecord.builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void write00(AppendRecord object, RevisionDataOutput output) throws IOException {
+                output.writeUTF(object.segmentName);
+                output.writeUTF(object.chunkName);
+                output.writeCompactLong(object.offset);
+                output.writeCompactLong(object.length);
+            }
+
+            private void read00(RevisionDataInput input, AppendRecord.AppendRecordBuilder b) throws IOException {
+                b.segmentName(input.readUTF());
+                b.chunkName(input.readUTF());
+                b.offset(input.readCompactLong());
+                b.length(input.readCompactLong());
             }
         }
     }

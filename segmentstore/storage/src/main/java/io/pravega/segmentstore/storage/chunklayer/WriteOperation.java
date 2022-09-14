@@ -194,15 +194,17 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     private CompletableFuture<Void> commit(MetadataTransaction txn) {
         // commit all system log records if required.
-        if (isSystemSegment && chunksAddedCount.get() > 0) {
+        if (isSystemSegment && systemLogRecords.size() > 0) {
             // commit all system log records.
-            Preconditions.checkState(chunksAddedCount.get() == systemLogRecords.size(),
-                    "Number of chunks added (%s) must match number of system log records(%s)", chunksAddedCount.get(), systemLogRecords.size());
             txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecords(systemLogRecords));
         }
+        // if layout did not change, and it is eligible segment then commit with lazyWrite.
+        val shouldLazyCommit = !segmentMetadata.isAtomicWrite()
+                && !didSegmentLayoutChange
+                && !isSystemSegment;
 
-        // if layout did not change then commit with lazyWrite.
-        return txn.commit(!didSegmentLayoutChange && chunkedSegmentStorage.getConfig().isLazyCommitEnabled())
+        // Commit
+        return txn.commit(shouldLazyCommit)
                 .thenRunAsync(() -> isCommitted = true, chunkedSegmentStorage.getExecutor());
 
     }
@@ -427,6 +429,16 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     txn.update(segmentMetadata);
                     bytesRemaining.addAndGet(-bytesWritten);
                     currentOffset.addAndGet(bytesWritten);
+                    // Add system journal record for append.
+                    if (isSystemSegment) {
+                        systemLogRecords.add(
+                                SystemJournal.AppendRecord.builder()
+                                        .segmentName(segmentMetadata.getName())
+                                        .chunkName(chunkWrittenMetadata.getName())
+                                        .offset(offsetToWriteAt)
+                                        .length(bytesWritten)
+                                        .build());
+                    }
                 }, chunkedSegmentStorage.getExecutor())
                 .handleAsync((v, e) -> {
                     if (null != e) {
