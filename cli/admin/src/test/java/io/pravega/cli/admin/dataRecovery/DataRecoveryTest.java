@@ -980,9 +980,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         File pravegaStorageDir = Files.createTempDirectory("table-segment-recovery-command").toFile().getAbsoluteFile();
 
         List<TableEntry> tableSegmentVersionedPuts = List.of(
-                TableEntry.versioned(new ByteArraySegment("kv1".getBytes()), new ByteArraySegment("vv1".getBytes()), 1L ),
-                TableEntry.versioned(new ByteArraySegment("kv2".getBytes()), new ByteArraySegment("vv2".getBytes()), 2L ),
-                TableEntry.versioned(new ByteArraySegment("kv1".getBytes()), new ByteArraySegment("vv4".getBytes()), 4L ));
+                TableEntry.versioned(new ByteArraySegment("kv1".getBytes()), new ByteArraySegment("vv1".getBytes()), 1L),
+                TableEntry.versioned(new ByteArraySegment("kv2".getBytes()), new ByteArraySegment("vv2".getBytes()), 2L),
+                TableEntry.versioned(new ByteArraySegment("kv1".getBytes()), new ByteArraySegment("vv4".getBytes()), 4L));
 
         List<TableKey> tableSegmentRemovals = List.of(TableKey.versioned(new ByteArraySegment("kv1".getBytes()), 1L));
 
