@@ -70,7 +70,6 @@ public class ZkInt96Counter {
         CompletableFuture<Int96> future;
         synchronized (lock) {
             Int96 next = counter.incrementAndGet();
-            log.info("Counter value is {} and limit is {}", next, limit.get());
             if (next.compareTo(limit.get()) > 0) {
                 // ignore the counter value and after refreshing call getNextCounter
                 future = refreshRangeIfNeeded().thenCompose(x -> getNextCounter());
