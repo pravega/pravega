@@ -69,14 +69,6 @@ public class EventWriterConfig implements Serializable {
      * @return Backoff multiplier used in the retry logic of the writer.
      */
     private final int backoffMultiple;
-    
-    /**
-     * The number of milliseconds to wait while attempting to establish a connection before abandoning the attempt and retrying.
-     * 
-     * @param connectionTimeoutMillis The timeout in milliseconds
-     * @return The timeout in milliseconds
-     */
-    private final int connectTimeoutMillis;
 
     /**
      * Enable or disable connection pooling for writer. The default value is false.
@@ -101,11 +93,14 @@ public class EventWriterConfig implements Serializable {
      *
      * The maximum allowed lease time by default is 600s, see:
      *
-     * {@link io.pravega.controller.util.Config.PROPERTY_TXN_MAX_LEASE}
+     * io.pravega.controller.util.Config.PROPERTY_TXN_MAX_LEASE
      *
      * The maximum allowed lease time is a configuration parameter of the controller
      * and can be changed accordingly. Note that being a controller-wide parameter,
      * it affects all transactions.
+     *
+     * @param transactionTimeoutTime Transaction timeout parameter
+     * @return Transaction timeout parameter corresponding to lease renewal period
      */
     private final long transactionTimeoutTime;
 
@@ -120,7 +115,7 @@ public class EventWriterConfig implements Serializable {
 
     /**
      * Enable or disable whether LargeEvent writes should be processed and sent to the SegmentStore. A LargeEvent
-     * is defined as any event containing a number of bytes greater than {@link Serializer.MAX_EVENT_SIZE}.
+     * is defined as any event containing a number of bytes greater than {@link Serializer#MAX_EVENT_SIZE}.
      *
      * @param enableLargeEvents Enable or disables LargeEvent processing.
      * @return LargeEvent processing is enabled or disabled.
@@ -133,7 +128,6 @@ public class EventWriterConfig implements Serializable {
         private int maxBackoffMillis = 20000;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
-        private int connectionTimeoutMillis = 60000;
         private long transactionTimeoutTime = 600 * 1000 - 1;
         private boolean automaticallyNoteTime = false; 
         // connection pooling for event writers is disabled by default.
@@ -148,7 +142,6 @@ public class EventWriterConfig implements Serializable {
             Preconditions.checkArgument(maxBackoffMillis >= 0, "Backoff times must be positive numbers");
             Preconditions.checkArgument(retryAttempts >= 0, "Retry attempts must be a positive number");
             return new EventWriterConfig(initialBackoffMillis, maxBackoffMillis, retryAttempts, backoffMultiple,
-                                         connectionTimeoutMillis,
                                          enableConnectionPooling,
                                          transactionTimeoutTime,
                                          automaticallyNoteTime,

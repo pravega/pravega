@@ -183,7 +183,7 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
 
     //region Reader
 
-    private static class Reader extends AbstractReader implements BufferView.Reader {
+    private static final class Reader extends AbstractReader implements BufferView.Reader {
         private final Iterator<BufferView.Reader> readers;
         private BufferView.Reader current;
         private int available;

@@ -98,11 +98,15 @@ public class ClientConfig implements Serializable {
 
     /**
      * Maximum number of connections per Segment store to be used by connection pooling.
+     *
+     * @return Maximum number of connections per Segment store to be used by connection pooling.
      */
     private final int maxConnectionsPerSegmentStore;
 
     /**
      * An internal property that determines if the client config.
+     *
+     * @param isDefaultMaxConnections determines if the client config
      */
     @Getter(AccessLevel.PACKAGE)
     private final boolean isDefaultMaxConnections;
