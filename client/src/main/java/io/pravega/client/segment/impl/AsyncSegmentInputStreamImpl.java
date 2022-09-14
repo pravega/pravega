@@ -42,11 +42,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -85,6 +85,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             closeConnection(new ConnectionFailedException());
         }
 
+        @SneakyThrows
         @Override
         public void wrongHost(WireCommands.WrongHost wrongHost) {
             log.info("Received wrongHost {}", wrongHost);
@@ -94,7 +95,6 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 if (conn != null) {
                     controller.updateStaleValueInCache(wrongHost.getSegment(), conn.getLocation());
                 }
-            } catch (InterruptedException | ExecutionException e) {
             } finally {
                 closeConnection(new ConnectionFailedException(wrongHost.toString()));
             }
