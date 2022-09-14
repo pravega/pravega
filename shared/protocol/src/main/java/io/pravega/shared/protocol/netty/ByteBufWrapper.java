@@ -185,7 +185,7 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
      * {@link BufferView.Reader} implementation.
      */
     @RequiredArgsConstructor
-    private static class ByteBufReader extends AbstractReader implements Reader {
+    private static final class ByteBufReader extends AbstractReader implements Reader {
         private final ByteBuf buf;
 
         @Override
