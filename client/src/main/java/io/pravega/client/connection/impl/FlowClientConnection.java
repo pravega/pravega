@@ -72,7 +72,7 @@ public class FlowClientConnection implements ClientConnection {
     }
 
     @Override
-    public PravegaNodeUri getLocation() {
+    public PravegaNodeUri getLocation() { 
         String[] nodeLocation = connectionName.split(":");
         return new PravegaNodeUri(nodeLocation[0].trim(), Integer.parseInt(nodeLocation[1].trim()));
     }
