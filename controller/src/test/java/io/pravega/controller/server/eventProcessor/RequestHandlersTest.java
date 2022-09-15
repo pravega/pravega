@@ -950,7 +950,7 @@ public abstract class RequestHandlersTest {
         DeleteScopeEvent event = new DeleteScopeEvent(testScope, 123L, scopeId);
         CompletableFuture<Void> future = requestHandler.execute(event);
         future.join();
-        AssertExtensions.assertEventuallyEquals( true, () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY) > 0, 10000);
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY) > 0, 10000);
     }
 
     @Test
