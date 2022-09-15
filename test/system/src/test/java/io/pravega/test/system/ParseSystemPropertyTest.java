@@ -27,7 +27,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class ParseSystemPropertyTest {
