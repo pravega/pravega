@@ -43,6 +43,7 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
     static final String COMPONENT = "controller-metadata";
     static final ControllerKeySerializer KEY_SERIALIZER = new ControllerKeySerializer();
     private static final String ROOT = "eventProcessors";
+    private static final String HOSTREQUESTINDEX = "hostRequestIndex";
 
     protected final GrpcAuthHelper authHelper;
 
@@ -200,5 +201,16 @@ public abstract class ControllerMetadataCommand extends ControllerCommand {
      */
     protected String getReaderPath(String hostId, String readerGroup, String readerId) {
         return String.format("/%s/%s/%s/%s", ROOT, hostId, readerGroup, readerId);
+    }
+
+    /**
+     * Method to get path of request in a particular controller instance.
+     *
+     * @param hostId Host id of controller instance.
+     * @param requestId Request UUID.
+     * @return Full path of request.
+     */
+    protected String getRequestPath(String hostId, String requestId) {
+        return String.format("/%s/%s/%s", HOSTREQUESTINDEX, hostId, requestId);
     }
 }
