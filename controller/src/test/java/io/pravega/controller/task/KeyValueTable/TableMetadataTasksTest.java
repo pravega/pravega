@@ -133,7 +133,7 @@ public abstract class TableMetadataTasksTest {
 
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
         assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
-        AssertExtensions.assertEventuallyEquals( true , () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY) > 0, 10000);
+        AssertExtensions.assertEventuallyEquals( true, () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY) > 0, 10000);
         List<KVTSegmentRecord> segmentsList = kvtStore.getActiveSegments(SCOPE, kvtable1, null, executor).get();
         assertEquals(segmentsList.size(), kvtConfig.getPartitionCount());
 
@@ -173,7 +173,7 @@ public abstract class TableMetadataTasksTest {
         assertTrue(kvtMetadataTasks.isDeleted(SCOPE, kvtable1, null).join());
         assertFalse(kvtStore.checkTableExists(SCOPE, kvtable1, null, executor).join());
         assertFalse(kvtStore.isScopeSealed("testScope", null, executor).join());
-        AssertExtensions.assertEventuallyEquals( true , () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY) > 0, 10000);
+        AssertExtensions.assertEventuallyEquals( true, () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY) > 0, 10000);
     }
 
     private CompletableFuture<Void> processEvent(TableMetadataTasksTest.WriterMock requestEventWriter) throws InterruptedException {

@@ -717,9 +717,9 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(subscriberToNonSubscriberConfig.getAutomaticCheckpointIntervalMillis(), responseRG3.getConfig().getAutomaticCheckpointIntervalMillis());
         assertEquals(subscriberToNonSubscriberConfig.getStartingStreamCuts().size(), responseRG3.getConfig().getStartingStreamCutsCount());
         assertEquals(subscriberToNonSubscriberConfig.getEndingStreamCuts().size(), responseRG3.getConfig().getEndingStreamCutsCount());
-        AssertExtensions.assertEventuallyEquals( true , () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY) > 0, 10000);
-        AssertExtensions.assertEventuallyEquals( true , () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY) > 0, 10000);
-        AssertExtensions.assertEventuallyEquals( true , () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY) > 0, 10000);
+        AssertExtensions.assertEventuallyEquals( true, () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY) > 0, 10000);
+        AssertExtensions.assertEventuallyEquals( true, () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY) > 0, 10000);
+        AssertExtensions.assertEventuallyEquals( true, () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY) > 0, 10000);
     }
 
     @Test(timeout = 30000)
@@ -978,7 +978,7 @@ public abstract class StreamMetadataTasksTest {
         CreateStreamResponse.CreateStatus s = streamResponse.get().getStatus();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, streamResponse.get().getStatus());
 
-        AssertExtensions.assertEventuallyEquals( true , () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY) > 0, 10000);
+        AssertExtensions.assertEventuallyEquals( true, () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY) > 0, 10000);
     }
 
     @Test(timeout = 30000)
