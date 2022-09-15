@@ -121,8 +121,8 @@ public class ZkInt96Counter {
     CompletableFuture<Void> getRefreshFuture() {
         return storeHelper
                 .createZNodeIfNotExist(COUNTER_PATH, Int96.ZERO.toBytes())
-                .thenCompose(v -> storeHelper.getData(COUNTER_PATH, Int96::fromBytes)
-                           .thenCompose(data -> {
+                .thenCompose(v -> storeHelper.getData(COUNTER_PATH, Int96::fromBytes))
+                .thenCompose(data -> {
                                Int96 previous = data.getObject();
                                Int96 nextLimit = previous.add(COUNTER_RANGE);
                                return storeHelper.setData(COUNTER_PATH, nextLimit.toBytes(), data.getVersion())
@@ -140,7 +140,7 @@ public class ZkInt96Counter {
                                                      counter.get(), limit.get());
                                          }
                                      });
-                           }));
+                           });
     }
 
     // region getters and setters for testing

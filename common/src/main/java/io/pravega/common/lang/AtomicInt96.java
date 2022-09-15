@@ -18,14 +18,10 @@ package io.pravega.common.lang;
 import com.google.common.annotations.VisibleForTesting;
 
 import javax.annotation.concurrent.GuardedBy;
-import lombok.EqualsAndHashCode;
-import lombok.ToString;
 
 /**
  * This class provides the ability to atomically update a Int96 value.
  */
-@EqualsAndHashCode
-@ToString
 public class AtomicInt96 {
     @GuardedBy("lock")
     private Int96 value;
