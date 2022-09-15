@@ -1418,7 +1418,7 @@ public class SystemJournal {
     @Builder(toBuilder = true)
     @Data
     @EqualsAndHashCode
-    static class SystemJournalRecordBatch {
+    public static class SystemJournalRecordBatch {
         @NonNull
         private final Collection<SystemJournalRecord> systemJournalRecords;
 
@@ -1608,7 +1608,7 @@ public class SystemJournal {
     @Builder(toBuilder = true)
     @Data
     @EqualsAndHashCode(callSuper = true)
-    static class SegmentSnapshotRecord extends SystemJournalRecord {
+    public static class SegmentSnapshotRecord extends SystemJournalRecord {
         /**
          * Data about the segment.
          */
@@ -1706,7 +1706,7 @@ public class SystemJournal {
     @Builder(toBuilder = true)
     @Data
     @EqualsAndHashCode(callSuper = true)
-    static class SystemSnapshotRecord extends SystemJournalRecord {
+    public static class SystemSnapshotRecord extends SystemJournalRecord {
         /**
          * Epoch of the snapshot
          */
