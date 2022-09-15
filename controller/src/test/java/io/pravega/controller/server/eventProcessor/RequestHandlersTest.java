@@ -841,7 +841,7 @@ public abstract class RequestHandlersTest {
     }
 
     @Test
-    public void scopeDeleteTest() throws Exception{
+    public void scopeDeleteTest() throws Exception {
         final String testScope = "testScope";
         final String testStream = "testStream";
         final String testRG = "_RGTestRG";
