@@ -27,6 +27,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class ParseSystemPropertyTest {
@@ -65,6 +66,6 @@ public class ParseSystemPropertyTest {
     public void parseSysPropPositiveTest() {
         val tier2Config = "key = value";
         val retValue = AbstractService.parseSystemPropertyAsMap("Test", tier2Config);
-        log.debug("The test successfully parses config properties as key and value pairs.");
+        log.debug("The test successfully parses config parameters as key and value pairs.");
     }
 }
