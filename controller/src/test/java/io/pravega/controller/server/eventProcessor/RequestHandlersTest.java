@@ -84,6 +84,7 @@ import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
@@ -840,6 +841,7 @@ public abstract class RequestHandlersTest {
         future.join();
     }
 
+    @SneakyThrows
     @Test
     public void scopeDeleteTest() {
         final String testScope = "testScope";
@@ -948,7 +950,7 @@ public abstract class RequestHandlersTest {
         DeleteScopeEvent event = new DeleteScopeEvent(testScope, 123L, scopeId);
         CompletableFuture<Void> future = requestHandler.execute(event);
         future.join();
-        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY) > 0);
+        AssertExtensions.assertEventuallyEquals( true , () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY) > 0, 10000);
     }
 
     @Test

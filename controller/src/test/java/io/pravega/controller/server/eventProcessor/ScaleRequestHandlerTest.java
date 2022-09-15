@@ -84,6 +84,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import lombok.SneakyThrows;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -205,6 +206,7 @@ public abstract class ScaleRequestHandlerTest {
         }
     }
 
+    @SneakyThrows
     @SuppressWarnings("unchecked")
     @Test(timeout = 30000)
     public void testScaleRequest() throws ExecutionException, InterruptedException {
@@ -302,7 +304,7 @@ public abstract class ScaleRequestHandlerTest {
         assertTrue(activeSegments.size() == 3);
 
         assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID(), 11L), () -> false)));
-        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_AUTO_SCALE_STREAM_LATENCY) > 0);
+        AssertExtensions.assertEventuallyEquals( true , () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_AUTO_SCALE_STREAM_LATENCY) > 0, 10000);
     }
 
     @Test(timeout = 30000)
