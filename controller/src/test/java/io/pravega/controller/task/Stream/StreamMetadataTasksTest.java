@@ -484,9 +484,8 @@ public abstract class StreamMetadataTasksTest {
                 etr.getObject().getActiveEpoch(), 0L).join().getStatus(), Controller.ScaleStatusResponse.ScaleStatus.SUCCESS);
     }
 
-    @SneakyThrows
     @Test(timeout = 30000)
-    public void readerGroupsTest() throws InterruptedException, ExecutionException {
+    public void readerGroupsTest() throws Exception {
         // no subscribers found for existing Stream
         SubscribersResponse listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, 0L).get();
         assertEquals(SubscribersResponse.Status.SUCCESS, listSubscribersResponse.getStatus());

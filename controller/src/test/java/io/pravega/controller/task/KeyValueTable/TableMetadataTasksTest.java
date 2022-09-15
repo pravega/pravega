@@ -122,9 +122,8 @@ public abstract class TableMetadataTasksTest {
         }
     }
 
-    @SneakyThrows
     @Test(timeout = 30000)
-    public void testCreateKeyValueTable() throws ExecutionException, InterruptedException {
+    public void testCreateKeyValueTable() throws Exception {
         Assert.assertTrue(isScopeCreated);
         long creationTime = System.currentTimeMillis();
         KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();

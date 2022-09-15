@@ -841,9 +841,8 @@ public abstract class RequestHandlersTest {
         future.join();
     }
 
-    @SneakyThrows
     @Test
-    public void scopeDeleteTest() {
+    public void scopeDeleteTest() throws Exception{
         final String testScope = "testScope";
         final String testStream = "testStream";
         final String testRG = "_RGTestRG";
