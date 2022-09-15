@@ -84,7 +84,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import lombok.SneakyThrows;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -206,10 +205,9 @@ public abstract class ScaleRequestHandlerTest {
         }
     }
 
-    @SneakyThrows
     @SuppressWarnings("unchecked")
     @Test(timeout = 30000)
-    public void testScaleRequest() throws ExecutionException, InterruptedException {
+    public void testScaleRequest() throws Exception {
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler,
