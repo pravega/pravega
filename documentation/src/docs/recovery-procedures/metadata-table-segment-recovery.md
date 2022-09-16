@@ -22,7 +22,7 @@ This document refers to recovery of Attribute Index Table Segments but only in c
 be handled a little differently. Metadata Segments in Pravega are Table Segments that hold metadata about all other "non-metadata" Segments, which
 include the internal Segments as well as the User Segments. Metadata about these Metadata Segments themselves, are stored in Pravega System Journals. More details
 about the why and how part of Journals can be found in this PDP [here](https://github.com/pravega/pravega/wiki/PDP-34-(Simplified-Tier-2)#why-slts-needs-system-journal).
-Pravega Journals, is concretely what we would be attempting to update as part of the recovery procedure in this document.
+Pravega System Journals, is concretely what we would be attempting to update as part of the recovery procedure in this document.
 
 
 Please note that the steps outlined below are in continuation to the ones outlined as part of the recovery procedure described [here](https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/table-segment-recovery.md).
@@ -91,7 +91,7 @@ the Table Segment Recovery procedure, that one would have to jump to the below s
    ```
     What the above command does is list the corrected/fixed Segment chunks pointed to by the path `segment-chunk-path`, sort them based on their epoch
     and offsets. And then reads them in the sorted order, and builds metadata about these chunks from their names and length. Once this metadata is 
-    generated, it updates this metadata for the Segment in question, and generates a Pravega Journal Snapshot with this updated metadata.
+    generated, it updates this metadata for the Segment in question, and generates a Pravega System Journal Snapshot with this updated metadata.
 
 
 6) Copy over the Snapshot file generated in the output directory of Step 5 above, back to its Tier-2 path which is `/mnt/tier2/_system/containers`.
