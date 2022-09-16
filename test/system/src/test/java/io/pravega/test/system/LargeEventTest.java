@@ -58,7 +58,7 @@ public class LargeEventTest extends AbstractReadWriteTest {
     private final static String STREAM_NAME = "testStreamSampleY";
     private final static String STREAM_SCOPE = "testScopeSampleY" + randomAlphanumeric(5);
     private final static String READER_GROUP = "ExampleReaderGroupY";
-    private final static int NUM_EVENTS = 100;
+    private final static int NUM_EVENTS = 10;
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(5 * 60);
@@ -109,12 +109,13 @@ public class LargeEventTest extends AbstractReadWriteTest {
         @Cleanup
         EventStreamWriter<ByteBuffer> writer = clientFactory.createEventWriter(STREAM_NAME,
                                                                                  new ByteBufferSerializer(),
-                                                                                 EventWriterConfig.builder().build());
-        byte[] payload = new byte[Serializer.MAX_EVENT_SIZE];
+                                                                                 EventWriterConfig.builder().enableLargeEvents(true).build());
+        byte[] payload = new byte[Serializer.MAX_EVENT_SIZE * 10];
         for (int i = 0; i < NUM_EVENTS; i++) {
-            log.debug("Producing event: {} ", i);
+            log.info("Writing event: {} ", i);
             // any exceptions while writing the event will fail the test.
-            writer.writeEvent("", ByteBuffer.wrap(payload));
+            writer.writeEvent("", ByteBuffer.wrap(payload)).join();
+            log.info("Wrote event: {} ", i);
             writer.flush();
         }
 
