@@ -18,9 +18,9 @@ limitations under the License.
 # Metadata Table Segment Attribute Index Recovery
 
 
-The below outlined steps refer to recovery of Attribute Index Table Segments but only in cases of Metadata Segments which are a special case, as they need to
-be handled a little differently. Metadata Segments in Pravega are Table Segments, that hold metadata about all other "non-metadata" Segments, which
-include the internal Segments as well as the User Segments. Metadata about these Metadata Segments themselves in Pravega, are stored in Pravega Journals. More details
+This document refers to recovery of Attribute Index Table Segments but only in cases of Metadata Segments which are a special case, as they need to
+be handled a little differently. Metadata Segments in Pravega are Table Segments that hold metadata about all other "non-metadata" Segments, which
+include the internal Segments as well as the User Segments. Metadata about these Metadata Segments themselves, are stored in Pravega System Journals. More details
 about the why and how part of Journals can be found in this PDP [here](https://github.com/pravega/pravega/wiki/PDP-34-(Simplified-Tier-2)#why-slts-needs-system-journal).
 Pravega Journals, is concretely what we would be attempting to update as part of the recovery procedure in this document.
 
