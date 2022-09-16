@@ -232,13 +232,13 @@ public interface StreamManager extends AutoCloseable {
     List<TransactionInfo> listCompletedTransactions(Stream stream);
 
     /**
-     * Get information about a given Stream, {@link StreamInfo}.
-     * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream and the current
-     * {@link StreamConfiguration}
+     * Fetch information about a given Stream {@link StreamInfo} from server asynchronously.
+     * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream and the current {@link StreamConfiguration}.
+     * Call join() on future object to get {@link StreamInfo}.
      *
      * @param scopeName The scope of the stream.
      * @param streamName The stream name.
-     * @return A future representing {@link StreamInfo}.
+     * @return A future representing {@link StreamInfo} that will be completed when server responds.
      */
     @Beta
     CompletableFuture<StreamInfo> fetchStreamInfo(String scopeName, String streamName);
