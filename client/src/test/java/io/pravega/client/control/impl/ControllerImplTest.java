@@ -2544,12 +2544,17 @@ public class ControllerImplTest {
     @Test
     public void testGetEndPointForSegment() throws Exception {
         CompletableFuture<PravegaNodeUri> endpointForSegment;
-        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
         // reads from network and store in cache
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
         assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
 
-        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
         // picks from cache
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
+
+        // for the case when entry in cache is expired
+        Thread.sleep(21000);
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
         assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
     }
 
@@ -2561,6 +2566,7 @@ public class ControllerImplTest {
 
         PravegaNodeUri errorNodeInfo = new PravegaNodeUri("localhost", 12345);
         controllerClient.updateStaleValueInCache("scope1/stream1/0", errorNodeInfo);
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), controllerClient.getEndpointForSegment("scope1/stream1/0").get());
     }
 
 }

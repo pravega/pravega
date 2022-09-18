@@ -290,7 +290,7 @@ public class ControllerImplLBTest {
             try {
                 // We have added cache support in getEndPointForSegment API.
                 // Since it will always return the same value from cache for ID 0, so the condition in while loop can never be met and will eventually timeout and fail.
-                // hence we have changed th call to getPravegaNodeUriForTesting.
+                // hence we did change the call to getPravegaNodeUriForTesting.
                 uris.add(client.getPravegaNodeUriForTesting("a/b/0").get());
             } catch (Exception e) {
                 // Ignore temporary exceptions which happens due to failover.
