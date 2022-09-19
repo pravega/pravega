@@ -30,14 +30,14 @@ public class BucketServiceFactory {
     private final String hostId;
     private final BucketStore bucketStore;
     private final int maxConcurrentExecutions;
-    private final int bucketDistributionInterval;
+    private final int minBucketRedistributionInterval;
 
     public BucketServiceFactory(@NonNull String hostId, @NonNull BucketStore bucketStore, int maxConcurrentExecutions,
-                                int bucketDistributionInterval) {
+                                int minBucketRedistributionInterval) {
         this.hostId = hostId;
         this.bucketStore = bucketStore;
         this.maxConcurrentExecutions = maxConcurrentExecutions;
-        this.bucketDistributionInterval = bucketDistributionInterval;
+        this.minBucketRedistributionInterval = minBucketRedistributionInterval;
     }
 
     public BucketManager createRetentionService(Duration executionDuration, BucketWork work, ScheduledExecutorService executorService) {
@@ -87,7 +87,7 @@ public class BucketServiceFactory {
     }
 
     private BucketManagerLeader getBucketManagerLeader(BucketStore.ServiceType serviceType) {
-        return new BucketManagerLeader(bucketStore, bucketDistributionInterval,
+        return new BucketManagerLeader(bucketStore, minBucketRedistributionInterval,
                 new UniformBucketDistributor(), serviceType);
     }
 }

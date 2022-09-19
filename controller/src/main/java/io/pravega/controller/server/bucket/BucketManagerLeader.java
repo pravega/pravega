@@ -52,7 +52,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
     //The minimum interval between any two rebalance operations. The minimum duration is not guaranteed when leadership
     //moves across controllers. Since this is uncommon and there are no significant side-effects to it, we don't
     //handle this scenario.
-    private Duration minRebalanceInterval;
+    private Duration minBucketRedistributionInterval;
 
     //The controller to bucket distributor.
     @Getter
@@ -60,13 +60,13 @@ public class BucketManagerLeader implements LeaderSelectorListener {
     //Service type
     private final BucketStore.ServiceType serviceType;
 
-    public BucketManagerLeader(BucketStore bucketStore, int minRebalanceInterval, BucketDistributor bucketDistributor,
+    public BucketManagerLeader(BucketStore bucketStore, int minBucketRedistributionInterval, BucketDistributor bucketDistributor,
                                BucketStore.ServiceType serviceType) {
         Preconditions.checkNotNull(bucketStore, "bucketStore");
-        Preconditions.checkArgument(minRebalanceInterval >= 0, "minRebalanceInterval should not be negative");
+        Preconditions.checkArgument(minBucketRedistributionInterval >= 0, "minBucketRedistributionInterval should not be negative");
 
         this.bucketStore = bucketStore;
-        this.minRebalanceInterval = Duration.ofSeconds(minRebalanceInterval);
+        this.minBucketRedistributionInterval = Duration.ofSeconds(minBucketRedistributionInterval);
         this.bucketDistributor = bucketDistributor;
         this.serviceType = serviceType;
     }
@@ -161,8 +161,8 @@ public class BucketManagerLeader implements LeaderSelectorListener {
      *      Fresh cluster start, cluster/multi-host/host restarts, etc.
      */
     private void waitForReDistribute() throws InterruptedException {
-        log.info("{}: Waiting for {} seconds before attempting to distribute", serviceType, minRebalanceInterval.getSeconds());
-        Thread.sleep(minRebalanceInterval.toMillis());
+        log.info("{}: Waiting for {} seconds before attempting to distribute", serviceType, minBucketRedistributionInterval.getSeconds());
+        Thread.sleep(minBucketRedistributionInterval.toMillis());
     }
 
     private void triggerDistribution() {

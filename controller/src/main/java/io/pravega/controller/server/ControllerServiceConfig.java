@@ -127,5 +127,5 @@ public interface ControllerServiceConfig {
      *
      * @return The minimum interval between two consecutive controller bucket redistribution operation.
      */
-    int getBucketRedistributionInterval();
+    int getMinBucketRedistributionInterval();
 }

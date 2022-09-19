@@ -54,7 +54,7 @@ public class UniformBucketDistributor implements BucketDistributor {
         }
         if (previousBucketControllerMapping.keySet().equals(currentControllers)) {
             //Assuming the input map is always uniform distributed , since this distributor only depends on the controllers list.
-            log.debug("No change in controller list, using existing map");
+            log.debug("No change in controller list, using existing map {}", previousBucketControllerMapping);
             return new HashMap<>(previousBucketControllerMapping);
         }
 
@@ -121,7 +121,8 @@ public class UniformBucketDistributor implements BucketDistributor {
         Map<String, Set<Integer>> newMap = new HashMap<>();
         mapElements.forEach(m -> newMap.put(m.getKey(), m.getValue()));
 
-        log.info("Completed bucket distribution using new controllers set");
+        log.info("Completed bucket distribution using new controllers set : {}. New mapping is {}.",
+                currentControllers, newMap);
 
         return newMap;
     }

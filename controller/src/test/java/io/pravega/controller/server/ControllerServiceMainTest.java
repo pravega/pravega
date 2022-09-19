@@ -138,7 +138,7 @@ public abstract class ControllerServiceMainTest {
                 .eventProcessorConfig(Optional.empty())
                 .grpcServerConfig(Optional.empty())
                 .restServerConfig(Optional.empty())
-                .bucketRedistributionInterval(Config.BUCKET_DISTRIBUTION_INTERVAL)
+                .minBucketRedistributionInterval(Config.MIN_BUCKET_REDISTRIBUTION_INTERVAL)
                 .build();
     }
 }

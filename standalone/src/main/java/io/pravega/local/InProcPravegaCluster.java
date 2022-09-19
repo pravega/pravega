@@ -455,7 +455,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(Optional.ofNullable(restServerConfig))
                 .shutdownTimeout(Duration.ofMillis(100))
-                .bucketRedistributionInterval(10)
+                .minBucketRedistributionInterval(10)
                 .build();
 
         ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);
