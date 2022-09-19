@@ -192,6 +192,12 @@ public abstract class BucketManager extends AbstractService {
         stopLeader();
     }
 
+    /**
+     * This method will stop the running services.
+     * Once the services stopped successfully then buckets becomes available and others process can acquire the ownership of it.
+     *
+     * @param bucketIds set of bucket ids which need to be stopped.
+     */
     public void stopBucketServices(Set<Integer> bucketIds) {
         Set<Integer> bInt = new HashSet<>();
         Futures.allOf(bucketIds.stream().map(bucketId -> {

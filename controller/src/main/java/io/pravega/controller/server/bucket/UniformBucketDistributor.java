@@ -39,7 +39,7 @@ import lombok.extern.slf4j.Slf4j;
  * - Repeat the following until the controllers are balanced.
  *     -- Remove a bucket from the controller containing max number of buckets.
  *     -- Add this to the controller containing min number of buckets.
- * - The balanced condition happens when the difference between min and max containers is at most 1.
+ * - The balanced condition happens when the difference between min and max buckets is at most 1.
  */
 @Slf4j
 public class UniformBucketDistributor implements BucketDistributor {
@@ -75,7 +75,7 @@ public class UniformBucketDistributor implements BucketDistributor {
                                                                    .flatMap(p -> p.getValue().stream())
                                                                    .collect(Collectors.toSet());
 
-        //Using a TreeSet sorted by number of containers to optimize add/remove operations.
+        //Using a TreeSet sorted by number of buckets to optimize add/remove operations.
         TreeSet<Map.Entry<String, Set<Integer>>> mapElements =
                 new TreeSet<>((o1, o2) -> {
                     if (o1.getValue().size() < o2.getValue().size()) {
@@ -83,7 +83,7 @@ public class UniformBucketDistributor implements BucketDistributor {
                     } else if (o1.getValue().size() > o2.getValue().size()) {
                         return 1;
                     } else {
-                        // Position elements with equal container length using object hashCode to provide strict weak
+                        // Position elements with equal bucket length using object hashCode to provide strict weak
                         // ordering. We don't need any specific ordering using information from the controller.
                         return o1.getKey().hashCode() - o2.getKey().hashCode();
                     }
@@ -94,10 +94,10 @@ public class UniformBucketDistributor implements BucketDistributor {
                            forEach(mapElements::add);
         controllersAdded.forEach(h -> mapElements.add(new AbstractMap.SimpleEntry<>(h, new HashSet<>())));
 
-        //Add the orphaned containers into the TreeSet, while balancing it.
-        for (Integer container : orphanedBuckets) {
+        //Add the orphaned buckets into the TreeSet, while balancing it.
+        for (Integer bucket : orphanedBuckets) {
             Map.Entry<String, Set<Integer>> first = mapElements.pollFirst();
-            first.getValue().add(container);
+            first.getValue().add(bucket);
             mapElements.add(first);
         }
 
