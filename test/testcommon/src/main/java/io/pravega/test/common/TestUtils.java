@@ -110,6 +110,7 @@ public class TestUtils {
                 condition = () -> (expected == null && finalResult == null)
                         || (expected != null && expected.equals(finalResult));
             } catch (Exception e) {
+                log.info(">>>> Exception in TestUtils time remaining {} and exception is {} ", remainingMillis, e);
                 throw new RuntimeException(e);
             }
 
@@ -118,6 +119,7 @@ public class TestUtils {
         }
 
         if (condition == null || !condition.get() && remainingMillis <= 0) {
+            log.info(">>>> Exception in TestUtils TimeoutExceptions thrown ");
             throw new TimeoutException("Timeout expired prior to the condition becoming true.");
         }
 

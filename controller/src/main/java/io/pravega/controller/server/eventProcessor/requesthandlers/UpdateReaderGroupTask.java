@@ -118,11 +118,19 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
                                        return CompletableFuture.completedFuture(null);
                                    })
                                    .thenCompose(v -> streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor))
-                                           .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorUpdateReaderGroupEvent(timer.getElapsed()));
+                                           .thenAccept(v -> {
+                                               log.info(">>>> Inside UpdateReaderGroupTask updating timer in metrics {} ", timer.getElapsed());
+                                               StreamMetrics.getInstance().controllerEventProcessorUpdateReaderGroupEvent(timer.getElapsed());
+                                               log.info(">>>> Inside UpdateReaderGroupTask metrics successfully updated ");
+                                           });
                                }
                                // We get here for non-transition updates
                                return streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor)
-                                       .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorUpdateReaderGroupEvent(timer.getElapsed()));
+                                       .thenAccept(v -> {
+                                           log.info(">>>> Inside UpdateReaderGroupTask 2 updating timer in metrics {} ", timer.getElapsed());
+                                           StreamMetrics.getInstance().controllerEventProcessorUpdateReaderGroupEvent(timer.getElapsed());
+                                           log.info(">>>> Inside UpdateReaderGroupTask 2 metrics successfully updated ");
+                                       });
                            }
                            return CompletableFuture.completedFuture(null);
                        });
