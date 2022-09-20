@@ -126,6 +126,7 @@ All available commands:
         segmentstore read-segment <qualified-segment-name> <offset> <length> <segmentstore-endpoint> <file-name>: Read a range from a given Segment into given file.
         segmentstore update-segment-attribute <qualified-segment-name> <attribute-id> <attribute-new-value> <attribute-old-value> <segmentstore-endpoint>: Updates an attribute for a Segment.
         storage list-chunks <qualified-segment-name> <segmentstore-endpoint>: Get the list of storage chunks for the given segment.
+        storage update-latest-journal-snapshot <segment-chunks-path> <journal-file-path> <latest-snapshot-path> <output-directory>: Updates the segment metadata in Journal Snapshot with the segment details in the provided path
         table-segment get <qualified-table-segment-name> <key> <segmentstore-endpoint>: Get the entry for the given key in the table.Use the command "table-segment set-serializer <serializer-name>" to use the appropriate serializer before using this command.
         table-segment get-info <qualified-table-segment-name> <segmentstore-endpoint>: Get the details of a given table.
         table-segment list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the table segment.
