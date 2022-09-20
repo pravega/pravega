@@ -207,7 +207,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(restServerConfig)
                 .retentionFrequency(Duration.ofSeconds(1))
-                .minBucketRedistributionInterval(Config.MIN_BUCKET_REDISTRIBUTION_INTERVAL)
+                .minBucketRedistributionIntervalInSeconds(Config.MIN_BUCKET_REDISTRIBUTION_INTERVAL_IN_SECONDS)
                 .build();
 
         controllerServiceMain = new ControllerServiceMain(serviceConfig);

@@ -132,7 +132,7 @@ public abstract class ControllerServiceStarterTest {
                         .authorizationEnabled(enableAuth)
                         .userPasswordFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)
                         .build()))
-                .minBucketRedistributionInterval(10)
+                .minBucketRedistributionIntervalInSeconds(10)
                 .build();
     }
 }

@@ -26,7 +26,6 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.test.common.TestingServerStarter;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,8 +37,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 
 public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     private TestingServer zkServer;
@@ -109,19 +106,9 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
 
     @Test(timeout = 30000)
     public void testFailover() throws Exception {
-        CountDownLatch countDownLatch = new CountDownLatch(2);
-        watermarkingService.addListener(() -> countDownLatch.countDown());
-        retentionService.addListener(() -> countDownLatch.countDown());
         addEntryToZkCluster(controller);
-        countDownLatch.await();
-
-        Map<Integer, BucketService> bucketServices = watermarkingService.getBucketServices();
-        assertNotNull(bucketServices);
-        assertEquals(3, bucketServices.size());
-
-        Map<Integer, BucketService> retentionBucketServices = retentionService.getBucketServices();
-        assertNotNull(retentionBucketServices);
-        assertEquals(3, retentionBucketServices.size());
+        assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
+        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
 
         //add new controller instance in pravgea cluster.
         Host controller1 = new Host(UUID.randomUUID().toString(), 9090, null);

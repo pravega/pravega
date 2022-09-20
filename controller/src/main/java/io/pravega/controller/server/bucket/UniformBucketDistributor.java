@@ -1,12 +1,12 @@
 /**
  * Copyright Pravega Authors.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -28,6 +28,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import javax.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -45,13 +46,9 @@ import lombok.extern.slf4j.Slf4j;
 public class UniformBucketDistributor implements BucketDistributor {
     @Override
     public Map<String, Set<Integer>> distribute(Map<String, Set<Integer>> previousBucketControllerMapping,
-                                                Set<String> currentControllers, int bucketCount) {
+                                                @NotNull Set<String> currentControllers, int bucketCount) {
         Preconditions.checkNotNull(previousBucketControllerMapping, "previousBucketControllerMapping");
         Preconditions.checkNotNull(currentControllers, "currentControllers");
-        if (currentControllers.isEmpty()) {
-            log.info("No controller found during distribution, creating empty map");
-            return new HashMap<>();
-        }
         if (previousBucketControllerMapping.keySet().equals(currentControllers)) {
             //Assuming the input map is always uniform distributed , since this distributor only depends on the controllers list.
             log.debug("No change in controller list, using existing map {}", previousBucketControllerMapping);

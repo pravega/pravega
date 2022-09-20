@@ -58,7 +58,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
     private final Duration retentionFrequency;
     @Getter
     private final Duration shutdownTimeout;
-    private final int minBucketRedistributionInterval;
+    private final int minBucketRedistributionIntervalInSeconds;
 
     @Builder
     ControllerServiceConfigImpl(final int threadPoolSize,
@@ -73,15 +73,15 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                                 final Duration retentionFrequency,
                                 final Duration healthCheckFrequency,
                                 final Duration shutdownTimeout,
-                                final int minBucketRedistributionInterval) {
+                                final int minBucketRedistributionIntervalInSeconds) {
         Exceptions.checkArgument(threadPoolSize > 0, "threadPoolSize", "Should be positive integer");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
         Preconditions.checkNotNull(timeoutServiceConfig, "timeoutServiceConfig");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
-        Preconditions.checkArgument(minBucketRedistributionInterval > 0,
-                "minBucketRedistributionInterval", "Should be positive integer");
+        Preconditions.checkArgument(minBucketRedistributionIntervalInSeconds > 0,
+                "minBucketRedistributionIntervalInSeconds", "Should be positive integer");
         if (controllerClusterListenerEnabled) {
             Preconditions.checkArgument(storeClientConfig.getStoreType() == StoreType.Zookeeper ||
                             storeClientConfig.getStoreType() == StoreType.PravegaTable,
@@ -111,6 +111,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                 : retentionFrequency;
         this.healthCheckFrequency = healthCheckFrequency == null ? Duration.ofSeconds(Config.HEALTH_CHECK_FREQUENCY) : healthCheckFrequency;
         this.shutdownTimeout = shutdownTimeout == null ? Duration.ofSeconds(10) : shutdownTimeout;
-        this.minBucketRedistributionInterval = minBucketRedistributionInterval;
+        this.minBucketRedistributionIntervalInSeconds = minBucketRedistributionIntervalInSeconds;
     }
 }

@@ -271,7 +271,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
                                                                                             .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                                                                                             .build()))
                                           .restServerConfig(Optional.empty())
-                                          .minBucketRedistributionInterval(10)
+                                          .minBucketRedistributionIntervalInSeconds(10)
                                           .build();
     }
 

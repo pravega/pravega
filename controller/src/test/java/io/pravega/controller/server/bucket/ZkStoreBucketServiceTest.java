@@ -55,6 +55,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -103,12 +104,8 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
 
     @Test(timeout = 10000)
     public void testBucketOwnership() throws Exception {
-        CountDownLatch countDownLatch = new CountDownLatch(1);
-        retentionService.addListener(() ->
-                countDownLatch.countDown()
-        );
         addEntryToZkCluster(controller);
-        countDownLatch.await();
+        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
         // verify that ownership is not taken up by another host
         assertFalse(retentionService.takeBucketOwnership(0, "", executor).join());
 

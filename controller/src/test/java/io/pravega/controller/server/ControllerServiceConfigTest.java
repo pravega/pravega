@@ -206,7 +206,7 @@ public class ControllerServiceConfigTest {
                                                  .eventProcessorConfig(Optional.empty())
                                                  .grpcServerConfig(Optional.empty())
                                                  .restServerConfig(Optional.empty())
-                                                 .minBucketRedistributionInterval(0)
+                                                 .minBucketRedistributionIntervalInSeconds(0)
                                                  .build());
     }
 }

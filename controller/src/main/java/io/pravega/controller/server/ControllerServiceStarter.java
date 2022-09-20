@@ -273,7 +273,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
 
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000,
-                    serviceConfig.getMinBucketRedistributionInterval());
+                    serviceConfig.getMinBucketRedistributionIntervalInSeconds());
             Duration executionDurationRetention = serviceConfig.getRetentionFrequency();
 
             PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);

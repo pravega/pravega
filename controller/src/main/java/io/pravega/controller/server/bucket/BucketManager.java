@@ -55,11 +55,7 @@ public abstract class BucketManager extends AbstractService {
     @Getter(AccessLevel.PROTECTED)
     private final ScheduledExecutorService executor;
     private final BucketStore bucketStore;
-    /**
-     * The tests can add listeners to get notification when the update has happened in the store.
-     */
-    @Getter
-    private final AtomicReference<BucketListener> listenerRef;
+
     BucketManager(final String processId, final BucketStore.ServiceType serviceType, final ScheduledExecutorService executor,
                   final Function<Integer, BucketService> bucketServiceSupplier, final BucketStore bucketStore) {
         this.processId = processId;
@@ -69,7 +65,6 @@ public abstract class BucketManager extends AbstractService {
         this.buckets = new HashMap<>();
         this.bucketServiceSupplier = bucketServiceSupplier;
         this.bucketStore = bucketStore;
-        listenerRef = new AtomicReference<>();
     }
 
     @Override
@@ -100,7 +95,15 @@ public abstract class BucketManager extends AbstractService {
 
     public abstract void stopLeader();
 
-    protected CompletableFuture<Void> manageBuckets(int noOfClusters) {
+    /**
+     * This method will invoke whenever there is any change in buckets controller mapping.
+     * If new instance of controller is added, then existing controllers need to release the buckets.
+     * If any instance of controller failed, then existing controllers need to take the ownership of newly assigned buckets.
+     *
+     * @param numberOfControllers Number of controllers.
+     * @return Completable future which when complete indicate that controller manages buckets according to new mapping.
+     */
+    protected CompletableFuture<Void> manageBuckets(int numberOfControllers) {
         AtomicReference<Set<Integer>> removeableBuckets = new AtomicReference<>();
         return bucketStore.getBucketsForController(processId, getServiceType())
                           .thenCompose(newBuckets -> {
@@ -111,11 +114,11 @@ public abstract class BucketManager extends AbstractService {
                                   removeableBuckets.set(buckets.keySet().stream().filter(x -> !newBuckets.contains(x))
                                                                .collect(Collectors.toSet()));
                               }
-                              log.debug("{} : Buckets added to process : {} are {}", serviceType, processId, addBuckets);
-                              log.debug("{} : Total no of controllers are {}", serviceType, noOfClusters);
-                              //If there is only one controller instance, then will try to take ownership from here as there
-                              //controller will not wait for stopping the service from other instance.
-                              if (noOfClusters == 1 || buckets.isEmpty()) {
+                              log.info("{}: Buckets added to process : {} are {}.", serviceType, processId, addBuckets);
+                              log.info("{}: Total number of controllers is {}.", serviceType, numberOfControllers);
+                              // If there is only one controller instance, then will try to take ownership from here as the
+                              // controller will not wait for stopping the service from other instance.
+                              if (numberOfControllers == 1 || buckets.isEmpty()) {
                                   return Futures.allOf(addBuckets.stream()
                                                                  .map(x -> initializeBucket(x).thenCompose(v -> tryTakeOwnership(x)))
                                                                  .collect(Collectors.toList()));
@@ -127,7 +130,7 @@ public abstract class BucketManager extends AbstractService {
                               if (removeableBuckets.get().size() > 0) {
                                   stopBucketServices(removeableBuckets.get());
                               }
-                              log.debug("{} : Buckets remove from process : {} are {} for ", serviceType, processId, removeableBuckets.get());
+                              log.info("{}: Buckets removed from process : {} are {}.", serviceType, processId, removeableBuckets.get());
                           });
     }
 
@@ -135,7 +138,7 @@ public abstract class BucketManager extends AbstractService {
         return takeBucketOwnership(bucket, processId, executor)
                          .thenCompose(isOwner -> {
                     if (isOwner) {
-                        log.info("{}: Taken ownership for bucket {}", serviceType, bucket);
+                        log.info("{}: Taken ownership for bucket {}.", serviceType, bucket);
 
                         // Once we have taken ownership of the bucket, we will register listeners on the bucket. 
                         CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
@@ -162,14 +165,14 @@ public abstract class BucketManager extends AbstractService {
             @Override
             public void running() {
                 super.running();
-                log.info("{}: successfully started bucket service bucket: {} ", BucketManager.this.serviceType, bucket);
+                log.info("{}: successfully started bucket service bucket: {}.", BucketManager.this.serviceType, bucket);
                 bucketFuture.complete(null);
             }
 
             @Override
             public void failed(State from, Throwable failure) {
                 super.failed(from, failure);
-                log.error("{}: Failed to start bucket: {} ", BucketManager.this.serviceType, bucket);
+                log.error("{}: Failed to start bucket: {}.", BucketManager.this.serviceType, bucket);
                 synchronized (lock) {
                     buckets.remove(bucket);
                 }
@@ -182,7 +185,7 @@ public abstract class BucketManager extends AbstractService {
 
     @Override
     protected void doStop() {
-        log.info("{}: Stop request received for bucket manager", serviceType);
+        log.info("{}: Stop request received for bucket manager.", serviceType);
         Set<Integer> tmp;
         synchronized (lock) { 
             tmp = buckets.keySet();
@@ -217,6 +220,7 @@ public abstract class BucketManager extends AbstractService {
                        @Override
                        public void failed(State from, Throwable failure) {
                            super.failed(from, failure);
+                           log.warn("{}: Unable to stop bucket service {} due to {}.", serviceType, bucketId, failure);
                            bucketFuture.completeExceptionally(failure);
                        }
                    }, executor);
@@ -227,15 +231,15 @@ public abstract class BucketManager extends AbstractService {
                .thenAccept(x -> {
                    synchronized (lock) {
                        bInt.stream().forEach(id -> buckets.remove(id));
+                       log.info("{}: New buckets size is {}.", serviceType, buckets.size());
                    }
-                   log.debug("{}: New buckets size is {}", serviceType, buckets.size());
                })
                .whenComplete((r, e) -> {
                    if (e != null) {
-                       log.error("{}: bucket service shutdown failed with exception", serviceType, e);
+                       log.error("{}: bucket service shutdown failed with exception.", serviceType, e);
                        notifyFailed(e);
                    } else {
-                       log.info("{}: bucket service stopped", serviceType);
+                       log.info("{}: bucket service stopped.", serviceType);
                        notifyStopped();
                    }
                });
@@ -264,19 +268,5 @@ public abstract class BucketManager extends AbstractService {
     @VisibleForTesting
     Map<Integer, BucketService> getBucketServices() {
         return Collections.unmodifiableMap(buckets);
-    }
-
-    @VisibleForTesting
-    public void addListener(BucketListener listener) {
-        this.listenerRef.set(listener);
-    }
-
-    /**
-     * Functional interface to notify tests about changes to the map as they occur.
-     */
-    @VisibleForTesting
-    @FunctionalInterface
-    public interface BucketListener {
-        void signal();
     }
 }

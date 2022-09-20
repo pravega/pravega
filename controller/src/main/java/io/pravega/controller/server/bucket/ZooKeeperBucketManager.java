@@ -90,35 +90,35 @@ public class ZooKeeperBucketManager extends BucketManager {
                     int bucketId = Integer.parseInt(ZKPaths.getNodeFromPath(event.getData().getPath()));
                     bucketStore.getBucketsForController(processId, getServiceType())
                                .thenAccept(buckets -> {
-                                   log.debug("{} : Buckets assigned to controller {} are {}", getServiceType(), processId, buckets);
+                                   log.debug("{}: Buckets assigned to controller {} are {}.", getServiceType(), processId, buckets);
                                    if (buckets.contains(bucketId)) {
                                        RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(bucketId),
-                                               e -> log.warn("{}: exception while attempting to take ownership for bucket {}: {}", getServiceType(),
+                                               e -> log.warn("{}: exception while attempting to take ownership for bucket {}: {}.", getServiceType(),
                                                        bucketId, e.getMessage()), getExecutor());
                                    }
                                }).whenComplete((r, e) -> {
                                    if (e == null) {
-                                       log.debug("{}: Take Ownership finished successfully", getServiceType());
+                                       log.debug("{}: Take Ownership finished successfully.", getServiceType());
                                    } else {
-                                       log.debug("{}: Take Ownership finished with exception {}", getServiceType(), e);
+                                       log.debug("{}: Take Ownership finished with exception {}.", getServiceType(), e);
                                    }
                                });
                     break;
                 case CONNECTION_LOST:
-                    log.warn("{}: Received connectivity error", getServiceType());
+                    log.warn("{}: Received connectivity error.", getServiceType());
                     break;
                 default:
-                    log.warn("Received unknown event {} on bucket root {} ", event.getType(), getServiceType());
+                    log.warn("Received unknown event {} on bucket root {}.", event.getType(), getServiceType());
             }
         };
 
         pathChildrenCache.getListenable().addListener(bucketListener);
-        log.info("bucket ownership listener registered on bucket root {}", getServiceType());
+        log.info("Bucket ownership listener registered on bucket root {}.", getServiceType());
 
         try {
             pathChildrenCache.start(PathChildrenCache.StartMode.NORMAL);
         } catch (Exception e) {
-            log.error("Starting ownership listener for service {} threw exception", getServiceType(), e);
+            log.error("Starting ownership listener for service {} threw exception.", getServiceType(), e);
             throw Exceptions.sneakyThrow(e);
         }
 
@@ -132,7 +132,7 @@ public class ZooKeeperBucketManager extends BucketManager {
                 pathChildrenCache.clear();
                 pathChildrenCache.close();
             } catch (IOException e) {
-                log.warn("{} unable to close listener for bucket ownership", getServiceType(), e);
+                log.warn("{}: unable to close listener for bucket ownership.", getServiceType(), e);
             }
         }
     }
@@ -156,13 +156,13 @@ public class ZooKeeperBucketManager extends BucketManager {
                 BucketControllerMap.EMPTY.toBytes());
         NodeCache cache = bucketStore.getBucketControllerMapNodeCache(getServiceType());
         cache.getListenable().addListener(this::handleBuckets);
-        log.info("{} : Bucket controller map listener registered", getServiceType());
+        log.info("{}: Bucket controller map listener registered.", getServiceType());
         cache.start(true);
         manageBuckets(cluster.getClusterMembers().size()).whenComplete((r, e) -> {
             if (e == null) {
-                log.debug("{} : Manage buckets completes with result : {}", getServiceType(), r);
+                log.debug("{}: Manage buckets completes with result: {}.", getServiceType(), r);
             } else {
-                log.debug("{} : Manage buckets completes with result : {} and exception : {}", getServiceType(), r, e);
+                log.error("{}: Manage buckets completes with result: {} and exception: {}.", getServiceType(), r, e);
             }
         });
     }
@@ -213,7 +213,7 @@ public class ZooKeeperBucketManager extends BucketManager {
     public void startLeader() {
         leaderSelector.autoRequeue();
         leaderSelector.start();
-        log.debug("{} : Leader election started", getServiceType());
+        log.debug("{}: Leader election started.", getServiceType());
     }
 
     @SneakyThrows
@@ -222,19 +222,15 @@ public class ZooKeeperBucketManager extends BucketManager {
         leaderSelector.interruptLeadership();
         leaderSelector.close();
         cluster.close();
-        log.debug("{} : Leader election stopped", getServiceType());
+        log.debug("{}: Leader election stopped.", getServiceType());
     }
 
     private void handleBuckets() {
         manageBuckets(cluster.getClusterMembers().size()).whenComplete((r, e) -> {
             if (e == null) {
-                log.debug("{} : Manage bucket finished successfully", getServiceType());
+                log.debug("{}: Manage bucket finished successfully.", getServiceType());
             } else {
-                log.debug("{} : Manage bucket finished with exception {}", getServiceType(), e);
-            }
-            BucketListener consumer = getListenerRef().get();
-            if (consumer != null) {
-                consumer.signal();
+                log.warn("{}: Manage bucket finished with exception {}.", getServiceType(), e);
             }
         });
 

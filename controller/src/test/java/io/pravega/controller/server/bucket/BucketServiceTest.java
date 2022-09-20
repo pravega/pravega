@@ -37,15 +37,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public abstract class BucketServiceTest {
@@ -112,15 +111,9 @@ public abstract class BucketServiceTest {
 
     @Test (timeout = 30000)
     public void testRetentionService() throws Exception {
-        CountDownLatch countDownLatch = new CountDownLatch(1);
-        retentionService.addListener(() ->
-                countDownLatch.countDown()
-        );
         addEntryToZkCluster(controller);
-        countDownLatch.await();
+        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
         Map<Integer, BucketService> bucketServices = retentionService.getBucketServices();
-        assertNotNull(bucketServices);
-        assertEquals(3, bucketServices.size());
 
         String scope = "scope";
         String streamName = "stream";
@@ -147,13 +140,9 @@ public abstract class BucketServiceTest {
 
     @Test(timeout = 30000)
     public void testWatermarkingService() throws Exception {
-        CountDownLatch countDownLatch = new CountDownLatch(1);
-        watermarkingService.addListener(() -> countDownLatch.countDown());
         addEntryToZkCluster(controller);
-        countDownLatch.await();
+        assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
         Map<Integer, BucketService> bucketServices = watermarkingService.getBucketServices();
-        assertNotNull(bucketServices);
-        assertEquals(3, bucketServices.size());
 
         String scope = "scope";
         String streamName = "stream";
