@@ -16,6 +16,7 @@
 package io.pravega.common.util;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.hash.HashHelper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -86,7 +87,7 @@ public interface BufferView {
     default BufferView slice() {
         return this;
     }
-
+    
     /**
      * Creates a new {@link BufferView} that represents a sub-range of this {@link BufferView} instance. The new instance
      * will share the same backing buffer as this one, so a change to one will be reflected in the other.
@@ -96,6 +97,15 @@ public interface BufferView {
      * @return A new {@link BufferView}.
      */
     BufferView slice(int offset, int length);
+
+    /**
+     * Hashes the contents of the buffer in a fast and consistent way.
+     *
+     * @return A hash of the buffer view's data.
+     */
+    default long hash() {
+        return HashHelper.hashBufferView(this);
+    }
 
     /**
      * Returns a copy of the contents of this {@link BufferView}.
@@ -141,7 +151,6 @@ public interface BufferView {
         // Default implementation intentionally left blank. Any derived class may implement if needed.
     }
 
-
     /**
      * Iterates through each of the buffers that make up this {@link BufferView}, in order, and invokes the given
      * {@link Collector} on each.
@@ -154,7 +163,7 @@ public interface BufferView {
      *                    and the exception will be bubbled up.
      */
     <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT;
-
+    
     /**
      * Gets an {@link Iterator} through each of the {@link ByteBuffer}s that make up this {@link BufferView}, in order.
      *
@@ -179,6 +188,16 @@ public interface BufferView {
         } else {
             return new CompositeBufferView(components);
         }
+    }
+    
+    /**
+     * Wraps a given byte array into a view.
+     * 
+     * @param array The array to wrap.
+     * @return A buffer view backed by the provided array.
+     */
+    static BufferView wrap(byte[] array) {
+        return new ByteArraySegment(array);
     }
 
     /**

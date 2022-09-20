@@ -305,6 +305,7 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
+    @SuppressWarnings("deprecation")
     private static V1Secret getTLSSecret() throws IOException {
         String data = "";
         String yamlInputPath = "secret.yaml";

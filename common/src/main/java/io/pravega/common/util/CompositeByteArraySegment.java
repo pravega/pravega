@@ -395,7 +395,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
 
     //region Reader
 
-    private class CompositeReader extends AbstractReader implements BufferView.Reader {
+    private final class CompositeReader extends AbstractReader implements BufferView.Reader {
         private int position = 0;
 
         @Override

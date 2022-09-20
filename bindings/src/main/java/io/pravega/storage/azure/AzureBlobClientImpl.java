@@ -16,6 +16,8 @@
 package io.pravega.storage.azure;
 
 import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.AppendBlobItem;
@@ -25,6 +27,7 @@ import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.AppendBlobRequestConditions;
 import com.azure.storage.blob.specialized.AppendBlobClient;
 import com.azure.storage.blob.specialized.BlobClientBase;
+import com.azure.storage.common.StorageSharedKeyCredential;
 import com.google.common.base.Preconditions;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +56,17 @@ public class AzureBlobClientImpl implements AzureClient {
      * Automatically updating the value to close the resources.
      */
     private final AtomicBoolean closed = new AtomicBoolean();
+
+    /**
+     * The class provides implementation of the methods declared in AzureClient.
+     * AzureBlobClientImpl constructor for initializing the following parameters and pre-checking the conditions.
+     * @param config Configuration for Azure Storage Account.
+     */
+    public AzureBlobClientImpl(AzureStorageConfig config) {
+        this.config = config;
+        this.blobContainerClient = getBlobContainerClient(config);
+        createContainerIfRequired(config, blobContainerClient);
+    }
 
     /**
      * The class provides implementation of the methods declared in AzureClient.
@@ -88,6 +102,20 @@ public class AzureBlobClientImpl implements AzureClient {
                 throw e;
             }
         }
+    }
+
+    /**
+     * Creates blob container client with the given config.
+     * @param config Configuration for the Azure Storage component.
+     * @return BlobContainerClient.
+     */
+    private BlobContainerClient getBlobContainerClient(AzureStorageConfig config) {
+        BlobServiceClient storageClient = new BlobServiceClientBuilder()
+                .endpoint(config.getEndpoint())
+                .credential(StorageSharedKeyCredential.fromConnectionString(config.getConnectionString()))
+                .buildClient();
+        val client = storageClient.getBlobContainerClient(config.getContainerName());
+        return client;
     }
 
     @Override
