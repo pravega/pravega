@@ -180,6 +180,14 @@ public abstract class BucketManager extends AbstractService {
                                        getServiceType(), bucketId, e.getMessage()), getExecutor())
 
                ).collect(Collectors.toList()))
+               .thenAccept(v -> {
+                   synchronized (lock) {
+                       synchronized (lock) {
+                           bucketIds.stream().forEach(id -> buckets.remove(id));
+                           log.info("{}: New buckets size is {}.", serviceType, buckets.size());
+                       }
+                   }
+               })
                .whenComplete((r, e) -> {
                    if (e != null) {
                        log.error("{}: bucket service shutdown failed with exception.", serviceType, e);
@@ -229,10 +237,6 @@ public abstract class BucketManager extends AbstractService {
             public void terminated(State from) {
                 super.terminated(from);
                 log.warn("{}: Bucket service {} stopped successfully.", serviceType, bucket);
-                synchronized (lock) {
-                    buckets.remove(bucket);
-                    log.info("{}: New buckets size is {}.", serviceType, buckets.size());
-                }
                 bucketFuture.complete(null);
             }
 
