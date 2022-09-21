@@ -16,6 +16,7 @@
 package io.pravega.client.connection.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -72,9 +73,8 @@ public class FlowClientConnection implements ClientConnection {
     }
 
     @Override
-    public PravegaNodeUri getLocation() { 
-        String[] nodeLocation = connectionName.split(":");
-        return new PravegaNodeUri(nodeLocation[0].trim(), Integer.parseInt(nodeLocation[1].trim()));
+    public PravegaNodeUri getLocation() {
+        return NameUtils.getConnectionDetails(connectionName);
     }
 
 }

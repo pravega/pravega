@@ -18,6 +18,7 @@ package io.pravega.shared;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import lombok.AccessLevel;
 import lombok.Getter;
 
@@ -964,4 +965,30 @@ public final class NameUtils {
         return sb.toString();
     }
     // endregion
+
+    /**
+     * Parse the connection name to fetch the connection details.
+     *
+     * @param connection String with connection information.
+     * @return String array with endpoint and port details.
+     */
+    /*public static String[] getConnectionDetails(String connection) {
+        Preconditions.checkNotNull(connection);
+
+        return connection.split(":");
+    }*/
+
+    /**
+     * Parse the connection name to fetch the connection details.
+     *
+     * @param connection String with connection information.
+     * @return PravegaNodeUri with connection details.
+     */
+    public static PravegaNodeUri getConnectionDetails(String connection) {
+        Preconditions.checkNotNull(connection);
+
+        String[] locationInfoToken = connection.split(":");
+        Preconditions.checkArgument(locationInfoToken.length == 2);
+        return new PravegaNodeUri(locationInfoToken[0].trim(), Integer.parseInt(locationInfoToken[1].trim()));
+    }
 }
