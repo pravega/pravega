@@ -19,6 +19,7 @@ import io.grpc.Server;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
@@ -277,7 +278,7 @@ public class ControllerImplLBTest {
         Assert.assertTrue(testRPCServer3.isTerminated());
 
         AssertExtensions.assertThrows(RetriesExhaustedException.class,
-                () -> controllerClient.getPravegaNodeUriForTesting("a/b/0").get());
+                () -> controllerClient.getPravegaNodeUri(Segment.fromScopedName("a/b/0")).get());
     }
 
     private Set<PravegaNodeUri> fetchFromServers(ControllerImpl client, int numServers) {
@@ -291,7 +292,7 @@ public class ControllerImplLBTest {
                 // We have added cache support in getEndPointForSegment API.
                 // Since it will always return the same value from cache for ID 0, so the condition in while loop can never be met and will eventually timeout and fail.
                 // hence we did change the call to getPravegaNodeUriForTesting.
-                uris.add(client.getPravegaNodeUriForTesting("a/b/0").get());
+                uris.add(client.getPravegaNodeUri(Segment.fromScopedName("a/b/0")).get());
             } catch (Exception e) {
                 // Ignore temporary exceptions which happens due to failover.
             }

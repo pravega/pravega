@@ -37,6 +37,6 @@ public class CachedPravegaNodeUri {
     private final Timer timer;
 
     @NonNull
-    private CompletableFuture<PravegaNodeUri> pravegaNodeUri;
+    private final CompletableFuture<PravegaNodeUri> pravegaNodeUri;
 
 }
