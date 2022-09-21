@@ -72,7 +72,6 @@ public class RetentionServiceHealthContributorTest {
         doReturn(CompletableFuture.completedFuture(null)).when((ZooKeeperBucketManager) retentionService).initializeService();
         doNothing().when((ZooKeeperBucketManager) retentionService).addBucketControllerMapListener();
 
-        doNothing().when((ZooKeeperBucketManager) retentionService).startBucketOwnershipListener();
         doReturn(true).when(retentionService).isHealthy();
 
         contributor = new RetentionServiceHealthContributor("retentionservice", retentionService);
