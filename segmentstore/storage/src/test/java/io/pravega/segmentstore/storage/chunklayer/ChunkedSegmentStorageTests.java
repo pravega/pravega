@@ -1373,20 +1373,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
 
-        // Migration from lazy mode before to lazy mode after
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 24, true, true);
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
-        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
-
         // Migration from lazy mode before to NO lazy mode after
         testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 24, true, true);
         testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
         testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
-
-        // Migration from NO lazy mode before to lazy mode after
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, true, false);
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
-        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
 
         // Migration from NO lazy mode before to NO lazy mode after
         testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, true, false);
@@ -1402,11 +1392,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         int maxRollingLength = OWNER_EPOCH;
 
         for (boolean useLazyCommitsBefore : new boolean[]{ true, false}) {
-            for (boolean useLazyCommitsAfter : new boolean[]{ true, false}) {
-                testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, false, useLazyCommitsBefore);
-                testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, false, useLazyCommitsBefore);
-                testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, false, useLazyCommitsBefore);
-            }
+            testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, false, useLazyCommitsBefore);
+            testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, false, useLazyCommitsBefore);
+            testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, false, useLazyCommitsBefore);
         }
     }
 
