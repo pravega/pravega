@@ -452,7 +452,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         int maxLength = 8;
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
-        val config1 = getDefaultConfigBuilder(policy).lazyCommitEnabled(true).build();
+        val config1 = getDefaultConfigBuilder(policy).build();
 
         val data = new InMemorySnapshotInfoStore();
         val snapshotInfoStore = new SnapshotInfoStore(containerId,
@@ -487,7 +487,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Start container with epoch 2
         epoch++;
 
-        val config2 = getDefaultConfigBuilder(policy).lazyCommitEnabled(false).build();
+        val config2 = getDefaultConfigBuilder(policy).build();
         @Cleanup
         ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config2);
         segmentStorage2.initialize(epoch);

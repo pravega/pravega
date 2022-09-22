@@ -198,13 +198,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             // commit all system log records.
             txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecords(systemLogRecords));
         }
-        // if layout did not change, and it is eligible segment then commit with lazyWrite.
-        val shouldLazyCommit = !segmentMetadata.isAtomicWrite()
-                && !didSegmentLayoutChange
-                && !isSystemSegment;
-
         // Commit
-        return txn.commit(shouldLazyCommit)
+        return txn.commit()
                 .thenRunAsync(() -> isCommitted = true, chunkedSegmentStorage.getExecutor());
 
     }

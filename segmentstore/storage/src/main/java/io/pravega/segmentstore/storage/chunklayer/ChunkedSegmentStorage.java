@@ -382,17 +382,13 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
             if (shouldChange) {
                 segmentMetadata.setOwnerEpoch(this.epoch);
                 segmentMetadata.setOwnershipChanged(true);
-                segmentMetadata.setAtomicWrites(isAlwaysAtomic(segmentMetadata) || !config.isLazyCommitEnabled());
+                segmentMetadata.setAtomicWrites(true);
             }
             // Update and commit
             // If This instance is fenced this update will fail.
             txn.update(segmentMetadata);
             return txn.commit();
         }, executor);
-    }
-
-    boolean isAlwaysAtomic(SegmentMetadata segmentMetadata) {
-        return NameUtils.isAttributeSegment(segmentMetadata.getName());
     }
 
     @Override
@@ -419,7 +415,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                     .build();
 
                             newSegmentMetadata.setActive(true);
-                            newSegmentMetadata.setAtomicWrites(isAlwaysAtomic(newSegmentMetadata) || !config.isLazyCommitEnabled());
+                            newSegmentMetadata.setAtomicWrites(true);
                             txn.create(newSegmentMetadata);
                             // commit.
                             return txn.commit()
