@@ -95,7 +95,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 if (conn != null) {
                     controller.updateStaleValueInCache(wrongHost.getSegment(), conn.getLocation());
                 }
-            } catch (ExecutionException | InterruptedException e) { 
+            } catch (ExecutionException | InterruptedException e) {
                 log.warn("Exception while getting the connection object");
             } finally {
                 closeConnection(new ConnectionFailedException(wrongHost.toString()));
