@@ -45,6 +45,13 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 
 /**
  * Tests for ControllerImpl with Service Discovery, Loadbalancing and Failover support.
@@ -311,5 +318,12 @@ public class ControllerImplLBTest {
             }
         }
         return true;
+    }
+
+    @Test
+    public void testDefaultUpdateStaleValueInCache() {
+            Controller connection = Mockito.spy(Controller.class);
+            connection.updateStaleValueInCache("dummySegment", new PravegaNodeUri("dummyhost", 12345));
+            verify(connection, times(1)).updateStaleValueInCache(anyString(), any());
     }
 }
