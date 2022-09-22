@@ -49,7 +49,7 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
     // check data integrity and should not be considered for serialization (i.e., transient field).
     @Getter
     @Setter
-    private transient volatile long contentHash = NO_HASH;
+    private transient long contentHash = NO_HASH;
 
     //endregion
 
