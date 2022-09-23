@@ -211,7 +211,7 @@ public final class Config {
             "listCompletedTxn.max.records", 500);
 
     public static final Property<Integer> PROPERTY_MIN_BUCKET_REDISTRIBUTION_INTERVAL_IN_SECONDS = Property.named(
-            "bucket.redistribution.interval.in.seconds", 10);
+            "min.bucket.redistribution.interval.in.seconds", 10);
 
     public static final String COMPONENT_CODE = "controller";
 
