@@ -77,6 +77,24 @@ public class EntrySerializerTests {
     }
 
     @Test
+    public void testUpdateWithExplicitVersion2() throws Exception {
+        List<TableEntry> entries = List.of(
+                TableEntry.versioned(new ByteArraySegment("kv1".getBytes()), new ByteArraySegment("vv1".getBytes()), 100003L),
+                TableEntry.versioned(new ByteArraySegment("kv2".getBytes()), new ByteArraySegment("vv2".getBytes()), 222222L));
+        EntrySerializer s = new EntrySerializer();
+        val expectedLength = entries.stream().map(s::getUpdateLength).mapToInt(i -> i).sum();
+        val serialization = s.serializeUpdateWithExplicitVersion(entries).getCopy();
+        Assert.assertEquals(expectedLength, serialization.length);
+
+        int offset = 0;
+        for (val e : entries) {
+            offset += checkEntry(e, serialization, offset, s, true);
+        }
+
+        Assert.assertEquals("Did not read the entire serialization.", serialization.length, offset);
+    }
+
+    @Test
     public void testRemoval() throws Exception {
         val keys = generateKeys();
         val s = new EntrySerializer();
