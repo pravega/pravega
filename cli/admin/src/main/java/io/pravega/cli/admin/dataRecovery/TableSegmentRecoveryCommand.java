@@ -206,8 +206,8 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
                         .getReader().readNBytes(header.getValueLength());
                 // Add the operation to the list of operations to replay later on (PUT or DELETE).
                 tableSegmentOperations.add(valueBytes.length == 0 ?
-                        new DeleteOperation(TableSegmentEntry.versioned(keyBytes, valueBytes, header.getEntryVersion())) :
-                        new PutOperation(TableSegmentEntry.versioned(keyBytes, valueBytes, header.getEntryVersion())));
+                        new DeleteOperation(TableSegmentEntry.unversioned(keyBytes, valueBytes)) :
+                        new PutOperation(TableSegmentEntry.unversioned(keyBytes, valueBytes)));
                 // Full entry read, so reset unprocessed bytes.
                 Preconditions.checkState(unprocessedBytesFromLastChunk < totalEntryLength, "Some bytes are missing to process.");
                 unprocessedBytesFromLastChunk = 0;
