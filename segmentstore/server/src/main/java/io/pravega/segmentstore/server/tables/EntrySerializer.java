@@ -118,6 +118,7 @@ public class EntrySerializer {
      * @param entries A Collection of {@link TableEntry} to serialize.
      * @return A {@link BufferView} representing the serialization of the given entries.
      */
+    @VisibleForTesting
     public BufferView serializeUpdateWithExplicitVersion(@NonNull Collection<TableEntry> entries) {
         return serializeUpdate(entries, TableKey::getVersion);
     }
