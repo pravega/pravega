@@ -987,7 +987,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 TableKey.unversioned(new ByteArraySegment("key".getBytes())));
 
         EntrySerializer entrySerializer = new EntrySerializer();
-        BufferView serializedEntries = BufferView.builder().add(entrySerializer.serializeUpdateWithExplicitVersion(tableSegmentVersionedPuts))
+        BufferView serializedEntries = BufferView.builder().add(entrySerializer.serializeUpdateWithVersion(tableSegmentVersionedPuts))
                 .add(entrySerializer.serializeRemoval(tableSegmentRemovals))
                 .build();
         InputStream serializedEntriesReader = serializedEntries.getReader();
