@@ -1367,7 +1367,8 @@ public class ControllerImpl implements Controller {
                 });
     }
 
-    private CachedPravegaNodeUri getSegmentEndpointFromCache(Segment segment) {
+    @VisibleForTesting
+    protected CachedPravegaNodeUri getSegmentEndpointFromCache(Segment segment) {
         return endPointCacheMap.get(segment);
     }
 

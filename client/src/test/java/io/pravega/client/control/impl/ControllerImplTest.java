@@ -129,6 +129,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -2560,13 +2561,20 @@ public class ControllerImplTest {
 
     @Test
     public void updateStaleValueInCacheTest() throws Exception {
+        ControllerImpl controllerImpl = spy(controllerClient);
         CompletableFuture<PravegaNodeUri> endpointForSegment;
-        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
+        endpointForSegment = controllerImpl.getEndpointForSegment("scope1/stream1/0");
         assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
-
         PravegaNodeUri errorNodeInfo = new PravegaNodeUri("localhost", 12345);
-        controllerClient.updateStaleValueInCache("scope1/stream1/0", errorNodeInfo);
-        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), controllerClient.getEndpointForSegment("scope1/stream1/0").get());
+        controllerImpl.updateStaleValueInCache("scope1/stream1/0", errorNodeInfo);
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), controllerImpl.getEndpointForSegment("scope1/stream1/0").get());
+        
+        CachedPravegaNodeUri cpNode = mock(CachedPravegaNodeUri.class);
+        CompletableFuture<PravegaNodeUri> failedFuture = new CompletableFuture<>();
+        failedFuture.completeExceptionally(new RuntimeException("Error"));
+        doReturn(failedFuture).when(cpNode).getPravegaNodeUri();
+        doReturn(cpNode).when(controllerImpl).getSegmentEndpointFromCache(any());
+        controllerImpl.updateStaleValueInCache("scope1/stream1/0", errorNodeInfo);
     }
 
 }
