@@ -62,9 +62,9 @@ public class InMemoryBucketManager extends BucketManager {
                    .thenAccept(v -> startLeader())
                    .whenComplete((r, e) -> {
                        if (e == null) {
-                           log.debug("{}: started in InMemory mode", getServiceType());
+                           log.debug("{}: started in InMemory mode.", getServiceType());
                        } else {
-                           log.warn("{}: starting fails in InMemory mode", getServiceType());
+                           log.warn("{}: starting fails in InMemory mode.", getServiceType());
                        }
                    });
     }
@@ -89,8 +89,12 @@ public class InMemoryBucketManager extends BucketManager {
     }
 
     @Override
-    void addBucketControllerMapListener() {
+    void startBucketControllerMapListener() {
 
     }
 
+    @Override
+    void stopBucketControllerMapListener() {
+
+    }
 }

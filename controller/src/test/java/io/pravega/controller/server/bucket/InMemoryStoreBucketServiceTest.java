@@ -85,7 +85,7 @@ public class InMemoryStoreBucketServiceTest extends BucketServiceTest {
         assertEquals(0, bucketService.getKnownStreams().size());
     }
 
-    @Test //(timeout = 10000)
+    @Test (timeout = 10000)
     public void testWatermarkingService() throws Exception {
         Map<Integer, BucketService> bucketServices = watermarkingService.getBucketServices();
         assertNotNull(bucketServices);

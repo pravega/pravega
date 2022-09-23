@@ -70,7 +70,7 @@ public class RetentionServiceHealthContributorTest {
         PeriodicRetention periodicRetention = mock(PeriodicRetention.class);
         retentionService = spy(bucketStoreFactory.createWatermarkingService(Duration.ofMillis(5), periodicRetention::retention, executor));
         doReturn(CompletableFuture.completedFuture(null)).when((ZooKeeperBucketManager) retentionService).initializeService();
-        doNothing().when((ZooKeeperBucketManager) retentionService).addBucketControllerMapListener();
+        doNothing().when((ZooKeeperBucketManager) retentionService).startBucketControllerMapListener();
 
         doReturn(true).when(retentionService).isHealthy();
 

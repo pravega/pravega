@@ -22,6 +22,7 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.util.RetryHelper;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -68,7 +69,7 @@ public abstract class BucketManager extends AbstractService {
 
     @Override
     protected void doStart() {
-        initializeService().thenAccept(v -> addBucketControllerMapListener())
+        initializeService().thenAccept(v -> startBucketControllerMapListener())
                            .thenAccept(v -> startLeaderElection())
                            .thenCompose(v -> bucketStore.getBucketsForController(processId, serviceType))
                            .thenCompose(buckets -> Futures.allOf(buckets.stream().map(x -> initializeBucket(x)
@@ -98,10 +99,9 @@ public abstract class BucketManager extends AbstractService {
      * If new instance of controller is added, then existing controllers need to release the buckets.
      * If any instance of controller failed, then existing controllers need to take the ownership of failed controller's buckets.
      *
-     * @param numberOfControllers Number of controllers.
      * @return Completable future which when complete indicate that controller manages buckets according to new mapping.
      */
-    protected CompletableFuture<Void> manageBuckets(int numberOfControllers) {
+    protected CompletableFuture<Void> manageBuckets() {
         AtomicReference<Set<Integer>> removeableBuckets = new AtomicReference<>();
         return bucketStore.getBucketsForController(processId, getServiceType())
                           .thenCompose(newBuckets -> {
@@ -113,12 +113,10 @@ public abstract class BucketManager extends AbstractService {
                                                                .collect(Collectors.toSet()));
                               }
                               log.info("{}: Buckets added to process : {} are {}.", serviceType, processId, addBuckets);
-                              log.info("{}: Total number of controllers is {}.", serviceType, numberOfControllers);
                               return Futures.allOf(addBuckets.stream().map(x -> initializeBucket(x)
                                                                      .thenCompose(v -> tryTakeOwnership(x)))
                                                              .collect(Collectors.toList()));
-                          })
-                          .thenAccept(v -> {
+                          }).thenAccept(v -> {
                               if (removeableBuckets.get().size() > 0) {
                                   stopBucketServices(removeableBuckets.get());
                               }
@@ -160,10 +158,11 @@ public abstract class BucketManager extends AbstractService {
     protected void doStop() {
         log.info("{}: Stop request received for bucket manager.", serviceType);
         Set<Integer> tmp;
-        synchronized (lock) { 
-            tmp = buckets.keySet();
+        synchronized (lock) {
+            tmp = new HashSet<>(buckets.keySet());
         }
         stopBucketServices(tmp);
+        stopBucketControllerMapListener();
         stopLeader();
     }
 
@@ -180,14 +179,6 @@ public abstract class BucketManager extends AbstractService {
                                        getServiceType(), bucketId, e.getMessage()), getExecutor())
 
                ).collect(Collectors.toList()))
-               .thenAccept(v -> {
-                   synchronized (lock) {
-                       synchronized (lock) {
-                           bucketIds.stream().forEach(id -> buckets.remove(id));
-                           log.info("{}: New buckets size is {}.", serviceType, buckets.size());
-                       }
-                   }
-               })
                .whenComplete((r, e) -> {
                    if (e != null) {
                        log.error("{}: bucket service shutdown failed with exception.", serviceType, e);
@@ -232,12 +223,20 @@ public abstract class BucketManager extends AbstractService {
             bucketService = buckets.get(bucket);
         }
         CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
+        if (bucketService == null) {
+            bucketFuture.complete(null);
+            log.warn("{}: Bucket service {} already stopped.", serviceType, bucket);
+            return bucketFuture;
+        }
         bucketService.addListener(new Listener() {
             @Override
             public void terminated(State from) {
                 super.terminated(from);
                 log.warn("{}: Bucket service {} stopped successfully.", serviceType, bucket);
                 bucketFuture.complete(null);
+                synchronized (lock) {
+                    buckets.remove(bucket);
+                }
             }
 
             @Override
@@ -255,7 +254,9 @@ public abstract class BucketManager extends AbstractService {
     
     abstract CompletableFuture<Void> initializeBucket(int bucket);
 
-    abstract void addBucketControllerMapListener();
+    abstract void startBucketControllerMapListener();
+
+    abstract void stopBucketControllerMapListener();
 
     @VisibleForTesting
     Map<Integer, BucketService> getBucketServices() {
