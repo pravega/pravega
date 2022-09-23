@@ -62,6 +62,7 @@ public class EntrySerializerTests {
     @Test
     public void testUpdateWithExplicitVersion() throws Exception {
         val entries = generateEntries();
+        entries.add(TableEntry.versioned(new ByteArraySegment("kv1".getBytes()), new ByteArraySegment("vv1".getBytes()), 1L));
         val s = new EntrySerializer();
         val expectedLength = entries.stream().map(s::getUpdateLength).mapToInt(i -> i).sum();
         val serialization = s.serializeUpdateWithExplicitVersion(entries).getCopy();
