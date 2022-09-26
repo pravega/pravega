@@ -15,6 +15,7 @@
  */
 package io.pravega.cli.admin.dataRecovery;
 
+import com.google.common.base.Preconditions;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.pravega.cli.admin.AdminCommandState;
@@ -35,6 +36,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
@@ -60,6 +62,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.utils.LocalServiceStarter;
 import lombok.Cleanup;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang.StringUtils;
@@ -83,6 +86,9 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -987,7 +993,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 TableKey.unversioned(new ByteArraySegment("key".getBytes())));
 
         MyEntrySerializer entrySerializer = new MyEntrySerializer();
-        BufferView serializedEntries = BufferView.builder().add(entrySerializer.serializeUpdateWithVersion(tableSegmentVersionedPuts))
+        BufferView serializedEntries = BufferView.builder().add(entrySerializer.serializeUpdateWithExplicitVersion(tableSegmentVersionedPuts))
                 .add(entrySerializer.serializeRemoval(tableSegmentRemovals))
                 .build();
         InputStream serializedEntriesReader = serializedEntries.getReader();
@@ -1666,7 +1672,69 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     * is not really required and also causes code coverage issue.
     * So extending EntrySerializer and using the same.
     * */
-    class MyEntrySerializer  extends EntrySerializer{
+    class MyEntrySerializer  extends EntrySerializer {
+
+        public static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES;
+        static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
+        static final int MAX_SERIALIZATION_LENGTH = TableStore.MAXIMUM_KEY_LENGTH + TableStore.MAXIMUM_VALUE_LENGTH;
+        static final int MAX_BATCH_SIZE = 32 * MAX_SERIALIZATION_LENGTH;
+        private static final int VERSION_POSITION = 0;
+        private static final int KEY_POSITION = VERSION_POSITION + 1;
+        private static final int VALUE_POSITION = KEY_POSITION + Integer.BYTES;
+        private static final int ENTRY_VERSION_POSITION = VALUE_POSITION + Integer.BYTES;
+        private static final byte CURRENT_SERIALIZATION_VERSION = 0;
+
+        BufferView serializeUpdateWithExplicitVersion(@NonNull Collection<TableEntry> entries) {
+            return serializeUpdate(entries, TableKey::getVersion);
+        }
+
+        private BufferView serializeUpdate(@NonNull Collection<TableEntry> entries, Function<TableKey, Long> getVersion) {
+            val builder = BufferView.builder(entries.size() * 3);
+            entries.forEach(e -> serializeUpdate(e, getVersion, builder::add));
+            Preconditions.checkArgument(builder.getLength() <= MAX_BATCH_SIZE, "Update batch size cannot exceed %s. Given %s.", MAX_BATCH_SIZE, builder.getLength());
+            return builder.build();
+        }
+
+        private void serializeUpdate(@NonNull TableEntry entry, Function<TableKey, Long> getVersion, Consumer<BufferView> acceptBuffer) {
+            val key = entry.getKey().getKey();
+            val value = entry.getValue();
+            Preconditions.checkArgument(key.getLength() <= MAX_KEY_LENGTH, "Key too large.");
+            int serializationLength = getUpdateLength(entry);
+            Preconditions.checkArgument(serializationLength <= MAX_SERIALIZATION_LENGTH, "Key+Value serialization too large.");
+
+            // Serialize Header.
+            acceptBuffer.accept(serializeHeader(key.getLength(), value.getLength(), getVersion.apply(entry.getKey())));
+            acceptBuffer.accept(key);
+            acceptBuffer.accept(value);
+        }
+
+        private int getUpdateLength(@NonNull TableEntry entry) {
+            return HEADER_LENGTH + entry.getKey().getKey().getLength() + entry.getValue().getLength();
+        }
+
+        private BufferView serializeHeader(int keyLength, int valueLength, long entryVersion) {
+            ByteArraySegment data = new ByteArraySegment(new byte[HEADER_LENGTH]);
+            data.set(0, CURRENT_SERIALIZATION_VERSION);
+            data.setInt(KEY_POSITION, keyLength);
+            data.setInt(VALUE_POSITION, valueLength);
+            data.setLong(ENTRY_VERSION_POSITION, entryVersion);
+            return data;
+        }
+
+        public BufferView serializeRemoval(@NonNull Collection<TableKey> keys) {
+            val builder = BufferView.builder(keys.size() * 2);
+            keys.forEach(k -> serializeRemoval(k, builder::add));
+            return builder.build();
+        }
+
+        private void serializeRemoval(@NonNull TableKey tableKey, Consumer<BufferView> acceptBuffer) {
+            val key = tableKey.getKey();
+            Preconditions.checkArgument(key.getLength() <= MAX_KEY_LENGTH, "Key too large.");
+
+            // Serialize Header. Not caring about explicit versions since we do not reinsert removals upon compaction.
+            acceptBuffer.accept(serializeHeader(key.getLength(), -1, TableKey.NO_VERSION));
+            acceptBuffer.accept(key);
+        }
     }
 
 }

@@ -62,7 +62,6 @@ public class EntrySerializerTests {
     @Test
     public void testUpdateWithExplicitVersion() throws Exception {
         val entries = generateEntries();
-        entries.add(TableEntry.versioned(new ByteArraySegment("kv1".getBytes()), new ByteArraySegment("vv1".getBytes()), 1L));
         val s = new EntrySerializer();
         val expectedLength = entries.stream().map(s::getUpdateLength).mapToInt(i -> i).sum();
         val serialization = s.serializeUpdateWithExplicitVersion(entries).getCopy();
@@ -75,47 +74,6 @@ public class EntrySerializerTests {
 
         Assert.assertEquals("Did not read the entire serialization.", serialization.length, offset);
     }
-
-    @Test
-    public void testUpdateWithVersion() throws Exception {
-        List<TableEntry> entries = List.of(
-                TableEntry.versioned(new ByteArraySegment("kv1".getBytes()), new ByteArraySegment("vv1".getBytes()), 100003L),
-                TableEntry.versioned(new ByteArraySegment("kv2".getBytes()), new ByteArraySegment("vv2".getBytes()), 222222L));
-        EntrySerializer s = new EntrySerializer();
-        val expectedLength = entries.stream().map(s::getUpdateLength).mapToInt(i -> i).sum();
-        val serialization = s.serializeUpdateWithVersion(entries).getCopy();
-        Assert.assertEquals(expectedLength, serialization.length);
-
-        int offset = 0;
-        for (val e : entries) {
-            offset += checkEntry(e, serialization, offset, s, true);
-        }
-
-        Assert.assertEquals("Did not read the entire serialization.", serialization.length, offset);
-    }
-
-    @Test
-    public void testUpdateWithVersionCase1() throws Exception {
-        List<TableEntry> entries = new ArrayList<>();
-        EntrySerializer s = new EntrySerializer();
-        val expectedLength = entries.stream().map(s::getUpdateLength).mapToInt(i -> i).sum();
-        val serialization1 = s.serializeUpdateWithVersion(entries).getCopy();
-        Assert.assertEquals(0, serialization1.length);
-
-        entries = List.of(
-                TableEntry.unversioned(new ByteArraySegment("kv1".getBytes()), new ByteArraySegment("vv1".getBytes())));
-        val len = entries.stream().map(s::getUpdateLength).mapToInt(i -> i).sum();
-        val serialization = s.serializeUpdateWithVersion(entries).getCopy();
-        Assert.assertEquals(len, serialization.length);
-
-        int offset = 0;
-        for (val e : entries) {
-            offset += checkEntry(e, serialization, offset, s, true);
-        }
-
-        Assert.assertEquals("Did not read the entire serialization.", serialization.length, offset);
-    }
-
 
     @Test
     public void testRemoval() throws Exception {
