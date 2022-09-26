@@ -986,7 +986,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         List<TableKey> tableSegmentRemovals = List.of(TableKey.versioned(new ByteArraySegment("kv3".getBytes()), 1111L),
                 TableKey.unversioned(new ByteArraySegment("key".getBytes())));
 
-        EntrySerializer entrySerializer = new EntrySerializer();
+        MyEntrySerializer entrySerializer = new MyEntrySerializer();
         BufferView serializedEntries = BufferView.builder().add(entrySerializer.serializeUpdateWithVersion(tableSegmentVersionedPuts))
                 .add(entrySerializer.serializeRemoval(tableSegmentRemovals))
                 .build();
@@ -1660,4 +1660,13 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 originalOperations.stream().collect(Collectors.groupingBy(op -> op.getSequenceNumber(), Collectors.counting()));
         return resultMap;
     }
+
+    /*
+    * EntrySerializer's serializeUpdateWithExplicitVersion has package access and changing the scope for test
+    * is not really required and also causes code coverage issue.
+    * So extending EntrySerializer and using the same.
+    * */
+    class MyEntrySerializer  extends EntrySerializer{
+    }
+
 }

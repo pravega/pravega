@@ -122,11 +122,6 @@ public class EntrySerializer {
         return serializeUpdate(entries, TableKey::getVersion);
     }
 
-    @VisibleForTesting
-    public BufferView serializeUpdateWithVersion(@NonNull Collection<TableEntry> entries) {
-        return serializeUpdate(entries, TableKey::getVersion);
-    }
-
     //endregion
 
     //region Removals
