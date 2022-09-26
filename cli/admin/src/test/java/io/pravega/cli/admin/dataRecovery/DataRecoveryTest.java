@@ -1672,7 +1672,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     * is not really required and also causes code coverage issue.
     * So extending EntrySerializer and using the same.
     * */
-    class MyEntrySerializer  extends EntrySerializer {
+    static class MyEntrySerializer  extends EntrySerializer {
 
         public static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES;
         static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
