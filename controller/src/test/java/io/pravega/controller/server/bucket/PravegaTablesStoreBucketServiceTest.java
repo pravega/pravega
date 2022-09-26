@@ -27,7 +27,6 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.test.common.TestingServerStarter;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -58,6 +57,11 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     }
 
     @Override
+    protected void addEntryToZkCluster(Host host) {
+        addEntryToZkCluster(host, cluster);
+    }
+
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -80,29 +84,7 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         return StreamStoreFactory.createZKBucketStore(map, zkClient, executor);
     }
 
-    @Override
-    protected void addEntryToZkCluster(Host host)  {
-        final CountDownLatch latch = new CountDownLatch(1);
-        cluster.addListener((type, host1) -> latch.countDown());
-        cluster.registerHost(host);
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
 
-
-    private void removeEntryToZkCluster(Host host)  {
-        final CountDownLatch latch = new CountDownLatch(1);
-        cluster.addListener((type, host1) -> latch.countDown());
-        cluster.deregisterHost(host);
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
 
     @Test(timeout = 30000)
     public void testFailover() throws Exception {
@@ -123,8 +105,8 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         assertEventuallyEquals(1, () -> watermarkingService.getBucketServices().size(), 10000);
 
         //remove controller instances from pravega cluster.
-        removeEntryToZkCluster(controller1);
-        removeEntryToZkCluster(controller2);
+        removeEntryFromZkCluster(controller1, cluster);
+        removeEntryFromZkCluster(controller2, cluster);
         assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
         assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
     }

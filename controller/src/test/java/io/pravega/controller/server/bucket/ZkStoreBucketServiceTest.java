@@ -287,14 +287,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
 
     @Override
     protected void addEntryToZkCluster(Host host)  {
-        final CountDownLatch latch = new CountDownLatch(1);
-        cluster.addListener((type, host1) -> latch.countDown());
-        cluster.registerHost(host);
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+      addEntryToZkCluster(host, cluster);
     }
 
 }

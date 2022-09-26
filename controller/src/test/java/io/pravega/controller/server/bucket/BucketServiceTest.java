@@ -20,6 +20,7 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
@@ -37,6 +38,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
@@ -165,5 +167,28 @@ public abstract class BucketServiceTest {
         RetryHelper.loopWithDelay(() -> !removed.get(), () -> CompletableFuture.completedFuture(null)
                 .thenAccept(x -> removed.set(bucketService.getKnownStreams().size() == 0)), Duration.ofSeconds(1).toMillis(), executor).join();
         assertEquals(0, bucketService.getKnownStreams().size());
+    }
+
+    protected void addEntryToZkCluster(Host host, Cluster cluster)  {
+        final CountDownLatch latch = new CountDownLatch(1);
+        cluster.addListener((type, host1) -> latch.countDown());
+        cluster.registerHost(host);
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    protected void removeEntryFromZkCluster(Host host, Cluster cluster)  {
+        final CountDownLatch latch = new CountDownLatch(1);
+        cluster.addListener((type, host1) -> latch.countDown());
+        cluster.deregisterHost(host);
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 }

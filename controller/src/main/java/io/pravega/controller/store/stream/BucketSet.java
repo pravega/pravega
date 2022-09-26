@@ -27,6 +27,10 @@ import java.util.HashSet;
 import java.util.Set;
 import lombok.Builder;
 import lombok.Getter;
+
+/**
+ * BucketSet hold set of bucket Ids.
+ */
 @Builder
 public class BucketSet {
     static final BucketSet.BucketSetSerializer SERIALIZER = new BucketSet.BucketSetSerializer();

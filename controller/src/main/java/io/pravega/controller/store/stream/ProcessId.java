@@ -24,6 +24,9 @@ import java.io.IOException;
 import lombok.Builder;
 import lombok.Getter;
 
+/**
+ * ProcessId hold the info of controller host id.
+ */
 @Builder
 public class ProcessId {
     static final ProcessId.ProcessIdSerializer SERIALIZER = new ProcessId.ProcessIdSerializer();

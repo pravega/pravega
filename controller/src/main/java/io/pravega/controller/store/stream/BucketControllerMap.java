@@ -29,6 +29,10 @@ import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.SneakyThrows;
 
+/**
+ * BucketControllerMap keeps the buckets to controller mapping where process id is key and bucket is set as value.
+ * ProcessId keeps host id of controller and BucketSet keeps id of buckets assigned to controller instance.
+ */
 public class BucketControllerMap {
     public static final BucketControllerMapSerializer SERIALIZER = new BucketControllerMapSerializer();
     public static final BucketControllerMap EMPTY = new BucketControllerMap(Collections.emptyMap());
