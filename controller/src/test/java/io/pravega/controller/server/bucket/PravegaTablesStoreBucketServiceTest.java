@@ -58,7 +58,7 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
 
     @Override
     protected void addEntryToZkCluster(Host host) {
-        addEntryToZkCluster(host, cluster);
+        addControllerToZkCluster(host, cluster);
     }
 
     @Override
@@ -105,8 +105,8 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         assertEventuallyEquals(1, () -> watermarkingService.getBucketServices().size(), 10000);
 
         //remove controller instances from pravega cluster.
-        removeEntryFromZkCluster(controller1, cluster);
-        removeEntryFromZkCluster(controller2, cluster);
+        removeControllerFromZkCluster(controller1, cluster);
+        removeControllerFromZkCluster(controller2, cluster);
         assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
         assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
     }

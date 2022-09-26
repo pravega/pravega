@@ -169,7 +169,7 @@ public abstract class BucketServiceTest {
         assertEquals(0, bucketService.getKnownStreams().size());
     }
 
-    protected void addEntryToZkCluster(Host host, Cluster cluster)  {
+    protected void addControllerToZkCluster(Host host, Cluster cluster)  {
         final CountDownLatch latch = new CountDownLatch(1);
         cluster.addListener((type, host1) -> latch.countDown());
         cluster.registerHost(host);
@@ -181,7 +181,7 @@ public abstract class BucketServiceTest {
     }
 
 
-    protected void removeEntryFromZkCluster(Host host, Cluster cluster)  {
+    protected void removeControllerFromZkCluster(Host host, Cluster cluster)  {
         final CountDownLatch latch = new CountDownLatch(1);
         cluster.addListener((type, host1) -> latch.countDown());
         cluster.deregisterHost(host);
