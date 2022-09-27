@@ -981,22 +981,27 @@ public class SystemJournal {
                     .thenComposeAsync(m -> {
                         val segmentMetadata = (SegmentMetadata) m;
                         segmentMetadata.checkInvariants();
-                        CompletableFuture<Void> ff;
+                        final CompletableFuture<Void> ff;
                         // Update length of last chunk in metadata to what we actually find on LTS.
                         if (!segmentMetadata.isAtomicWrite() && null != segmentMetadata.getLastChunk()) {
                             ff = chunkStorage.getInfo(segmentMetadata.getLastChunk())
                                     .thenComposeAsync(chunkInfo -> {
-                                        long length = chunkInfo.getLength();
+                                        val length = chunkInfo.getLength();
                                         return txn.get(segmentMetadata.getLastChunk())
                                                 .thenAcceptAsync(mm -> {
                                                     val lastChunk = (ChunkMetadata) mm;
                                                     Preconditions.checkState(null != lastChunk, "lastChunk must not be null. Segment=%s", segmentMetadata);
-                                                    lastChunk.setLength(length);
-                                                    txn.update(lastChunk);
-                                                    val newLength = segmentMetadata.getLastChunkStartOffset() + length;
-                                                    segmentMetadata.setLength(newLength);
-                                                    log.debug("SystemJournal[{}] Adjusting length of last chunk segment. segment={}, length={} chunk={}, chunk length={}",
-                                                            containerId, segmentMetadata.getName(), length, lastChunk.getName(), newLength);
+                                                    Preconditions.checkState(chunkInfo.getLength() >= lastChunk.getLength(),
+                                                            "Length of last chunk on LTS should not be less than what is in metadata. Chunk=%s length=%s",
+                                                            lastChunk, chunkInfo.getLength());
+                                                    if (length > lastChunk.getLength()) {
+                                                        lastChunk.setLength(length);
+                                                        txn.update(lastChunk);
+                                                        val newLength = segmentMetadata.getLastChunkStartOffset() + length;
+                                                        segmentMetadata.setLength(newLength);
+                                                        log.debug("SystemJournal[{}] Adjusting length of last chunk segment. segment={}, length={} chunk={}, chunk length={}",
+                                                                containerId, segmentMetadata.getName(), length, lastChunk.getName(), newLength);
+                                                    }
 
                                                 }, executor);
                                     }, executor);
