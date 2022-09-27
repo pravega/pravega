@@ -617,6 +617,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.UpdateReaderGroupResponse updateResponseResult = updateResponse.join();
         assertEquals(Controller.UpdateReaderGroupResponse.Status.SUCCESS, updateResponseResult.getStatus());
         assertEquals(1L, updateResponseResult.getGeneration());
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY) > 0, 10000);
 
         responseRG2 = streamMetadataTasks.getReaderGroupConfig(SCOPE, "rg2", 0L).get();
         assertEquals(ReaderGroupConfigResponse.Status.SUCCESS, responseRG2.getStatus());
@@ -694,7 +695,6 @@ public abstract class StreamMetadataTasksTest {
         Controller.UpdateReaderGroupResponse updateRGResponse = updateResponse.join();
         assertTrue(Controller.UpdateReaderGroupResponse.Status.SUCCESS.equals(updateRGResponse.getStatus()));
         assertEquals(1L, updateRGResponse.getGeneration());
-        AssertExtensions.assertEventuallyEquals(true, () -> MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY) > 0, 10000);
 
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream3, 0L).get();
         // rg4
