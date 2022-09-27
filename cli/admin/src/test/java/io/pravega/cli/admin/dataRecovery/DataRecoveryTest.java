@@ -1668,11 +1668,10 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     /*
-    * EntrySerializer's serializeUpdateWithExplicitVersion has package access and changing the scope for test
-    * is not really required and also causes code coverage issue.
-    * So extending EntrySerializer and using the same.
+    * Creating a test version of EntrySerializer to serialize Table Segment entry
+    * for recovery purposes without changing visibility of methods from original class.
     * */
-    static class MyEntrySerializer  extends EntrySerializer {
+    static class MyEntrySerializer extends EntrySerializer {
 
         public static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES;
         static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
@@ -1720,21 +1719,5 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
             data.setLong(ENTRY_VERSION_POSITION, entryVersion);
             return data;
         }
-
-        public BufferView serializeRemoval(@NonNull Collection<TableKey> keys) {
-            val builder = BufferView.builder(keys.size() * 2);
-            keys.forEach(k -> serializeRemoval(k, builder::add));
-            return builder.build();
-        }
-
-        private void serializeRemoval(@NonNull TableKey tableKey, Consumer<BufferView> acceptBuffer) {
-            val key = tableKey.getKey();
-            Preconditions.checkArgument(key.getLength() <= MAX_KEY_LENGTH, "Key too large.");
-
-            // Serialize Header. Not caring about explicit versions since we do not reinsert removals upon compaction.
-            acceptBuffer.accept(serializeHeader(key.getLength(), -1, TableKey.NO_VERSION));
-            acceptBuffer.accept(key);
-        }
     }
-
 }
