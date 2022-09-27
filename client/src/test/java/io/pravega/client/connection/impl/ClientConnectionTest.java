@@ -336,9 +336,4 @@ public class ClientConnectionTest {
         Assert.assertEquals("localhost", clientConnection.getLocation().getEndpoint());
     }
 
-    @Test
-    public void testGetLocationWithSpy() {
-        ClientConnection mockTableStore = spy(ClientConnection.class);
-        assertNull("location returned is not null!", mockTableStore.getLocation()); 
-    }
 }

@@ -73,7 +73,6 @@ public class FlowClientConnection implements ClientConnection {
         }
     }
 
-    @Override
     public PravegaNodeUri getLocation() {
         String[] locationInfoToken =  NameUtils.getConnectionDetails(connectionName);
         Preconditions.checkArgument(locationInfoToken.length == 2);
