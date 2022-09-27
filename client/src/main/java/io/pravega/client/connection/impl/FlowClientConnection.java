@@ -73,6 +73,9 @@ public class FlowClientConnection implements ClientConnection {
         }
     }
 
+    /**
+     * Get the endpoint details of a segment.
+     */
     public PravegaNodeUri getLocation() {
         String[] locationInfoToken =  NameUtils.getConnectionDetails(connectionName);
         Preconditions.checkArgument(locationInfoToken.length == 2);
