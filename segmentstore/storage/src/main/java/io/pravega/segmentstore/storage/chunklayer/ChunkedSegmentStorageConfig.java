@@ -65,8 +65,8 @@ public class ChunkedSegmentStorageConfig {
 
     public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", false);
     public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
-    public static final Property<Boolean> SELF_CHECK_DATA_INTEGRITY = Property.named("self.check.integrity.data", true);
-    public static final Property<Boolean> SELF_CHECK_METADATA_INTEGRITY = Property.named("self.check.integrity.metadata", true);
+    public static final Property<Boolean> SELF_CHECK_DATA_INTEGRITY = Property.named("self.check.integrity.data", false);
+    public static final Property<Boolean> SELF_CHECK_METADATA_INTEGRITY = Property.named("self.check.integrity.metadata", false);
 
     public static final Property<Long> MAX_SAFE_SIZE = Property.named("safe.size.bytes.max", Long.MAX_VALUE);
     public static final Property<Boolean> ENABLE_SAFE_SIZE_CHECK = Property.named("safe.size.check.enable", true);
@@ -107,8 +107,8 @@ public class ChunkedSegmentStorageConfig {
             .maxJournalReadAttempts(100)
             .maxJournalWriteAttempts(10)
             .selfCheckEnabled(false)
-            .selfCheckForDataEnabled(true)
-            .selfCheckForMetadataEnabled(true)
+            .selfCheckForDataEnabled(false)
+            .selfCheckForMetadataEnabled(false)
             .maxSafeStorageSize(Long.MAX_VALUE)
             .safeStorageSizeCheckEnabled(true)
             .safeStorageSizeCheckFrequencyInSeconds(60)
