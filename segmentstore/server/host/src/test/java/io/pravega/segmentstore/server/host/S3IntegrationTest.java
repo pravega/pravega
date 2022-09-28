@@ -100,15 +100,7 @@ public class S3IntegrationTest extends BookKeeperIntegrationTestBase {
     }
 
     @Override
-    public void testEndToEnd() {
-    }
-
-    @Override
     public void testFlushToStorage() {
-    }
-
-    @Override
-    public void testEndToEndWithFencing() {
     }
     //endregion
 
