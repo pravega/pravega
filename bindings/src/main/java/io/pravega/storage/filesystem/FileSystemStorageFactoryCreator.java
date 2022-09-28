@@ -33,10 +33,6 @@ public class FileSystemStorageFactoryCreator implements StorageFactoryCreator {
                 StorageFactoryInfo.builder()
                         .name("FILESYSTEM")
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
-                        .build(),
-                StorageFactoryInfo.builder()
-                        .name("FILESYSTEM")
-                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
     }
@@ -52,7 +48,7 @@ public class FileSystemStorageFactoryCreator implements StorageFactoryCreator {
                     setup.getConfig(FileSystemStorageConfig::builder),
                     executor);
         } else {
-            return new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), executor);
+            throw new UnsupportedOperationException("RollingStorage is deprecated.");
         }
     }
 }
