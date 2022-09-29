@@ -92,14 +92,14 @@ public class CacheSegmentToHostMappingPerformanceTest extends AbstractReadWriteT
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(STREAM_SCOPE, Utils.buildClientConfig(controllerUri));
         log.info("Invoking Writer test with Controller URI: {}", controllerUri);
 
-        long networkReadDuration = testRunDurationForSegmentEndpointRead(controller,"testStreamSampleB", 3, "Network");
+        long networkReadDuration = testRunDurationForSegmentEndpointRead(controller, "testStreamSampleB", 3, "Network");
         long cacheReadDuration = testRunDurationForSegmentEndpointRead(controller, "testStreamSampleC", 4, "Cache");
         log.info("Time to read data from network is : {} and from Cache is : {} ", networkReadDuration, cacheReadDuration);
         Assert.assertTrue("The endpoint read duration assertion failed!", networkReadDuration  > cacheReadDuration );
 
     }
 
-    private long testRunDurationForSegmentEndpointRead(ControllerImpl controller,String streamName, int id,  String dataSource) {
+    private long testRunDurationForSegmentEndpointRead(ControllerImpl controller, String streamName, int id,  String dataSource) {
         Segment segment = new Segment(STREAM_SCOPE, streamName, id);
         long start = System.currentTimeMillis();
         for (int i = 0; i < 500; i++) {
