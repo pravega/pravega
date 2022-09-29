@@ -52,7 +52,7 @@ However, you can go straight to the completed example at [Pravega-samples-repo](
 <p>
 
 ```console
-$ git clone https://github.com/pravega/pravega-samples.git
+git clone https://github.com/pravega/pravega-samples.git
 ```
 
 </p>
@@ -73,13 +73,13 @@ You can launch a standalone mode server using either of the following options:
 
 Checkout the source code.
 ```console
-$ git clone https://github.com/pravega/pravega.git
-$ cd pravega
+git clone https://github.com/pravega/pravega.git
+cd pravega
 ```
 
 Build the Pravega standalone mode distribution.
 ```console
-$ ./gradlew startStandalone
+./gradlew startStandalone
 ```
 
 </p>
@@ -94,14 +94,14 @@ $ ./gradlew startStandalone
 Download the Pravega release from the [GitHub Releases](https://github.com/pravega/pravega/releases).
 
 ```console
-$ tar xfvz pravega-<version>.tgz
+tar xfvz pravega-<version>.tgz
 ```
 Download and extract either tarball or zip files. Follow the instructions provided for the tar files (same can be applied for zip file) to launch all the components of Pravega on your local machine.
 
 Run Pravega Standalone:
 
 ```console
-$ pravega-<version>/bin/pravega-standalone
+pravega-<version>/bin/pravega-standalone
 ```
 
 </p>
@@ -117,7 +117,7 @@ $ export JDWP_PORT=8888
 
 The easiest way to bootstrap a sample application against Pravega is to run the following command in a folder of your choice.
 ```console
-$ gradle init --type java-application
+gradle init --type java-application
 ```
 Add the below snippet to dependencies section of build.gradle in the app directory.
 ```groovy
@@ -132,7 +132,7 @@ Invoke `gradle run` to run the project.
 <p>
 
 ```console
-$ gradle run
+gradle run
 
 > Task :app:run
 Hello World!
