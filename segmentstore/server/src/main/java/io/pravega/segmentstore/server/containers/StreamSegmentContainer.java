@@ -1022,13 +1022,17 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.durableLog.add(operation, priority, timeout);
     }
 
-    private OperationPriority calculatePriority(SegmentType segmentType, Operation operation) {
+    protected OperationPriority calculatePriority(SegmentType segmentType, Operation operation) {
         val calculatedPriority = PriorityCalculator.getPriority(segmentType, operation.getType());
         val desiredPriority = operation.getDesiredPriority();
         if (desiredPriority != null && desiredPriority.getValue() < calculatedPriority.getValue()) {
             return desiredPriority;
         }
         return calculatedPriority;
+    }
+
+    public OperationLog getDurableLog() {
+        return this.durableLog;
     }
 
     //endregion

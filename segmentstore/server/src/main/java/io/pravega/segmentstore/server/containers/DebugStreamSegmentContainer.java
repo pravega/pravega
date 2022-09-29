@@ -1,12 +1,12 @@
 /**
  * Copyright Pravega Authors.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,17 +15,23 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.ArrayView;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.DebugSegmentContainer;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.server.SegmentContainerExtension;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -66,7 +72,31 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
         return metadataStore.createSegment(streamSegmentName, segmentInfo, new TimeoutTimer(TIMEOUT));
     }
 
-    final UpdateableContainerMetadata getMetadata() {
+    public final UpdateableContainerMetadata getMetadata() {
         return super.metadata;
     }
+
+    public void queueMapOperation(SegmentProperties properties, long segmentId) {
+        StreamSegmentMapOperation operation = new StreamSegmentMapOperation(properties);
+        operation.setStreamSegmentId(segmentId);
+        OperationPriority priority = this.calculatePriority(SegmentType.fromAttributes(properties.getAttributes()), operation);
+        this.getDurableLog().add(operation, priority, TIMEOUT).join();
+    }
+
+    public boolean isSegmentExists(String segmentName) throws Exception {
+        SegmentProperties containerSegment = null;
+        try {
+            containerSegment = this.getStreamSegmentInfo(segmentName, TIMEOUT).get();
+        } catch (Exception e) {
+            Throwable unwrapped = Exceptions.unwrap(e);
+            if (unwrapped instanceof StreamSegmentNotExistsException) {
+                return false;
+            }
+            throw e;
+        }
+        if (containerSegment == null)
+            return false;
+        return (containerSegment.getName() != null && containerSegment.getName().equalsIgnoreCase(segmentName));
+    }
+
 }

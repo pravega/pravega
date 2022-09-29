@@ -172,7 +172,7 @@ public class ContainerRecoveryUtils {
      *                                                              didn't complete in time.
      *                                      * IOException     :     If a general IO exception occurred.
      */
-    private static Map<Integer, Set<String>> getExistingSegments(Map<Integer, DebugStreamSegmentContainer> containerMap,
+    public static Map<Integer, Set<String>> getExistingSegments(Map<Integer, DebugStreamSegmentContainer> containerMap,
                                                                  ExecutorService executorService,
                                                                  Duration timeout) throws Exception {
         Map<Integer, Set<String>> metadataSegmentsMap = new HashMap<>();
@@ -189,7 +189,7 @@ public class ContainerRecoveryUtils {
             Set<String> metadataSegments = new HashSet<>();
             Futures.exceptionallyExpecting(keyIterator.forEachRemaining(k ->
                     metadataSegments.addAll(k.getEntries().stream()
-                            .map(entry -> entry.getKey().toString())
+                            .map(entry -> new String(entry.getKey().getCopy()))
                             .collect(Collectors.toSet())), executorService),
                     ex -> ex instanceof StreamSegmentNotExistsException, null).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
