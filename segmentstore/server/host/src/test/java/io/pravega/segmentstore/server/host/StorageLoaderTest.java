@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import io.jsonwebtoken.lang.Assert;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -30,14 +31,13 @@ import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
-import io.pravega.storage.extendeds3.ExtendedS3StorageFactory;
 import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
-import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
-import io.pravega.storage.hdfs.HDFSStorageFactory;
+
 import java.util.concurrent.ScheduledExecutorService;
+
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Test;
@@ -96,8 +96,7 @@ public class StorageLoaderTest {
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
-        val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.ROLLING_STORAGE);
-        assertTrue(factory instanceof FileSystemStorageFactory);
+        Assert.isNull(getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.ROLLING_STORAGE));
     }
 
     @Test
@@ -121,8 +120,7 @@ public class StorageLoaderTest {
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, HDFSStorageConfig.builder().build());
-        val factory  = getStorageFactory(configSetup, storageType, "HDFS", StorageLayoutType.ROLLING_STORAGE);
-        assertTrue(factory instanceof HDFSStorageFactory);
+        Assert.isNull(getStorageFactory(configSetup, storageType, "HDFS", StorageLayoutType.ROLLING_STORAGE));
     }
 
     @Test
@@ -152,8 +150,7 @@ public class StorageLoaderTest {
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, config);
 
-        val factory = getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.ROLLING_STORAGE);
-        assertTrue(factory instanceof ExtendedS3StorageFactory);
+        Assert.isNull(getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.ROLLING_STORAGE));
     }
 
     @Test

@@ -288,7 +288,7 @@ public class ScopeTest {
         readerGroupManager.createReaderGroup(groupName2, ReaderGroupConfig.builder()
                 .stream(getScopedStreamName(scope, streamName2)).build());
 
-        assertTrue(streamManager.deleteScope(scope, true));
+        assertTrue(streamManager.deleteScopeRecursive(scope));
     }
 
     @Test
