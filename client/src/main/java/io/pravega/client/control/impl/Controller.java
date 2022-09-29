@@ -553,7 +553,7 @@ public interface Controller extends AutoCloseable {
      * @param segmentName   name of the segment
      * @param errNodeUri The {@link CachedPravegaNodeUri} instance for related segment.
      */
-    default void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri) {}
+    void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri);
 
     //endregion
 }

@@ -73,8 +73,6 @@ public interface ClientConnection extends AutoCloseable {
     /**
      * Get the location details of a segment.
      */
-    default PravegaNodeUri getLocation() {
-        return null;
-    }
+    PravegaNodeUri getLocation();
 
 }
