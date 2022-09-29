@@ -168,6 +168,11 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
 
         }
 
+        @Override
+        public PravegaNodeUri getLocation() {
+            return null;
+        }
+
         private void handleRequest(WireCommand cmd) {
             switch (cmd.getType()) {
                 case GET_STREAM_SEGMENT_INFO:
