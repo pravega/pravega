@@ -29,7 +29,6 @@ import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayDeque;
 import java.util.Iterator;
 import java.util.Queue;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Helper class to check internal data integrity of AggregatedAppends at the StorageWriter level before flushing to LTS.
@@ -44,7 +43,8 @@ class AggregatedAppendIntegrityChecker implements AutoCloseable {
     @Getter(AccessLevel.PACKAGE)
     @VisibleForTesting
     private final Queue<AggregatedAppendIntegrityInfo> appendIntegrityInfo;
-    private final AtomicReference<BufferView> previousPartialAppendData;
+    @GuardedBy("this")
+    private BufferView previousPartialAppendData;
     private final String traceObjectId;
     private final long segmentId;
 
@@ -56,7 +56,7 @@ class AggregatedAppendIntegrityChecker implements AutoCloseable {
         this.traceObjectId = String.format("AggregatedAppendIntegrityChecker[%d-%d]", containerId, segmentId);
         this.segmentId = segmentId;
         this.appendIntegrityInfo = new ArrayDeque<>();
-        this.previousPartialAppendData = new AtomicReference<>();
+        this.previousPartialAppendData = null;
     }
 
     //endregion
@@ -66,7 +66,7 @@ class AggregatedAppendIntegrityChecker implements AutoCloseable {
     @Override
     public synchronized void close() {
         this.appendIntegrityInfo.clear();
-        this.previousPartialAppendData.set(null);
+        this.previousPartialAppendData = null;
     }
 
     //endregion
@@ -116,10 +116,10 @@ class AggregatedAppendIntegrityChecker implements AutoCloseable {
         AggregatedAppendIntegrityInfo integrityInfo;
 
         // If we had a partial append in the previous block, prepend it to the current aggregated appends to check integrity.
-        if (this.previousPartialAppendData.get() != null) {
-            aggregatedAppends = BufferView.builder(2).add(this.previousPartialAppendData.get()).add(aggregatedAppends).build();
-            offset -= this.previousPartialAppendData.get().getLength();
-            this.previousPartialAppendData.set(null);
+        if (this.previousPartialAppendData != null) {
+            aggregatedAppends = BufferView.builder(2).add(this.previousPartialAppendData).add(aggregatedAppends).build();
+            offset -= this.previousPartialAppendData.getLength();
+            this.previousPartialAppendData = null;
         }
 
         while (iterator.hasNext() && accumulatedLength < aggregatedAppends.getLength()) {
@@ -156,7 +156,7 @@ class AggregatedAppendIntegrityChecker implements AutoCloseable {
                 // An Append has been split across 2 blocks of data to be flushed to LTS. We keep the first part of
                 // the Append at the end of the current block, so it can be used in the next execution of this method
                 // to check the hash of the Append using the second part of it at the beginning of the next block.
-                previousPartialAppendData.set(aggregatedAppends.slice(accumulatedLength, aggregatedAppends.getLength() - accumulatedLength));
+                previousPartialAppendData = aggregatedAppends.slice(accumulatedLength, aggregatedAppends.getLength() - accumulatedLength);
             }
             accumulatedLength += integrityInfo.getLength();
         }
