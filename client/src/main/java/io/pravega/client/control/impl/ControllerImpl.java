@@ -1343,8 +1343,10 @@ public class ControllerImpl implements Controller {
         }
     }
 
+    //Avoid invoking getPravegaNodeUri directly.Invoke getEndpointForSegment API instead, to get the endpoint details of a segment.
+    // It is fast comparatively as it cache the endpoint details.
     @VisibleForTesting
-    protected CompletableFuture<PravegaNodeUri> getPravegaNodeUri(Segment segment) { 
+    public CompletableFuture<PravegaNodeUri> getPravegaNodeUri(Segment segment) {
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "getPravegaNodeUri", segment.getScopedName(), requestId);
         final CompletableFuture<NodeUri> result = this.retryConfig.runAsync(() -> {
