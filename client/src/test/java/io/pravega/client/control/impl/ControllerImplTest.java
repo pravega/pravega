@@ -2552,11 +2552,6 @@ public class ControllerImplTest {
         // picks from cache
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
         assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
-
-        // for the case when entry in cache is expired
-        Thread.sleep(21000);
-        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
-        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
     }
 
     @Test
