@@ -438,6 +438,8 @@ public class ConnectionPoolingTest {
                         ((FlowClientConnection) connection4).getChannel());
         assertEquals(((FlowClientConnection) connection2).getChannel(),
                      ((FlowClientConnection) connection4).getChannel());
+        assertEquals("localhost", ((FlowClientConnection) connection4).getLocation().getEndpoint());
+
     }
 
     @Test
