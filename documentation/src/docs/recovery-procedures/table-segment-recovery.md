@@ -134,6 +134,10 @@ Also please note that the below described procedure assumes the use of "File Sys
       Ex:-
         data-recovery tableSegment-recovery /copied/chunk/directory completedTransactionsBatch-0 /output/chunk/directory
     ```
+ 
+### **Important**:        
+    If we are dealing with Metadata Table Segments, we can skip the steps that follow and directly continue with steps outlined in [here](https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/metadata-table-segment-recovery.md). 
+    Metadata Table Segments in Pravega either begin with metadata_<containerId> or storage_metadata_<containerId>.
 
 
 5) Copy the generated Table Segment Attribute Index chunks back to the Tier-2 directory we identified in step 2.

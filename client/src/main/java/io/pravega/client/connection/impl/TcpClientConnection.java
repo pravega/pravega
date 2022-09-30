@@ -328,7 +328,7 @@ public class TcpClientConnection implements ClientConnection {
             }
         }
     }
-    
+
     @VisibleForTesting
     boolean isClosed() {
         return closed.get();
@@ -362,5 +362,4 @@ public class TcpClientConnection implements ClientConnection {
     public PravegaNodeUri getLocation() {
         return location;
     }
-
 }
