@@ -242,7 +242,7 @@ public class ControllerImpl implements Controller {
     private final int maxCacheSize = 1000;
 
     @Getter(value = AccessLevel.PACKAGE)
-    private final SimpleCache<Segment, CachedPravegaNodeUri> endPointCacheMap;
+    private SimpleCache<Segment, CachedPravegaNodeUri> endPointCacheMap;
 
 
     /**
@@ -259,7 +259,7 @@ public class ControllerImpl implements Controller {
                                 .defaultLoadBalancingPolicy("round_robin")
                                 .directExecutor()
                                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
-                config, executor);
+                config, executor, null);
         log.info("Controller client connecting to server at {}", config.getClientConfig().getControllerURI().getAuthority());
     }
 
@@ -275,9 +275,6 @@ public class ControllerImpl implements Controller {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
         this.executor = executor;
         this.retryConfig = createRetryConfig(config);
-        this.endPointCacheMap = new SimpleCache<>(maxCacheSize, segmentEntryExpirationTime,
-                (segment, cachedEndPointUri) -> log.info("Evicting segment : {} from cache", segment.getSegmentId()));
-
         if (config.getClientConfig().isEnableTlsToController()) {
             log.debug("Setting up a SSL/TLS channel builder");
             SslContextBuilder sslContextBuilder;
@@ -304,6 +301,14 @@ public class ControllerImpl implements Controller {
         this.channel = channelBuilder.build();
         this.client = getClientWithCredentials(config);
         this.timeoutMillis = config.getTimeoutMillis();
+    }
+
+    @VisibleForTesting
+    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
+                          final ScheduledExecutorService executor, final SimpleCache<Segment, CachedPravegaNodeUri> simpleCache) {
+        this(channelBuilder, config, executor);
+        this.endPointCacheMap = (simpleCache == null) ? new SimpleCache<>(maxCacheSize, segmentEntryExpirationTime,
+                (segment, cachedEndPointUri) -> log.info("Evicting segment : {} from cache", segment.getSegmentId())) : simpleCache;
     }
 
     private ControllerServiceStub getClientWithCredentials(ControllerImplConfig config) {
