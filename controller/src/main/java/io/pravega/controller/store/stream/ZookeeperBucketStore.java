@@ -31,6 +31,7 @@ import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
@@ -143,8 +144,25 @@ public class ZookeeperBucketStore implements BucketStore {
                 ? new HashSet<>() : map.get(processId));
     }
 
+    public CompletableFuture<Boolean> takeBucketOwnership(final ServiceType serviceType, int bucketId, String processId) {
+        String bucketPath = ZKPaths.makePath(getBucketOwnershipPath(serviceType), "" + bucketId);
+        return storeHelper.createEphemeralZNode(bucketPath, SerializationUtils.serialize(processId))
+                          .thenCompose(created -> {
+                              if (!created) {
+                                  return storeHelper.getData(bucketPath, x -> x)
+                                                    .thenApply(data -> (SerializationUtils.deserialize(data.getObject())).equals(processId));
+                              } else {
+                                  return CompletableFuture.completedFuture(true);
+                              }
+                          });
+    }
+
     public PathChildrenCache getBucketPathChildrenCache(ServiceType serviceType, int bucketId) {
         return storeHelper.getPathChildrenCache(getBucketPath(serviceType, bucketId), true);
+    }
+
+    public PathChildrenCache getServiceOwnershipPathChildrenCache(ServiceType serviceType) {
+        return storeHelper.getPathChildrenCache(getBucketOwnershipPath(serviceType), true);
     }
 
     public NodeCache getBucketControllerMapNodeCache(ServiceType serviceType) {

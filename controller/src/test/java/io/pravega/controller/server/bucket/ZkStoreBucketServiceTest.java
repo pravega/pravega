@@ -105,6 +105,8 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
     public void testBucketOwnership() throws Exception {
         addEntryToZkCluster(controller);
         assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
+        // verify that ownership is not taken up by another host
+        assertFalse(retentionService.takeBucketOwnership(0, "", executor).join());
 
         // Introduce connection failure error
         zkClient.getZookeeperClient().close();

@@ -15,10 +15,12 @@
  */
 package io.pravega.controller.server.bucket;
 
+import com.google.common.base.Preconditions;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.InMemoryBucketStore;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
@@ -62,9 +64,9 @@ public class InMemoryBucketManager extends BucketManager {
                    .thenAccept(v -> startLeader())
                    .whenComplete((r, e) -> {
                        if (e == null) {
-                           log.debug("{}: started in InMemory mode.", getServiceType());
+                           log.debug("{}: started in InMemory mode", getServiceType());
                        } else {
-                           log.warn("{}: starting fails in InMemory mode.", getServiceType());
+                           log.warn("{}: starting fails in InMemory mode", getServiceType());
                        }
                    });
     }
@@ -79,6 +81,16 @@ public class InMemoryBucketManager extends BucketManager {
     }
 
     @Override
+    void startBucketOwnershipListener() {
+
+    }
+
+    @Override
+    void stopBucketOwnershipListener() {
+
+    }
+
+    @Override
     CompletableFuture<Void> initializeService() {
         return CompletableFuture.completedFuture(null);
     }
@@ -89,12 +101,14 @@ public class InMemoryBucketManager extends BucketManager {
     }
 
     @Override
-    void startBucketControllerMapListener() {
+    void addBucketControllerMapListener() {
 
     }
 
     @Override
-    void stopBucketControllerMapListener() {
-
+    CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
+        Preconditions.checkArgument(bucket < getBucketCount());
+        return CompletableFuture.completedFuture(true);
     }
+
 }

@@ -69,7 +69,8 @@ public class WatermarkingServiceHealthContibutorTest {
         PeriodicWatermarking periodicWatermarking = mock(PeriodicWatermarking.class);
         watermarkingService = spy(bucketStoreFactory.createWatermarkingService(Duration.ofMillis(10), periodicWatermarking::watermark, executor));
         doReturn(CompletableFuture.completedFuture(null)).when((ZooKeeperBucketManager) watermarkingService).initializeService();
-        doNothing().when((ZooKeeperBucketManager) watermarkingService).startBucketControllerMapListener();
+        doNothing().when((ZooKeeperBucketManager) watermarkingService).startBucketOwnershipListener();
+        doNothing().when((ZooKeeperBucketManager) watermarkingService).addBucketControllerMapListener();
         doReturn(true).when(watermarkingService).isHealthy();
         contributor = new WatermarkingServiceHealthContributor("watermarkingservice", watermarkingService);
         builder = Health.builder().name("watermark");
