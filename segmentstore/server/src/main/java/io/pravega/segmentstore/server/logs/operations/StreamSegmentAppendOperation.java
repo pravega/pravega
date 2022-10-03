@@ -25,6 +25,9 @@ import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import lombok.Getter;
+import lombok.Setter;
+
 import java.io.IOException;
 
 /**
@@ -34,10 +37,19 @@ import java.io.IOException;
 public class StreamSegmentAppendOperation extends StorageOperation implements AttributeUpdaterOperation, AutoCloseable {
     //region Members
 
+    // Represents that no hash has been computed for a given Append contents.
+    public static final long NO_HASH = Long.MIN_VALUE;
+
     private static final long NO_OFFSET = -1;
     protected long streamSegmentOffset;
     protected BufferView data;
     protected AttributeUpdateCollection attributeUpdates;
+
+    // Hash of the Append contents. Note that this is only used internally within the Segment Store to
+    // check data integrity and should not be considered for serialization (i.e., transient field).
+    @Getter
+    @Setter
+    private transient long contentHash = NO_HASH;
 
     //endregion
 
