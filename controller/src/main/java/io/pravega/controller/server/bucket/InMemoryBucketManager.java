@@ -101,7 +101,12 @@ public class InMemoryBucketManager extends BucketManager {
     }
 
     @Override
-    void addBucketControllerMapListener() {
+    void startBucketControllerMapListener() {
+
+    }
+
+    @Override
+    void stopBucketControllerMapListener() {
 
     }
 

@@ -17,9 +17,6 @@ package io.pravega.controller.server.bucket;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.cluster.Cluster;
-import io.pravega.common.cluster.ClusterType;
-import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.controller.store.stream.BucketControllerMap;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
@@ -49,7 +46,7 @@ public class ZooKeeperBucketManager extends BucketManager {
     private final String processId;
 
     private final BucketManagerLeader bucketManagerLeader;
-    private final Cluster cluster;
+    private NodeCache cache;
 
     ZooKeeperBucketManager(String processId, ZookeeperBucketStore bucketStore, BucketStore.ServiceType serviceType, ScheduledExecutorService executor,
                            Function<Integer, BucketService> bucketServiceSupplier, BucketManagerLeader bucketManagerLeader) {
@@ -58,7 +55,6 @@ public class ZooKeeperBucketManager extends BucketManager {
         this.bucketStore = bucketStore;
         this.processId = processId;
         this.bucketManagerLeader = bucketManagerLeader;
-        this.cluster = new ClusterZKImpl(bucketStore.getClient(), ClusterType.CONTROLLER);
     }
 
     /**
@@ -98,9 +94,11 @@ public class ZooKeeperBucketManager extends BucketManager {
                                    }
                                }).whenComplete((r, e) -> {
                                    if (e == null) {
-                                       log.debug("{}: Take Ownership finished successfully.", getServiceType());
+                                       log.info("{}: Take Ownership for bucket service {} finished successfully.",
+                                               getServiceType(), bucketId);
                                    } else {
-                                       log.debug("{}: Take Ownership finished with exception {}.", getServiceType(), e);
+                                       log.warn("{}: Take Ownership for bucket service {} finished with exception {}.",
+                                               getServiceType(), bucketId, e);
                                    }
                                });
                     break;
@@ -151,14 +149,14 @@ public class ZooKeeperBucketManager extends BucketManager {
 
     @SneakyThrows(Exception.class)
     @Override
-    public void addBucketControllerMapListener() {
+    public void startBucketControllerMapListener() {
         ZKUtils.createPathIfNotExists(bucketStore.getClient(), bucketStore.getBucketControllerMapPath(getServiceType()),
                 BucketControllerMap.EMPTY.toBytes());
-        NodeCache cache = bucketStore.getBucketControllerMapNodeCache(getServiceType());
+        cache = bucketStore.getBucketControllerMapNodeCache(getServiceType());
         cache.getListenable().addListener(this::handleBuckets);
         log.info("{}: Bucket controller map listener registered.", getServiceType());
         cache.start(true);
-        manageBuckets(cluster.getClusterMembers().size()).whenComplete((r, e) -> {
+        manageBuckets().whenComplete((r, e) -> {
             if (e == null) {
                 log.debug("{}: Manage buckets completes with result: {}.", getServiceType(), r);
             } else {
@@ -171,6 +169,17 @@ public class ZooKeeperBucketManager extends BucketManager {
     public CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
         Preconditions.checkArgument(bucket < bucketStore.getBucketCount(getServiceType()));
         return bucketStore.takeBucketOwnership(getServiceType(), bucket, processId);
+    }
+
+    @Override
+    void stopBucketControllerMapListener() {
+        if (cache != null) {
+            try {
+                cache.close();
+            } catch (IOException e) {
+                log.warn("{}: Unable to close listener for bucket controller map {}.", getServiceType(), e);
+            }
+        }
     }
 
     @Override
@@ -202,7 +211,7 @@ public class ZooKeeperBucketManager extends BucketManager {
                             break;
                         //$CASES-OMITTED$
                         default:
-                            log.debug("Connection state to zookeeper updated: " + newState.toString());
+                            log.info("Connection state to zookeeper updated: {}", newState);
                     }
                 }
         );
@@ -213,7 +222,7 @@ public class ZooKeeperBucketManager extends BucketManager {
     public void startLeader() {
         leaderSelector.autoRequeue();
         leaderSelector.start();
-        log.debug("{}: Leader election started.", getServiceType());
+        log.info("{}: Leader election started.", getServiceType());
     }
 
     @SneakyThrows
@@ -221,18 +230,16 @@ public class ZooKeeperBucketManager extends BucketManager {
     public void stopLeader() {
         leaderSelector.interruptLeadership();
         leaderSelector.close();
-        cluster.close();
-        log.debug("{}: Leader election stopped.", getServiceType());
+        log.info("{}: Leader election stopped.", getServiceType());
     }
 
     private void handleBuckets() {
-        manageBuckets(cluster.getClusterMembers().size()).whenComplete((r, e) -> {
+        manageBuckets().whenComplete((r, e) -> {
             if (e == null) {
-                log.debug("{}: Manage bucket finished successfully.", getServiceType());
+                log.info("{}: Manage bucket finished successfully.", getServiceType());
             } else {
                 log.warn("{}: Manage bucket finished with exception {}.", getServiceType(), e);
             }
         });
-
     }
 }

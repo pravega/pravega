@@ -69,7 +69,7 @@ public abstract class BucketManager extends AbstractService {
 
     @Override
     protected void doStart() {
-        initializeService().thenAccept(v -> addBucketControllerMapListener())
+        initializeService().thenAccept(v -> startBucketControllerMapListener())
                            .thenAccept(v -> startLeaderElection())
                            .thenCompose(v -> bucketStore.getBucketsForController(processId, serviceType))
                            .thenCompose(buckets -> Futures.allOf(buckets.stream().map(x -> initializeBucket(x)
@@ -100,10 +100,9 @@ public abstract class BucketManager extends AbstractService {
      * If new instance of controller is added, then existing controllers need to release the buckets.
      * If any instance of controller failed, then existing controllers need to take the ownership of newly assigned buckets.
      *
-     * @param numberOfControllers Number of controllers.
      * @return Completable future which when complete indicate that controller manages buckets according to new mapping.
      */
-    protected CompletableFuture<Void> manageBuckets(int numberOfControllers) {
+    protected CompletableFuture<Void> manageBuckets() {
         AtomicReference<Set<Integer>> removeableBuckets = new AtomicReference<>();
         return bucketStore.getBucketsForController(processId, getServiceType())
                           .thenCompose(newBuckets -> {
@@ -115,18 +114,10 @@ public abstract class BucketManager extends AbstractService {
                                                                .collect(Collectors.toSet()));
                               }
                               log.info("{}: Buckets added to process : {} are {}.", serviceType, processId, addBuckets);
-                              log.info("{}: Total number of controllers is {}.", serviceType, numberOfControllers);
-                              // If there is only one controller instance, then will try to take ownership from here as the
-                              // controller will not wait for stopping the service from other instance.
-                              if (numberOfControllers == 1 || buckets.isEmpty()) {
-                                  return Futures.allOf(addBuckets.stream()
-                                                                 .map(x -> initializeBucket(x).thenCompose(v -> tryTakeOwnership(x)))
-                                                                 .collect(Collectors.toList()));
-                              } else {
-                                  return CompletableFuture.completedFuture(null);
-                              }
-                          })
-                          .thenAccept(v -> {
+                              return Futures.allOf(addBuckets.stream().map(x -> initializeBucket(x)
+                                                                     .thenCompose(v -> tryTakeOwnership(x)))
+                                                             .collect(Collectors.toList()));
+                          }).thenAccept(v -> {
                               if (removeableBuckets.get().size() > 0) {
                                   stopBucketServices(removeableBuckets.get());
                               }
@@ -154,6 +145,8 @@ public abstract class BucketManager extends AbstractService {
                         
                         return bucketFuture;
                     } else {
+                        log.warn("{}: Unable to take ownership of bucket {} because another instance doesn't release it.",
+                                serviceType, bucket);
                         return CompletableFuture.completedFuture(null);
                     }
                 });
@@ -188,10 +181,11 @@ public abstract class BucketManager extends AbstractService {
         log.info("{}: Stop request received for bucket manager.", serviceType);
         Set<Integer> tmp;
         synchronized (lock) { 
-            tmp = buckets.keySet();
+            tmp = new HashSet<>(buckets.keySet());
         }
-        stopBucketServices(tmp);
         stopBucketOwnershipListener();
+        stopBucketServices(tmp);
+        stopBucketControllerMapListener();
         stopLeader();
     }
 
@@ -202,7 +196,6 @@ public abstract class BucketManager extends AbstractService {
      * @param bucketIds set of bucket ids which need to be stopped.
      */
     public void stopBucketServices(Set<Integer> bucketIds) {
-        Set<Integer> bInt = new HashSet<>();
         Futures.allOf(bucketIds.stream().map(bucketId -> {
                    BucketService bucketService;
                    synchronized (lock) {
@@ -213,7 +206,10 @@ public abstract class BucketManager extends AbstractService {
                        @Override
                        public void terminated(State from) {
                            super.terminated(from);
-                           bInt.add(bucketId);
+                           synchronized (lock) {
+                               buckets.remove(bucketId);
+                               log.info("{}: Bucket service {} stopped.", serviceType, bucketId);
+                           }
                            bucketFuture.complete(null);
                        }
 
@@ -228,12 +224,6 @@ public abstract class BucketManager extends AbstractService {
 
                    return bucketFuture;
                }).collect(Collectors.toList()))
-               .thenAccept(x -> {
-                   synchronized (lock) {
-                       bInt.stream().forEach(id -> buckets.remove(id));
-                       log.info("{}: New buckets size is {}.", serviceType, buckets.size());
-                   }
-               })
                .whenComplete((r, e) -> {
                    if (e != null) {
                        log.error("{}: bucket service shutdown failed with exception.", serviceType, e);
@@ -253,7 +243,9 @@ public abstract class BucketManager extends AbstractService {
     
     abstract CompletableFuture<Void> initializeBucket(int bucket);
 
-    abstract void addBucketControllerMapListener();
+    abstract void startBucketControllerMapListener();
+
+    abstract void stopBucketControllerMapListener();
 
     /**
      * Method to take ownership of a bucket.

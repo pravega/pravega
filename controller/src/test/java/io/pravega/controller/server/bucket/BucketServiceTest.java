@@ -33,6 +33,7 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
+import io.pravega.test.common.AssertExtensions;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
@@ -47,6 +48,7 @@ import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public abstract class BucketServiceTest {
@@ -117,6 +119,15 @@ public abstract class BucketServiceTest {
         assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
         Map<Integer, BucketService> bucketServices = retentionService.getBucketServices();
 
+        assertNotNull(bucketServices);
+        assertEquals(3, bucketServices.size());
+        assertTrue(retentionService.takeBucketOwnership(0, hostId, executor).join());
+        assertTrue(retentionService.takeBucketOwnership(1, hostId, executor).join());
+        assertTrue(retentionService.takeBucketOwnership(2, hostId, executor).join());
+        AssertExtensions.assertThrows("", () -> retentionService.takeBucketOwnership(3, hostId, executor).join(),
+                e -> e instanceof IllegalArgumentException);
+        retentionService.tryTakeOwnership(0).join();
+
         String scope = "scope";
         String streamName = "stream";
         Stream stream = new StreamImpl(scope, streamName);
@@ -145,6 +156,15 @@ public abstract class BucketServiceTest {
         addEntryToZkCluster(controller);
         assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
         Map<Integer, BucketService> bucketServices = watermarkingService.getBucketServices();
+
+        assertNotNull(bucketServices);
+        assertEquals(3, bucketServices.size());
+        assertTrue(watermarkingService.takeBucketOwnership(0, hostId, executor).join());
+        assertTrue(watermarkingService.takeBucketOwnership(1, hostId, executor).join());
+        assertTrue(watermarkingService.takeBucketOwnership(2, hostId, executor).join());
+        AssertExtensions.assertThrows("", () -> watermarkingService.takeBucketOwnership(3, hostId, executor).join(),
+                e -> e instanceof IllegalArgumentException);
+        watermarkingService.tryTakeOwnership(0).join();
 
         String scope = "scope";
         String streamName = "stream";
