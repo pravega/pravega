@@ -30,9 +30,9 @@ as soon as data for that Table Segment is processed and moved to LTS. For more d
 The offline approach to build the Attribute Index adopted in Hash-based Table Segments leads to having a backlog of
 PUT and/or REMOVE operations that are stored in Tier-1, but not yet indexed and stored in LTS. If LTS is unavailable for
 a long period of time and one of such Hash-based Table Segments continues to receive load, there is a risk of having too
-much data being accumulated in Tier-1 only. This may be specially problematic as keys and values stored in Tier-1 are also
+much data being accumulated in Tier-1 only. This may be especially problematic as keys and values stored in Tier-1 are also
 cached in memory to guarantee consistency, in a process called Table Segment "pre-index" or "tail-caching". Due to this, 
-there are few parameters that limit the amount of non-indexed (i.e., written in Tier-1 but not yet to LTS) data that 
+there are a few parameters that limit the amount of non-indexed (i.e., written in Tier-1 but not yet to LTS) data that 
 Hash-based Table Segments can tolerate: 
 - `tables.preindex.bytes.max` (_defaults to 128MB_): The maximum un-indexed data length for which a Hash-based Table Segment can 
 perform tail-caching.
@@ -78,19 +78,19 @@ like `cannot perform tail-caching because tail index too long (150542984)`, it i
 `tables.preindex.bytes.max` to 256MBs. However, setting an excessively high value may be problematic in the case that
 LTS is still not working properly, as data may continue getting accumulated up to the configured value.
 If multiple error messages are found related to Table Segments, you can update all these parameters to higher values.
-Also, note that if the "pre-index" or "tail-caching" process involves storing data in cache. For this reason, in some 
+Also, note that the "pre-index" or "tail-caching" process involves storing data in cache. For this reason, in some 
 cases, it may be necessary to also temporarily increase cache size (i.e.,`pravegaservice.cache.size.max`) and Direct Memory 
-as well (see [Segment Store Cache Size and Memory Settings](https://cncf.pravega.io/docs/nightly/admin-guide/segmentstore-memory)).
+as well (see [Segment Store Cache Size and Memory Settings](https://cncf.pravega.io/docs/latest/admin-guide/segmentstore-memory)).
 
 
 3. _Inspect metrics and confirm that un-indexed data is actually being consumed_: Once the parameters have been increased,
 we need to be sure that the un-indexed data for Table Segments is being processed. To this end, a recommended procedure
 is to keep an eye to the `segmentstore.tablesegment.used_credits` metric. Once you confirm that this metric decreases
 for the relevant Table Segments, it is a clear indication that Pravega is moving data to LTS, including the Table Segment 
-operations to be indexed. An example of analyzing this metric can be found in [this PR](https://github.com/pravega/pravega/issues/6467). 
+operations to be indexed. An example of analyzing this metric can be found in [this issue](https://github.com/pravega/pravega/issues/6467). 
 
 
 4. _Revert changes in Table Segment un-indexed data parameters_: Once all Table Segments have consumed the outstanding
 un-indexed data, it is time to revert the configuration changes made to recover the cluster. Otherwise, if we find
 again a long-lasting problem with LTS, some Table Segments may accumulate much more data this time, as the bounds
-for un-indexed data have been increased (the more accumulated data, the more complex is to recover the cluster). 
+for un-indexed data have been increased (the more accumulated data, the more complex it is to recover the cluster). 
