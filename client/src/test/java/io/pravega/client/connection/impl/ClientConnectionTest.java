@@ -320,4 +320,19 @@ public class ClientConnectionTest {
         Assert.assertEquals(2, clientConnection.getConnectionReaderFlowToBatchSizeTracker().getFlowToBatchSizeTrackerMap().size());
     }
 
+    @Test
+    public void testGetLocation() throws Exception {
+        ClientConnectionTest.ReplyProcessor processor = new ClientConnectionTest.ReplyProcessor();
+        @Cleanup
+        MockServer server = new MockServer();
+        server.start();
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
+        @Cleanup
+        TcpClientConnection clientConnection = TcpClientConnection
+                .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
+                .join();
+        Assert.assertEquals("localhost", clientConnection.getLocation().getEndpoint());
+    }
+
 }
