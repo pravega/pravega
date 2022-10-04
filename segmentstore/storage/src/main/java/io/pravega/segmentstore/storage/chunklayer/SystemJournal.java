@@ -1149,7 +1149,7 @@ public class SystemJournal {
                                 log.debug("SystemJournal[{}] Appending to last chunk. segment={}, segment length={} chunk={}, chunk length={}",
                                         containerId, segmentMetadata.getName(), segmentMetadata.getLength(), lastChunkMetadata.getName(), lastChunkMetadata.getLength());
 
-                            });
+                            }, executor);
 
                 }, executor);
     }
