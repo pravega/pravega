@@ -183,6 +183,12 @@ public class ZooKeeperBucketManager extends BucketManager {
     }
 
     @Override
+    CompletableFuture<Boolean> releaseBucketOwnership(int bucket) {
+        Preconditions.checkArgument(bucket < bucketStore.getBucketCount(getServiceType()));
+        return bucketStore.releaseBucketOwnership(getServiceType(), bucket);
+    }
+
+    @Override
     public void startLeaderElection() {
         String bucketDistributorLeader = "bucketDistributorLeader";
         String leaderSubPath = ZKPaths.makePath("cluster", getServiceType().getName());

@@ -119,9 +119,9 @@ public abstract class BucketManager extends AbstractService {
                                                              .collect(Collectors.toList()));
                           }).thenAccept(v -> {
                               if (removeableBuckets.get().size() > 0) {
-                                  stopBucketServices(removeableBuckets.get());
+                                  stopBucketServices(removeableBuckets.get(), false);
                               }
-                              log.info("{}: Buckets removed from process : {} are {}.", serviceType, processId, removeableBuckets.get());
+                              log.info("{}: Buckets removed from process : {} are {}.", serviceType, processId, removeableBuckets);
                           });
     }
 
@@ -184,7 +184,7 @@ public abstract class BucketManager extends AbstractService {
             tmp = new HashSet<>(buckets.keySet());
         }
         stopBucketOwnershipListener();
-        stopBucketServices(tmp);
+        stopBucketServices(tmp, true);
         stopBucketControllerMapListener();
         stopLeader();
     }
@@ -194,47 +194,63 @@ public abstract class BucketManager extends AbstractService {
      * Once the services stopped successfully then buckets becomes available and others process can acquire the ownership of it.
      *
      * @param bucketIds set of bucket ids which need to be stopped.
+     * @param notify    if true will notify that abstract service stopped successfully or not.
      */
-    public void stopBucketServices(Set<Integer> bucketIds) {
-        Futures.allOf(bucketIds.stream().map(bucketId -> {
-                   BucketService bucketService;
-                   synchronized (lock) {
-                       bucketService = buckets.get(bucketId);
-                   }
-                   CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
-                   bucketService.addListener(new Listener() {
-                       @Override
-                       public void terminated(State from) {
-                           super.terminated(from);
-                           synchronized (lock) {
-                               buckets.remove(bucketId);
-                               log.info("{}: Bucket service {} stopped.", serviceType, bucketId);
-                           }
-                           bucketFuture.complete(null);
-                       }
-
-                       @Override
-                       public void failed(State from, Throwable failure) {
-                           super.failed(from, failure);
-                           log.warn("{}: Unable to stop bucket service {} due to {}.", serviceType, bucketId, failure);
-                           bucketFuture.completeExceptionally(failure);
-                       }
-                   }, executor);
-                   bucketService.stopAsync();
-
-                   return bucketFuture;
-               }).collect(Collectors.toList()))
+    public void stopBucketServices(Set<Integer> bucketIds, boolean notify) {
+        Futures.allOf(bucketIds.stream().map(bucketId -> stopBucketService(bucketId))
+                               .collect(Collectors.toList()))
                .whenComplete((r, e) -> {
                    if (e != null) {
                        log.error("{}: bucket service shutdown failed with exception.", serviceType, e);
-                       notifyFailed(e);
+                       if (notify) {
+                           notifyFailed(e);
+                       }
                    } else {
                        log.info("{}: bucket service stopped.", serviceType);
-                       notifyStopped();
+                       if (notify) {
+                           notifyStopped();
+                       }
                    }
                });
     }
-    
+
+    private CompletableFuture<Void> stopBucketService(Integer bucketId) {
+
+        return releaseBucketOwnership(bucketId).thenCompose(released -> {
+            if (released) {
+                BucketService bucketService;
+                synchronized (lock) {
+                    bucketService = buckets.get(bucketId);
+                }
+                CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
+                bucketService.addListener(new Listener() {
+                    @Override
+                    public void terminated(State from) {
+                        super.terminated(from);
+                        synchronized (lock) {
+                            buckets.remove(bucketId);
+                            log.info("{}: Bucket service {} stopped.", serviceType, bucketId);
+                        }
+                        bucketFuture.complete(null);
+                    }
+
+                    @Override
+                    public void failed(State from, Throwable failure) {
+                        super.failed(from, failure);
+                        log.warn("{}: Unable to stop bucket service {} due to {}.", serviceType, bucketId, failure);
+                        bucketFuture.completeExceptionally(failure);
+                    }
+                }, executor);
+                bucketService.stopAsync();
+                return bucketFuture;
+            } else {
+                log.warn("{}: Unable to stop bucket service  {} because it doesn't release it ownership.",
+                        serviceType, bucketId);
+                return CompletableFuture.completedFuture(null);
+            }
+        });
+    }
+
     abstract void startBucketOwnershipListener();
 
     abstract void stopBucketOwnershipListener();
@@ -246,6 +262,14 @@ public abstract class BucketManager extends AbstractService {
     abstract void startBucketControllerMapListener();
 
     abstract void stopBucketControllerMapListener();
+
+    /**
+     * Method to release bucket ownership.
+     *
+     * @param bucket        bucket id.
+     * @return future, which when completed, will contain a boolean which tells if ownership release succeeded or failed.
+     */
+    abstract CompletableFuture<Boolean> releaseBucketOwnership(int bucket);
 
     /**
      * Method to take ownership of a bucket.

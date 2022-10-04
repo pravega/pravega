@@ -26,8 +26,11 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.test.common.TestingServerStarter;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.test.TestingServer;
@@ -36,6 +39,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
+import static org.junit.Assert.assertTrue;
 
 public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     private TestingServer zkServer;
@@ -98,6 +102,14 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         assertEventuallyEquals(2, () -> retentionService.getBucketServices().size(), 10000);
         assertEventuallyEquals(2, () -> watermarkingService.getBucketServices().size(), 10000);
 
+        List<Integer> retentionBuckets = IntStream.range(0, 3).filter(x ->
+                !retentionService.getBucketServices().keySet().contains(x)).boxed().collect(Collectors.toList());
+        List<Integer> watermarkBuckets = IntStream.range(0, 3).filter(x ->
+                !retentionService.getBucketServices().keySet().contains(x)).boxed().collect(Collectors.toList());
+
+        assertTrue(retentionService.takeBucketOwnership(retentionBuckets.get(0), controller1.getHostId(), executor).join());
+        assertTrue(watermarkingService.takeBucketOwnership(watermarkBuckets.get(0), controller1.getHostId(), executor).join());
+
         //add new controller instance in pravgea cluster.
         Host controller2 = new Host(UUID.randomUUID().toString(), 9090, null);
         addEntryToZkCluster(controller2);
@@ -107,6 +119,16 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         //remove controller instances from pravega cluster.
         removeControllerFromZkCluster(controller1, cluster);
         removeControllerFromZkCluster(controller2, cluster);
+
+        //controller1 didn't release bucket 0 till now. So it will not start it.
+        assertEventuallyEquals(2, () -> retentionService.getBucketServices().size(), 10000);
+        assertEventuallyEquals(2, () -> watermarkingService.getBucketServices().size(), 10000);
+
+        //controller1 release buckets here.
+        assertTrue(retentionService.releaseBucketOwnership(retentionBuckets.get(0)).join());
+        assertTrue(watermarkingService.releaseBucketOwnership(watermarkBuckets.get(0)).join());
+
+        //controller1 didn't release bucket 0 till now. So it will not start it.
         assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
         assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
     }
