@@ -114,6 +114,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.Assert;
 import org.junit.rules.Timeout;
+import org.mockito.InOrder;
 
 import javax.net.ssl.SSLException;
 import java.io.File;
@@ -154,6 +155,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
 
 /**
  * Unit tests for ControllerImpl.
@@ -1968,7 +1970,7 @@ public class ControllerImplTest {
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
         assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
 
-        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream2/1");
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream2/0");
         AssertExtensions.assertFutureThrows("Should throw Exception", endpointForSegment, throwable -> true);
     }
 
@@ -2607,6 +2609,9 @@ public class ControllerImplTest {
                         .build(),
                 this.executor, simpleCache);
         Assert.assertEquals("localhost", controller.getEndpointForSegment("scope1/stream1/0").get().getEndpoint());
+        InOrder verify = inOrder(cpURI);
+        verify.verify(cpURI, times(1)).getPravegaNodeUri();
+        verify.verifyNoMoreInteractions();
     }
 
 }

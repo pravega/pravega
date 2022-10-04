@@ -145,6 +145,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -1332,19 +1333,21 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "updateStaleValueInCache", segmentName, errNodeUri, requestId);
         CachedPravegaNodeUri cachedNode = getSegmentEndpointFromCache(segment);
         if (cachedNode != null) {
-            cachedNode.getPravegaNodeUri().thenAccept(cachedNodeUri -> {
-                if (cachedNodeUri.getEndpoint().equals(errNodeUri.getEndpoint()) && cachedNodeUri.getPort() == errNodeUri.getPort()) {
-                    // enforce cache refresh in case of stale value
-                    log.debug(requestId, "Refreshing stale value in cache for segment {}", segment.getSegmentId());
-                    endPointCacheMap.put(segment, new CachedPravegaNodeUri(new Timer(), getPravegaNodeUri(segment)));
-                }
-            }).whenComplete((x, e) -> {
-                if (e != null) {
+            if (cachedNode.getPravegaNodeUri().isDone()) {
+                PravegaNodeUri cachedNodeUri;
+                try {
+                    cachedNodeUri = cachedNode.getPravegaNodeUri().get();
+                    if (cachedNodeUri.getEndpoint().equals(errNodeUri.getEndpoint()) && cachedNodeUri.getPort() == errNodeUri.getPort()) {
+                        // enforce cache refresh in case of stale value
+                        log.debug(requestId, "Refreshing stale value in cache for segment {}", segment.getSegmentId());
+                        endPointCacheMap.put(segment, new CachedPravegaNodeUri(new Timer(), getPravegaNodeUri(segment)));
+                    }
+                } catch (InterruptedException | ExecutionException e) {
                     log.warn("updateStaleValueInCache failed for segment {}: ", segmentName, e);
                     endPointCacheMap.remove(segment);
                 }
                 LoggerHelpers.traceLeave(log, "updateStaleValueInCache", traceId, requestId);
-            });
+            }
         }
     }
 
