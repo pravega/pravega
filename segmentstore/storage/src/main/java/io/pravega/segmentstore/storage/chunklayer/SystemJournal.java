@@ -900,12 +900,11 @@ public class SystemJournal {
     private CompletableFuture<Void> processJournalContents(MetadataTransaction txn, BootstrapState state, String systemLogName, ByteArrayInputStream input) {
         // Loop is exited with eventual EOFException.
         val isBatchDone = new AtomicBoolean();
-
+        log.debug("SystemJournal[{}] Processing journal {}.", containerId, systemLogName);
         return Futures.loop(
                 () -> !isBatchDone.get(),
                 () -> {
                     try {
-                        log.debug("SystemJournal[{}] Processing journal {}.", containerId, systemLogName);
                         val batch = BATCH_SERIALIZER.deserialize(input);
                         val iterator = batch.getSystemJournalRecords().iterator();
                         return Futures.loop(
@@ -934,8 +933,9 @@ public class SystemJournal {
     private CompletableFuture<Void> applyRecord(MetadataTransaction txn,
                                                 BootstrapState state,
                                                 SystemJournalRecord record) {
-        log.trace("SystemJournal[{}] Processing system log record ={}.", epoch, record);
+        log.debug("SystemJournal[{}] Processing system log record ={}.", containerId, record);
         if (state.visitedRecords.contains(record)) {
+            log.debug("SystemJournal[{}] Duplicate record ={}.", containerId, record);
             return CompletableFuture.completedFuture(null);
         }
         state.visitedRecords.add(record);
@@ -1146,7 +1146,7 @@ public class SystemJournal {
                                 segmentMetadata.setAtomicWrites(true);
                                 txn.update(segmentMetadata);
                                 txn.update(lastChunkMetadata);
-                                log.debug("SystemJournal[{}] Appending to last chunk segment. segment={}, segment length={} chunk={}, chunk length={}",
+                                log.debug("SystemJournal[{}] Appending to last chunk. segment={}, segment length={} chunk={}, chunk length={}",
                                         containerId, segmentMetadata.getName(), segmentMetadata.getLength(), lastChunkMetadata.getName(), lastChunkMetadata.getLength());
 
                             });
