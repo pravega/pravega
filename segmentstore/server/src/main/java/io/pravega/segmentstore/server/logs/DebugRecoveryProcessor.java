@@ -33,7 +33,7 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.cache.NoOpCache;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.List;
@@ -44,6 +44,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -110,7 +112,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
                 new NoOpCache(), executor);
         cacheManager.startAsync().awaitRunning();
         ContainerReadIndexFactory rf = new ContainerReadIndexFactory(readIndexConfig, cacheManager, executor);
-        Storage s = new InMemoryStorageFactory(executor).createStorageAdapter();
+        Storage s = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor, true).createStorageAdapter();
         return new DebugRecoveryProcessor(metadata, durableDataLog, rf, s, cacheManager, callbacks, errorOnDataCorruption);
     }
 

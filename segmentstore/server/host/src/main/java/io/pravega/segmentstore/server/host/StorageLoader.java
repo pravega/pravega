@@ -24,7 +24,6 @@ import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.mocks.SlowStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
-import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -52,8 +51,7 @@ public class StorageLoader {
                     StorageFactory factory = factoryCreator.createFactory(factoryInfo, setup, executor);
                     if (storageExtraConfig.isStorageNoOpMode()) {
                         //The specified storage implementation is in No-Op mode.
-                        log.warn("{} IS IN NO-OP MODE: DATA LOSS WILL HAPPEN! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);
-                        return new NoOpStorageFactory(storageExtraConfig, executor, factory, null);
+                        log.warn("No op mode currently not supported yet. Comming soon", storageImplementation);
                     }
                     if (storageExtraConfig.isSlowModeEnabled()) {
                         log.warn("{} IS IN SLOW MODE: PERF DEGRADATION EXPECTED! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);

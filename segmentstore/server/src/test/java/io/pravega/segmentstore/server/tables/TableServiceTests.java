@@ -34,8 +34,9 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -114,7 +115,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                     .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
                     .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                     .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L));
-    private InMemoryStorageFactory storageFactory;
+    private InMemorySimpleStorageFactory storageFactory;
     private InMemoryDurableDataLogFactory durableDataLogFactory;
 
     @Override
@@ -124,7 +125,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
     @Before
     public void setUp() {
-        this.storageFactory = new InMemoryStorageFactory(executorService());
+        this.storageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), true);
         this.durableDataLogFactory = new PermanentDurableDataLogFactory(executorService());
     }
 
@@ -136,7 +137,6 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         }
 
         if (this.storageFactory != null) {
-            this.storageFactory.close();
             this.storageFactory = null;
         }
     }

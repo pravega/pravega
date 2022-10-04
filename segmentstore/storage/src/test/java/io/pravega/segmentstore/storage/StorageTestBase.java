@@ -24,8 +24,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
-import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -123,24 +121,22 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     @Test
     public void testListSegments() throws Exception {
         @Cleanup
-        val baseStorage = new InMemoryStorage();
-        @Cleanup
-        val s = new RollingStorage(baseStorage, new SegmentRollingPolicy(1));
+        val s = createStorage();
         Set<String> sealedSegments = new HashSet<>();
         s.initialize(1);
         int expectedCount = 50;
         byte[] data = "data".getBytes();
         for (int i = 0; i < expectedCount; i++) {
             String segmentName = "segment-" + i;
-            val wh1 = s.create(segmentName);
+            val wh1 = s.create(segmentName, null).join();
             // Write data.
-            s.write(wh1, 0, new ByteArrayInputStream(data), data.length);
+            s.write(wh1, 0, new ByteArrayInputStream(data), data.length, null).get();
             if (rnd.nextInt(2) == 1) {
-                s.seal(wh1);
+                s.seal(wh1, null).get();
                 sealedSegments.add(segmentName);
             }
         }
-        Iterator<SegmentProperties> it = s.listSegments();
+        Iterator<SegmentProperties> it = s.listSegments().get();
         int actualCount = 0;
         while (it.hasNext()) {
             SegmentProperties curr = it.next();
@@ -187,21 +183,19 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     @Test
     public void testListSegmentsWithDeletes() throws Exception {
         @Cleanup
-        val baseStorage = new InMemoryStorage();
-        @Cleanup
-        val s = new RollingStorage(baseStorage, new SegmentRollingPolicy(1));
+        val s = createStorage();
         s.initialize(DEFAULT_EPOCH);
         Set<String> deletedSegments = new HashSet<>();
         int expectedCount = 50;
         for (int i = 0; i < expectedCount; i++) {
             String segmentName = "segment-" + i;
-            SegmentHandle handle = s.create(segmentName);
+            SegmentHandle handle = s.create(segmentName, null).get();
             if (rnd.nextInt(2) == 1) {
-                s.delete(handle);
+                s.delete(handle, null).get();
                 deletedSegments.add(segmentName);
             }
         }
-        Iterator<SegmentProperties> it = s.listSegments();
+        Iterator<SegmentProperties> it = s.listSegments().get();
         expectedCount -= deletedSegments.size();
         Assert.assertEquals(expectedCount, Iterators.size(it));
     }

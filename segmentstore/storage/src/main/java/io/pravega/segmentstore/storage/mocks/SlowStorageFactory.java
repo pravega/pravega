@@ -18,7 +18,6 @@ package io.pravega.segmentstore.storage.mocks;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
@@ -90,15 +89,6 @@ public class SlowStorageFactory implements SimpleStorageFactory {
             return new SlowChunkStorage(innerChunkStorage, executor, config);
         } else {
             throw new UnsupportedOperationException("inner is not SimpleStorageFactory");
-        }
-    }
-
-    @Override
-    public SyncStorage createSyncStorage() {
-        if (inner instanceof SimpleStorageFactory) {
-            throw new UnsupportedOperationException("SimpleStorageFactory does not support createSyncStorage");
-        } else {
-            return inner.createSyncStorage();
         }
     }
 }

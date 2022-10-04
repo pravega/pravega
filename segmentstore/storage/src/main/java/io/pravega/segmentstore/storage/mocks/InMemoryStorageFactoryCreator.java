@@ -33,10 +33,8 @@ public class InMemoryStorageFactoryCreator implements StorageFactoryCreator {
             val factory = new InMemorySimpleStorageFactory(setup.getConfig(ChunkedSegmentStorageConfig::builder), executor, true);
             return factory;
         } else {
-            InMemoryStorageFactory factory = new InMemoryStorageFactory(executor);
-            return factory;
+            throw new UnsupportedOperationException("InMemoryStorageFactoryCreator only supports CHUNKED_STORAGE.");
         }
-
     }
 
     @Override
@@ -45,11 +43,7 @@ public class InMemoryStorageFactoryCreator implements StorageFactoryCreator {
                 StorageFactoryInfo.builder()
                         .name("INMEMORY")
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
-                        .build(),
-                StorageFactoryInfo.builder()
-                        .name("INMEMORY")
-                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
-                        .build(),
+                        .build()
         };
     }
 

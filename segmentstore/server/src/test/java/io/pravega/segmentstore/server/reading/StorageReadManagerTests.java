@@ -23,8 +23,8 @@ import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import io.pravega.segmentstore.storage.chunklayer.SegmentStorageHandle;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -49,6 +49,7 @@ import org.junit.rules.Timeout;
  * Unit tests for the StorageReadManager class.
  */
 public class StorageReadManagerTests extends ThreadPooledTestSuite {
+    private static final int CONTAINER_ID = 1234567;
     private static final int MIN_SEGMENT_LENGTH = 101;
     private static final int MAX_SEGMENT_LENGTH = MIN_SEGMENT_LENGTH * 100;
     private static final SegmentMetadata SEGMENT_METADATA = new StreamSegmentMetadata("Segment1", 0, 0);
@@ -73,7 +74,7 @@ public class StorageReadManagerTests extends ThreadPooledTestSuite {
         final int offsetIncrement = defaultReadLength / 3;
 
         @Cleanup
-        Storage storage = InMemoryStorageFactory.newStorage(executorService());
+        val storage = InMemorySimpleStorageFactory.newStorage(CONTAINER_ID, executorService());
         storage.initialize(1);
         byte[] segmentData = populateSegment(storage);
         @Cleanup
@@ -110,8 +111,7 @@ public class StorageReadManagerTests extends ThreadPooledTestSuite {
     @Test
     public void testInvalidRequests() {
         @Cleanup
-        Storage storage = InMemoryStorageFactory.newStorage(executorService());
-        storage.initialize(1);
+        Storage storage = InMemorySimpleStorageFactory.newStorage(CONTAINER_ID, executorService());
 
         // Segment does not exist.
         AssertExtensions.assertThrows(
@@ -134,13 +134,7 @@ public class StorageReadManagerTests extends ThreadPooledTestSuite {
         AssertExtensions.assertSuppliedFutureThrows(
                 "Request was not failed when bad offset was provided.",
                 () -> sendRequest(reader, segmentData.length + 1, 1),
-                ex -> ex instanceof ArrayIndexOutOfBoundsException);
-
-        // Invalid read length.
-        AssertExtensions.assertSuppliedFutureThrows(
-                "Request was not failed when bad offset + length was provided.",
-                () -> sendRequest(reader, segmentData.length - 1, 2),
-                ex -> ex instanceof ArrayIndexOutOfBoundsException);
+                ex -> ex instanceof IllegalArgumentException);
 
         // Make sure valid request succeeds after invalid one
         sendRequest(reader, 0, 1).join();
@@ -255,7 +249,7 @@ public class StorageReadManagerTests extends ThreadPooledTestSuite {
 
         @Override
         public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
-            return CompletableFuture.completedFuture(InMemoryStorage.newHandle(streamSegmentName, true));
+            return CompletableFuture.completedFuture(SegmentStorageHandle.readHandle(streamSegmentName));
         }
 
         @Override

@@ -35,7 +35,6 @@ import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
-import io.pravega.segmentstore.server.containers.ReadOnlySegmentContainerFactory;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerFactory;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
@@ -383,13 +382,8 @@ public class ServiceBuilder implements AutoCloseable {
             .with(ServiceConfig.LISTENING_IP_ADDRESS, "localhost")
             .build();
         ServiceBuilder builder;
-        if (serviceConfig.isReadOnlySegmentStore()) {
-            // Only components required for ReadOnly SegmentStore.
-            builder = new ReadOnlyServiceBuilder(builderConfig, serviceConfig, executorBuilder);
-        } else {
-            // Components that are required for general SegmentStore.
-            builder = new ServiceBuilder(builderConfig, serviceConfig, executorBuilder);
-        }
+        // Components that are required for general SegmentStore.
+        builder = new ServiceBuilder(builderConfig, serviceConfig, executorBuilder);
 
         // Components that are required for all types of SegmentStore.
         return builder
@@ -407,56 +401,6 @@ public class ServiceBuilder implements AutoCloseable {
     @VisibleForTesting
     public interface ExecutorBuilder {
         ScheduledExecutorService apply(int threadPoolSize, String name, Integer threadPriority);
-    }
-
-    //endregion
-
-    //region ReadOnlyServiceBuilder
-
-    private static class ReadOnlyServiceBuilder extends ServiceBuilder {
-        private static final int READONLY_CONTAINER_COUNT = 1; // Everything maps to a single container.
-
-        private ReadOnlyServiceBuilder(ServiceBuilderConfig serviceBuilderConfig, ServiceConfig serviceConfig, ExecutorBuilder executorBuilder) {
-            super(serviceBuilderConfig, serviceConfig, executorBuilder);
-
-            // We attach a LocalSegmentContainerManager, since we only have one Container Running.
-            // Note that withContainerManager() is disabled in ReadOnlyServiceBuilder, hence we must invoke the one on
-            // the parent class.
-            super.withContainerManager(setup -> new LocalSegmentContainerManager(setup.getContainerRegistry(), setup.getSegmentToContainerMapper()));
-        }
-
-        @Override
-        protected SegmentToContainerMapper createSegmentToContainerMapper(ServiceConfig serviceConfig) {
-            return new SegmentToContainerMapper(READONLY_CONTAINER_COUNT, serviceConfig.isEnableAdminGateway());
-        }
-
-        @Override
-        protected SegmentContainerFactory createSegmentContainerFactory() {
-            StorageFactory storageFactory = createStorageFactory();
-            return new ReadOnlySegmentContainerFactory(storageFactory, getCoreExecutor());
-        }
-
-        @Override
-        public ServiceBuilder withContainerManager(Function<ComponentSetup, SegmentContainerManager> segmentContainerManagerCreator) {
-            // Do nothing. We use a special SegmentContainerManager.
-            log.info("Not attaching a SegmentContainerManager to ReadOnlyServiceBuilder.");
-            return this;
-        }
-
-        @Override
-        protected OperationLogFactory createOperationLogFactory() {
-            throw new UnsupportedOperationException("Cannot create OperationLogFactory for ReadOnly SegmentStore.");
-        }
-
-        @Override
-        protected ReadIndexFactory createReadIndexFactory() {
-            throw new UnsupportedOperationException("Cannot create ReadIndexFactory for ReadOnly SegmentStore.");
-        }
-
-        @Override
-        protected WriterFactory createWriterFactory() {
-            throw new UnsupportedOperationException("Cannot create WriterFactory for ReadOnly SegmentStore.");
-        }
     }
 
     //endregion

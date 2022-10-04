@@ -66,7 +66,7 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
@@ -656,7 +656,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
-        Storage storage = InMemoryStorageFactory.newStorage(executorService());
+        Storage storage = InMemorySimpleStorageFactory.newStorage(CONTAINER_ID, executorService());
         storage.initialize(1);
 
         Set<Long> streamSegmentIds;
@@ -724,7 +724,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = InMemoryStorageFactory.newStorage(executorService());
+        Storage storage = InMemorySimpleStorageFactory.newStorage(CONTAINER_ID, executorService());
         storage.initialize(1);
 
         Set<Long> streamSegmentIds;
@@ -847,7 +847,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = InMemoryStorageFactory.newStorage(executorService());
+        Storage storage = InMemorySimpleStorageFactory.newStorage(CONTAINER_ID, executorService());
         storage.initialize(1);
 
         @Cleanup
@@ -960,7 +960,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
-        Storage storage = InMemoryStorageFactory.newStorage(executorService());
+        Storage storage = InMemorySimpleStorageFactory.newStorage(CONTAINER_ID, executorService());
         storage.initialize(1);
         long segmentId;
 
@@ -1105,7 +1105,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
-        Storage storage = InMemoryStorageFactory.newStorage(executorService());
+        Storage storage = InMemorySimpleStorageFactory.newStorage(CONTAINER_ID, executorService());
         storage.initialize(1);
 
         // First DurableLog. We use this for generating data.
@@ -1244,7 +1244,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = InMemoryStorageFactory.newStorage(executorService());
+        Storage storage = InMemorySimpleStorageFactory.newStorage(CONTAINER_ID, executorService());
         storage.initialize(1);
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
@@ -1362,7 +1362,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = InMemoryStorageFactory.newStorage(executorService());
+        Storage storage = InMemorySimpleStorageFactory.newStorage(CONTAINER_ID, executorService());
         storage.initialize(1);
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
@@ -1448,7 +1448,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
-        Storage storage = InMemoryStorageFactory.newStorage(executorService());
+        Storage storage = InMemorySimpleStorageFactory.newStorage(CONTAINER_ID, executorService());
         storage.initialize(1);
         val metadata1 = new MetadataBuilder(CONTAINER_ID).build();
 
@@ -1708,7 +1708,7 @@ public class DurableLogTests extends OperationLogTestBase {
             this.executorService = executorService;
             this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, this.executorService), this.dataLog::set);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.storage = InMemoryStorageFactory.newStorage(executorService);
+            this.storage = InMemorySimpleStorageFactory.newStorage(CONTAINER_ID, executorService);
             this.storage.initialize(1);
             this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, this.executorService);

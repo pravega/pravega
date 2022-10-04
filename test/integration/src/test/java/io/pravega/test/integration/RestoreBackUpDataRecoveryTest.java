@@ -67,16 +67,14 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
-import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
-import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
@@ -170,13 +168,13 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
     private final AtomicLong timer = new AtomicLong();
 
-    private InMemoryStorageFactory storageFactory;
+    private InMemorySimpleStorageFactory storageFactory;
     private InMemoryDurableDataLogFactory dataLogFactory;
 
     @After
     public void tearDown() throws Exception {
         if (this.storageFactory != null) {
-            this.storageFactory.close();
+
         }
         if (this.dataLogFactory != null) {
             this.dataLogFactory.close();
@@ -456,7 +454,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private void testRecovery(int containerCount, int bookieCount, boolean withTransaction) throws Exception {
         int instanceId = 0;
         // Creating a long term storage only once here.
-        this.storageFactory = new InMemoryStorageFactory(executorService());
+        this.storageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
         log.info("Created a long term storage.");
 
         // Start a new BK & ZK, segment store and controller
@@ -484,8 +482,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Get the long term storage from the running pravega instance
         @Cleanup
-        Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
-                new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
+        Storage storage = InMemorySimpleStorageFactory.newStorage(1, executorService());
 
         Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
                 executorService(), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -600,7 +597,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         String testReaderGroup = "readerGroupDRIntegrationTest";
 
         // Creating a long term storage only once here.
-        this.storageFactory = new InMemoryStorageFactory(executorService());
+        this.storageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
         log.info("Created a long term storage.");
 
         // Start a new BK & ZK, segment store and controller
@@ -639,8 +636,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Get the long term storage from the running pravega instance
         @Cleanup
-        Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
-                new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
+        Storage storage = InMemorySimpleStorageFactory.newStorage(1, executorService());
 
         Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
                 executorService(), TIMEOUT).join();
@@ -718,7 +714,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         String readerGroup = "rgTx";
 
         // Creating a long term storage only once here.
-        this.storageFactory = new InMemoryStorageFactory(executorService());
+        this.storageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
         log.info("Created a long term storage.");
 
         // Start a new BK & ZK, segment store and controller
@@ -761,8 +757,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Get the long term storage from the running pravega instance
         @Cleanup
-        Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
-                new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
+        Storage storage = InMemorySimpleStorageFactory.newStorage(1, executorService());
 
         Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
                 executorService(), TIMEOUT).join();

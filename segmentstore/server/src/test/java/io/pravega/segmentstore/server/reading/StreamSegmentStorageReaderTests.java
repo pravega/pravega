@@ -21,7 +21,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
@@ -39,6 +39,7 @@ import org.junit.rules.Timeout;
  * Unit tests for the StreamSegmentStorageReader class.
  */
 public class StreamSegmentStorageReaderTests extends ThreadPooledTestSuite {
+    private static final int CONTAINER_ID = 42;
     private static final String SEGMENT_NAME = "Segment";
     private static final int SEGMENT_APPEND_COUNT = 10;
     private static final int SEGMENT_LENGTH = SEGMENT_APPEND_COUNT * 1024;
@@ -193,7 +194,6 @@ public class StreamSegmentStorageReaderTests extends ThreadPooledTestSuite {
     }
 
     private Storage createStorage() {
-        val factory = new InMemoryStorageFactory(executorService());
-        return factory.createStorageAdapter();
+        return InMemorySimpleStorageFactory.newStorage(CONTAINER_ID, executorService());
     }
 }

@@ -17,10 +17,7 @@ package io.pravega.segmentstore.storage.mocks;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.Property;
-import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
-import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
@@ -56,11 +53,6 @@ public class SlowStorageFactoryTests {
                 "factory.createStorageAdapter should not succeed.",
                 () -> factory.createStorageAdapter(),
                 ex -> ex instanceof UnsupportedOperationException);
-
-        AssertExtensions.assertThrows(
-                "factory.createSyncStorage should not succeed.",
-                () -> factory.createSyncStorage(),
-                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test
@@ -83,36 +75,5 @@ public class SlowStorageFactoryTests {
                 "factory.createStorageAdapter should not succeed.",
                 () -> factory.createStorageAdapter(),
                 ex -> ex instanceof UnsupportedOperationException);
-
-        AssertExtensions.assertThrows(
-                "factory.createSyncStorage should not succeed.",
-                () -> factory.createSyncStorage(),
-                ex -> ex instanceof UnsupportedOperationException);
-    }
-
-    @Test
-    public void testSlowStorageFactoryWithRollingStorage() {
-
-        @Cleanup("shutdownNow")
-        val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
-        StorageFactory innerFactory = new InMemoryStorageFactory(executor);
-        SlowStorageFactory factory = new SlowStorageFactory(executor, innerFactory, StorageExtraConfig.builder().build());
-
-        AssertExtensions.assertThrows(
-                "factory.createStorageAdapter should not succeed.",
-                () -> factory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor)),
-                ex -> ex instanceof UnsupportedOperationException);
-
-        AssertExtensions.assertThrows(
-                "factory.getChunkedSegmentStorageConfig should not succeed.",
-                () -> factory.getChunkedSegmentStorageConfig(),
-                ex -> ex instanceof UnsupportedOperationException);
-
-        @Cleanup
-        SlowStorage storage1 = (SlowStorage) factory.createStorageAdapter();
-        Assert.assertTrue(storage1.getInner() instanceof AsyncStorageWrapper);
-
-        SyncStorage syncStorage = factory.createSyncStorage();
-        Assert.assertTrue(syncStorage instanceof InMemoryStorage);
     }
 }
