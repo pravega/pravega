@@ -53,7 +53,6 @@ import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
-import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.io.File;
@@ -405,8 +404,7 @@ class SegmentStoreAdapter extends StoreAdapter {
                 this.storage = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, storageDir).build(),
                         executor).createStorageAdapter();
             } else {
-                this.storage = new FileSystemStorageFactory(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, storageDir).build(),
-                        executor).createStorageAdapter();
+                throw new UnsupportedOperationException("Rolling storage is deprecated." );
             }
             this.storage.initialize(1);
             this.closed = new AtomicBoolean();
