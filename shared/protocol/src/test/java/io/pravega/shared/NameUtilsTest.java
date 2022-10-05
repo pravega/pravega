@@ -221,4 +221,10 @@ public class NameUtilsTest {
     private String getSegmentName(String delimiter) {
         return String.format("scope/stream/transactionSegment%s01234567890123456789012345678901", delimiter);
     }
+
+    @Test
+    public void testGetConnectionDetails() {
+        Assert.assertEquals("localhost", NameUtils.getConnectionDetails("localhost :12345")[0].trim());
+        Assert.assertEquals("12345", NameUtils.getConnectionDetails("localhost :12345")[1].trim());
+    }
 }

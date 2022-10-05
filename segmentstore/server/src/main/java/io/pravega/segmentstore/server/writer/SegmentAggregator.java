@@ -99,6 +99,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     private final AtomicReference<Duration> lastFlush;
     private final AtomicReference<AggregatorState> state;
     private final AtomicReference<ReconciliationState> reconciliationState;
+    private final AggregatedAppendIntegrityChecker dataIntegrityChecker;
 
     //endregion
 
@@ -133,6 +134,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         this.state = new AtomicReference<>(AggregatorState.NotInitialized);
         this.reconciliationState = new AtomicReference<>();
         this.handle = new AtomicReference<>();
+        this.dataIntegrityChecker = new AggregatedAppendIntegrityChecker(this.metadata.getContainerId(), this.metadata.getId());
     }
 
     //endregion
@@ -143,6 +145,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     public void close() {
         if (!isClosed()) {
             setState(AggregatorState.Closed);
+            this.dataIntegrityChecker.close();
         }
     }
 
@@ -423,6 +426,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             this.operations.add(operation);
             this.truncateCount.incrementAndGet();
         } else if (operation instanceof CachedStreamSegmentAppendOperation) {
+            // Track new append for integrity checks, if necessary,
+            this.dataIntegrityChecker.addAppendIntegrityInfo(operation.getStreamSegmentId(), operation.getStreamSegmentOffset(),
+                    operation.getLength(), ((CachedStreamSegmentAppendOperation) operation).getContentHash());
             // Aggregate the Append Operation.
             AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(
                     operation.getStreamSegmentOffset(), operation.getSequenceNumber());
@@ -823,6 +829,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                 }
                 throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for '%s'.", appendOp));
             }
+
+            // If configured, verify that the data received here is the same that was initially sent by the client.
+            this.dataIntegrityChecker.checkAppendIntegrity(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), data);
         }
 
         appendOp.seal();

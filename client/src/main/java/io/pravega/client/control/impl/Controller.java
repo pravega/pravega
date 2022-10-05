@@ -547,5 +547,14 @@ public interface Controller extends AutoCloseable {
      */
     CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(final String scope, final String kvtName);
 
+    /**
+     * API to force cache refresh in case data is stale.
+     *
+     * @param segmentName   name of the segment
+     * @param errNodeUri Stale {@link PravegaNodeUri} entry in cache, this would be used in comparison
+     * with the existing value to determine if update is needed or not.
+     */
+    void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri);
+
     //endregion
 }
