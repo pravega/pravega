@@ -47,7 +47,7 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    public boolean supportsStableData() {
+    public boolean supportsDataIntegrityCheck() {
         return false;
     }
 

@@ -90,14 +90,14 @@ public interface ChunkStorage extends AutoCloseable, StatsReporter {
     boolean supportsConcat();
 
     /**
-     * Gets a value indicating whether this Storage implementation actually stores data durably and supports reading it back.
-     * Generally almost always storage will support durable and stable data writes and subsequent retrival and therefore should return true.
+     * Gets a value indicating whether this Storage implementation actually stores data durably and supports reading it back during data validation.
+     * Generally almost always storage will support durable and stable data writes and subsequent retrieval and therefore should return true.
      * However, In certain special cases like mock storages used for test/performance, implementation may ignore or throw away data
      * and in such cases should return false.
      *
-     * @return True or false.
+     * @return True if data integrity checks are supported. False otherwise.
      */
-    default boolean supportsStableData() {
+    default boolean supportsDataIntegrityCheck() {
         return true;
     }
 

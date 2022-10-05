@@ -85,7 +85,6 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     private final AtomicLong currentOffset = new AtomicLong();
 
-    private final AtomicReference<byte[]> inputData = new AtomicReference<>();
     private volatile boolean didSegmentLayoutChange = false;
 
     WriteOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, InputStream data, int length) {
@@ -218,10 +217,13 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         val oldChunkCount = segmentMetadata.getChunkCount();
         val oldLength = segmentMetadata.getLength();
 
+        val expectedContent = new AtomicReference<byte[]>();
         final InputStream inputStream;
         if (shouldValidateData()) {
-            inputData.set(readNBytes(data, length));
-            inputStream = new ByteArrayInputStream(inputData.get());
+            // Read entire input stream at once and save the content for the later use during validation.
+            val buffer = readNBytes(data, length);
+            inputStream = new ByteArrayInputStream(buffer);
+            expectedContent.set(buffer);
         } else {
             inputStream = data;
         }
@@ -242,10 +244,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                 return writeToChunk(txn,
                                         segmentMetadata,
                                         inputStream,
-                                        chunkHandle,
-                                        lastChunkMetadata.get(),
-                                        offsetToWriteAt,
-                                        writeSize)
+                                        chunkHandle, lastChunkMetadata.get(), offsetToWriteAt, writeSize, expectedContent
+                                )
                                 .thenRunAsync(() -> {
                                     // Update block index.
                                     if (!segmentMetadata.isStorageSystemSegment()) {
@@ -418,12 +418,13 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
      * Write to chunk.
      */
     private CompletableFuture<Void> writeToChunk(MetadataTransaction txn,
-                                                    SegmentMetadata segmentMetadata,
-                                                    InputStream data,
-                                                    ChunkHandle chunkHandle,
-                                                    ChunkMetadata chunkWrittenMetadata,
-                                                    long offsetToWriteAt,
-                                                    int bytesCount) {
+                                                 SegmentMetadata segmentMetadata,
+                                                 InputStream data,
+                                                 ChunkHandle chunkHandle,
+                                                 ChunkMetadata chunkWrittenMetadata,
+                                                 long offsetToWriteAt,
+                                                 int bytesCount,
+                                                 AtomicReference<byte[]> expectedContent) {
         Preconditions.checkState( bytesCount > 0, "bytesCount must be positive. Segment=%s Chunk=%s offsetToWriteAt=%s bytesCount=%s", segmentMetadata, chunkWrittenMetadata, offsetToWriteAt, bytesCount);
         // Finally write the data.
         val bis = new BoundedInputStream(data, bytesCount);
@@ -454,7 +455,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
                     if (shouldValidateData()) {
                         validation = validation.thenComposeAsync(v ->
-                                validateWrittenData(chunkHandle, offsetToWriteAt, totalBytesRead.get(), bytesCount),
+                                validateWrittenData(chunkHandle, offsetToWriteAt, totalBytesRead.get(), bytesCount, expectedContent),
                                 chunkedSegmentStorage.getExecutor());
                     }
                     return validation
@@ -497,12 +498,12 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                 }, chunkedSegmentStorage.getExecutor());
     }
 
-    private CompletableFuture<Void> validateWrittenData(ChunkHandle chunkHandle, long startOffsetInChunk, int startOffestInInputData, int bytesCount) {
+    private CompletableFuture<Void> validateWrittenData(ChunkHandle chunkHandle, long startOffsetInChunk, int startOffestInInputData, int bytesCount, AtomicReference<byte[]> expectedContent) {
         val bufferForRead = new byte[bytesCount];
         return readChunk(chunkHandle, startOffsetInChunk, bytesCount, bufferForRead)
                 .thenAcceptAsync(v -> {
                     val mismatch = Arrays.mismatch(bufferForRead, 0, bytesCount,
-                            inputData.get(), startOffestInInputData, startOffestInInputData + bytesCount);
+                            expectedContent.get(), startOffestInInputData, startOffestInInputData + bytesCount);
                         Preconditions.checkState(-1 == mismatch, "Data read from chunk differs from data written at offset %s",
                                 startOffsetInChunk + mismatch );
                 }, chunkedSegmentStorage.getExecutor());
@@ -537,7 +538,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private boolean shouldValidateData() {
-        return chunkedSegmentStorage.getConfig().isSelfCheckForDataEnabled() && chunkedSegmentStorage.getChunkStorage().supportsStableData();
+        return chunkedSegmentStorage.getConfig().isSelfCheckForDataEnabled() && chunkedSegmentStorage.getChunkStorage().supportsDataIntegrityCheck();
     }
 
 }
