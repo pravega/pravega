@@ -243,7 +243,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
                     log.debug("{}: Offset {} truncated while reading key '{}'. Retrying once.", this.traceObjectId, segmentOffset, attributeId);
                     return segment.getAttributes(Collections.singletonList(attributeId), false, timer.getRemaining())
                             .thenComposeAsync(attributeValues ->
-                                    getEntry(segment, attributeId, attributeValues.getOrDefault(attributeId, NO_OFFSET), timer));
+                                    getEntry(segment, attributeId, attributeValues.getOrDefault(attributeId, NO_OFFSET), timer), this.executor);
                 });
     }
 
