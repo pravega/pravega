@@ -18,6 +18,7 @@ package io.pravega.client.stream;
 import com.google.common.base.Preconditions;
 import java.io.Serializable;
 
+import io.pravega.client.control.impl.CachedPravegaNodeUri;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
@@ -125,7 +126,7 @@ public class EventWriterConfig implements Serializable {
     public static final class EventWriterConfigBuilder implements ObjectBuilder<EventWriterConfig> {
         private static final long MIN_TRANSACTION_TIMEOUT_TIME_MILLIS = 10000;
         private int initialBackoffMillis = 1;
-        private int maxBackoffMillis = 20000;
+        private int maxBackoffMillis = CachedPravegaNodeUri.MAX_BACKOFF_MILLIS;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
         private long transactionTimeoutTime = 600 * 1000 - 1;

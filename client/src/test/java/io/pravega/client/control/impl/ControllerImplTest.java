@@ -49,9 +49,11 @@ import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.common.util.SimpleCache;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
@@ -110,8 +112,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.Assert;
 import org.junit.rules.Timeout;
+import org.mockito.InOrder;
 
+import javax.net.ssl.SSLException;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -129,6 +134,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -148,6 +154,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
 
 /**
  * Unit tests for ControllerImpl.
@@ -2541,5 +2549,69 @@ public class ControllerImplTest {
         assertFalse(deleteKVTableStatus.join());
     }
 
+    @Test
+    public void testGetEndPointForSegment() throws Exception {
+        CompletableFuture<PravegaNodeUri> endpointForSegment;
+        // reads from network and store in cache
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
+
+        // picks from cache
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
+    }
+
+    @Test
+    public void updateStaleValueInCacheTest() throws Exception {
+        ControllerImpl controllerImpl = spy(controllerClient);
+        CompletableFuture<PravegaNodeUri> endpointForSegment;
+        endpointForSegment = controllerImpl.getEndpointForSegment("scope1/stream1/0");
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
+        PravegaNodeUri errorNodeInfo = new PravegaNodeUri("localhost", 12345);
+        controllerImpl.updateStaleValueInCache("scope1/stream1/0", errorNodeInfo);
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), controllerImpl.getEndpointForSegment("scope1/stream1/0").get());
+        
+        CachedPravegaNodeUri cpNode = mock(CachedPravegaNodeUri.class);
+        CompletableFuture<PravegaNodeUri> failedFuture = new CompletableFuture<>();
+        failedFuture.completeExceptionally(new RuntimeException("Error"));
+        doReturn(failedFuture).when(cpNode).getPravegaNodeUri();
+        doReturn(cpNode).when(controllerImpl).getSegmentEndpointFromCache(any());
+        controllerImpl.updateStaleValueInCache("scope1/stream1/0", errorNodeInfo);
+    }
+
+    @Test
+    public void testCacheReadInCaseOfTimerExpiration() throws SSLException, ExecutionException, InterruptedException {
+        NettyChannelBuilder builder = NettyChannelBuilder.forAddress("localhost", serverPort)
+                .keepAliveTime(5, TimeUnit.SECONDS);
+        if (testSecure) {
+            builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(
+                    new File(SecurityConfigDefaults.TLS_CA_CERT_PATH)).build());
+        } else {
+            builder = builder.usePlaintext();
+        }
+        CachedPravegaNodeUri cpURI = mock(CachedPravegaNodeUri.class);
+        Timer timer = mock(Timer.class);
+        doReturn(Long.valueOf(25000)).when(timer).getElapsedMillis();
+        doReturn(timer).when(cpURI).getTimer();
+        when(cpURI.getPravegaNodeUri()).thenReturn(CompletableFuture.completedFuture(new PravegaNodeUri("localhost", 12345)));
+        SimpleCache<Segment, CachedPravegaNodeUri> simpleCache = mock(SimpleCache.class);
+        when(simpleCache.get(any())).thenReturn(cpURI);
+
+        @Cleanup
+        final ControllerImpl controller = new ControllerImpl(builder,
+                ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
+                                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                                .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
+                                .build())
+                        .retryAttempts(1)
+                        .initialBackoffMillis(1)
+                        .timeoutMillis(500)
+                        .build(),
+                this.executor, simpleCache);
+        Assert.assertEquals("localhost", controller.getEndpointForSegment("scope1/stream1/0").get().getEndpoint());
+        InOrder verify = inOrder(cpURI);
+        verify.verify(cpURI, times(1)).getPravegaNodeUri();
+        verify.verifyNoMoreInteractions();
+    }
 
 }
