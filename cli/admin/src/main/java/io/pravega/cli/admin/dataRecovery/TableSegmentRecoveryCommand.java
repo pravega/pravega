@@ -18,19 +18,19 @@ package io.pravega.cli.admin.dataRecovery;
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
-import io.pravega.test.integration.utils.LocalServiceStarter;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.segmentstore.server.tables.EntrySerializer;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
+import io.pravega.test.integration.utils.LocalServiceStarter;
 import lombok.AccessLevel;
 import lombok.Cleanup;
 import lombok.Getter;
@@ -206,8 +206,8 @@ public class TableSegmentRecoveryCommand extends DataRecoveryCommand {
                         .getReader().readNBytes(header.getValueLength());
                 // Add the operation to the list of operations to replay later on (PUT or DELETE).
                 tableSegmentOperations.add(valueBytes.length == 0 ?
-                        new DeleteOperation(TableSegmentEntry.versioned(keyBytes, valueBytes, header.getEntryVersion())) :
-                        new PutOperation(TableSegmentEntry.versioned(keyBytes, valueBytes, header.getEntryVersion())));
+                        new DeleteOperation(TableSegmentEntry.unversioned(keyBytes, valueBytes)) :
+                        new PutOperation(TableSegmentEntry.unversioned(keyBytes, valueBytes)));
                 // Full entry read, so reset unprocessed bytes.
                 Preconditions.checkState(unprocessedBytesFromLastChunk < totalEntryLength, "Some bytes are missing to process.");
                 unprocessedBytesFromLastChunk = 0;

@@ -40,14 +40,20 @@ public class SynchronizerConfig implements Serializable {
     private static final SynchronizerConfigSerializer SERIALIZER = new SynchronizerConfigSerializer();
 
     /**
-     * This writer config is used by the segment writers in the StateSyncrhonizer. The default values
-     * enable connection pooling and ensures the background connection retry attempts continue until the StateSyncrhonizer
+     * This writer config is used by the segment writers in the StateSynchronizer. The default values
+     * enable connection pooling and ensures the background connection retry attempts continue until the StateSynchronizer
      * is closed.
+     *
+     * @param eventWriterConfig writer config used by the segment writers in the StateSynchronizer
+     * @return writer config used by the segment writers in the StateSynchronizer
      */
     EventWriterConfig eventWriterConfig;
     /**
-     * This size is used to allocate buffer space for the bytes the reader in the StateSyncrhonizer reads from the
+     * This size is used to allocate buffer space for the bytes the reader in the StateSynchronizer reads from the
      * segment. The default buffer size is 256KB.
+     *
+     * @param readBufferSize Size used to allocate buffer space for the bytes the StateSynchronizer reader reads from the segment.
+     * @return Size used to allocate buffer space for the bytes the StateSynchronizer reader reads from the segment.
      */
     int readBufferSize;
     
