@@ -19,7 +19,7 @@ RUN apk --update --no-cache add \
     #used in readiness and liveness probes
     curl \
     #used in wait_for function
-    python3=3.10.7-r0 --repository=http://dl-cdn.alpinelinux.org/alpine/v3.16/main \
+    python3=3.10.7-r0 --repository=http://dl-cdn.alpinelinux.org/alpine/edge/main \
     #used in init_kubernetes
     jq \
     && ln -sf python3 /usr/bin/python
