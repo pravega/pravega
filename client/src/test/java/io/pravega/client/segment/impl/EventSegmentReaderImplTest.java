@@ -17,6 +17,10 @@
 package io.pravega.client.segment.impl;
 
 
+import io.pravega.client.stream.impl.EventPointerImpl;
+import io.pravega.client.stream.impl.EventSegmentReaderUtility;
+import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
+import io.pravega.client.stream.mock.MockController;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
@@ -27,6 +31,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -41,6 +46,32 @@ public class EventSegmentReaderImplTest {
     @Rule
     public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
+    @Test
+    public void testSuccess() throws SegmentTruncatedException, EndOfSegmentException {
+        // Setup Mocks
+        SegmentInputStream segmentInputStream = mock(SegmentInputStream.class);
+        @Cleanup
+        EventSegmentReaderImpl segmentReader = new EventSegmentReaderImpl(segmentInputStream);
+        doAnswer(i -> {
+            ByteBuffer headerReadingBuffer = i.getArgument(0);
+            headerReadingBuffer.putInt(WireCommandType.EVENT.getCode());
+            headerReadingBuffer.putInt(8);
+            return WireCommands.TYPE_PLUS_LENGTH_SIZE;
+        }).when(segmentInputStream).read(any(ByteBuffer.class), eq(1000L));
+        doAnswer(i -> {
+            ByteBuffer headerReadingBuffer = i.getArgument(0);
+            headerReadingBuffer.putLong(12345678);
+            return 8;
+        }).when(segmentInputStream).read(any(ByteBuffer.class), eq(EventSegmentReaderImpl.PARTIAL_DATA_TIMEOUT));
+        when(segmentInputStream.getSegmentId()).thenReturn(new Segment("scope", "stream", 0L));
+
+        // Invoke read.
+        ByteBuffer readData = segmentReader.read(1000);
+        assertNotNull(readData);
+        assertEquals(readData.remaining(), 8);
+        assertEquals(12345678, readData.getLong());
+    }
+    
     @Test
     public void testHeaderTimeout() throws SegmentTruncatedException, EndOfSegmentException {
         // Setup Mocks
