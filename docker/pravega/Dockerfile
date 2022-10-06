@@ -13,13 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-FROM adoptopenjdk/openjdk11:jre-11.0.11_9-alpine
+FROM adoptopenjdk/openjdk11:jre-11.0.16.1_1-alpine
 
 RUN apk --update --no-cache add \
     #used in readiness and liveness probes
     curl \
     #used in wait_for function
-    python3 \
+    python3=3.10.7-r0 --repository=http://dl-cdn.alpinelinux.org/alpine/v3.16/main \
     #used in init_kubernetes
     jq \
     && ln -sf python3 /usr/bin/python
