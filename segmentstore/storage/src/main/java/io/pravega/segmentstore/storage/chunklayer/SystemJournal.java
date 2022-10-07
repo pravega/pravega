@@ -904,12 +904,12 @@ public class SystemJournal {
     private CompletableFuture<Void> processJournalContents(MetadataTransaction txn, BootstrapState state, String systemLogName, ByteArrayInputStream input) {
         // Loop is exited with eventual EOFException.
         val isBatchDone = new AtomicBoolean();
+        log.debug("SystemJournal[{}] Processing journal {}.", containerId, systemLogName);
 
         return Futures.loop(
                 () -> !isBatchDone.get(),
                 () -> {
                     try {
-                        log.debug("SystemJournal[{}] Processing journal {}.", containerId, systemLogName);
                         val batch = BATCH_SERIALIZER.deserialize(input);
                         val iterator = batch.getSystemJournalRecords().iterator();
                         return Futures.loop(
@@ -938,8 +938,9 @@ public class SystemJournal {
     private CompletableFuture<Void> applyRecord(MetadataTransaction txn,
                                                 BootstrapState state,
                                                 SystemJournalRecord record) {
-        log.trace("SystemJournal[{}] Processing system log record ={}.", epoch, record);
+        log.debug("SystemJournal[{}] Processing system log record ={}.", containerId, record);
         if (state.visitedRecords.contains(record)) {
+            log.debug("SystemJournal[{}] Duplicate record ={}.", containerId, record);
             return CompletableFuture.completedFuture(null);
         }
         state.visitedRecords.add(record);
@@ -953,6 +954,10 @@ public class SystemJournal {
                     nullToEmpty(chunkAddedRecord.getOldChunkName()),
                     chunkAddedRecord.getNewChunkName(),
                     chunkAddedRecord.getOffset());
+        } else if (record instanceof AppendRecord) {
+            val appendRecord = (AppendRecord) record;
+            log.debug("SystemJournal[{}] skipping append record ={}.", containerId, record);
+            retValue = CompletableFuture.completedFuture(null);
         } else if (record instanceof TruncationRecord) {
             // TruncationRecord.
             val truncationRecord = (TruncationRecord) record;
@@ -1002,6 +1007,8 @@ public class SystemJournal {
                             ff = CompletableFuture.completedFuture(null);
                         }
                         return ff.thenApplyAsync(v -> {
+                            // Unset atomic writes as this version does not support atomic writes.
+                            segmentMetadata.setAtomicWrites(false);
                             Preconditions.checkState(segmentMetadata.isOwnershipChanged(), "ownershipChanged must be true. Segment=%s", segmentMetadata);
                             segmentMetadata.checkInvariants();
 
@@ -1407,7 +1414,8 @@ public class SystemJournal {
                 builder.serializer(ChunkAddedRecord.class, 1, new ChunkAddedRecord.Serializer())
                         .serializer(TruncationRecord.class, 2, new TruncationRecord.Serializer())
                         .serializer(SystemSnapshotRecord.class, 3, new SystemSnapshotRecord.Serializer())
-                        .serializer(SegmentSnapshotRecord.class, 4, new SegmentSnapshotRecord.Serializer());
+                        .serializer(SegmentSnapshotRecord.class, 4, new SegmentSnapshotRecord.Serializer())
+                        .serializer(AppendRecord.class, 5, new AppendRecord.Serializer());
             }
         }
     }
@@ -1598,6 +1606,76 @@ public class SystemJournal {
                 b.offset(input.readCompactLong());
                 b.firstChunkName(input.readUTF());
                 b.startOffset(input.readCompactLong());
+            }
+        }
+    }
+
+    /**
+     * Journal record for segment append.
+     */
+    @Builder(toBuilder = true)
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    static class AppendRecord extends SystemJournalRecord {
+        /**
+         * Name of the segment.
+         */
+        @NonNull
+        private final String segmentName;
+
+        /**
+         * Offset at which chunk is appended.
+         */
+        private final long offset;
+
+        /**
+         * Size of append.
+         */
+        private final long length;
+
+        /**
+         * Name of the chunk.
+         */
+        @NonNull
+        private final String chunkName;
+
+        /**
+         * Builder that implements {@link ObjectBuilder}.
+         */
+        public static class AppendRecordBuilder implements ObjectBuilder<AppendRecord> {
+        }
+
+        /**
+         * Serializer that implements {@link VersionedSerializer}.
+         */
+        public static class Serializer extends VersionedSerializer.WithBuilder<AppendRecord, AppendRecord.AppendRecordBuilder> {
+            @Override
+            protected AppendRecord.AppendRecordBuilder newBuilder() {
+                return AppendRecord.builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void write00(AppendRecord object, RevisionDataOutput output) throws IOException {
+                output.writeUTF(object.segmentName);
+                output.writeUTF(object.chunkName);
+                output.writeCompactLong(object.offset);
+                output.writeCompactLong(object.length);
+            }
+
+            private void read00(RevisionDataInput input, AppendRecord.AppendRecordBuilder b) throws IOException {
+                b.segmentName(input.readUTF());
+                b.chunkName(input.readUTF());
+                b.offset(input.readCompactLong());
+                b.length(input.readCompactLong());
             }
         }
     }
