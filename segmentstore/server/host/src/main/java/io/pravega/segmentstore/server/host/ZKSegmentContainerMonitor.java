@@ -276,6 +276,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
                             // Also need to ensure this is always called, hence doing this in a finally block.
                             this.pendingTasks.remove(containerId);
                             this.parallelContainerStartsSemaphore.release(1);
+                            log.info("Current ongoing Segment Container starts {}.", this.parallelContainerStartsSemaphore.getUsedCredits());
                         }
                     });
         } catch (Throwable e) {
