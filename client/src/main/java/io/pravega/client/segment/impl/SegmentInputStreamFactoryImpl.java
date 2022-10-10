@@ -20,7 +20,6 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import io.pravega.client.stream.Stream;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.util.SimpleCache;
 import io.pravega.shared.NameUtils;
