@@ -74,15 +74,7 @@ public class ReplicatedExtendedS3IntegrationTest extends BookKeeperIntegrationTe
     }
 
     @Override
-    public void testEndToEnd() {
-    }
-
-    @Override
     public void testFlushToStorage() {
-    }
-
-    @Override
-    public void testEndToEndWithFencing() {
     }
     //endregion
 

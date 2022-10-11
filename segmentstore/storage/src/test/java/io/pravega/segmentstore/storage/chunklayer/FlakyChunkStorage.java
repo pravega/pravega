@@ -26,17 +26,27 @@ import java.util.concurrent.Executor;
  * {@link ChunkStorage} implementation that fails predictably based on provided list of {@link FlakinessPredicate}.
  */
 public class FlakyChunkStorage extends BaseChunkStorage {
+    /**
+     * Wrapped {@link ChunkStorage} instance.
+     */
     @Getter
-    final BaseChunkStorage innerChunkStorage;
-    final FlakyInterceptor interceptor = new FlakyInterceptor();
+    private final BaseChunkStorage innerChunkStorage;
 
+    /**
+     * {@link FlakyInterceptor} that intercepts calls and matches against given set of {@link FlakinessPredicate}.
+     */
+    @Getter
+    private final FlakyInterceptor interceptor = new FlakyInterceptor();
+
+    /**
+     *  Constructs {@link FlakyChunkStorage} instance.
+     *
+     * @param innerChunkStorage {@link ChunkStorage instance to wrap}.
+     * @param executor Executor to use.
+     */
     public FlakyChunkStorage(BaseChunkStorage innerChunkStorage, Executor executor) {
         super(executor);
         this.innerChunkStorage = Preconditions.checkNotNull(innerChunkStorage, "innerChunkStorage");
-    }
-
-    public void addFlakiness(FlakinessPredicate predicate) {
-        interceptor.flakyPredicates.add(predicate);
     }
 
     @Override
@@ -76,9 +86,8 @@ public class FlakyChunkStorage extends BaseChunkStorage {
             innerChunkStorage.doDelete(ChunkHandle.writeHandle(chunkName));
             throw new ChunkStorageException(chunkName, "doCreateWithContent - invalid length returned");
         }
-        val ret = handle;
         interceptor.intercept(chunkName, "doWrite.after");
-        return ret;
+        return handle;
     }
 
     @Override

@@ -77,16 +77,9 @@ public class ReplicatedFlakyExtendedS3IntegrationTest extends BookKeeperIntegrat
     }
 
     @Override
-    public void testEndToEnd() {
-    }
-
-    @Override
     public void testFlushToStorage() {
     }
 
-    @Override
-    public void testEndToEndWithFencing() {
-    }
     //endregion
 
     //region StreamSegmentStoreTestBase Implementation
@@ -160,7 +153,7 @@ public class ReplicatedFlakyExtendedS3IntegrationTest extends BookKeeperIntegrat
             // chunkStorage3 never fails.
             // This way at least one chunkstorage always succeeds.
             // In other words, even with 0, 1 or 2 failures the overall call always succeeds.
-            replicas[0].addFlakiness(FlakinessPredicate.builder()
+            replicas[0].getInterceptor().getFlakyPredicates().add(FlakinessPredicate.builder()
                     .method("doRead.before")
                     .matchPredicate(n -> n % 2 == 0)  // every alternate read fails (even numbered).
                     //.matchPredicate( n -> false)
@@ -171,7 +164,7 @@ public class ReplicatedFlakyExtendedS3IntegrationTest extends BookKeeperIntegrat
                     .build());
 
             // Every 2nd call comes to this instance, and every 4th fails.
-            replicas[1].addFlakiness(FlakinessPredicate.builder()
+            replicas[1].getInterceptor().getFlakyPredicates().add(FlakinessPredicate.builder()
                     .method("doRead.before")
                     .matchPredicate(n -> n % 2 == 0)  // every alternate read fails (even numbered).
                     .matchRegEx("") // match any chunk
@@ -180,7 +173,7 @@ public class ReplicatedFlakyExtendedS3IntegrationTest extends BookKeeperIntegrat
                     })
                     .build());
             // Every 2nd call fails to write.
-            replicas[1].addFlakiness(FlakinessPredicate.builder()
+            replicas[1].getInterceptor().getFlakyPredicates().add(FlakinessPredicate.builder()
                     .method("doWrite.before")
                     .matchPredicate(n -> n % 2 == 0)  // every alternate read fails (even numbered).
                     .matchRegEx("") // match any chunk
@@ -189,7 +182,7 @@ public class ReplicatedFlakyExtendedS3IntegrationTest extends BookKeeperIntegrat
                     })
                     .build());
 
-            replicas[2].addFlakiness(FlakinessPredicate.builder()
+            replicas[2].getInterceptor().getFlakyPredicates().add(FlakinessPredicate.builder()
                     .method("doWrite.before")
                     .matchPredicate(n -> n % 4 == 0)  // every alternate read fails (even numbered).
                     .matchRegEx("") // match any chunk

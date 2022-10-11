@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import lombok.Getter;
 import lombok.val;
 
 import java.util.ArrayList;
@@ -27,18 +28,19 @@ public class FlakyInterceptor {
     /**
      * Predicate to evaluate against each invocation.
      */
-    final ArrayList<FlakinessPredicate> flakyPredicates = new ArrayList<>();
+    @Getter
+    private final ArrayList<FlakinessPredicate> flakyPredicates = new ArrayList<>();
 
     /**
      * Keeps track of invocations.
      */
-    final HashMap<String, Integer> invokeCounts = new HashMap<>();
+    private final HashMap<String, Integer> invokeCounts = new HashMap<>();
 
     FlakinessPredicate getMatchingPredicate(String resourceName, String method, int invocationCount) {
         return flakyPredicates.stream()
-                .filter(predicate -> predicate.method.equals(method)
-                        && resourceName.contains(predicate.matchRegEx)
-                        && predicate.matchPredicate.apply(invocationCount))
+                .filter(predicate -> predicate.getMethod().equals(method)
+                        && resourceName.contains(predicate.getMatchRegEx())
+                        && predicate.getMatchPredicate().apply(invocationCount))
                 .findFirst()
                 .orElse(null);
     }
@@ -53,7 +55,7 @@ public class FlakyInterceptor {
         val predicate = getMatchingPredicate(resourceName, method, invocationCount);
         if (null != predicate) {
             try {
-                predicate.action.call();
+                predicate.getAction().call();
             } catch (ChunkStorageException e) {
                 throw e;
             } catch (Exception e) {

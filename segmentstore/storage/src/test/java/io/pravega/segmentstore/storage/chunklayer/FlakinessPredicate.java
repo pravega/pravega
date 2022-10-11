@@ -17,6 +17,7 @@ package io.pravega.segmentstore.storage.chunklayer;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
@@ -30,12 +31,31 @@ import java.util.function.Function;
 @Data
 @RequiredArgsConstructor
 public class FlakinessPredicate {
+    /**
+     * Regular expression to match against chunk name.
+     */
     @NonNull
-    final String matchRegEx;
+    @Getter
+    private final String matchRegEx;
+
+    /**
+     * Name of the method to intercept.
+     */
     @NonNull
-    final String method;
+    @Getter
+    private final String method;
+
+    /**
+     * Additional match predicate. The function is passed current invocation count.
+     */
     @NonNull
-    final Function<Integer, Boolean> matchPredicate;
+    @Getter
+    private final Function<Integer, Boolean> matchPredicate;
+
+    /**
+     * Action to take when predicate matches.
+     */
     @NonNull
-    final Callable action;
+    @Getter
+    private final Callable<Void> action;
 }

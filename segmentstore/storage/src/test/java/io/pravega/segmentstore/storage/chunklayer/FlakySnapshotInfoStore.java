@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
 
@@ -25,7 +26,11 @@ import java.util.concurrent.CompletableFuture;
  * {@link SnapshotInfoStore} implementation that fails predictably based on provided list of {@link FlakinessPredicate}.
  */
 public class FlakySnapshotInfoStore extends InMemorySnapshotInfoStore {
-    final FlakyInterceptor interceptor = new FlakyInterceptor();
+    /**
+     * {@link FlakyInterceptor} that intercepts calls and matches against given set of {@link FlakinessPredicate}.
+     */
+    @Getter
+    private final FlakyInterceptor interceptor = new FlakyInterceptor();
 
     @Override
     @SneakyThrows

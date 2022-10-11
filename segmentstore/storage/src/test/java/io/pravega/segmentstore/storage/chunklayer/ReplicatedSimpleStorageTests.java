@@ -40,7 +40,7 @@ public class ReplicatedSimpleStorageTests extends SimpleStorageTests {
         // This way at least one chunkstorage always succeeds.
         // In other words, even with 0, 1 or 2 failures the overall call always succeeds.
         val chunkStorage1 = new FlakyChunkStorage(new InMemoryChunkStorage(executorService), executorService);
-        chunkStorage1.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
+        chunkStorage1.getInterceptor().getFlakyPredicates().add(FlakinessPredicate.builder()
                         .method("doRead.before")
                         .matchPredicate(n -> n % 2 == 0)  // every alternate read fails (even numbered).
                         .matchRegEx("") // match any chunk
@@ -51,7 +51,7 @@ public class ReplicatedSimpleStorageTests extends SimpleStorageTests {
 
         // Every 2nd call comes to this instance, and every 4th fails.
         val chunkStorage2 = new FlakyChunkStorage(new InMemoryChunkStorage(executorService), executorService);
-        chunkStorage2.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
+        chunkStorage2.getInterceptor().getFlakyPredicates().add(FlakinessPredicate.builder()
                 .method("doRead.before")
                 .matchPredicate(n -> n % 2 == 0)  // every alternate read fails (even numbered).
                 .matchRegEx("") // match any chunk

@@ -676,7 +676,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         for (val prime1 : primes) {
             for (val prime2 : primes) {
                 FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(new InMemoryChunkStorage(executorService()), executorService());
-                flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
+                flakyChunkStorage.getInterceptor().getFlakyPredicates().add(FlakinessPredicate.builder()
                         .method(interceptMethod1)
                         .matchPredicate(n -> n % prime1 == 0)
                         .matchRegEx("_sysjournal")
@@ -684,7 +684,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                             throw new IOException("Intentional");
                         })
                         .build());
-                flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
+                flakyChunkStorage.getInterceptor().getFlakyPredicates().add(FlakinessPredicate.builder()
                         .method(interceptMethod2)
                         .matchPredicate(n -> n % prime2 == 0)
                         .matchRegEx("_sysjournal")
@@ -700,7 +700,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     void testWithFlakyChunkStorage(ChunkedSegmentStorageConfig config, TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod, int[] primes) throws Exception {
         for (val prime : primes) {
             FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(new InMemoryChunkStorage(executorService()), executorService());
-            flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
+            flakyChunkStorage.getInterceptor().getFlakyPredicates().add(FlakinessPredicate.builder()
                     .method(interceptMethod)
                     .matchPredicate(n -> n % prime == 0)
                     .matchRegEx("_sysjournal")
@@ -716,7 +716,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         for (val prime : primes) {
             FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(new InMemoryChunkStorage(executorService()), executorService());
             val flakySnaphotInfoStore = new FlakySnapshotInfoStore();
-            flakySnaphotInfoStore.interceptor.flakyPredicates
+            flakySnaphotInfoStore.getInterceptor().getFlakyPredicates()
                     .add(FlakinessPredicate.builder()
                         .method(interceptMethod)
                         .matchPredicate(n -> n % prime == 0)
@@ -736,7 +736,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
             for (val prime2 : primes) {
                 FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(new InMemoryChunkStorage(executorService()), executorService());
                 val flakySnaphotInfoStore = new FlakySnapshotInfoStore();
-                flakySnaphotInfoStore.interceptor.flakyPredicates
+                flakySnaphotInfoStore.getInterceptor().getFlakyPredicates()
                         .add(FlakinessPredicate.builder()
                                 .method(method1)
                                 .matchPredicate(n -> n % prime1 == 0)
@@ -745,7 +745,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                                     throw new IOException("Intentional");
                                 })
                                 .build());
-                flakySnaphotInfoStore.interceptor.flakyPredicates
+                flakySnaphotInfoStore.getInterceptor().getFlakyPredicates()
                         .add(FlakinessPredicate.builder()
                                 .method(method2)
                                 .matchPredicate(n -> n % prime2 == 0)
@@ -1217,12 +1217,20 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
             boolean done = false;
             while (!done) {
                 try {
-                    systemJournal.commitRecord(SystemJournal.ChunkAddedRecord.builder()
+                    val journalRecords = new ArrayList<SystemJournal.SystemJournalRecord>();
+                    journalRecords.add(SystemJournal.ChunkAddedRecord.builder()
                             .newChunkName(chunkName)
                             .oldChunkName(oldChunkName)
                             .offset(offset)
                             .segmentName(segmentName)
-                            .build()).join();
+                            .build());
+                    journalRecords.add(SystemJournal.AppendRecord.builder()
+                            .segmentName(segmentName)
+                            .chunkName(chunkName)
+                            .offset(0)
+                            .length(metadataLength)
+                            .build());
+                    systemJournal.commitRecords(journalRecords).join();
                     done = true;
                 } catch (RuntimeException e) {
                     throw e;

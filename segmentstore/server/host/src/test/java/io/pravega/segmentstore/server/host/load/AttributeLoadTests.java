@@ -33,11 +33,13 @@ import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.shared.NameUtils;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.NoOpCache;
+import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
-import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.File;
 import java.time.Duration;
@@ -361,8 +363,8 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
             val storageConfig = FileSystemStorageConfig.builder()
                                                        .with(FileSystemStorageConfig.ROOT, OUTPUT_DIR_NAME)
                                                        .build();
-            val storageFactory = new FileSystemStorageFactory(storageConfig, executorService());
-            this.storage = storageFactory.createStorageAdapter();
+            val storageFactory = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, storageConfig, executorService());
+            this.storage = storageFactory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
             this.containerMetadata = new MetadataBuilder(0).build();
             this.cacheStorage = new NoOpCache();
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
