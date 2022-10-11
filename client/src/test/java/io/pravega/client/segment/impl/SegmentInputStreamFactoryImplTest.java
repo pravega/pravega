@@ -21,7 +21,6 @@ import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.EmptyTokenProviderImpl;
-import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.util.SimpleCache;
