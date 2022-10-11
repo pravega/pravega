@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
 public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory {
     private static final Logger log = LoggerFactory.getLogger(SegmentInputStreamFactoryImpl.class);
     private static final int CACHE_MAX_SIZE = 100;
-    private static final int EXPIRATION_TIME_MILLIS = 60000;
+    private static final int EXPIRATION_TIME_MILLIS = 600000;
     private final Controller controller;
     private final ConnectionPool cp;
     private SimpleCache<String, DelegationTokenProvider> tokenProviderCache;
