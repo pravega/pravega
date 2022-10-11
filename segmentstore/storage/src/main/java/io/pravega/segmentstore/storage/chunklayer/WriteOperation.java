@@ -241,8 +241,11 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                 return writeToChunk(txn,
                                         segmentMetadata,
                                         inputStream,
-                                        chunkHandle, lastChunkMetadata.get(), offsetToWriteAt, writeSize, expectedContent
-                                )
+                                        chunkHandle,
+                                        lastChunkMetadata.get(),
+                                        offsetToWriteAt,
+                                        writeSize,
+                                        expectedContent)
                                 .thenRunAsync(() -> {
                                     // Update block index.
                                     if (!segmentMetadata.isStorageSystemSegment()) {
