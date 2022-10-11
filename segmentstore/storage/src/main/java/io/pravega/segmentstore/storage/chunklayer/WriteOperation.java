@@ -217,14 +217,14 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         val oldChunkCount = segmentMetadata.getChunkCount();
         val oldLength = segmentMetadata.getLength();
 
-        val expectedContent = new AtomicReference<byte[]>();
+        final byte[] expectedContent;
         final InputStream inputStream;
         if (shouldValidateData()) {
             // Read entire input stream at once and save the content for the later use during validation.
-            val buffer = readNBytes(data, length);
-            inputStream = new ByteArrayInputStream(buffer);
-            expectedContent.set(buffer);
+            expectedContent = readNBytes(data, length);
+            inputStream = new ByteArrayInputStream(expectedContent);
         } else {
+            expectedContent = null;
             inputStream = data;
         }
 
@@ -424,7 +424,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                                  ChunkMetadata chunkWrittenMetadata,
                                                  long offsetToWriteAt,
                                                  int bytesCount,
-                                                 AtomicReference<byte[]> expectedContent) {
+                                                 byte[] expectedContent) {
         Preconditions.checkState( bytesCount > 0, "bytesCount must be positive. Segment=%s Chunk=%s offsetToWriteAt=%s bytesCount=%s", segmentMetadata, chunkWrittenMetadata, offsetToWriteAt, bytesCount);
         // Finally write the data.
         val bis = new BoundedInputStream(data, bytesCount);
@@ -498,12 +498,12 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                 }, chunkedSegmentStorage.getExecutor());
     }
 
-    private CompletableFuture<Void> validateWrittenData(ChunkHandle chunkHandle, long startOffsetInChunk, int startOffestInInputData, int bytesCount, AtomicReference<byte[]> expectedContent) {
+    private CompletableFuture<Void> validateWrittenData(ChunkHandle chunkHandle, long startOffsetInChunk, int startOffestInInputData, int bytesCount, byte[] expectedContent) {
         val bufferForRead = new byte[bytesCount];
         return readChunk(chunkHandle, startOffsetInChunk, bytesCount, bufferForRead)
                 .thenAcceptAsync(v -> {
                     val mismatch = Arrays.mismatch(bufferForRead, 0, bytesCount,
-                            expectedContent.get(), startOffestInInputData, startOffestInInputData + bytesCount);
+                            expectedContent, startOffestInInputData, startOffestInInputData + bytesCount);
                         Preconditions.checkState(-1 == mismatch, "Data read from chunk differs from data written at offset %s",
                                 startOffsetInChunk + mismatch );
                 }, chunkedSegmentStorage.getExecutor());
