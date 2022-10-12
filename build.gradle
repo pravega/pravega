@@ -124,6 +124,8 @@ allprojects {
             force "io.netty:netty-handler:" + nettyVersion
             force "io.netty:netty-codec:" + nettyVersion
             force "io.netty:netty-codec-http:" + nettyVersion
+            force "io.netty:netty-codec-dns:" + nettyVersion
+            force "io.netty:netty-resolver-dns:" + nettyVersion
             force "io.netty:netty-codec-http2:" + nettyVersion
             force "io.netty:netty-codec-socks:" + nettyVersion
             force "io.netty:netty-handler-proxy:" + nettyVersion
@@ -305,6 +307,7 @@ project('shared:protocol') {
         compile project(':common')
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
