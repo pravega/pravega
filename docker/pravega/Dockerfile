@@ -15,7 +15,7 @@
 #
 FROM eclipse-temurin:11.0.16.1_1-jre-alpine
 
-RUN apk --update --no-cache add \
+RUN apk --update --upgrade --no-cache  add \
     #used in readiness and liveness probes
     curl \
     #used in wait_for function
