@@ -1025,6 +1025,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         systemJournalAfter.bootstrap(epoch + 1, snapshotInfoStore).join();
 
+        val segmentMetadata = TestUtils.getSegmentMetadata(metadataStoreAfterCrash, systemSegmentName);
+        Assert.assertFalse(segmentMetadata.isAtomicWrite());
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash, systemSegmentName, policy.getMaxLength(), 10);
         TestUtils.checkSegmentBounds(metadataStoreAfterCrash, systemSegmentName, 0, totalBytesWritten);
 
@@ -1040,7 +1042,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, garbageCollector3, config, executorService());
 
         systemJournalAfter2.bootstrap(epoch + 2, snapshotInfoStore).join();
-
+        val segmentMetadata2 = TestUtils.getSegmentMetadata(metadataStoreAfterCrash, systemSegmentName);
+        Assert.assertFalse(segmentMetadata2.isAtomicWrite());
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash2, systemSegmentName, policy.getMaxLength(), 10);
     }
 

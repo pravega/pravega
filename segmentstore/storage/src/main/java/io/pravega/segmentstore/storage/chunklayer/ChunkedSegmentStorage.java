@@ -378,6 +378,10 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                 segmentMetadata.setOwnerEpoch(this.epoch);
                 segmentMetadata.setOwnershipChanged(true);
             }
+
+            // Unset atomic writes as this version does not support atomic writes.
+            segmentMetadata.setAtomicWrites(false);
+
             // Update and commit
             // If This instance is fenced this update will fail.
             txn.update(segmentMetadata);

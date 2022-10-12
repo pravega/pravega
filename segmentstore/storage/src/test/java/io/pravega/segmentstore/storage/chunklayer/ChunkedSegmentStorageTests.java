@@ -34,6 +34,7 @@ import io.pravega.segmentstore.storage.StorageWrapper;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
+import io.pravega.segmentstore.storage.metadata.StatusFlags;
 import io.pravega.segmentstore.storage.mocks.AbstractInMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
@@ -1256,6 +1257,32 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testOpenWriteAfterFailoverWithAtomicAppends() throws Exception {
+        String testSegmentName = "foo";
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .appendEnabled(true)
+                .build());
+        testContext.chunkedSegmentStorage.initialize(2);
+        int maxRollingLength = 1;
+        int ownerEpoch = 2;
+        TestUtils.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1,
+                new long[0], new long[0],
+                true, true,
+                testContext.metadataStore, testContext.chunkedSegmentStorage,
+                StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES);
+
+        val hWrite = testContext.chunkedSegmentStorage.openWrite(testSegmentName).get();
+        Assert.assertEquals(hWrite.getSegmentName(), testSegmentName);
+        Assert.assertFalse(hWrite.isReadOnly());
+
+        val metadataAfter = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
+        Assert.assertFalse(metadataAfter.isAtomicWrite());
+        Assert.assertEquals(2, metadataAfter.getOwnerEpoch());
+        Assert.assertEquals(0, metadataAfter.getLength());
+    }
+
+    @Test
     public void testOpenReadAfterFailoverWithNoDataNoAppend() throws Exception {
         testOpenReadAfterFailoverWithNoData(false);
     }
@@ -1286,6 +1313,32 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         Assert.assertTrue(hRead.isReadOnly());
 
         val metadataAfter = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
+        Assert.assertEquals(2, metadataAfter.getOwnerEpoch());
+        Assert.assertEquals(0, metadataAfter.getLength());
+    }
+
+    @Test
+    public void testOpenReadAfterFailoverWithAtomicAppends() throws Exception {
+        String testSegmentName = "foo";
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .appendEnabled(true)
+                .build());
+        testContext.chunkedSegmentStorage.initialize(2);
+        int maxRollingLength = 1;
+        int ownerEpoch = 2;
+        TestUtils.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1,
+                new long[0], new long[0],
+                true, true,
+                testContext.metadataStore, testContext.chunkedSegmentStorage,
+                StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES);
+
+        val hWrite = testContext.chunkedSegmentStorage.openRead(testSegmentName).get();
+        Assert.assertEquals(hWrite.getSegmentName(), testSegmentName);
+        Assert.assertTrue(hWrite.isReadOnly());
+
+        val metadataAfter = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
+        Assert.assertFalse(metadataAfter.isAtomicWrite());
         Assert.assertEquals(2, metadataAfter.getOwnerEpoch());
         Assert.assertEquals(0, metadataAfter.getLength());
     }
