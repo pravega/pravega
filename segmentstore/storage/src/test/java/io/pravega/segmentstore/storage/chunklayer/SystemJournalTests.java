@@ -954,6 +954,10 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleChunkAddition() throws Exception {
+        testSimpleChunkAddition(false);
+    }
+
+    public void testSimpleChunkAddition(boolean useAppendRecord) throws Exception {
         @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
@@ -987,12 +991,22 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             String newChunk = "chunk" + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
             totalBytesWritten += policy.getMaxLength();
-            systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
+            val journalRecords = new ArrayList<SystemJournal.SystemJournalRecord>();
+            journalRecords.add(SystemJournal.ChunkAddedRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(policy.getMaxLength() * i)
                     .newChunkName(newChunk)
                     .oldChunkName(lastChunk)
-                    .build()).join();
+                    .build());
+            if (useAppendRecord) {
+                journalRecords.add(SystemJournal.AppendRecord.builder()
+                        .segmentName(systemSegmentName)
+                        .chunkName(newChunk)
+                        .offset(0)
+                        .length(Math.toIntExact(policy.getMaxLength()))
+                        .build());
+            }
+            systemJournalBefore.commitRecords(journalRecords).join();
             lastChunk = newChunk;
         }
         Assert.assertEquals(policy.getMaxLength() * 10, totalBytesWritten);
@@ -1011,6 +1025,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         systemJournalAfter.bootstrap(epoch + 1, snapshotInfoStore).join();
 
+        val segmentMetadata = TestUtils.getSegmentMetadata(metadataStoreAfterCrash, systemSegmentName);
+        Assert.assertFalse(segmentMetadata.isAtomicWrite());
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash, systemSegmentName, policy.getMaxLength(), 10);
         TestUtils.checkSegmentBounds(metadataStoreAfterCrash, systemSegmentName, 0, totalBytesWritten);
 
@@ -1026,8 +1042,14 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, garbageCollector3, config, executorService());
 
         systemJournalAfter2.bootstrap(epoch + 2, snapshotInfoStore).join();
-
+        val segmentMetadata2 = TestUtils.getSegmentMetadata(metadataStoreAfterCrash, systemSegmentName);
+        Assert.assertFalse(segmentMetadata2.isAtomicWrite());
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash2, systemSegmentName, policy.getMaxLength(), 10);
+    }
+
+    @Test
+    public void testSimpleChunkAdditionWithAppendRecord() throws Exception {
+        testSimpleChunkAddition(true);
     }
 
     /**
