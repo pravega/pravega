@@ -35,7 +35,7 @@ The following prerequisites are required for running Pravega in all modes.
 
 The following prerequisites are required for running in production. These are only required for running in distributed mode.
 
-- AWS S3, Azure Blob Storage, Google Cloud Storage or a mounted distributed filesystem
+- AWS S3, Azure Blob Storage, Google Cloud Storage, HDFS or a mounted distributed filesystem
 - Zookeeper 3.6.3
 - Bookkeeper 4.14.1
 
