@@ -36,6 +36,7 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StatusFlags;
 import io.pravega.segmentstore.storage.mocks.AbstractInMemoryChunkStorage;
+import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
@@ -3048,6 +3049,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .minSizeLimitForConcat(Integer.MAX_VALUE)
                 .maxSizeLimitForConcat(100L * Integer.MAX_VALUE)
+                .indexBlockSize(Integer.MAX_VALUE / 2)
                 .build());
         testBaseConcat(testContext, 10L * Integer.MAX_VALUE,
                 new long[]{Integer.MAX_VALUE + 1L},
@@ -3062,6 +3064,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 .relocateOnTruncateEnabled(true)
                 .maxBufferSizeForChunkDataTransfer(128 * 1024 * 128)
                 .maxSizeForTruncateRelocationInbytes(10L * Integer.MAX_VALUE)
+                .indexBlockSize(Integer.MAX_VALUE / 2)
                 .build();
         @Cleanup
         TestContext testContext = getTestContext(config);
@@ -3239,6 +3242,24 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         val wrapper2 = mock(StorageWrapper.class);
         doReturn(testContext.chunkedSegmentStorage).when(wrapper2).getInner();
         Assert.assertEquals(testContext.chunkedSegmentStorage, ChunkedSegmentStorage.getReference(wrapper2));
+    }
+
+
+    /**
+     * Test simple scenario.
+     *
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testSimpleScenarioWithSelfCheck() throws Exception {
+        String testSegmentName = "foo";
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 bytes.
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .selfCheckForMetadataEnabled(true)
+                .selfCheckForDataEnabled(true)
+                .build());
+        testSimpleScenario(testSegmentName, policy, testContext);
     }
 
     private void checkDataRead(String testSegmentName, TestContext testContext, long offset, long length) throws InterruptedException, java.util.concurrent.ExecutionException {
@@ -3483,6 +3504,84 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             this.chunkedSegmentStorage = null;
             this.chunkStorage = null;
             this.metadataStore = null;
+        }
+    }
+
+
+    /**
+     * Runs all {@link ChunkedSegmentStorageTests} with all self checks on. It uses {@InMemoryChunkStorage}.
+     */
+    public static class ChunkedSegmentStorageTestsWithSelfCheck extends ChunkedSegmentStorageTests {
+
+        @Override
+        public ChunkStorage createChunkStorage() {
+            return new InMemoryChunkStorage(executorService());
+        }
+
+        @Override
+        public TestContext getTestContext() throws Exception {
+            return new SelfCheckTestContext(executorService());
+        }
+
+        @Override
+        public TestContext getTestContext(ChunkedSegmentStorageConfig config) throws Exception {
+            return new SelfCheckTestContext(executorService(), config);
+        }
+
+        @Override
+        protected void populate(byte[] data) {
+            rnd.nextBytes(data);
+        }
+
+        @Override
+        protected void checkData(byte[] expected, byte[] output) {
+            Assert.assertArrayEquals(expected, output);
+        }
+
+        @Override
+        protected void checkData(byte[] expected, byte[] output, int expectedStartIndex, int outputStartIndex, int length) {
+            AssertExtensions.assertArrayEquals("Data check failed", expected, expectedStartIndex, output, outputStartIndex, length);
+        }
+
+        @Override
+        public void testReadHugeChunks() {
+            // Do not execute this test because it creates very large chunks (few multiples of Integer.MAX_VALUE).
+            // Allocating such huge byte arrays is not desirable with InMemoryChunkStorage.
+        }
+
+        @Override
+        public void testConcatHugeChunks(){
+            // Do not execute this test because it creates very large chunks (few multiples of Integer.MAX_VALUE).
+            // Allocating such huge byte arrays is not desirable with InMemoryChunkStorage.
+        }
+
+        @Override
+        public void testRelocateHugeChunks(){
+            // Do not execute this test because it creates very large chunks (few multiples of Integer.MAX_VALUE).
+            // Allocating such huge byte arrays is not desirable with InMemoryChunkStorage.
+        }
+
+        public class SelfCheckTestContext extends ChunkedSegmentStorageTests.TestContext {
+            SelfCheckTestContext(ScheduledExecutorService executorService) throws Exception {
+                super(executorService, ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                        .selfCheckEnabled(true)
+                        .selfCheckForMetadataEnabled(true)
+                        .selfCheckForDataEnabled(true)
+                        .build());
+            }
+
+            SelfCheckTestContext(ScheduledExecutorService executorService, ChunkedSegmentStorageConfig config) throws Exception {
+                super(executorService, config.toBuilder()
+                        .selfCheckEnabled(true)
+                        .selfCheckForMetadataEnabled(true)
+                        .selfCheckForDataEnabled(true)
+                        .build());
+            }
+
+            @Override
+            public ChunkStorage createChunkStorage() {
+                return new InMemoryChunkStorage(executorService());
+            }
         }
     }
 }
