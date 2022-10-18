@@ -157,7 +157,7 @@ As in the case of Zookeeper, we have also developed a [Bookkeeper Operator](http
 to manage the lifecycle of Bookkeeper clusters deployed in Kubernetes. Thus, the next step is to deploy the Bookkeeper Operator:
 
 ```
-kubectl apply -f https://github.com/pravega/bookkeeper-operator/raw/master/deploy/certificate.yaml
+kubectl apply -f https://github.com/pravega/bookkeeper-operator/raw/master/config/certmanager/certificate.yaml
 helm install bookkeeper-operator pravega/bookkeeper-operator --set webhookCert.certName=selfsigned-cert-bk --set webhookCert.secretName=selfsigned-cert-tls-bk
 ```
 
@@ -234,7 +234,7 @@ already done for Zookeeper and Bookkeeper. As usual, we first need to deploy the
 (and its required certificate) as follows:
 
 ```
-kubectl apply -f https://github.com/pravega/pravega-operator/raw/master/deploy/certificate.yaml
+kubectl apply -f https://github.com/pravega/pravega-operator/raw/master/config/certmanager/certificate.yaml
 helm install pravega-operator pravega/pravega-operator --set webhookCert.certName=selfsigned-cert --set webhookCert.secretName=selfsigned-cert-tls
 ```
 
@@ -249,10 +249,10 @@ That's it! Once this command gets executed, you will have your first Pravega clu
 ```console
 $ kubectl get pods
 NAME                                         READY   STATUS    RESTARTS  AGE
+bookkeeper-bookie-0                          1/1     Running   0         9m6s
+bookkeeper-bookie-1                          1/1     Running   0         9m6s
+bookkeeper-bookie-2                          1/1     Running   0         9m6s
 bookkeeper-operator-85568f8949-d652z         1/1     Running   0         11m
-bookkeeper-pravega-bk-bookie-0               1/1     Running   0         9m6s
-bookkeeper-pravega-bk-bookie-1               1/1     Running   0         9m6s
-bookkeeper-pravega-bk-bookie-2               1/1     Running   0         9m6s
 nfs-server-provisioner-1592297085-0          1/1     Running   0         5m26s
 pravega-operator-6c6d9db459-mpjr4            1/1     Running   0         4m19s
 pravega-pravega-controller-5b447c85b-t8jsx   1/1     Running   0         2m56s
