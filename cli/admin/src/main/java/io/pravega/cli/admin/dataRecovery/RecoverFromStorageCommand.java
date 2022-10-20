@@ -168,8 +168,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         output("Starting recovery...");
 
         DebugStreamSegmentContainer debugStreamSegmentContainer = createDebugSegmentContainer(context, containerId, dataLogFactory);
+
         output("Debugsegment container initiazed...");
-//        System.exit(0);
 
         // STEP 1: Get all the segment chunks related to the main Segment in order.
         File[] potentialFiles = new File(tableSegmentDataChunksPath).listFiles();
@@ -197,8 +197,26 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         output("Flushing to stoarge");
         flushToStorage(debugStreamSegmentContainer);
 
-        System.out.println("Stopping DebugSegmentContainer");
+        Thread.sleep(5000);
+        listKeysinStorage(debugStreamSegmentContainer);
+
+//        Thread.sleep(5000);
+        output("Stopping DebugSegmentContainer");
         debugStreamSegmentContainer.close();
+    }
+
+    private void listKeysinStorage(DebugStreamSegmentContainer container) {
+        try {
+            Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), executorService, TIMEOUT);
+            System.out.println("----------------------------");
+            output("segments retrieved from storage");
+            for(Set<String> segs : segmentsByContainer.values()){
+                segs.forEach((seg) -> System.out.println(seg));
+            }
+            System.out.println("----------------------------");
+        }catch(Exception e){
+            output("exception while fetching all segments in storage "+e);
+        }
     }
 
     private Map<String, List<File>> segregateMetadataSegments(File[] chunkFiles) {
@@ -238,25 +256,30 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             TableSegmentEntry entry = operation.getContents();
             TableEntry unversionedEntry = TableEntry.unversioned(new ByteBufWrapper(entry.getKey().getKey()), new ByteBufWrapper(entry.getValue()));
             String seg = new String(unversionedEntry.getKey().getKey().getCopy());
-            output("Deserializing segment " + seg + " .  operation was " + operation.getClass().toString());
+
+//            if(! (seg.contains("RGscale") || seg.contains("abhin") ))  {
+//                continue;
+//            }
 //            if (seg.contains("transaction")) {
 //                continue;
 //            }
             // if we dont delete the keys, the keys from debugcontainer startup exist, and subsequent addition of keys result in version mismatch.
+
+            if (seg.contains(EVENT_PROCESSEOR_SEGMENT)) continue;
 
             if(!deletedKeys.contains(seg)) { // delete the keys only once
                 System.out.println("deleting segment "+seg);
                 tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
                 deletedKeys.add(seg);
             }
-            MetadataStore.SegmentInfo segmentInfo = SERIALIZER.deserialize(new ByteArraySegment(unversionedEntry.getValue().getCopy()).getReader());
-            System.out.println("Printing container metadata for segment "+segmentInfo.getProperties().toString());
 
             if (operation instanceof TableSegmentUtils.PutOperation) {
+                MetadataStore.SegmentInfo segmentInfo = SERIALIZER.deserialize(new ByteArraySegment(unversionedEntry.getValue().getCopy()).getReader());
+                System.out.println("Printing container metadata for segment " + segmentInfo.getProperties().toString());
                 output("ContainerMeta: Writing segment " + segmentInfo.getProperties().getName());
                 tableExtension.put(tableSegment, Collections.singletonList(unversionedEntry), TIMEOUT);
                 if (!container.isSegmentExists(segmentInfo.getProperties().getName()) && segmentInfo.getSegmentId() != NO_STREAM_SEGMENT_ID) {
-                    output("ContainerMeta: Segemnt Exists " + segmentInfo.getProperties().getName());
+                    output("ContainerMeta: Segemnt does not  Exists " + segmentInfo.getProperties().getName());
                     container.queueMapOperation(segmentInfo.getProperties(), segmentInfo.getSegmentId());
                 }
             } else {
@@ -270,21 +293,27 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         HashSet<String> deletedKeys = new HashSet<>();
         for (TableSegmentUtils.TableSegmentOperation operation : tableSegmentOperations) {
             TableSegmentEntry entry = operation.getContents();
-//            try {
-//                StorageMetadata storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().array()).getValue();
-//                if (storageMetadata != null) {
-//                    System.out.println("Printing storage metadata segment: " + SLTS_SERIALIZER.deserialize(entry.getValue().array()).getValue().toString());
-//                    System.out.println();
-//                }
-//            }catch(NullPointerException npe){
-//                System.out.println("nullpinter");
-//            }
+
             TableEntry unversionedEntry = TableEntry.unversioned(new ByteBufWrapper(entry.getKey().getKey()), new ByteBufWrapper(entry.getValue()));
 //            unversionedEntry = reconcileEntry(unversionedEntry);
             String segment = new String(unversionedEntry.getKey().getKey().getCopy());
-            if(null!=segment && segment.contains("RGcommitStreamReader")) continue;
+//            if(! (segment.contains("RGscale") || segment.contains("abhin"))) {
+//                continue;
+//            }
+
+//            if(null!=segment && segment.contains("RGcommitStreamReader")) continue;
+//            if(null!=segment && segment.contains("RGabortStreamReader")) continue;
             if (segment.contains(EVENT_PROCESSEOR_SEGMENT)) continue;  //_system/containers/event_processor_GC.queue.3_3
             if (operation instanceof TableSegmentUtils.PutOperation) {
+                try {
+                    StorageMetadata storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().array()).getValue();
+                    if (storageMetadata != null) {
+                        System.out.println("Printing storage metadata segment: " + SLTS_SERIALIZER.deserialize(entry.getValue().array()).getValue().toString());
+                        System.out.println();
+                    }
+                }catch(Exception npe){
+                    System.out.println("nullpointer "+npe);
+                }
                 if(!deletedKeys.contains(segment)) {
                     System.out.println("deleting segment "+segment);
                     tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
@@ -299,7 +328,6 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     }
 
     private TableEntry reconcileEntry(TableEntry entry) throws IOException {
-
         BufferView value = entry.getValue();
         BaseMetadataStore.TransactionData transactionData = new BaseMetadataStore.TransactionData.TransactionDataSerializer().deserialize(value);
         StorageMetadata storageMetadata = transactionData.getValue();
