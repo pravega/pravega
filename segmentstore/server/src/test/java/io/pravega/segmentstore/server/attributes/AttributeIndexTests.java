@@ -76,6 +76,7 @@ import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class AttributeIndexTests extends ThreadPooledTestSuite {
@@ -465,6 +466,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      * 3. The update() causes the previous root page to become obsolete and truncates the segment after it.
      * 4. The code should be able to handle and recover from this.
      */
+    @Ignore("NEEDS TO BE REWRITTEN")
     @Test
     public void testTruncatedSegmentGet() throws Exception {
         testTruncatedSegment(
@@ -752,6 +754,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     /**
      * Tests the ability to identify throw the correct exception when the Index gets corrupted.
      */
+    @Ignore("NEEDS TO BE REWRITTEN")
     @Test
     public void testIndexCorruption() {
         val attributeId = AttributeId.randomUUID();

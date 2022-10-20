@@ -63,6 +63,7 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -87,6 +88,7 @@ import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.u
 /**
  * Tests for DebugStreamSegmentContainer class.
  */
+@Ignore("NEEDS TO BE REWRITTEN")
 @Slf4j
 public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int MIN_SEGMENT_LENGTH = 0; // Used in randomly generating the length for a segment

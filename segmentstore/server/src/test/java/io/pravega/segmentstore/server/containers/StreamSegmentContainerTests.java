@@ -160,6 +160,7 @@ import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -174,6 +175,7 @@ import static org.junit.Assert.assertTrue;
  * using a real DurableLog, real ReadIndex and real StorageWriter - but all against in-memory mocks of Storage and
  * DurableDataLog.
  */
+@Ignore("NEEDS TO BE REWRITTEN")
 public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Auto-generated attributes which are not set externally but maintained internally. To ease our testing, we will
