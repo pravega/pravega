@@ -109,7 +109,8 @@ allprojects {
             //failOnVersionConflict()
             force "com.google.guava:guava:" + guavaVersion
             force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
-            force "io.grpc:grpc-context:" + grpcVersion
+            force "com.google.protobuf:protobuf-java-util:" + protobufProtocVersion
+	    force "io.grpc:grpc-context:" + grpcVersion
             force "commons-beanutils:commons-beanutils:" + commonsBeanutilsVersion
             force "org.apache.commons:commons-compress:" + apacheCommonsCompressVersion
             force "org.apache.commons:commons-lang3:" + commonsLang3Version
@@ -134,11 +135,11 @@ allprojects {
             force "junit:junit:" + junitVersion
             force "org.bouncycastle:bcprov-jdk15on:" + bouncyCastleVersion
 	    force "org.bouncycastle:bcpkix-jdk15on:" + bouncyCastleVersion
-	    force "org.apache.avro:avro:" +apacheAvroVersion
-	    force "org.jetbrains.kotlin:kotlin-stdlib-common:" +kotlinVersion
-	    force "org.jetbrains.kotlin:kotlin-stdlib:" +kotlinVersion
-	    force "org.yaml:snakeyaml:" +snakeYamlVersion
-	    force "org.jdom:jdom2:" +jdomVersion
+	    force "org.apache.avro:avro:" + apacheAvroVersion
+	    force "org.jetbrains.kotlin:kotlin-stdlib-common:" + kotlinVersion
+	    force "org.jetbrains.kotlin:kotlin-stdlib:" + kotlinVersion
+	    force "org.yaml:snakeyaml:" + snakeYamlVersion
+	    force "org.jdom:jdom2:" + jdomVersion
             // Netty 4 uber jar
             exclude group: 'io.netty', module: 'netty-all'
             // Netty 3
