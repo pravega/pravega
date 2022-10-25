@@ -173,10 +173,10 @@ As a result, you can see below both Zookeeper and Bookkeeper up and running:
 ```console
 $ kubectl get pods
 NAME                                   READY   STATUS    RESTARTS   AGE
+bookkeeper-bookie-0                    1/1     Running   0          2m10s
+bookkeeper-bookie-1                    1/1     Running   0          2m10s
+bookkeeper-bookie-2                    1/1     Running   0          2m10s
 bookkeeper-operator-85568f8949-d652z   1/1     Running   0          4m10s
-bookkeeper-pravega-bk-bookie-0         1/1     Running   0          2m10s
-bookkeeper-pravega-bk-bookie-1         1/1     Running   0          2m10s
-bookkeeper-pravega-bk-bookie-2         1/1     Running   0          2m10s
 zookeeper-0                            1/1     Running   0          8m59s
 zookeeper-1                            1/1     Running   0          8m19s
 zookeeper-2                            1/1     Running   0          7m38s
