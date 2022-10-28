@@ -146,7 +146,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // The QueueProcessor is responsible with the processing of externally added Operations. It starts when the
         // OperationProcessor starts and is shut down as soon as doStop() is invoked.
         val queueProcessor = Futures
-                .loop(() -> (isRunning() && !commitProcessorReference.get().isDone()),
+                .loop(() -> isRunning() && !commitProcessorReference.get().isDone(),
                         () -> getThrottler().throttle()
                                 .thenComposeAsync(v -> this.operationQueue.take(getFetchCount(), PROCESSOR_TIMEOUT, this.executor), this.executor)
                                 .handleAsync((items, ex) -> handleProcessItems(items, this::processOperations, ex, "queueProcessor"), this.executor),
