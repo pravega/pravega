@@ -29,10 +29,13 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutException;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Vector;
 import java.util.concurrent.Callable;
@@ -76,7 +79,10 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     private final AtomicReference<ChunkMetadata> lastChunkMetadata = new AtomicReference<>(null);
     private volatile ChunkHandle chunkHandle = null;
-    private final AtomicLong bytesRemaining = new AtomicLong();
+    private final AtomicInteger bytesRemaining = new AtomicInteger();
+
+    private final AtomicInteger totalBytesRead = new AtomicInteger();
+
     private final AtomicLong currentOffset = new AtomicLong();
 
     private volatile boolean didSegmentLayoutChange = false;
@@ -194,15 +200,12 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     private CompletableFuture<Void> commit(MetadataTransaction txn) {
         // commit all system log records if required.
-        if (isSystemSegment && chunksAddedCount.get() > 0) {
+        if (isSystemSegment && systemLogRecords.size() > 0) {
             // commit all system log records.
-            Preconditions.checkState(chunksAddedCount.get() == systemLogRecords.size(),
-                    "Number of chunks added (%s) must match number of system log records(%s)", chunksAddedCount.get(), systemLogRecords.size());
             txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecords(systemLogRecords));
         }
-
-        // if layout did not change then commit with lazyWrite.
-        return txn.commit(!didSegmentLayoutChange && chunkedSegmentStorage.getConfig().isLazyCommitEnabled())
+        // Commit
+        return txn.commit()
                 .thenRunAsync(() -> isCommitted = true, chunkedSegmentStorage.getExecutor());
 
     }
@@ -210,6 +213,18 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private CompletableFuture<Void> writeData(MetadataTransaction txn) {
         val oldChunkCount = segmentMetadata.getChunkCount();
         val oldLength = segmentMetadata.getLength();
+
+        final byte[] expectedContent;
+        final InputStream inputStream;
+        if (shouldValidateData()) {
+            // Read entire input stream at once and save the content for the later use during validation.
+            expectedContent = readNBytes(data, length);
+            inputStream = new ByteArrayInputStream(expectedContent);
+        } else {
+            expectedContent = null;
+            inputStream = data;
+        }
+
         return Futures.loop(
                 () -> bytesRemaining.get() > 0,
                 () -> {
@@ -225,11 +240,12 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                 // Write data to last chunk.
                                 return writeToChunk(txn,
                                         segmentMetadata,
-                                        data,
+                                        inputStream,
                                         chunkHandle,
                                         lastChunkMetadata.get(),
                                         offsetToWriteAt,
-                                        writeSize)
+                                        writeSize,
+                                        expectedContent)
                                 .thenRunAsync(() -> {
                                     // Update block index.
                                     if (!segmentMetadata.isStorageSystemSegment()) {
@@ -246,6 +262,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                 .thenRunAsync(() -> {
                     // Check invariants.
                     segmentMetadata.checkInvariants();
+                    Preconditions.checkState(totalBytesRead.get() == length, "totalBytesRead (%s) must match length(%s)",
+                            totalBytesRead.get(), length);
                     Preconditions.checkState(oldChunkCount + chunksAddedCount.get() == segmentMetadata.getChunkCount(),
                             "Number of chunks do not match. old value (%s) + number of chunks added (%s) must match current chunk count(%s)",
                             oldChunkCount, chunksAddedCount.get(), segmentMetadata.getChunkCount());
@@ -400,13 +418,14 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
      * Write to chunk.
      */
     private CompletableFuture<Void> writeToChunk(MetadataTransaction txn,
-                                                    SegmentMetadata segmentMetadata,
-                                                    InputStream data,
-                                                    ChunkHandle chunkHandle,
-                                                    ChunkMetadata chunkWrittenMetadata,
-                                                    long offsetToWriteAt,
-                                                    int bytesCount) {
-        Preconditions.checkState(0 != bytesCount, "Attempt to write zero bytes. Segment=%s Chunk=%s offsetToWriteAt=%s", segmentMetadata, chunkWrittenMetadata, offsetToWriteAt);
+                                                 SegmentMetadata segmentMetadata,
+                                                 InputStream data,
+                                                 ChunkHandle chunkHandle,
+                                                 ChunkMetadata chunkWrittenMetadata,
+                                                 long offsetToWriteAt,
+                                                 int bytesCount,
+                                                 byte[] expectedContent) {
+        Preconditions.checkState( bytesCount > 0, "bytesCount must be positive. Segment=%s Chunk=%s offsetToWriteAt=%s bytesCount=%s", segmentMetadata, chunkWrittenMetadata, offsetToWriteAt, bytesCount);
         // Finally write the data.
         val bis = new BoundedInputStream(data, bytesCount);
         CompletableFuture<Integer> retValue;
@@ -417,23 +436,59 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     .thenApplyAsync(h -> bytesCount, chunkedSegmentStorage.getExecutor());
         }
         return retValue
+                .thenComposeAsync(bytesWritten -> {
+                    // Validate.
+                    Preconditions.checkState(bytesWritten == bytesCount,
+                            "bytesWritten (%s) must equal bytesCount(%s). Segment=%s Chunk=%s offsetToWriteAt=%s",
+                            bytesWritten, bytesCount, segmentMetadata, chunkWrittenMetadata, offsetToWriteAt);
+
+                    CompletableFuture<Void> validation = CompletableFuture.completedFuture(null);
+                    if (chunkedSegmentStorage.getConfig().isSelfCheckForMetadataEnabled()) {
+                        validation = validation.thenComposeAsync(v ->
+                                chunkedSegmentStorage.getChunkStorage().getInfo(chunkHandle.getChunkName())
+                                    .thenAcceptAsync( chunkInfo -> {
+                                        Preconditions.checkState(chunkInfo.getLength() == (chunkWrittenMetadata.getLength() + bytesWritten),
+                                                "Length of chunk does not match expected length. Expected (%s) Actual (%s)",
+                                                chunkWrittenMetadata.getLength() + bytesWritten, chunkInfo.getLength());
+                                    }, chunkedSegmentStorage.getExecutor()), chunkedSegmentStorage.getExecutor());
+                    }
+
+                    if (shouldValidateData()) {
+                        validation = validation.thenComposeAsync(v ->
+                                validateWrittenData(chunkHandle, offsetToWriteAt, totalBytesRead.get(), bytesCount, expectedContent),
+                                chunkedSegmentStorage.getExecutor());
+                    }
+                    return validation
+                            .thenApplyAsync( v -> bytesWritten, chunkedSegmentStorage.getExecutor());
+                }, chunkedSegmentStorage.getExecutor())
                 .thenAcceptAsync(bytesWritten -> {
                     // Update the metadata for segment and chunk.
-                    Preconditions.checkState(bytesWritten >= 0, "bytesWritten (%s) must be non-negative. Segment=%s Chunk=%s offsetToWriteAt=%s",
-                            bytesWritten, segmentMetadata, chunkWrittenMetadata, offsetToWriteAt);
                     segmentMetadata.setLength(segmentMetadata.getLength() + bytesWritten);
                     chunkWrittenMetadata.setLength(chunkWrittenMetadata.getLength() + bytesWritten);
                     txn.update(chunkWrittenMetadata);
                     txn.update(segmentMetadata);
+
+                    // Update iteration state
                     bytesRemaining.addAndGet(-bytesWritten);
                     currentOffset.addAndGet(bytesWritten);
+                    totalBytesRead.addAndGet(bytesWritten);
+                    // Add system journal record for append.
+                    if (isSystemSegment) {
+                        systemLogRecords.add(
+                                SystemJournal.AppendRecord.builder()
+                                        .segmentName(segmentMetadata.getName())
+                                        .chunkName(chunkWrittenMetadata.getName())
+                                        .offset(offsetToWriteAt)
+                                        .length(bytesWritten)
+                                        .build());
+                    }
                 }, chunkedSegmentStorage.getExecutor())
                 .handleAsync((v, e) -> {
                     if (null != e) {
                         val ex = Exceptions.unwrap(e);
                         if (ex instanceof InvalidOffsetException) {
                             val invalidEx = (InvalidOffsetException) ex;
-                            // if the length of chunk on the LTS is greater then just skip this chunk.
+                            // if the length of chunk on the LTS is greater, then just skip this chunk.
                             // This could happen if the previous write failed while writing data and chunk was partially written.
                             if (invalidEx.getExpectedOffset() > offsetToWriteAt) {
                                 skipOverFailedChunk = true;
@@ -452,4 +507,48 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     return v;
                 }, chunkedSegmentStorage.getExecutor());
     }
+
+    private CompletableFuture<Void> validateWrittenData(ChunkHandle chunkHandle, long startOffsetInChunk, int startOffestInInputData, int bytesCount, byte[] expectedContent) {
+        val bufferForRead = new byte[bytesCount];
+        return readChunk(chunkHandle, startOffsetInChunk, bytesCount, bufferForRead)
+                .thenAcceptAsync(v -> {
+                    val mismatch = Arrays.mismatch(bufferForRead, 0, bytesCount,
+                            expectedContent, startOffestInInputData, startOffestInInputData + bytesCount);
+                        Preconditions.checkState(-1 == mismatch, "Data read from chunk differs from data written at offset %s",
+                                startOffsetInChunk + mismatch );
+                }, chunkedSegmentStorage.getExecutor());
+    }
+
+    private CompletableFuture<Void> readChunk(ChunkHandle chunkHandle,
+                                              long fromOffset,
+                                              int bytesToRead,
+                                              byte[] buffer) {
+        val chunkBytesRemaining = new AtomicInteger(bytesToRead);
+        val chunkFromOffset = new AtomicLong(fromOffset);
+        val chunkBufferOffset = new AtomicInteger(0);
+        return Futures.loop(
+                () -> chunkBytesRemaining.get() > 0,
+                () -> chunkedSegmentStorage.getChunkStorage().read(chunkHandle,
+                                chunkFromOffset.get(),
+                                chunkBytesRemaining.get(),
+                                buffer,
+                                chunkBufferOffset.get())
+                        .thenAccept(n -> {
+                            Preconditions.checkState(n != 0, "Zero bytes read chunk=%s, fromOffset=%d", chunkHandle.getChunkName(), fromOffset);
+                            chunkBytesRemaining.addAndGet(-n);
+                            chunkFromOffset.addAndGet(n);
+                            chunkBufferOffset.addAndGet(n);
+                        }),
+                chunkedSegmentStorage.getExecutor());
+    }
+
+    @SneakyThrows
+    private static byte[] readNBytes(InputStream data, int bytesCount) {
+        return data.readNBytes(bytesCount);
+    }
+
+    private boolean shouldValidateData() {
+        return chunkedSegmentStorage.getConfig().isSelfCheckForDataEnabled() && chunkedSegmentStorage.getChunkStorage().supportsDataIntegrityCheck();
+    }
+
 }
