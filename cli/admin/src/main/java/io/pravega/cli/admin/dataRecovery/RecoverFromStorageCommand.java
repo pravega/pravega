@@ -66,6 +66,7 @@ import lombok.val;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -111,6 +112,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private final ScheduledExecutorService executorService = getCommandArgs().getState().getExecutor();
     //    private final String TIER2_PATH = getFileSystemStorageConfig().getRoot();
     private final int containerCount;
+    private final int RETRY_ATTEMPT = 3;
     private final StorageFactory storageFactory;
 
 
@@ -178,24 +180,32 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         Map<String, List<File>> metadataSegments = segregateMetadataSegments(potentialFiles);
         Preconditions.checkState(metadataSegments.size() == 2, "Only MetadataSegment and Storage MetadataSegment chunks should be present");
         List<File> storageChunks = null;
-        for (String segment : metadataSegments.keySet()) {
-            List<File> chunks = metadataSegments.get(segment);
-            chunks.sort(new FileComparator());
-            if (chunks.get(0).getName().contains("storage")) {
-                storageChunks = chunks;
-                continue;
-            }
-            List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations = TableSegmentUtils.getOperationsFromChunks(chunks);
-            writeEntriesToNewTableSegment(debugStreamSegmentContainer, NameUtils.getMetadataSegmentName(containerId), tableSegmentOperations);
-        }
-        //write storage entries in the end after container entries (to avoid length mismatch).
-        if (storageChunks != null) {
-            writeStorageEntriesToNewTableSegment(debugStreamSegmentContainer, NameUtils.getStorageMetadataSegmentName(containerId), TableSegmentUtils.getOperationsFromChunks(storageChunks));
-        }
+        boolean firstRun = true;
+        int attempts = 0;
 
-        //flush to storage
-        output("Flushing to stoarge");
-        flushToStorage(debugStreamSegmentContainer);
+        ChunkValidator chunkValidator = new ChunkValidator(debugStreamSegmentContainer);
+        while( firstRun || (!chunkValidator.validate() /*&& attempts < RETRY_ATTEMPT*/ ) ) {
+            if( firstRun ) firstRun = !firstRun;
+            for (String segment : metadataSegments.keySet()) {
+                List<File> chunks = metadataSegments.get(segment);
+                chunks.sort(new FileComparator());
+                if (chunks.get(0).getName().contains("storage")) {
+                    storageChunks = chunks;
+                    continue;
+                }
+                List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations = TableSegmentUtils.getOperationsFromChunks(chunks);
+                writeEntriesToNewTableSegment(debugStreamSegmentContainer, NameUtils.getMetadataSegmentName(containerId), tableSegmentOperations);
+            }
+            //write storage entries in the end after container entries (to avoid length mismatch).
+            if (storageChunks != null) {
+                writeStorageEntriesToNewTableSegment(debugStreamSegmentContainer, NameUtils.getStorageMetadataSegmentName(containerId), TableSegmentUtils.getOperationsFromChunks(storageChunks));
+            }
+
+            //flush to storage
+            output("Flushing to stoarge");
+            flushToStorage(debugStreamSegmentContainer);
+            attempts++;
+        }
 
         Thread.sleep(5000);
         listKeysinStorage(debugStreamSegmentContainer);
@@ -370,6 +380,73 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     // Creates the environment for debug segment container
     private static Context createContext(ScheduledExecutorService scheduledExecutorService) {
         return new Context(scheduledExecutorService);
+    }
+
+    private interface Validator {
+       boolean validate() throws Exception;
+    }
+
+    private class ChunkValidator implements Validator {
+
+        DebugStreamSegmentContainer container;
+
+        ChunkValidator(DebugStreamSegmentContainer container) {
+            this.container = container;
+        }
+
+        @Override
+        public boolean validate() throws Exception {
+            Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), RecoverFromStorageCommand.this.executorService, TIMEOUT);
+            for (Set<String> segs : segmentsByContainer.values()) {
+                for(String seg: segs) {
+                    try {
+                        if (!validateSegment(seg)) {
+                            return false;
+                        }
+                    } catch (Exception e) {
+                        output("Error validating segment {}", seg);
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        private boolean validateSegment(String seg) throws Exception {
+
+            ContainerTableExtension extension = this.container.getExtension(ContainerTableExtension.class);
+
+            try {
+                output("running validation for " + seg);
+                List<TableEntry> entries = extension.get(NameUtils.getStorageMetadataSegmentName(this.container.getId()), Collections.singletonList(BufferView.wrap(seg.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
+                TableEntry entry = entries.get(0);
+                StorageMetadata storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().getCopy()).getValue();
+
+                if (storageMetadata instanceof ChunkMetadata) {
+                    ChunkMetadata chunkMetdata = (ChunkMetadata) storageMetadata;
+                    if (chunkMetdata.getNextChunk() != null && !chunkMetdata.getNextChunk().equalsIgnoreCase("null")) {
+                        output("next chunk for "+seg+ " is "+chunkMetdata.getNextChunk());
+                        return validateSegment(chunkMetdata.getNextChunk());
+                    } else {
+                        System.out.println("----------");
+                        System.out.println("----------");
+                        return true;
+                    }
+                }
+                if (storageMetadata instanceof SegmentMetadata) {
+                    SegmentMetadata segmentMetadata = (SegmentMetadata) storageMetadata;
+                    output("is segmentmetadata. first chunk is  "+segmentMetadata.getFirstChunk() + " segment metadata is "+segmentMetadata.toString());
+                    if (segmentMetadata.getFirstChunk() != null && !segmentMetadata.getFirstChunk().equalsIgnoreCase("null")) {
+                        output("first chunk of "+seg + " is "+segmentMetadata.getFirstChunk());
+                        return validateSegment(segmentMetadata.getFirstChunk());
+                    }
+                }
+            } catch (Exception e) {
+                output("There was exception fetching entry from " + NameUtils.getStorageMetadataSegmentName(this.container.getId()) + " exception " + e);
+                return false;
+            }
+            return true;
+        }
     }
 
     private static class Context implements AutoCloseable {

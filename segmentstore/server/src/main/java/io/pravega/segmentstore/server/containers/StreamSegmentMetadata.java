@@ -220,7 +220,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized void setStorageLength(long value) {
         Exceptions.checkArgument(value >= 0, "value", "Storage Length must be a non-negative number.");
-        Exceptions.checkArgument(value >= this.storageLength, "value", "New Storage Length cannot be smaller than the previous one.");
+        Exceptions.checkArgument(value >= this.storageLength, "value", "New Storage Length cannot be smaller than the previous one for "+this.name);
 
         log.trace("{}: StorageLength changed from {} to {}.", this.traceObjectId, this.storageLength, value);
         this.storageLength = value;

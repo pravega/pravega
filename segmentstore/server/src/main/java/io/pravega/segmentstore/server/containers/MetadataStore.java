@@ -343,7 +343,7 @@ public abstract class MetadataStore implements AutoCloseable {
         } else if (segmentMetadata.isDeleted()) {
             return Futures.failedFuture(new StreamSegmentNotExistsException(segmentMetadata.getName()));
         }
-
+        log.info("{}: Abh update segment info for segment {}",this.traceObjectId, segmentMetadata.getName());
         ArrayView toWrite = SegmentInfo.serialize(new SegmentInfo(segmentMetadata.getId(), segmentMetadata.getSnapshot()));
         return updateSegmentInfo(segmentMetadata.getName(), toWrite, timeout);
     }

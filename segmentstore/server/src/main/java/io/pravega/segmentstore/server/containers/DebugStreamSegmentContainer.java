@@ -87,9 +87,11 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
         SegmentProperties containerSegment = null;
         try {
             containerSegment = this.getStreamSegmentInfo(segmentName, TIMEOUT).get();
+            log.info("[DebugSegmentContainer{}] Abh segment retrieved {}"+this.getId(), containerSegment.getName());
         } catch (Exception e) {
             Throwable unwrapped = Exceptions.unwrap(e);
             if (unwrapped instanceof StreamSegmentNotExistsException) {
+                log.info("[DebugSegmentContainer{}] Abh error retrieving segment {}"+this.getId(), segmentName);
                 return false;
             }
             throw e;

@@ -51,6 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
+import static io.pravega.shared.NameUtils.getStorageMetadataSegmentName;
 
 /**
  * Utility methods for container recovery.
@@ -182,7 +183,7 @@ public class ContainerRecoveryUtils {
         for (val containerEntry : containerMap.entrySet()) {
             Preconditions.checkNotNull(containerEntry.getValue());
             val tableExtension = containerEntry.getValue().getExtension(ContainerTableExtension.class);
-            val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
+            val keyIterator = tableExtension.keyIterator(getStorageMetadataSegmentName(
                     containerEntry.getKey()), args).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
             // Store the segments in a set
