@@ -109,7 +109,8 @@ allprojects {
             //failOnVersionConflict()
             force "com.google.guava:guava:" + guavaVersion
             force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
-            force "io.grpc:grpc-context:" + grpcVersion
+            force "com.google.protobuf:protobuf-java-util:" + protobufProtocVersion
+	    force "io.grpc:grpc-context:" + grpcVersion
             force "commons-beanutils:commons-beanutils:" + commonsBeanutilsVersion
             force "org.apache.commons:commons-compress:" + apacheCommonsCompressVersion
             force "org.apache.commons:commons-lang3:" + commonsLang3Version
@@ -123,13 +124,22 @@ allprojects {
             force "io.netty:netty-transport:" + nettyVersion
             force "io.netty:netty-handler:" + nettyVersion
             force "io.netty:netty-codec:" + nettyVersion
+            force "io.netty:netty-codec-dns:" + nettyVersion
             force "io.netty:netty-codec-http:" + nettyVersion
             force "io.netty:netty-codec-http2:" + nettyVersion
             force "io.netty:netty-codec-socks:" + nettyVersion
             force "io.netty:netty-handler-proxy:" + nettyVersion
+            force "io.netty:netty-resolver-dns:" + nettyVersion
             force "io.netty:netty-transport-native-epoll:" + nettyVersion
             force "io.netty:netty-tcnative-boringssl-static:" + nettyBoringSSLVersion
             force "junit:junit:" + junitVersion
+            force "org.bouncycastle:bcprov-jdk15on:" + bouncyCastleVersion
+	    force "org.bouncycastle:bcpkix-jdk15on:" + bouncyCastleVersion
+	    force "org.apache.avro:avro:" + apacheAvroVersion
+	    force "org.jetbrains.kotlin:kotlin-stdlib-common:" + kotlinVersion
+	    force "org.jetbrains.kotlin:kotlin-stdlib:" + kotlinVersion
+	    force "org.yaml:snakeyaml:" + snakeYamlVersion
+	    force "org.jdom:jdom2:" + jdomVersion
             // Netty 4 uber jar
             exclude group: 'io.netty', module: 'netty-all'
             // Netty 3
@@ -304,6 +314,7 @@ project('shared:protocol') {
     dependencies {
         compile project(':common')
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
@@ -1347,7 +1358,7 @@ project('test:system') {
 
 def getProjectVersion() {
     String ver = pravegaVersion
-    if (grgit && ver.contains("-SNAPSHOT")) {
+    if (grgit && ver.contains("-SNAPSHOT") && !project.hasProperty("simpleSnapshot")) {
         String versionLabel = ver.substring(0, ver.indexOf("-SNAPSHOT"))
         def count = grgit.log(includes:['HEAD']).size()
         def commitId = "${grgit.head().abbreviatedId}"

@@ -99,8 +99,6 @@ nav:
     - 'Manual Install': 'deployment/manual-install.md'
     - 'Kubernetes Operators': 'admin-guide/operators.md'
     - 'Docker Swarm': 'deployment/docker-swarm.md'
-    - 'DC/OS': 'deployment/dcos-install.md'
-    - 'AWS': 'deployment/aws-install.md'
   - Admin Guide:
     - 'Cluster Dependencies': 'admin-guide/cluster-dependencies.md'
     - 'LTS Right-Sizing': 'admin-guide/lts-sizing.md'
@@ -120,6 +118,7 @@ nav:
     - 'Admin CLI': 'https://github.com/pravega/pravega/blob/master/cli/admin/README.md'
     - 'Recovery Procedures':
       - 'Corrupted Table Segment Index': 'recovery-procedures/table-segment-recovery.md'
+      - 'Recover from Table Segment Pre-Index Full': 'recovery-procedures/table-segment-recover-pre-index-full.md'
   - Contributing:
     - 'Coding guildelines': 'contributing.md'
     - 'Pravega Roadmap': 'roadmap.md'

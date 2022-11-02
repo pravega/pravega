@@ -839,6 +839,10 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(getCurrentSegments(new KeyValueTableInfo(scope, kvtName)));
     }
 
+    @Override
+    public void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri) {
+    }
+
     //endregion
 
     //region Helpers

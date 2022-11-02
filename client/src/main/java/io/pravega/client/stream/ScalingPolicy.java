@@ -44,11 +44,11 @@ public class ScalingPolicy implements Serializable {
         /**
          * Scale based on the rate in bytes specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_KBYTES_PER_SEC(io.pravega.shared.segment.ScaleType.NoScaling.getValue()),
+        BY_RATE_IN_KBYTES_PER_SEC(io.pravega.shared.segment.ScaleType.Throughput.getValue()),
         /**
          * Scale based on the rate in events specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_EVENTS_PER_SEC(io.pravega.shared.segment.ScaleType.NoScaling.getValue());
+        BY_RATE_IN_EVENTS_PER_SEC(io.pravega.shared.segment.ScaleType.EventRate.getValue());
 
         @Getter
         private final byte value;
