@@ -190,7 +190,7 @@ public abstract class BucketManager extends AbstractService {
     }
 
     /**
-     * This method will stop the running services.
+     * This method will stop the running bucket services.
      * Once the services stopped successfully then buckets becomes available and others process can acquire the ownership of it.
      *
      * @param bucketIds set of bucket ids which need to be stopped.
