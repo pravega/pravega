@@ -172,7 +172,7 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> implements AutoCl
 
         val firstItem = this.queue.peekFirst();
         if (firstItem == null || firstItem.getRemainingMillis() > 0) {
-            log.warn("{}: Not running iteration due premature wake-up.", this.traceObjectId);
+            log.debug("{}: Not running iteration due premature wake-up.", this.traceObjectId);
             return CompletableFuture.completedFuture(null);
         }
 
