@@ -17,10 +17,6 @@
 package io.pravega.client.segment.impl;
 
 
-import io.pravega.client.stream.impl.EventPointerImpl;
-import io.pravega.client.stream.impl.EventSegmentReaderUtility;
-import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
-import io.pravega.client.stream.mock.MockController;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
