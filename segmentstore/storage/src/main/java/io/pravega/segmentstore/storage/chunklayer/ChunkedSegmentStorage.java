@@ -325,10 +325,15 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * it will contain the cause of the failure.
      */
     private CompletableFuture<Void> claimOwnership(MetadataTransaction txn, SegmentMetadata segmentMetadata) {
+        Preconditions.checkState(!segmentMetadata.isStorageSystemSegment(), "claimOwnership called on system segment %s", segmentMetadata);
         // Get the last chunk
         val lastChunkName = segmentMetadata.getLastChunk();
         final CompletableFuture<Boolean> f;
-        if (shouldAppend() && null != lastChunkName) {
+        val shouldReconcile = !segmentMetadata.isAtomicWrite()
+                && shouldAppend()
+                && null != lastChunkName;
+
+        if (shouldReconcile) {
             f = txn.get(lastChunkName)
                     .thenComposeAsync(storageMetadata -> {
                         val lastChunk = (ChunkMetadata) storageMetadata;
@@ -394,6 +399,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
             if (shouldChange) {
                 segmentMetadata.setOwnerEpoch(this.epoch);
                 segmentMetadata.setOwnershipChanged(true);
+                segmentMetadata.setAtomicWrites(true);
             }
             // Update and commit
             // If This instance is fenced this update will fail.
@@ -426,6 +432,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                                     .build();
 
                             newSegmentMetadata.setActive(true);
+                            newSegmentMetadata.setAtomicWrites(true);
                             txn.create(newSegmentMetadata);
                             // commit.
                             return txn.commit()

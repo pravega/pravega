@@ -21,6 +21,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.HostContainerMap;
+import io.pravega.common.concurrent.AsyncSemaphore;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.segmentstore.server.ContainerHandle;
@@ -38,7 +39,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -87,7 +87,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     private final AtomicLong lastReportTime;
 
     // Throttle the max number of parallel container starts/recoveries.
-    private final Semaphore parallelContainerStartsSemaphore;
+    private final AsyncSemaphore parallelContainerStartsSemaphore;
 
     /**
      * Creates an instance of ZKSegmentContainerMonitor.
@@ -110,7 +110,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         this.hostContainerMapNode = new NodeCache(zkClient, clusterPath);
         this.assignmentTask = new AtomicReference<>();
         this.lastReportTime = new AtomicLong(CURRENT_TIME_MILLIS.get());
-        this.parallelContainerStartsSemaphore = new Semaphore(parallelContainerStarts);
+        this.parallelContainerStartsSemaphore = new AsyncSemaphore(parallelContainerStarts, 0, this.getClass().getName());
     }
 
     /**
@@ -255,8 +255,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         log.info("Starting Container {}.", containerId);
         this.pendingTasks.add(containerId);
         try {
-            return CompletableFuture.runAsync(() -> Exceptions.handleInterrupted(parallelContainerStartsSemaphore::acquire))
-                    .thenCompose(v -> this.registry.startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER))
+            return this.parallelContainerStartsSemaphore.run(() -> this.registry.startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER), 1, false)
                     .whenComplete((handle, ex) -> {
                         try {
                             if (ex == null) {
@@ -275,7 +274,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
                             // should be available immediately after the task is complete.
                             // Also need to ensure this is always called, hence doing this in a finally block.
                             this.pendingTasks.remove(containerId);
-                            this.parallelContainerStartsSemaphore.release();
+                            this.parallelContainerStartsSemaphore.release(1);
+                            log.info("Current ongoing Segment Container starts {}.", this.parallelContainerStartsSemaphore.getUsedCredits());
                         }
                     });
         } catch (Throwable e) {

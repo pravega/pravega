@@ -29,6 +29,8 @@ public class StorageExtraConfigTest {
         StorageExtraConfig defaultConfig = StorageExtraConfig.builder().build();
         assertEquals(20, defaultConfig.getStorageWriteNoOpLatencyMillis());
         assertEquals(false, defaultConfig.isStorageNoOpMode());
+        assertEquals(false, defaultConfig.isSlowModeEnabled());
+        assertEquals(true, defaultConfig.isSlowModeInjectChunkStorageOnly());
     }
 
     @Test
@@ -49,7 +51,9 @@ public class StorageExtraConfigTest {
     public void testSlowModeEnabled() {
         ConfigBuilder<StorageExtraConfig> builder = StorageExtraConfig.builder();
         builder.with(Property.named("slow.enable"), true);
+        builder.with(Property.named("slow.inject.chunk.storage"), false);
         assertEquals(true, builder.build().isSlowModeEnabled());
+        assertEquals(false, builder.build().isSlowModeInjectChunkStorageOnly());
     }
 
     @Test

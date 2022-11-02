@@ -23,7 +23,10 @@ import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.TransactionInfo;
+import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -32,16 +35,18 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.junit.Assert.assertFalse;
+import java.util.List;
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Controller stream metadata tests.
@@ -188,5 +193,35 @@ public class ControllerStreamMetadataTest {
 
         // Delete twice
         assertFalse(streamManager.deleteScope(SCOPE));
+    }
+
+    @Test
+    public void testListCompletedTxns() throws Exception {
+        // Create test scope. This operation should succeed.
+        assertTrue(controller.createScope(SCOPE).join());
+
+        assertTrue(controller.createStream(SCOPE, STREAM, streamConfiguration).join());
+
+        TxnSegments txnSegments = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
+        TxnSegments txnSegments2 = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
+
+        List<TransactionInfo> listUUID = controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join();
+        assertEquals(0, listUUID.size());
+
+        controller.commitTransaction(Stream.of(SCOPE, STREAM), "", 0L, txnSegments.getTxnId());
+        controller.abortTransaction(Stream.of(SCOPE, STREAM), txnSegments2.getTxnId());
+
+        assertEventuallyEquals(2, () -> controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join().size(), 10000);
+        assertEquals(txnSegments.getTxnId(), controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join().get(0).getTransactionId());
+        assertEquals(txnSegments2.getTxnId(), controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join().get(1).getTransactionId());
+
+        for (int i = 0; i < 300; i++) {
+            txnSegments = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
+            txnSegments2 = controller.createTransaction(Stream.of(SCOPE, STREAM), 15000L).join();
+            controller.commitTransaction(Stream.of(SCOPE, STREAM), "", 0L, txnSegments.getTxnId());
+            controller.abortTransaction(Stream.of(SCOPE, STREAM), txnSegments2.getTxnId());
+        }
+
+        assertEquals(500, controller.listCompletedTransactions(Stream.of(SCOPE, STREAM)).join().size());
     }
 }

@@ -36,7 +36,7 @@ public class InMemorySimpleStorageFactory implements SimpleStorageFactory {
     @Getter
     protected ScheduledExecutorService executor;
 
-    private Storage singletonStorage;
+    private ChunkStorage singletonChunkStorage;
     private boolean reuseStorage;
 
     public InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig config, ScheduledExecutorService executor, boolean reuseStorage) {
@@ -46,17 +46,8 @@ public class InMemorySimpleStorageFactory implements SimpleStorageFactory {
     }
 
     @Override
-    public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
-        synchronized (this) {
-            if (null != singletonStorage) {
-                return singletonStorage;
-            }
-            Storage storage = newStorage(containerId, executor, new InMemoryChunkStorage(executor), metadataStore);
-            if (reuseStorage) {
-                singletonStorage = storage;
-            }
-            return storage;
-        }
+    synchronized public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
+        return newStorage(containerId, executor, createChunkStorage(), metadataStore);
     }
 
     /**
@@ -65,6 +56,18 @@ public class InMemorySimpleStorageFactory implements SimpleStorageFactory {
     @Override
     public Storage createStorageAdapter() {
         throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
+    }
+
+    @Override
+    synchronized public ChunkStorage createChunkStorage() {
+        if (null != singletonChunkStorage) {
+            return singletonChunkStorage;
+        }
+        ChunkStorage chunkStorage = new InMemoryChunkStorage(executor);
+        if (reuseStorage) {
+            singletonChunkStorage = chunkStorage;
+        }
+        return chunkStorage;
     }
 
     static Storage newStorage(int containerId, ScheduledExecutorService executor, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore) {

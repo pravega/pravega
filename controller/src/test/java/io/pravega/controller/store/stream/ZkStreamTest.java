@@ -474,6 +474,9 @@ public class ZkStreamTest {
 
         OperationContext context = store.createStreamContext(ZkStreamTest.SCOPE, streamName, 0L);
 
+        Map<UUID, TxnStatus> listAborted = store.listCompletedTxns(SCOPE, streamName, context, executor).join();
+        assertEquals(0, listAborted.size());
+
         UUID txnId1 = store.generateTransactionId(SCOPE, streamName, null, executor).join();
         VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, txnId1, 10000, 600000,
                 context, executor).get();
@@ -541,6 +544,9 @@ public class ZkStreamTest {
         // Test to ensure that abortTransaction is idempotent.
         Assert.assertEquals(TxnStatus.ABORTED,
                 store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor).join());
+
+        listAborted = store.listCompletedTxns(SCOPE, streamName, context, executor).join();
+        assertEquals(2, listAborted.size());
 
         // Test to ensure that sealTransaction, to abort it, and abortTransaction on committed transaction throws error.
         testCommitFailure(store, SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, operationNotAllowedPredicate);

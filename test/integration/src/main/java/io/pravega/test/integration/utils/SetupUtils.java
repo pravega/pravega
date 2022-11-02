@@ -47,7 +47,7 @@ import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+
 import java.net.URI;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;

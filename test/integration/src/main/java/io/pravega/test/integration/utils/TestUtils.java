@@ -99,7 +99,7 @@ public class TestUtils {
      * @param numMessages the number of event messages to write
      * @param writerClientConfig the {@link ClientConfig} object to use to connect to the server
      * @throws NullPointerException if {@code scope} or {@code stream} or {@writerClientConfig} is null
-     * @throws IllegalArgumentException if {@code numMessages} < 1
+     * @throws IllegalArgumentException if {@code numMessages} &lt; 1
      * @throws RuntimeException if any exception is thrown by the client
      */
     public static void writeDataToStream(@NonNull String scope, @NonNull String stream, String message, int numMessages,
@@ -150,7 +150,7 @@ public class TestUtils {
      * @param readerGroup the name of the reader group application
      * @return the event messages
      * @throws NullPointerException if {@code scope} or {@code stream} or {@writerClientConfig} is null
-     * @throws IllegalArgumentException if {@code numMessages} < 1
+     * @throws IllegalArgumentException if {@code numMessages} &lt; 1
      * @throws RuntimeException if any exception is thrown by the client
      */
     public static List<String> readNextEventMessages(@NonNull String scope, @NonNull String stream, int numMessages,
@@ -188,7 +188,7 @@ public class TestUtils {
 
     /**
      * Prepares a list of password auth handler user account database file entries. The
-     * {@link io.pravega.test.integration.demo.ClusterWrapper} accepts entries in the returned format.
+     * {@link ClusterWrapper} accepts entries in the returned format.
      *
      * @param entries ACLs by user
      * @param password the plaintext password for each user

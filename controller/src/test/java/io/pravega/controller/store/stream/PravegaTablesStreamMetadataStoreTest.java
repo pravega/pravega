@@ -265,6 +265,56 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         assertEquals("Number of splits ", 3L, simpleEntrySplitsMerges3.getKey().longValue());
         assertEquals("Number of merges", 4L, simpleEntrySplitsMerges3.getValue().longValue());
     }
+
+    @Test
+    public void testListCompletedTransactions() throws Exception {
+        try (PravegaTablesStreamMetadataStore testStore = new PravegaTablesStreamMetadataStore(
+                segmentHelperMockForTables, PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, Duration.ofSeconds(100),
+                GrpcAuthHelper.getDisabledAuthHelper())) {
+            AtomicInteger currentBatch = new AtomicInteger(0);
+            Supplier<Integer> supplier = currentBatch::get;
+            ZKGarbageCollector gc = mock(ZKGarbageCollector.class);
+            doAnswer(x -> supplier.get()).when(gc).getLatestBatch();
+            testStore.setCompletedTxnGCRef(gc);
+
+            final String scope = "ScopeListTxn";
+            final String stream = "StreamListTxn";
+            final ScalingPolicy policy = ScalingPolicy.fixed(4);
+            final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+            long start = System.currentTimeMillis();
+            testStore.createScope(scope, null, executor).get();
+
+            testStore.createStream(scope, stream, configuration, start, null, executor).get();
+            testStore.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+            Map<UUID, TxnStatus> listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
+            assertEquals(0, listTxn.size());
+
+            UUID txnId1 = testStore.generateTransactionId(scope, stream, null, executor).join();
+            VersionedTransactionData tx1 = testStore.createTransaction(scope, stream, txnId1,
+                    100, 100, null, executor).get();
+
+            UUID txnId2 = testStore.generateTransactionId(scope, stream, null, executor).join();
+            VersionedTransactionData tx2 = testStore.createTransaction(scope, stream, txnId2,
+                    100, 100, null, executor).get();
+
+            testStore.sealTransaction(scope, stream, txnId1, true, Optional.of(tx1.getVersion()), "",
+                    Long.MIN_VALUE, null, executor).join();
+            testStore.sealTransaction(scope, stream, txnId2, true, Optional.of(tx2.getVersion()), "",
+                    Long.MIN_VALUE, null, executor).join();
+
+            VersionedMetadata<CommittingTransactionsRecord> record = testStore.startCommitTransactions(scope, stream, 2,
+                    null, executor).join().getKey();
+            testStore.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
+            testStore.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
+
+            listTxn = testStore.listCompletedTxns(scope, stream, null, executor).join();
+            assertEquals(2, listTxn.size());
+
+            testStore.setState(scope, stream, State.ACTIVE, null, executor).join();
+        }
+    }
     
     @Test
     public void testGarbageCollection() {

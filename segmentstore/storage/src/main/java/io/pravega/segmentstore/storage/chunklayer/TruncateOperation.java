@@ -33,8 +33,8 @@ import lombok.val;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -51,7 +51,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     private final SegmentHandle handle;
     private final long offset;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
-    private final List<String> chunksToDelete = Collections.synchronizedList(new ArrayList<>());
+    private final List<String> chunksToDelete = new Vector<>();
     private final long traceId;
     private final AbstractTimer timer;
     private volatile String currentChunkName;
@@ -145,10 +145,11 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
     private CompletableFuture<Void> relocateFirstChunkIfRequired(MetadataTransaction txn) {
         if (shouldRelocate()) {
+            val timer = new Timer();
             String oldChunkName = segmentMetadata.getFirstChunk();
             String newChunkName = chunkedSegmentStorage.getNewChunkName(handle.getSegmentName(), segmentMetadata.getStartOffset());
             val startOffsetInChunk = segmentMetadata.getStartOffset() - segmentMetadata.getFirstChunkStartOffset();
-            val newLength = Math.toIntExact(currentMetadata.getLength() - startOffsetInChunk);
+            val newLength = currentMetadata.getLength() - startOffsetInChunk;
             log.debug("{} truncate - relocating first chunk op={}, segment={}, offset={} old={} new={} relocatedBytes={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(),
                     offset, oldChunkName, newChunkName, newLength);
@@ -191,12 +192,20 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                         isFirstChunkRelocated = true;
                         currentMetadata = newFirstChunkMetadata;
                         currentChunkName = newChunkName;
+
+                        log.debug("{} truncate - relocated first chunk op={}, segment={}, offset={} old={} new={} relocatedBytes={} time={}.",
+                                chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(),
+                                offset, oldChunkName, newChunkName, newLength, timer.getElapsedMillis());
+
                     }, chunkedSegmentStorage.getExecutor());
         }
         return CompletableFuture.completedFuture(null);
     }
 
-    private CompletableFuture<Void> copyBytes(ChunkHandle writeHandle, ChunkHandle readHandle, long startOffset, int length) {
+    private CompletableFuture<Void> copyBytes(ChunkHandle writeHandle, ChunkHandle readHandle, long startOffset, long length) {
+        Preconditions.checkArgument(length <= chunkedSegmentStorage.getConfig().getMaxSizeForTruncateRelocationInbytes(),
+                "size of data exceeds max size allowed for relocation. length={}, max={} ",
+                length, chunkedSegmentStorage.getConfig().getMaxSizeForTruncateRelocationInbytes());
         val bytesToRead = new AtomicLong(length);
         val readAtOffset = new AtomicLong(startOffset);
         val writeAtOffset = new AtomicLong(0);
@@ -221,6 +230,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
             && chunkedSegmentStorage.shouldAppend()
             && !isSegmentInSystemScope(handle.getSegmentName())
             && currentMetadata.getLength() >  chunkedSegmentStorage.getConfig().getMinSizeForTruncateRelocationInbytes()
+            && currentMetadata.getLength() <=  chunkedSegmentStorage.getConfig().getMaxSizeForTruncateRelocationInbytes()
             && getWastedSpacePercentage() >= chunkedSegmentStorage.getConfig().getMinPercentForTruncateRelocation();
     }
 

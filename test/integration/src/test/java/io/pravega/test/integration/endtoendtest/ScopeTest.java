@@ -44,7 +44,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -288,7 +288,7 @@ public class ScopeTest {
         readerGroupManager.createReaderGroup(groupName2, ReaderGroupConfig.builder()
                 .stream(getScopedStreamName(scope, streamName2)).build());
 
-        assertTrue(streamManager.deleteScope(scope, true));
+        assertTrue(streamManager.deleteScopeRecursive(scope));
     }
 
     @Test

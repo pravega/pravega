@@ -17,7 +17,6 @@ package io.pravega.client.segment.impl;
 
 import static com.google.common.base.Preconditions.checkState;
 
-import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayDeque;
@@ -28,7 +27,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -95,7 +93,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final RetryWithBackoff retrySchedule;
-    private final int connectionTimeoutMillis;
     private final Object writeOrderLock = new Object();
     private final DelegationTokenProvider tokenProvider;
     @VisibleForTesting
@@ -112,7 +109,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @ToString(of = {"closed", "exception", "eventNumber"})
     private final class State {
-
         private final Object lock = new Object();
         @GuardedBy("lock")
         private boolean closed = false;
@@ -188,9 +184,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          * @return Returns a future that will complete when setup is finished or fail if it cannot be.
          */
         private CompletableFuture<Void> newConnection(ClientConnection newConnection) {
-            CompletableFuture<Void> result = Futures.futureWithTimeout(Duration.ofMillis(connectionTimeoutMillis),
-                                                                       "Establishing connection to server",
-                                                                       connectionPool.getInternalExecutor());
+            CompletableFuture<Void> result = new CompletableFuture<Void>();
             synchronized (lock) {
                 connectionSetupCompleted = result;
                 connection = newConnection;
@@ -207,7 +201,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             CompletableFuture<Void> oldConnectionSetupCompleted = null;
             boolean failSetupConnection = false;
             synchronized (lock) {
-                if (connection != null) {
+                if (connection != null ) {
                     if (connectionSetupCompleted.isDone()) {
                         failSetupConnection = true;
                     } else {
@@ -340,6 +334,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void wrongHost(WrongHost wrongHost) {
+            log.info("Received wrongHost {}", wrongHost);
+            ClientConnection connection = state.getConnection();
+            if (connection != null) {
+                controller.updateStaleValueInCache(wrongHost.getSegment(), connection.getLocation());
+            }
             failConnection(new ConnectionFailedException(wrongHost.toString()));
         }
 
@@ -516,9 +515,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 connection.send(append);
             } catch (ConnectionFailedException e) {
                 log.warn("Failed writing event through writer " + writerId + " due to: ", e);
-                failConnection(e); // As the message is inflight, this will perform the retransmission.
-                // Note that failConnection is called here instead of reconnect because it avoids the risk that 
-                // some other code path could have re-established the connection before the event was added to inflight.
+                reconnect(); // As the message is inflight, this will perform the retransmission.
             }
         }
     }
@@ -659,17 +656,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                               state.failConnection(e1);
                               throw Exceptions.sneakyThrow(e1);
                           }
-                          // A timeout is added to the future before the call, and it triggers a TimeoutException.
-                          // A late timeout if fine it will just cause a spurious connection close.
-                          // A late success may be a problem because it causes retransmits of the wrong messages.
-                          // In theory the server should guard against this, but that's not ideal to depend on for client correctness.
-                          // Instead the local future and connection is used and connectionSetupComplete takes a connection object.
                           return connectionSetupFuture.exceptionally(t1 -> {
                               Throwable exception = Exceptions.unwrap(t1);
-                              if (exception instanceof TimeoutException) {
-                                  log.info("Writer writer {} on segemnt {} timed out contacting the server", writerId, segmentName);
-                                  connection.close();
-                              }
                               if (exception instanceof InvalidTokenException) {
                                   log.info("Ending reconnect attempts on writer {} to {} because token verification failed due to invalid token",
                                           writerId, segmentName);

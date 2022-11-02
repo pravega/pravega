@@ -335,7 +335,7 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                                     return CompletableFuture.completedFuture(null);
                                 }, storageExecutor)
                                 .thenComposeAsync(v -> this.addChunksToGarbage(txn.getVersion(), chunksToDelete), storageExecutor)
-                                .thenComposeAsync(v -> deleteBlockIndexEntriesForSegment(streamSegmentName, segmentMetadata.getStartOffset(), segmentMetadata.getLength()))
+                                .thenComposeAsync(v -> deleteBlockIndexEntriesForSegment(streamSegmentName, segmentMetadata.getStartOffset(), segmentMetadata.getLength()), storageExecutor)
                                 .thenComposeAsync(v -> {
                                     val innerTxn = metadataStore.beginTransaction(false, segmentMetadata.getName());
                                     innerTxn.delete(segmentMetadata.getName());

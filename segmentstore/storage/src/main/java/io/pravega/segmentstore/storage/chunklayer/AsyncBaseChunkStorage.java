@@ -383,6 +383,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Call concrete implementation.
         val returnFuture = doWriteAsync(handle, offset, length, data, opContext);
         returnFuture.thenAcceptAsync(bytesWritten -> {
+            Preconditions.checkState(bytesWritten == length, "Wrong number of bytes written. Expected(%s) Actual(%s)", length, bytesWritten);
             val elapsed = opContext.getInclusiveLatency();
 
             ChunkStorageMetrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
@@ -406,6 +407,9 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      */
     @Override
     final public CompletableFuture<Integer> concat(ConcatArgument[] chunks) {
+        if (!supportsConcat()) {
+            throw new UnsupportedOperationException("Chunk storage does not support doConcat");
+        }
         Exceptions.checkNotClosed(this.closed.get(), this);
         checkConcatArgs(chunks);
 

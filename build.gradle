@@ -109,7 +109,8 @@ allprojects {
             //failOnVersionConflict()
             force "com.google.guava:guava:" + guavaVersion
             force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
-            force "io.grpc:grpc-context:" + grpcVersion
+            force "com.google.protobuf:protobuf-java-util:" + protobufProtocVersion
+	    force "io.grpc:grpc-context:" + grpcVersion
             force "commons-beanutils:commons-beanutils:" + commonsBeanutilsVersion
             force "org.apache.commons:commons-compress:" + apacheCommonsCompressVersion
             force "org.apache.commons:commons-lang3:" + commonsLang3Version
@@ -123,13 +124,22 @@ allprojects {
             force "io.netty:netty-transport:" + nettyVersion
             force "io.netty:netty-handler:" + nettyVersion
             force "io.netty:netty-codec:" + nettyVersion
+            force "io.netty:netty-codec-dns:" + nettyVersion
             force "io.netty:netty-codec-http:" + nettyVersion
             force "io.netty:netty-codec-http2:" + nettyVersion
             force "io.netty:netty-codec-socks:" + nettyVersion
             force "io.netty:netty-handler-proxy:" + nettyVersion
+            force "io.netty:netty-resolver-dns:" + nettyVersion
             force "io.netty:netty-transport-native-epoll:" + nettyVersion
             force "io.netty:netty-tcnative-boringssl-static:" + nettyBoringSSLVersion
             force "junit:junit:" + junitVersion
+            force "org.bouncycastle:bcprov-jdk15on:" + bouncyCastleVersion
+	    force "org.bouncycastle:bcpkix-jdk15on:" + bouncyCastleVersion
+	    force "org.apache.avro:avro:" + apacheAvroVersion
+	    force "org.jetbrains.kotlin:kotlin-stdlib-common:" + kotlinVersion
+	    force "org.jetbrains.kotlin:kotlin-stdlib:" + kotlinVersion
+	    force "org.yaml:snakeyaml:" + snakeYamlVersion
+	    force "org.jdom:jdom2:" + jdomVersion
             // Netty 4 uber jar
             exclude group: 'io.netty', module: 'netty-all'
             // Netty 3
@@ -304,6 +314,7 @@ project('shared:protocol') {
     dependencies {
         compile project(':common')
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
@@ -497,6 +508,7 @@ project ('bindings') {
         compile group: 'software.amazon.awssdk', name: 's3', version: awsSdkVersion
         compile group: 'software.amazon.awssdk', name: 'sts', version: awsSdkVersion
 
+        compile group: 'com.azure', name: 'azure-storage-blob', version: azureSdkVersion
         // These were previously brought in as transitive dependencies of HDFS, although they were required for running
         // ExtendedS3SimpleStorageTests. But since the HDFS 3.x upgrade, these transitive dependencies are excluded,
         // so adding explicit dependencies is necessary (as well as desirable).
@@ -504,6 +516,8 @@ project ('bindings') {
         implementation group: 'com.google.inject.extensions', name: 'guice-assistedinject', version: guiceVersion
         implementation group: 'com.google.inject.extensions', name: 'guice-servlet', version: guiceVersion
         implementation group: 'com.google.inject', name: 'guice', version: guiceVersion
+        implementation group: 'com.google.cloud', name: 'google-cloud-storage', version: gcpSdkVersion
+        implementation group: 'com.google.cloud', name: 'google-cloud-nio', version: gcpCloudNioVersion
 
         compile project(':common')
         compile project(':segmentstore:storage')
@@ -583,6 +597,8 @@ project('segmentstore:server:host') {
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
         testCompile project(path:':bindings', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+        testCompile group: 'com.google.cloud', name: 'google-cloud-storage', version: gcpSdkVersion
+        testCompile group: 'com.google.cloud', name: 'google-cloud-nio', version: gcpCloudNioVersion
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
@@ -870,10 +886,10 @@ project('cli:admin') {
         compile project(':shared:cluster')
         compile project(":shared:security")
         compile project(':test:testcommon')
+        compile project(':test:integration')
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        testCompile project(':test:integration')
         testCompile group: 'junit', name: 'junit', version: '4.12'
         testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion, classifier: 'tests'
         testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, classifier: 'tests'
@@ -1342,7 +1358,7 @@ project('test:system') {
 
 def getProjectVersion() {
     String ver = pravegaVersion
-    if (grgit && ver.contains("-SNAPSHOT")) {
+    if (grgit && ver.contains("-SNAPSHOT") && !project.hasProperty("simpleSnapshot")) {
         String versionLabel = ver.substring(0, ver.indexOf("-SNAPSHOT"))
         def count = grgit.log(includes:['HEAD']).size()
         def commitId = "${grgit.head().abbreviatedId}"

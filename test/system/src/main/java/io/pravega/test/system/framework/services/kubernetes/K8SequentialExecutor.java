@@ -15,27 +15,28 @@
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import io.kubernetes.client.openapi.models.V1ClusterRoleBinding;
+import io.kubernetes.client.openapi.models.V1Container;
 import io.kubernetes.client.openapi.models.V1ContainerStatus;
-import io.kubernetes.client.openapi.models.V1ObjectMetaBuilder;
-import io.kubernetes.client.openapi.models.V1PersistentVolumeClaimVolumeSourceBuilder;
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1PersistentVolumeClaimVolumeSource;
 import io.kubernetes.client.openapi.models.V1Pod;
-import io.kubernetes.client.openapi.models.V1PodBuilder;
-import io.kubernetes.client.openapi.models.V1SecretVolumeSourceBuilder;
+import io.kubernetes.client.openapi.models.V1PodSpec;
+import io.kubernetes.client.openapi.models.V1RoleRef;
+import io.kubernetes.client.openapi.models.V1SecretVolumeSource;
 import io.kubernetes.client.openapi.models.V1ServiceAccount;
-import io.kubernetes.client.openapi.models.V1ServiceAccountBuilder;
-import io.kubernetes.client.openapi.models.V1VolumeBuilder;
-import io.kubernetes.client.openapi.models.V1VolumeMountBuilder;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBinding;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBindingBuilder;
-import io.kubernetes.client.openapi.models.V1beta1RoleRefBuilder;
-import io.kubernetes.client.openapi.models.V1beta1SubjectBuilder;
+import io.kubernetes.client.openapi.models.V1Subject;
+import io.kubernetes.client.openapi.models.V1Volume;
+import io.kubernetes.client.openapi.models.V1VolumeMount;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestExecutor;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
+
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -126,33 +127,26 @@ public class K8SequentialExecutor implements TestExecutor {
 
     private V1Pod getTestPod(String className, String methodName, String podName) {
         log.info("Running test pod with security enabled :{}, transport enabled: {}", Utils.AUTH_ENABLED, Utils.TLS_AND_AUTH_ENABLED);
-        V1Pod pod =  new V1PodBuilder()
-                .withNewMetadata().withName(podName).withNamespace(NAMESPACE).withLabels(ImmutableMap.of("POD_NAME", podName, "app", APP)).endMetadata()
-                .withNewSpec().withServiceAccountName(SERVICE_ACCOUNT).withAutomountServiceAccountToken(true)
-                .withVolumes(new V1VolumeBuilder().withName("task-pv-storage")
-                        .withPersistentVolumeClaim(new V1PersistentVolumeClaimVolumeSourceBuilder().withClaimName("task-pv-claim").build())
-                        .build())
-                .addNewContainer()
-                .withName(podName) // container name is same as that of the pod.
-                .withImage(TEST_POD_IMAGE)
-                .withImagePullPolicy("IfNotPresent")
-                .withCommand("/bin/sh")
-                .withArgs("-c", "java" +
-                        getArgs() +
-                        " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
-                .withVolumeMounts(new V1VolumeMountBuilder().withMountPath("/data").withName("task-pv-storage").build())
-                .endContainer()
-                .withRestartPolicy("Never")
-                .endSpec().build();
+        V1Pod pod =  new V1Pod()
+                .metadata(new V1ObjectMeta().name(podName).namespace(NAMESPACE).labels(ImmutableMap.of("POD_NAME", podName, "app", APP)))
+                .spec( new V1PodSpec().serviceAccountName(SERVICE_ACCOUNT).automountServiceAccountToken(true)
+                .volumes(ImmutableList.of(new V1Volume().name("task-pv-storage")
+                    .persistentVolumeClaim(new V1PersistentVolumeClaimVolumeSource().claimName("task-pv-claim"))
+                    ))
+                .containers( ImmutableList.of( new V1Container()
+                .name(podName) // container name is same as that of the pod.
+                .image(TEST_POD_IMAGE)
+                .imagePullPolicy("IfNotPresent")
+                .command(ImmutableList.of("/bin/sh"))
+                .args( ImmutableList.of("-c", "java" +
+                    getArgs() +
+                    " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?"))
+                .volumeMounts(ImmutableList.of(new V1VolumeMount().mountPath("/data").name("task-pv-storage")))
+                ))
+                .restartPolicy("Never"));
         if (Utils.TLS_AND_AUTH_ENABLED) {
-            pod  = new V1PodBuilder(pod).editSpec().withVolumes(new V1VolumeBuilder().withName("tls-certs")
-                                                  .withSecret(new V1SecretVolumeSourceBuilder().withSecretName(Utils.TLS_SECRET_NAME).build())
-                                                  .build())
-                .editContainer(0)
-                .withVolumeMounts(new V1VolumeMountBuilder().withMountPath(Utils.TLS_MOUNT_PATH).withName("tls-secret").build())
-                .endContainer()
-                .endSpec()
-                .build();
+            pod.getSpec().getVolumes().add(new V1Volume().name("tls-cert").secret(new V1SecretVolumeSource().secretName(Utils.TLS_SECRET_NAME)));
+            pod.getSpec().getContainers().get(0).addVolumeMountsItem(new V1VolumeMount().mountPath(Utils.TLS_MOUNT_PATH).name("tls-secret"));
         }
         return pod;
     }
@@ -196,7 +190,6 @@ public class K8SequentialExecutor implements TestExecutor {
                 "imageVersion",
                 "securityEnabled",
                 "tlsEnabled",
-                "configs",
                 "failFast",
                 "log.level"
         };
@@ -214,31 +207,25 @@ public class K8SequentialExecutor implements TestExecutor {
     }
 
     private V1ServiceAccount getServiceAccount() {
-        return new V1ServiceAccountBuilder()
-                .withApiVersion("v1")
-                .withKind("ServiceAccount")
-                .withMetadata(new V1ObjectMetaBuilder()
-                        .withNamespace(NAMESPACE)
-                        .withName(SERVICE_ACCOUNT)
-                        .build())
-
-                .build();
+        return new V1ServiceAccount()
+                .apiVersion("v1")
+                .kind("ServiceAccount")
+                .metadata(new V1ObjectMeta()
+                        .namespace(NAMESPACE)
+                        .name(SERVICE_ACCOUNT));
     }
 
-    private V1beta1ClusterRoleBinding getClusterRoleBinding() {
-        return new V1beta1ClusterRoleBindingBuilder().withKind("ClusterRoleBinding")
-                .withApiVersion("rbac.authorization.k8s.io/v1beta1")
-                .withMetadata(new V1ObjectMetaBuilder()
-                        .withName(CLUSTER_ROLE_BINDING)
-                        .withNamespace(NAMESPACE)
-                        .build())
-                .withSubjects(new V1beta1SubjectBuilder().withKind("ServiceAccount")
-                        .withName(SERVICE_ACCOUNT)
-                        .withNamespace(NAMESPACE)
-                        .build())
-                .withRoleRef(new V1beta1RoleRefBuilder().withKind("ClusterRole")
-                        .withName("cluster-admin")
-                        .withApiGroup("") // all core apis.
-                        .build()).build();
+    private V1ClusterRoleBinding getClusterRoleBinding() {
+        return new V1ClusterRoleBinding().kind("ClusterRoleBinding")
+                .apiVersion("rbac.authorization.k8s.io/v1")
+                .metadata(new V1ObjectMeta()
+                        .name(CLUSTER_ROLE_BINDING)
+                        .namespace(NAMESPACE))
+                .subjects(ImmutableList.of(new V1Subject().kind("ServiceAccount")
+                        .name(SERVICE_ACCOUNT)
+                        .namespace(NAMESPACE)))
+                .roleRef(new V1RoleRef().kind("ClusterRole")
+                        .name("cluster-admin")
+                        .apiGroup("")); // all core apis.
     }
 }

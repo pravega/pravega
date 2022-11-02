@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Vector;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -620,7 +621,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
             return CompletableFuture.completedFuture(segmentId);
         });
 
-        List<Integer> invocationOrder = Collections.synchronizedList(new ArrayList<>());
+        List<Integer> invocationOrder = new Vector<>();
 
         // Second call is designed to hit when the first call still tries to assign the id, hence we test normal queueing.
         CompletableFuture<String> firstCall = context.getMetadataStore().getOrAssignSegmentId(segmentName, TIMEOUT,

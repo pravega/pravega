@@ -973,4 +973,15 @@ public final class NameUtils {
         return sb.toString();
     }
     // endregion
+
+    /**
+     * Parse the connection name to fetch the connection details.
+     *
+     * @param connection String with connection information.
+     * @return String array with endpoint and port details.
+     */
+    public static String[] getConnectionDetails(String connection) {
+        Preconditions.checkNotNull(connection);
+        return connection.split(":");
+    }
 }

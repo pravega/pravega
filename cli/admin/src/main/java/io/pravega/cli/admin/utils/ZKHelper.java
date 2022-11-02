@@ -23,6 +23,10 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
+import io.pravega.controller.store.index.ZKHostIndex;
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.ControllerEventSerializer;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -42,12 +46,10 @@ public class ZKHelper implements AutoCloseable {
 
     // region constants
 
-    private static final String BASE_NAMESPACE = "pravega";
     private static final String BK_PATH = "/bookkeeper/ledgers/available";
     private static final String CONTROLLER_PATH = "/cluster/controllers";
     private static final String SEGMENTSTORE_PATH = "/cluster/hosts";
     private static final String HOST_MAP_PATH = "/cluster/segmentContainerHostMapping";
-    private static final String SEPARATOR = "/";
 
     // endregion
 
@@ -134,6 +136,32 @@ public class ZKHelper implements AutoCloseable {
     }
 
     /**
+     * Get the pending events detail for a request in a particular controller host.
+     * @param readerPath Path of reader.
+     * @throws Exception If unable to get the znode for readerpath.
+     * @return Event detail for a request.
+     */
+    public String getPendingEventsForRequest(String readerPath) throws Exception {
+        byte[] data = zkClient.getData().forPath(readerPath);
+        if (data != null && data.length > 0) {
+            ControllerEventSerializer controllerEventSerializer = new ControllerEventSerializer();
+            ControllerEvent controllerEvent = controllerEventSerializer.fromByteBuffer(ByteBuffer.wrap(data));
+            return controllerEvent.toString();
+        } else {
+            return  "No metadata found";
+        }
+    }
+
+    /**
+     * Get ZkHostIndex for hostRequestIndex path.
+     * @param executorService ExecutorService.
+     * @return ZkHostIndex.
+     */
+    public ZKHostIndex getZkHostIndex(ScheduledExecutorService executorService) {
+        return new ZKHostIndex(zkClient, "/hostRequestIndex", executorService);
+    }
+
+    /**
      * Create a new instance of the ZKHelper class.
      * @param zkURL The address of this helper instance connect to.
      * @param clusterName The name of the Zookeeper cluster.
@@ -194,7 +222,7 @@ public class ZKHelper implements AutoCloseable {
         zkClient = CuratorFrameworkFactory
                 .builder()
                 .connectString(zkURL)
-                .namespace(BASE_NAMESPACE + SEPARATOR + clusterName)
+                .namespace(clusterName)
                 .retryPolicy(new ExponentialBackoffRetry(2000, 2))
                 .build();
 

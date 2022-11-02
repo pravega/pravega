@@ -43,7 +43,6 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Long> READ_INDEX_BLOCK_SIZE = Property.named("readindex.block.size", 1024 * 1024L);
 
     public static final Property<Boolean> APPENDS_ENABLED = Property.named("appends.enable", true);
-    public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", true);
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
 
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", 128 * 1024 * 1024L);
@@ -65,6 +64,8 @@ public class ChunkedSegmentStorageConfig {
 
     public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", false);
     public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
+    public static final Property<Boolean> SELF_CHECK_DATA_INTEGRITY = Property.named("self.check.integrity.data", false);
+    public static final Property<Boolean> SELF_CHECK_METADATA_INTEGRITY = Property.named("self.check.integrity.metadata", false);
 
     public static final Property<Long> MAX_SAFE_SIZE = Property.named("safe.size.bytes.max", Long.MAX_VALUE);
     public static final Property<Boolean> ENABLE_SAFE_SIZE_CHECK = Property.named("safe.size.check.enable", true);
@@ -72,6 +73,8 @@ public class ChunkedSegmentStorageConfig {
 
     public static final Property<Boolean> RELOCATE_ON_TRUNCATE_ENABLED = Property.named("truncate.relocate.enable", true);
     public static final Property<Long> MIN_TRUNCATE_RELOCATION_SIZE_BYTES = Property.named("truncate.relocate.size.bytes.min", 64 * 1024 * 1024L);
+    public static final Property<Long> MAX_TRUNCATE_RELOCATION_SIZE_BYTES = Property.named("truncate.relocate.size.bytes.max", 1 * 1024 * 1024 * 1024L);
+
     public static final Property<Integer> MIN_TRUNCATE_RELOCATION_PERCENT = Property.named("truncate.relocate.percent.min", 80);
 
     public static final Property<Boolean> ENABLE_HEALTH_CHECK = Property.named("health.check.enable", true);
@@ -93,7 +96,6 @@ public class ChunkedSegmentStorageConfig {
             .maxIndexedChunksPerSegment(1024)
             .maxIndexedChunks(16 * 1024)
             .appendEnabled(true)
-            .lazyCommitEnabled(true)
             .inlineDefragEnabled(true)
             .lateWarningThresholdInMillis(100)
             .garbageCollectionDelay(Duration.ofSeconds(60))
@@ -110,11 +112,14 @@ public class ChunkedSegmentStorageConfig {
             .maxJournalReadAttempts(100)
             .maxJournalWriteAttempts(10)
             .selfCheckEnabled(false)
+            .selfCheckForDataEnabled(false)
+            .selfCheckForMetadataEnabled(false)
             .maxSafeStorageSize(Long.MAX_VALUE)
             .safeStorageSizeCheckEnabled(true)
             .safeStorageSizeCheckFrequencyInSeconds(60)
             .relocateOnTruncateEnabled(true)
             .minSizeForTruncateRelocationInbytes(64 * 1024 * 1024L)
+            .maxSizeForTruncateRelocationInbytes(1 * 1024 * 1024 * 1024L)
             .minPercentForTruncateRelocation(80)
             .healthCheckEnabled(true)
             .healthCheckFrequencyInSeconds(60)
@@ -183,15 +188,6 @@ public class ChunkedSegmentStorageConfig {
     final private boolean appendEnabled;
 
     /**
-     * Whether the lazy commit functionality is enabled or disabled.
-     * Underlying implementation might buffer frequently or recently updated metadata keys to optimize read/write performance.
-     * To further optimize it may provide "lazy committing" of changes where there is application specific way to recover from failures.(Eg. when only length of chunk is changed.)
-     * Note that otherwise for each commit the data is written to underlying key-value store.
-     */
-    @Getter
-    final private boolean lazyCommitEnabled;
-
-    /**
      * Whether the inline defrag functionality is enabled or disabled.
      */
     @Getter
@@ -208,6 +204,12 @@ public class ChunkedSegmentStorageConfig {
      */
     @Getter
     final private long minSizeForTruncateRelocationInbytes;
+
+    /**
+     * Maximum size of chunk after which it is not eligible for relocation.
+     */
+    @Getter
+    final private long maxSizeForTruncateRelocationInbytes;
 
     /**
      * Minimum percentage of wasted space required for it to be eligible for relocation.
@@ -298,6 +300,19 @@ public class ChunkedSegmentStorageConfig {
     @Getter
     final private boolean selfCheckEnabled;
 
+
+    /**
+     * When enabled, SLTS will perform extra validation for data.
+     */
+    @Getter
+    final private boolean selfCheckForDataEnabled;
+
+    /**
+     * When enabled, SLTS will perform extra validation for metadata.
+     */
+    @Getter
+    final private boolean selfCheckForMetadataEnabled;
+
     /**
      * Maximum storage size in bytes below which operations are considered safe.
      * Above this value any non-critical writes are not allowed.
@@ -360,9 +375,6 @@ public class ChunkedSegmentStorageConfig {
      */
     ChunkedSegmentStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.appendEnabled = properties.getBoolean(APPENDS_ENABLED);
-        this.lazyCommitEnabled = properties.getBoolean(LAZY_COMMIT_ENABLED);
-
-        // Concatenation related properties
         this.inlineDefragEnabled = properties.getBoolean(INLINE_DEFRAG_ENABLED);
         this.maxBufferSizeForChunkDataTransfer = properties.getPositiveInt(MAX_BUFFER_SIZE_FOR_APPENDS);
         // Don't use appends for concat when appends are disabled.
@@ -393,8 +405,10 @@ public class ChunkedSegmentStorageConfig {
         this.maxJournalUpdatesPerSnapshot =  properties.getPositiveInt(MAX_PER_SNAPSHOT_UPDATE_COUNT);
         this.maxJournalReadAttempts = properties.getPositiveInt(MAX_JOURNAL_READ_ATTEMPTS);
         this.maxJournalWriteAttempts = properties.getPositiveInt(MAX_JOURNAL_WRITE_ATTEMPTS);
+        this.selfCheckEnabled = properties.getBoolean(SELF_CHECK_ENABLED);
+        this.selfCheckForDataEnabled = properties.getBoolean(SELF_CHECK_DATA_INTEGRITY);
+        this.selfCheckForMetadataEnabled = properties.getBoolean(SELF_CHECK_METADATA_INTEGRITY);
 
-        // Storage usage related properties
         this.maxSafeStorageSize = properties.getPositiveLong(MAX_SAFE_SIZE);
         this.safeStorageSizeCheckEnabled = properties.getBoolean(ENABLE_SAFE_SIZE_CHECK);
         this.safeStorageSizeCheckFrequencyInSeconds = properties.getPositiveInt(SAFE_SIZE_CHECK_FREQUENCY);
@@ -402,11 +416,11 @@ public class ChunkedSegmentStorageConfig {
         // Truncation related properties
         this.relocateOnTruncateEnabled = properties.getBoolean(RELOCATE_ON_TRUNCATE_ENABLED);
         this.minSizeForTruncateRelocationInbytes = properties.getPositiveLong(MIN_TRUNCATE_RELOCATION_SIZE_BYTES);
+        this.maxSizeForTruncateRelocationInbytes = properties.getPositiveLong(MAX_TRUNCATE_RELOCATION_SIZE_BYTES);
         this.minPercentForTruncateRelocation = properties.getPositiveInt(MIN_TRUNCATE_RELOCATION_PERCENT);
 
         // Self check
         this.lateWarningThresholdInMillis = properties.getPositiveInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
-        this.selfCheckEnabled = properties.getBoolean(SELF_CHECK_ENABLED);
 
         // Health check
         this.healthCheckEnabled = properties.getBoolean(ENABLE_HEALTH_CHECK);

@@ -24,6 +24,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -364,6 +365,16 @@ public interface Controller extends AutoCloseable {
      */
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
 
+    /**
+     * Get list of TransactionInfo for the Stream having status COMMITTED/ABORTED from most recent batch.
+     * TransactionInfo contains unique transactionId, status of transaction and stream.
+     * This API can return maximum 500 records.
+     *
+     * @param stream The name of the stream for which to list transactionInfo.
+     * @return List of TransactionInfo.
+     */
+    CompletableFuture<List<TransactionInfo>> listCompletedTransactions(final Stream stream);
+
     // Controller Apis that are called by readers
 
     /**
@@ -535,6 +546,15 @@ public interface Controller extends AutoCloseable {
      * @return Current KeyValueTable segments.
      */
     CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(final String scope, final String kvtName);
+
+    /**
+     * API to force cache refresh in case data is stale.
+     *
+     * @param segmentName   name of the segment
+     * @param errNodeUri Stale {@link PravegaNodeUri} entry in cache, this would be used in comparison
+     * with the existing value to determine if update is needed or not.
+     */
+    void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri);
 
     //endregion
 }
