@@ -142,17 +142,14 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     @Override
     protected CompletableFuture<Void> doRun() {
-        AtomicReference<CompletableFuture<Void>> commitProcessorReference = new AtomicReference<>(new CompletableFuture<>());
         // The QueueProcessor is responsible with the processing of externally added Operations. It starts when the
         // OperationProcessor starts and is shut down as soon as doStop() is invoked.
         val queueProcessor = Futures
-                .loop(() -> isRunning() && !commitProcessorReference.get().isDone(),
+                .loop(this::isRunning,
                         () -> getThrottler().throttle()
                                 .thenComposeAsync(v -> this.operationQueue.take(getFetchCount(), PROCESSOR_TIMEOUT, this.executor), this.executor)
                                 .handleAsync((items, ex) -> handleProcessItems(items, this::processOperations, ex, "queueProcessor"), this.executor),
-                        this.executor)
-                .whenComplete((r, ex) -> log.info("{}: Completing and closing queueProcessor. OperationProcessor running? {}, commitProcessor running? {}.",
-                        this.traceObjectId, isRunning(), commitProcessorReference.get().isDone()));
+                        this.executor);
 
         // The CommitProcessor is responsible for the processing of those Operations that have already been committed to
         // DurableDataLog and now need to be added to the in-memory State.
@@ -177,7 +174,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                         throw new CompletionException(ex);
                     }
                 });
-        commitProcessorReference.set(commitProcessor);
         return CompletableFuture.allOf(queueProcessor, commitProcessor)
                 .exceptionally(this::iterationErrorHandler);
     }
