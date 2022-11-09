@@ -527,7 +527,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         val interrupted = new AtomicBoolean(false);
         @Cleanup
-        val throttler = new ManualThrottler(() -> interrupted.set(true), executorService());
+        val throttler = new ManualThrottler(() -> interrupted.set(true), new NoOpCalculator(), () -> false, executorService());
         @Cleanup
         val operationProcessor = new ThrottledOperationProcessor(context.metadata, context.stateUpdater,
                 dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService(), throttler);
@@ -694,6 +694,42 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Make sure that we get an ObjectClosedException when attempting to add an operation to process.
         AssertExtensions.assertFutureThrows("Expected ObjectClosedException when adding new operation.",
+                operationProcessor.process(mock(Operation.class), OperationPriority.Critical),
+                ex -> ex instanceof ObjectClosedException || ex instanceof IllegalContainerStateException);
+
+        // Check that eventually the OperationProcessor is unblocked and shuts down.
+        AssertExtensions.assertEventuallyEquals(false, operationProcessor::isRunning, 6000);
+    }
+
+    @Test
+    public void testOperationProcessorClosedQueueWhileMaxThrottling() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // Setup an OperationProcessor and start it.
+        @Cleanup
+        TestDurableDataLog dataLog = spy(TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService()));
+        dataLog.initialize(TIMEOUT);
+
+        val interrupted = new AtomicBoolean(false);
+        @Cleanup
+        val throttler = new ManualThrottler(() -> interrupted.set(true), new MaxDelayThrottler(), () -> false, executorService());
+        @Cleanup
+        val operationProcessor = new ThrottledOperationProcessor(context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService(), throttler);
+        operationProcessor.startAsync().awaitRunning();
+
+        // Close the queue, simulating that some error unexpectedly close it.
+        operationProcessor.closeQueue(new CompletionException(new IntentionalException("")));
+
+        // Make sure that we get an ObjectClosedException when attempting to add a Normal operation to process.
+        AssertExtensions.assertFutureThrows("Expected ObjectClosedException when adding new Normal operation.",
+                operationProcessor.process(mock(Operation.class), OperationPriority.Normal),
+                ex -> ex instanceof ObjectClosedException || ex instanceof IllegalContainerStateException);
+
+        // Make sure that we get an ObjectClosedException when attempting to add a Critical operation to process, but we.
+        // should expect the OperationProcessor to shut down.
+        AssertExtensions.assertFutureThrows("Expected ObjectClosedException when adding new Critical operation.",
                 operationProcessor.process(mock(Operation.class), OperationPriority.Critical),
                 ex -> ex instanceof ObjectClosedException || ex instanceof IllegalContainerStateException);
 
@@ -922,9 +958,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
         private final AtomicReference<CompletableFuture<Void>> lastDelayFuture = new AtomicReference<>();
         private final Runnable onNotifyThrottleSourceChanged;
 
-        ManualThrottler(Runnable onNotifyThrottleSourceChanged, ScheduledExecutorService executor) {
-            super(CONTAINER_ID, ThrottlerCalculator.builder().maxDelayMillis(DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue()).throttler(new NoOpCalculator()).build(), () -> false, executor,
-                    new SegmentStoreMetrics.OperationProcessor(CONTAINER_ID));
+        ManualThrottler(Runnable onNotifyThrottleSourceChanged, ThrottlerCalculator.Throttler throttler, Supplier<Boolean> isSuspended, ScheduledExecutorService executor) {
+            super(CONTAINER_ID, ThrottlerCalculator.builder().maxDelayMillis(DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue()).throttler(throttler).build(),
+                    isSuspended, executor, new SegmentStoreMetrics.OperationProcessor(CONTAINER_ID));
             this.onNotifyThrottleSourceChanged = onNotifyThrottleSourceChanged;
         }
 
@@ -967,7 +1003,24 @@ public class OperationProcessorTests extends OperationLogTestBase {
         }
     }
 
-    private static class NoOpCalculator extends ThrottlerCalculator.Throttler {
+    static class MaxDelayThrottler extends ThrottlerCalculator.Throttler {
+        @Override
+        boolean isThrottlingRequired() {
+            return true;
+        }
+
+        @Override
+        int getDelayMillis() {
+            return DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue();
+        }
+
+        @Override
+        ThrottlerCalculator.ThrottlerName getName() {
+            return ThrottlerCalculator.ThrottlerName.DurableDataLog;
+        }
+    }
+
+    static class NoOpCalculator extends ThrottlerCalculator.Throttler {
         @Override
         boolean isThrottlingRequired() {
             return false;

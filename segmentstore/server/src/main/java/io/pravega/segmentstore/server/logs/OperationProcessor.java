@@ -125,7 +125,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 .operationLogThrottler(this.stateUpdater::getInMemoryOperationLogSize, throttlerPolicy.getMaxDelayMillis(),
                         throttlerPolicy.getOperationLogMaxSize(), throttlerPolicy.getOperationLogTargetSize())
                 .build();
-        this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, this::hasThrottleExemptOperations, executor, this.metrics);
+        this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, this::hasToSuspendThrottlingDelay, executor, this.metrics);
         this.cacheUtilizationProvider.registerCleanupListener(this.throttler);
         durableDataLog.registerQueueStateChangeListener(this.throttler);
         this.stateUpdater.registerReadListener(this.throttler);
@@ -269,6 +269,15 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         } else {
             log.debug("{}: process[{}] {}.", this.traceObjectId, priority, operation);
             try {
+                if (this.operationQueue.isClosed() || priority.isThrottlingExempt()) {
+                    // Cancel current throttling delay in two cases:
+                    // 1) If the operationQueue is closed, it means that OperationProcessor needs to shut down. This may
+                    // require first interrupting any current delay, so the shutdown sequence can be executed.
+                    // 2) A throttle-exempt operation has just been added (these are time-critical operations, which must
+                    // execute right away). If there is a throttling delay in progress, we must abort it, otherwise this
+                    // operation may not get a chance to execute.
+                    getThrottler().notifyThrottleSourceChanged();
+                }
                 this.operationQueue.add(new CompletableOperation(operation, priority, result));
             } catch (Throwable e) {
                 if (Exceptions.mustRethrow(e)) {
@@ -276,13 +285,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 }
 
                 result.completeExceptionally(e);
-            }
-
-            if (priority.isThrottlingExempt()) {
-                // A throttle-exempt operation has just been added (these are time-critical operations, which must execute
-                // right away). If there is a throttling delay in progress, we must abort it, otherwise this operation
-                // may not get a chance to execute.
-                getThrottler().notifyThrottleSourceChanged();
             }
         }
 
@@ -301,13 +303,19 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     }
 
     /**
-     * Determines if the {@link #operationQueue} has any {@link CompletableOperation} with an {@link OperationPriority}
-     * that requires an immediate execution (i.e., {@link OperationPriority#isThrottlingExempt()} is true).
+     * Determines whether we have to notify the {@link Throttler} to suspend current delay. This can happen in two cases:
+     * i) If the {@link #operationQueue} has been closed (e.g., Bookkeeper error) while experiencing a maximum delay;
+     * ii) If the {@link #operationQueue} has any {@link CompletableOperation} with an {@link OperationPriority} that
+     * requires an immediate execution (i.e., {@link OperationPriority#isThrottlingExempt()} is true).
      *
      * @return True if throttling needs to be suspended, false otherwise.
      */
     @VisibleForTesting
-    protected boolean hasThrottleExemptOperations() {
+    protected boolean hasToSuspendThrottlingDelay() {
+        if (this.operationQueue.isClosed()) {
+            // The operationQueue has been closed. This means that any throttling delay should be interrupted and shut down.
+            return true;
+        }
         val o = this.operationQueue.peek();
         return o != null && o.getPriority().isThrottlingExempt();
     }
@@ -370,7 +378,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     count = 0;
-                    if (hasThrottleExemptOperations() || !getThrottler().isThrottlingRequired()) {
+                    if (hasToSuspendThrottlingDelay() || !getThrottler().isThrottlingRequired()) {
                         // Only pull in new operations if we do not require throttling. If we do, we need to go back to
                         // the main OperationProcessor loop and delay processing the next batch of operations.
                         operations = this.operationQueue.poll(getFetchCount());
