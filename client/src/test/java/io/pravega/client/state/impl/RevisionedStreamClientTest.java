@@ -454,4 +454,39 @@ public class RevisionedStreamClientTest {
         controller.createScope(scope).join();
         controller.createStream(scope, stream, config).join();
     }
+    @Test
+    public void testReadrange() throws Exception
+    {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
+        RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
+        Revision r0 = client.fetchLatestRevision();
+        client.writeUnconditionally("a");
+        Revision ra = client.fetchLatestRevision();
+        client.writeUnconditionally("b");
+        Revision rb = client.fetchLatestRevision();
+        client.writeUnconditionally("c");
+        Revision rc = client.fetchLatestRevision();
+        client.writeUnconditionally("d");
+
+        Iterator<Entry<Revision, String>> iterA = client.readRange(r0,rb);
+        assertTrue(iterA.hasNext());
+        assertEquals("a", iterA.next().getValue());
+        assertEquals("b", iterA.next().getValue());
+        assertEquals("c", iterA.next().getValue());
+        assertFalse(iterA.hasNext());
+
+}
 }

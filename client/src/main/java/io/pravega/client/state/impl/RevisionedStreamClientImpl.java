@@ -260,4 +260,28 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
          .filter(pendingEvent -> pendingEvent.getAckFuture() != null)
          .forEach(pendingEvent -> pendingEvent.getAckFuture().completeExceptionally(new SegmentSealedException(segment.toString())));
     }
+
+    public Iterator<Entry<Revision, T>> readRange(Revision startRevision, Revision endRevision) {
+        log.trace("Read segment {} from revision {} to revision {}", segment, startRevision, endRevision);
+        long tempOffset;
+        synchronized (lock) {
+            long startOffset = startRevision.asImpl().getOffsetInSegment();
+            SegmentInfo segmentInfo = Futures.getThrowingException(meta.getSegmentInfo());
+            long endOffset = endRevision.asImpl().getOffsetInSegment();
+            if (startOffset < segmentInfo.getStartingOffset()) {
+                throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", startRevision, segmentInfo));
+            }
+            if (startOffset == endOffset) {
+                log.debug("No new updates to be read from revision {}", endRevision);
+            }
+            if (startOffset > endOffset) {
+                tempOffset=startOffset;
+                startOffset=endOffset;
+                endOffset=tempOffset;
+                log.debug("Start offset is grater than endOffset, start and end offset is swapped");
+            }
+            log.debug("Creating iterator from {} until {} for segment {} ", startOffset, endOffset, segment);
+            return new StreamIterator(startOffset, endOffset);
+        }
+    }
 }

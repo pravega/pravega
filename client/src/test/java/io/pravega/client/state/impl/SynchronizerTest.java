@@ -189,6 +189,31 @@ public class SynchronizerTest {
         public void truncateToRevision(Revision newStart) {
             throw new NotImplementedException("truncateToRevision");
         }
+        @Override
+        public Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> readRange(Revision startRevision, Revision endRevision) {
+            return new Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>>() {
+                private int pos = startRevision.asImpl().getEventAtOffset();
+                @Override
+                public Entry<Revision, UpdateOrInit<RevisionedImpl>> next() {
+                    UpdateOrInit<RevisionedImpl> value;
+                    RevisionImpl revision = new RevisionImpl(segment, pos, pos);
+                    if (pos == 0) {
+                        value = new UpdateOrInit<>(init);
+                    } else {
+                        value = new UpdateOrInit<>(Collections.singletonList(updates[pos - 1]));
+                    }
+                    pos++;
+                    return new AbstractMap.SimpleImmutableEntry<>(revision, value);
+                }
+
+                @Override
+                public boolean hasNext() {
+                    return pos <= visableLength;
+                }
+            };
+        }
+
+
     }
 
     @Test(timeout = 20000)

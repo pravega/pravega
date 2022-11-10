@@ -100,5 +100,5 @@ public interface RevisionedStreamClient<T> extends AutoCloseable {
      */
     @Override
     abstract void close();
-
+    public Iterator<Entry<Revision, T>> readRange(Revision startRevision, Revision endRevision);
 }
