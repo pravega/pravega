@@ -275,10 +275,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 log.debug("No new updates to be read from revision {}", endRevision);
             }
             if (startOffset > endOffset) {
-                tempOffset=startOffset;
-                startOffset=endOffset;
-                endOffset=tempOffset;
-                log.debug("Start offset is grater than endOffset, start and end offset is swapped");
+                throw new IllegalStateException("startoffset {} is grater than endOffset {}");
             }
             log.debug("Creating iterator from {} until {} for segment {} ", startOffset, endOffset, segment);
             return new StreamIterator(startOffset, endOffset);
