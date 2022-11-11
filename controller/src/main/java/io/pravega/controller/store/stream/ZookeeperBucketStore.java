@@ -211,9 +211,8 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     public String getBucketControllerMapPath(final ServiceType serviceType) {
-        String cluster = "cluster";
         String bucketHostMapping = "bucketControllerMapping";
-        String bucketHostMapRoot = ZKPaths.makePath(cluster, serviceType.getName());
-        return ZKPaths.makePath(bucketHostMapRoot, bucketHostMapping);
+        String bucketRootPath = getBucketRootPath(serviceType);
+        return ZKPaths.makePath(bucketRootPath, bucketHostMapping);
     }
 }
