@@ -49,8 +49,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -265,15 +265,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         } else {
             log.debug("{}: process[{}] {}.", this.traceObjectId, priority, operation);
             try {
-                if (this.operationQueue.isClosed() || priority.isThrottlingExempt()) {
-                    // Cancel current throttling delay in two cases:
-                    // 1) If the operationQueue is closed, it means that OperationProcessor needs to shut down. This may
-                    // require first interrupting any current delay, so the shutdown sequence can be executed.
-                    // 2) A throttle-exempt operation has just been added (these are time-critical operations, which must
-                    // execute right away). If there is a throttling delay in progress, we must abort it, otherwise this
-                    // operation may not get a chance to execute.
-                    getThrottler().notifyThrottleSourceChanged();
-                }
+                // If the operationQueue is closed, it means that OperationProcessor needs to shut down. This may
+                // require first interrupting any current delay, so the shutdown sequence can be executed.
+                notifyThrottleSourceChanged(this.operationQueue::isClosed);
                 this.operationQueue.add(new CompletableOperation(operation, priority, result));
             } catch (Throwable e) {
                 if (Exceptions.mustRethrow(e)) {
@@ -282,9 +276,20 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
                 result.completeExceptionally(e);
             }
+
+            // A throttle-exempt operation has just been added (these are time-critical operations, which must execute
+            // right away). If there is a throttling delay in progress, we must abort it, otherwise this operation
+            // may not get a chance to execute.
+            notifyThrottleSourceChanged(priority::isThrottlingExempt);
         }
 
         return result;
+    }
+
+    private void notifyThrottleSourceChanged(Supplier<Boolean> condition) {
+        if (condition.get()) {
+            getThrottler().notifyThrottleSourceChanged();
+        }
     }
 
     /**
