@@ -318,7 +318,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         AsyncStorageWrapper s = new AsyncStorageWrapper(innerStorage, executorService());
 
         // Issue two Create operations with the two segments and wait for both of them to be running.
-        List<CompletableFuture<?>> futures = new ArrayList<CompletableFuture<?>>();
+        List<CompletableFuture<?>> futures = new ArrayList<>();
         futures.add(s.create(segment1, TIMEOUT));
         futures.add(s.create(segment2, TIMEOUT));
         invoked.get(createSegment1Key).await(LOCK_TIMEOUT_MILLIS);
