@@ -29,6 +29,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -191,24 +193,24 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         final String op2 = TestStorage.DELETE;
 
         // Create a set of latches that can be used to detect when an operation was invoked and when to release it.
-        val invoked = new HashMap<String, ReusableLatch>();
-        val waitOn = new HashMap<String, ReusableLatch>();
+        Map<String, ReusableLatch> invoked = new HashMap<>();
+        Map<String, ReusableLatch> waitOn = new HashMap<>();
         invoked.put(op1, new ReusableLatch());
         invoked.put(op2, new ReusableLatch());
         waitOn.put(op1, new ReusableLatch());
         waitOn.put(op2, new ReusableLatch());
 
-        val innerStorage = new TestStorage((operation, segment) -> {
+        TestStorage innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(operation).release();
             Exceptions.handleInterrupted(() -> waitOn.get(operation).await());
             return null;
         });
 
         @Cleanup
-        val s = new AsyncStorageWrapper(innerStorage, executorService());
+        AsyncStorageWrapper s = new AsyncStorageWrapper(innerStorage, executorService());
 
         // Begin executing one operation (Create) and wait for it properly "acquire" the lock.
-        val futures = new ArrayList<CompletableFuture<?>>();
+        List<CompletableFuture<?>> futures = new ArrayList<>();
         futures.add(s.create(segmentName, TIMEOUT));
         invoked.get(op1).await(LOCK_TIMEOUT_MILLIS);
         Assert.assertEquals("Unexpected number of active segments.", 1, s.getSegmentWithOngoingOperationsCount());
@@ -240,24 +242,24 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         final String segment2 = "Segment2";
 
         // Create a set of latches that can be used to detect when an operation was invoked and when to release it.
-        val invoked = new HashMap<String, ReusableLatch>();
-        val waitOn = new HashMap<String, ReusableLatch>();
+        Map<String, ReusableLatch> invoked = new HashMap<>();
+        Map<String, ReusableLatch> waitOn = new HashMap<>();
         invoked.put(segment1, new ReusableLatch());
         invoked.put(segment2, new ReusableLatch());
         waitOn.put(segment1, new ReusableLatch());
         waitOn.put(segment2, new ReusableLatch());
 
-        val innerStorage = new TestStorage((operation, segment) -> {
+        TestStorage innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(segment).release();
             Exceptions.handleInterrupted(() -> waitOn.get(segment).await());
             return null;
         });
 
         @Cleanup
-        val s = new AsyncStorageWrapper(innerStorage, executorService());
+        AsyncStorageWrapper s = new AsyncStorageWrapper(innerStorage, executorService());
 
         // Begin executing one create.
-        val futures = new ArrayList<CompletableFuture<?>>();
+        List<CompletableFuture<?>> futures = new ArrayList<>();
         futures.add(s.create(segment1, TIMEOUT));
         invoked.get(segment1).await(LOCK_TIMEOUT_MILLIS);
         Assert.assertEquals("Unexpected number of active segments.", 1, s.getSegmentWithOngoingOperationsCount());
@@ -292,8 +294,8 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         final String writeSegment2Key = joiner.apply(TestStorage.WRITE, segment2);
 
         // Create a set of latches that can be used to detect when an operation was invoked and when to release it.
-        val invoked = new HashMap<String, ReusableLatch>();
-        val waitOn = new HashMap<String, ReusableLatch>();
+        Map<String, ReusableLatch> invoked = new HashMap<>();
+        Map<String, ReusableLatch> waitOn = new HashMap<>();
         invoked.put(createSegment1Key, new ReusableLatch());
         invoked.put(createSegment2Key, new ReusableLatch());
         invoked.put(concatKey, new ReusableLatch());
@@ -306,17 +308,17 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         waitOn.put(writeSegment1Key, new ReusableLatch());
         waitOn.put(writeSegment2Key, new ReusableLatch());
 
-        val innerStorage = new TestStorage((operation, segment) -> {
+        TestStorage innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(joiner.apply(operation, segment)).release();
             Exceptions.handleInterrupted(() -> waitOn.get(joiner.apply(operation, segment)).await());
             return null;
         });
 
         @Cleanup
-        val s = new AsyncStorageWrapper(innerStorage, executorService());
+        AsyncStorageWrapper s = new AsyncStorageWrapper(innerStorage, executorService());
 
         // Issue two Create operations with the two segments and wait for both of them to be running.
-        val futures = new ArrayList<CompletableFuture<?>>();
+        List<CompletableFuture<?>> futures = new ArrayList<CompletableFuture<?>>();
         futures.add(s.create(segment1, TIMEOUT));
         futures.add(s.create(segment2, TIMEOUT));
         invoked.get(createSegment1Key).await(LOCK_TIMEOUT_MILLIS);
