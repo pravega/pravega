@@ -15,7 +15,6 @@
  */
 package io.pravega.segmentstore.storage;
 
-import io.pravega.common.Exceptions;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -32,11 +31,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -202,7 +203,12 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
 
         TestStorage innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(operation).release();
-            Exceptions.handleInterrupted(() -> waitOn.get(operation).await());
+            try {
+                waitOn.get(operation).await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new CompletionException(e);
+            }
             return null;
         });
 
@@ -251,7 +257,12 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
 
         TestStorage innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(segment).release();
-            Exceptions.handleInterrupted(() -> waitOn.get(segment).await());
+            try {
+                waitOn.get(operation).await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new CompletionException(e);
+            }
             return null;
         });
 
@@ -310,7 +321,12 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
 
         TestStorage innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(joiner.apply(operation, segment)).release();
-            Exceptions.handleInterrupted(() -> waitOn.get(joiner.apply(operation, segment)).await());
+            try {
+                waitOn.get(operation).await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new CompletionException(e);
+            }
             return null;
         });
 
@@ -374,6 +390,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
     private CompletableFuture<Void> allOf(Collection<CompletableFuture<?>> futures) {
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
     }
+
 
     //region TestStorage
 
