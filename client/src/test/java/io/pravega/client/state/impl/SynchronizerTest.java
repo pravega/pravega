@@ -189,6 +189,7 @@ public class SynchronizerTest {
         public void truncateToRevision(Revision newStart) {
             throw new NotImplementedException("truncateToRevision");
         }
+
         @Override
         public Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> readRange(Revision startRevision, Revision endRevision) {
             return new Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>>() {

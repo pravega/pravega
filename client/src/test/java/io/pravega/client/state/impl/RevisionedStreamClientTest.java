@@ -58,6 +58,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
@@ -65,11 +66,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -454,9 +451,9 @@ public class RevisionedStreamClientTest {
         controller.createScope(scope).join();
         controller.createStream(scope, stream, config).join();
     }
+
     @Test
-    public void testReadrange() throws Exception
-    {
+    public void testReadrange() throws Exception {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -472,21 +469,19 @@ public class RevisionedStreamClientTest {
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
-        Revision r0 = client.fetchLatestRevision();
+
+        Revision r0 = client.fetchOldestRevision();
         client.writeUnconditionally("a");
         Revision ra = client.fetchLatestRevision();
         client.writeUnconditionally("b");
         Revision rb = client.fetchLatestRevision();
         client.writeUnconditionally("c");
-        Revision rc = client.fetchLatestRevision();
-        client.writeUnconditionally("d");
-
-        Iterator<Entry<Revision, String>> iterA = client.readRange(r0,rb);
+        Iterator<Entry<Revision, String>> iterA = client.readRange(r0, rb);
         assertTrue(iterA.hasNext());
         assertEquals("a", iterA.next().getValue());
         assertEquals("b", iterA.next().getValue());
-        assertEquals("c", iterA.next().getValue());
-        assertFalse(iterA.hasNext());
+        assertThrows(NoSuchElementException.class, () -> iterA.next().getValue());
 
 }
+
 }
