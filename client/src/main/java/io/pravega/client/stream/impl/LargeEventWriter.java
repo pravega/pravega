@@ -100,6 +100,7 @@ public class LargeEventWriter {
             EventWriterConfig config) throws NoSuchSegmentException, AuthenticationException, SegmentSealedException {
         List<ByteBuf> payloads = createBufs(events);
         int attempts = 1 + Math.max(0, config.getRetryAttempts());
+        log.info("******* LARGE EVENTS IN writeLargeEvent BEFORE RETRY");
         Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(), attempts, config.getMaxBackoffMillis()).retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
             if (ex instanceof ConnectionFailedException) {
@@ -113,14 +114,17 @@ public class LargeEventWriter {
                 return false;
             }
         }).run(() -> {
+            log.info("******* LARGE EVENTS IN writeLargeEvent BEFORE INSTANTIATING CLIENT");
             @Cleanup
             RawClient client = new RawClient(controller, connectionPool, segment);
+            log.info("******* LARGE EVENTS IN writeLargeEvent BEFORE WRITE");
             write(segment, payloads, client, tokenProvider);
             return null;
         });
     }
 
     private List<ByteBuf> createBufs(List<ByteBuffer> events) {
+        log.info("******** ABOUT TO CREATE LARGE EVENT");
         ByteBuffer[] toWrite = new ByteBuffer[2 * events.size()];
         for (int i = 0; i < events.size(); i++) {
             ByteBuffer event = events.get(i);
@@ -138,6 +142,7 @@ public class LargeEventWriter {
             int toRead = Math.min(master.readableBytes(), WRITE_SIZE);
             result.add(master.readSlice(toRead));
         }
+        log.info("******** BUFFER CREATED LARGE EVENT");
         return result;
     }
 
@@ -146,20 +151,23 @@ public class LargeEventWriter {
             AuthenticationException, SegmentSealedException, ConnectionFailedException {
 
         long requestId = client.getFlow().getNextSequenceNumber();
-        log.debug("Writing large event to segment {} with writer id {}", parentSegment, writerId);
+        log.info("Writing large event to segment {} with writer id {}", parentSegment, writerId);
 
         String token = getThrowingException(tokenProvider.retrieveToken());
 
+        log.info("******* LARGE EVENTS IN write BEFORE CreateTransientSegment");
         CreateTransientSegment createSegment = new CreateTransientSegment(requestId,
                 writerId,
                 parentSegment.getScopedName(),
                 token);
 
+        log.info("******* LARGE EVENTS IN write BEFORE SegmentCreated");
         SegmentCreated created = transformSegmentCreated(getThrowingException(client.sendRequest(requestId, createSegment)),
                                                          parentSegment.getScopedName());
         requestId = client.getFlow().getNextSequenceNumber();
         SetupAppend setup = new SetupAppend(requestId, writerId, created.getSegment(), token);
 
+        log.info("******* LARGE EVENTS IN write BEFORE AppendSetup");
         AppendSetup appendSetup = transformAppendSetup(getThrowingException(client.sendRequest(requestId, setup)),
                                                        created.getSegment());
 
@@ -168,6 +176,7 @@ public class LargeEventWriter {
                     "Server indicates that transient segment was already written to: " + created.getSegment());
         }
 
+        log.info("******* LARGE EVENTS IN write BEFORE payload processing");
         long expectedOffset = 0;
         val futures = new ArrayList<CompletableFuture<Reply>>();
         for (int i = 0; i < payloads.size(); i++) {
@@ -183,13 +192,16 @@ public class LargeEventWriter {
             failFast(futures, created.getSegment());
             futures.add(reply);
         }
-        for (int i = 0; i < futures.size(); i++) {
-            transformDataAppended(getThrowingException(futures.get(i)), created.getSegment());
+        log.info("******* LARGE EVENTS IN write BEFORE REPLY PROCESSING");
+        for (CompletableFuture<Reply> future : futures) {
+            transformDataAppended(getThrowingException(future), created.getSegment());
         }
         requestId = client.getFlow().getNextSequenceNumber();
 
+        log.info("******* LARGE EVENTS IN write BEFORE MERGE SEGMENTS");
         MergeSegments merge = new MergeSegments(requestId, parentSegment.getScopedName(), created.getSegment(), token);
 
+        log.info("******* LARGE EVENTS IN write BEFORE transformSegmentMerged");
         transformSegmentMerged(getThrowingException(client.sendRequest(requestId, merge)), created.getSegment());
     }
 
@@ -271,5 +283,4 @@ public class LargeEventWriter {
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting an " + expectation);
         }
     }
-
 }
