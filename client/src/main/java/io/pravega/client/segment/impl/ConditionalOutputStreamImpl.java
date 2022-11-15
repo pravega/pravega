@@ -102,9 +102,9 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                             }
                         }
                         long requestId = client.getFlow().getNextSequenceNumber();
-                        ConditionalAppend request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
+                        final ConditionalAppend request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
                                                             new Event(Unpooled.wrappedBuffer(data)), requestId);
-                         CompletableFuture<Reply> reply = client.sendRequest(requestId, request);
+                        final CompletableFuture<Reply> reply = client.sendRequest(requestId, request);
                         return transformDataAppended(reply.join());
                     });
         } 
