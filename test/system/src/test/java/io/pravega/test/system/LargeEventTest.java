@@ -60,7 +60,7 @@ public class LargeEventTest extends AbstractReadWriteTest {
     private final static int NUM_EVENTS = 10;
 
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(5 * 60);
+    public Timeout globalTimeout = Timeout.seconds(5 * 600);
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(4);
     private final StreamConfiguration config = StreamConfiguration.builder()
