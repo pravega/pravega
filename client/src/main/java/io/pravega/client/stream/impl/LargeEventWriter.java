@@ -194,8 +194,11 @@ public class LargeEventWriter {
         }
         log.info("******* LARGE EVENTS IN write BEFORE REPLY PROCESSING");
         for (CompletableFuture<Reply> future : futures) {
+            log.info("******* LARGE EVENTS IN write PROCESSING FUTURE {}", future);
             transformDataAppended(getThrowingException(future), created.getSegment());
+            log.info("******* LARGE EVENTS IN write PROCESSED FUTURE {}", future);
         }
+        log.info("******* LARGE EVENTS IN write GETTING REQUEST ID {}", client.getFlow().getNextSequenceNumber());
         requestId = client.getFlow().getNextSequenceNumber();
 
         log.info("******* LARGE EVENTS IN write BEFORE MERGE SEGMENTS");
@@ -237,9 +240,12 @@ public class LargeEventWriter {
 
     private Void transformDataAppended(Reply reply, String segmentId) throws TokenExpiredException,
             NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
+        log.info("******* LARGE EVENTS IN transformDataAppended WITH REPLY {} segment id {}", reply, segmentId);
         if (reply instanceof DataAppended) {
+            log.info("******* LARGE EVENTS IN transformDataAppended WITH REPLY IN IF DataAppended segment id {}", segmentId);
             return null;
         } else {
+            log.info("******* LARGE EVENTS IN transformDataAppended WITH REPLY IN ELSE THROWING {}", segmentId);
             throw handleUnexpectedReply(reply, "DataAppended", segmentId);
         }
     }
