@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.storage;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -31,7 +32,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -206,7 +206,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
                 waitOn.get(operation).await();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new CompletionException(e);
+                Exceptions.sneakyThrow(e);
             }
             return null;
         });
@@ -260,7 +260,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
                 waitOn.get(operation).await();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new CompletionException(e);
+                Exceptions.sneakyThrow(e);
             }
             return null;
         });
@@ -324,7 +324,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
                 waitOn.get(operation).await();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new CompletionException(e);
+                Exceptions.sneakyThrow(e);
             }
             return null;
         });
