@@ -257,7 +257,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         final TestStorage innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(segment).release();
             try {
-                waitOn.get(operation).await();
+                waitOn.get(segment).await();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 Exceptions.sneakyThrow(e);
@@ -321,7 +321,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         final TestStorage innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(joiner.apply(operation, segment)).release();
             try {
-                waitOn.get(operation).await();
+                waitOn.get(joiner.apply(operation, segment)).await();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 Exceptions.sneakyThrow(e);
