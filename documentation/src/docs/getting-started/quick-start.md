@@ -12,11 +12,11 @@ You may obtain a copy of the License at
 ## Download the latest Pravega
 In one terminal, fetch the latest Pravega release:
 ```
-wget https://github.com/pravega/pravega/releases/download/v0.9.0/pravega-0.9.0.tgz
+wget https://github.com/pravega/pravega/releases/download/v0.12.0/pravega-0.12.0.tgz
 # or
-#curl -OL https://github.com/pravega/pravega/releases/download/v0.9.0/pravega-0.9.0.tgz
-tar zxvf pravega-0.9.0.tgz
-cd pravega-0.9.0
+#curl -OL https://github.com/pravega/pravega/releases/download/v0.12.0/pravega-0.12.0.tgz
+tar zxvf pravega-0.12.0.tgz
+cd pravega-0.12.0
 ```
 
 ## Start Pravega standalone cluster
