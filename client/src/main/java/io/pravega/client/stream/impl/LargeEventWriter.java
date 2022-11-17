@@ -162,14 +162,14 @@ public class LargeEventWriter {
                 token);
 
         log.info("******* LARGE EVENTS IN write BEFORE SegmentCreated");
-        SegmentCreated created = transformSegmentCreated(getThrowingException(client.sendRequest(requestId, createSegment)),
-                                                         parentSegment.getScopedName());
+        SegmentCreated created = transformReply(getThrowingException(client.sendRequest(requestId, createSegment)),
+                parentSegment.getScopedName(), SegmentCreated.class);
         requestId = client.getFlow().getNextSequenceNumber();
         SetupAppend setup = new SetupAppend(requestId, writerId, created.getSegment(), token);
 
         log.info("******* LARGE EVENTS IN write BEFORE AppendSetup");
-        AppendSetup appendSetup = transformAppendSetup(getThrowingException(client.sendRequest(requestId, setup)),
-                                                       created.getSegment());
+        AppendSetup appendSetup = transformReply(getThrowingException(client.sendRequest(requestId, setup)),
+                                                 created.getSegment(), AppendSetup.class);
 
         if (appendSetup.getLastEventNumber() != WireCommands.NULL_ATTRIBUTE_VALUE) {
             throw new IllegalStateException(
@@ -178,7 +178,6 @@ public class LargeEventWriter {
 
         log.info("******* LARGE EVENTS IN write BEFORE payload processing");
         long expectedOffset = 0;
-        val futures = new ArrayList<CompletableFuture<Reply>>();
         for (int i = 0; i < payloads.size(); i++) {
             requestId = client.getFlow().getNextSequenceNumber();
             ByteBuf payload = payloads.get(i);
@@ -188,16 +187,11 @@ public class LargeEventWriter {
                     Unpooled.wrappedBuffer(payload),
                     requestId);
             expectedOffset += payload.readableBytes();
-            val reply = client.sendRequest(requestId, request);
-            failFast(futures, created.getSegment());
-            futures.add(reply);
+            log.info("******* LARGE EVENTS IN write BEFORE REPLY PROCESSING");
+            transformReply(getThrowingException(client.sendRequest(requestId, request)), created.getSegment(), DataAppended.class);
+            log.info("******* LARGE EVENTS IN write PROCESSED FUTURE ");
         }
-        log.info("******* LARGE EVENTS IN write BEFORE REPLY PROCESSING");
-        for (CompletableFuture<Reply> future : futures) {
-            log.info("******* LARGE EVENTS IN write PROCESSING FUTURE {}", future);
-            transformDataAppended(getThrowingException(future), created.getSegment());
-            log.info("******* LARGE EVENTS IN write PROCESSED FUTURE {}", future);
-        }
+
         log.info("******* LARGE EVENTS IN write GETTING REQUEST ID {}", client.getFlow().getNextSequenceNumber());
         requestId = client.getFlow().getNextSequenceNumber();
 
@@ -205,57 +199,15 @@ public class LargeEventWriter {
         MergeSegments merge = new MergeSegments(requestId, parentSegment.getScopedName(), created.getSegment(), token);
 
         log.info("******* LARGE EVENTS IN write BEFORE transformSegmentMerged");
-        transformSegmentMerged(getThrowingException(client.sendRequest(requestId, merge)), created.getSegment());
+        transformReply(getThrowingException(client.sendRequest(requestId, merge)), created.getSegment(), SegmentsMerged.class);
     }
 
-    // Trick to fail fast if any of the futures have completed.
-    private void failFast(ArrayList<CompletableFuture<Reply>> futures, String segmentId) throws TokenExpiredException,
+    private <T extends Reply> T transformReply(Reply reply, String segmentId, Class<T> clazz) throws TokenExpiredException,
             NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
-        for (CompletableFuture<Reply> future : futures) {
-            if (!future.isDone()) {
-                break;
-            } else {
-                transformDataAppended(getThrowingException(future), segmentId);
-            }
-        }
-    }
-
-    private SegmentCreated transformSegmentCreated(Reply reply, String segmentId) throws TokenExpiredException,
-            NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
-        if (reply instanceof SegmentCreated) {
-            return (SegmentCreated) reply;
+        if (clazz.isInstance(reply)) {
+            return clazz.cast(reply);
         } else {
-            throw handleUnexpectedReply(reply, "SegmentCreated", segmentId);
-        }
-    }
-
-    private AppendSetup transformAppendSetup(Reply reply, String segmentId) throws TokenExpiredException,
-            NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
-        if (reply instanceof AppendSetup) {
-            return (AppendSetup) reply;
-        } else {
-            throw handleUnexpectedReply(reply, "AppendSetup", segmentId);
-        }
-    }
-
-    private Void transformDataAppended(Reply reply, String segmentId) throws TokenExpiredException,
-            NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
-        log.info("******* LARGE EVENTS IN transformDataAppended WITH REPLY {} segment id {}", reply, segmentId);
-        if (reply instanceof DataAppended) {
-            log.info("******* LARGE EVENTS IN transformDataAppended WITH REPLY IN IF DataAppended segment id {}", segmentId);
-            return null;
-        } else {
-            log.info("******* LARGE EVENTS IN transformDataAppended WITH REPLY IN ELSE THROWING {}", segmentId);
-            throw handleUnexpectedReply(reply, "DataAppended", segmentId);
-        }
-    }
-
-    private SegmentsMerged transformSegmentMerged(Reply reply, String segmentId) throws TokenExpiredException,
-            NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
-        if (reply instanceof SegmentsMerged) {
-            return (SegmentsMerged) reply;
-        } else {
-            throw handleUnexpectedReply(reply, "MergeSegments", segmentId);
+            throw handleUnexpectedReply(reply, clazz.getSimpleName(), segmentId);
         }
     }
 
