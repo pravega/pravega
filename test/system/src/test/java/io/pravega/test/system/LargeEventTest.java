@@ -36,8 +36,6 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-
-import java.lang.management.ManagementFactory;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -57,10 +55,13 @@ import static org.junit.Assert.assertTrue;
 @RunWith(SystemTestRunner.class)
 public class LargeEventTest extends AbstractReadWriteTest {
 
+    private final static String STREAM_NAME = "testStreamSampleY";
+    private final static String STREAM_SCOPE = "testScopeSampleY" + randomAlphanumeric(5);
+    private final static String READER_GROUP = "ExampleReaderGroupY";
     private final static int NUM_EVENTS = 10;
 
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(5 * 100);
+    public Timeout globalTimeout = Timeout.seconds(5 * 60);
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(4);
     private final StreamConfiguration config = StreamConfiguration.builder()
@@ -80,74 +81,63 @@ public class LargeEventTest extends AbstractReadWriteTest {
 
     /**
      * Invoke the largeEventSimpleTest, ensure we are able to produce  events.
-     * The test fails in case of exceptions while writing to the stream.
+     * The test fails incase of exceptions while writing to the stream.
+     *
      */
     @Test
     public void largeEventSimpleTest() {
-        String streamScope = "testScopeSampleY" + randomAlphanumeric(5);
-        for (int tests = 0; tests < NUM_EVENTS; tests++) {
-            log.info("Heap memory {}", ManagementFactory.getMemoryMXBean().getHeapMemoryUsage());
-            log.info("Non-heap memory {}", ManagementFactory.getMemoryMXBean().getHeapMemoryUsage());
+        Service conService = Utils.createPravegaControllerService(null);
+        List<URI> ctlURIs = conService.getServiceDetails();
+        URI controllerUri = ctlURIs.get(0);
 
-            String streamName = "testLargeEventStream" + tests;
-            String readerGroupName = "testLargeEventReaderGroup" + tests;
+        log.info("Invoking create stream with Controller URI: {}", controllerUri);
 
-            Service conService = Utils.createPravegaControllerService(null);
-            List<URI> ctlURIs = conService.getServiceDetails();
-            URI controllerUri = ctlURIs.get(0);
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerUri));
+        @Cleanup
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
+                                                                           .clientConfig(Utils.buildClientConfig(controllerUri))
+                                                                           .build(), connectionFactory.getInternalExecutor());
 
-            log.info("Invoking create stream with Controller URI: {}", controllerUri);
+        assertTrue(controller.createScope(STREAM_SCOPE).join());
+        assertTrue(controller.createStream(STREAM_SCOPE, STREAM_NAME, config).join());
 
-            @Cleanup
-            ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerUri));
-            @Cleanup
-            ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
-                    .clientConfig(Utils.buildClientConfig(controllerUri))
-                    .build(), connectionFactory.getInternalExecutor());
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(STREAM_SCOPE, Utils.buildClientConfig(controllerUri));
+        log.info("Invoking Writer test with Controller URI: {}", controllerUri);
 
-            controller.createScope(streamScope).join();
-            assertTrue(controller.createStream(streamScope, streamName, config).join());
-
-            @Cleanup
-            EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(streamScope, Utils.buildClientConfig(controllerUri));
-            log.info("Invoking Writer test with Controller URI: {}", controllerUri);
-
-            @Cleanup
-            EventStreamWriter<ByteBuffer> writer = clientFactory.createEventWriter(streamName,
-                    new ByteBufferSerializer(),
-                    EventWriterConfig.builder().enableLargeEvents(true).build());
-            byte[] payload = new byte[Serializer.MAX_EVENT_SIZE * 10];
-            for (int i = 0; i < NUM_EVENTS; i++) {
-                log.info("Heap memory {}", ManagementFactory.getMemoryMXBean().getHeapMemoryUsage());
-                log.info("Non-heap memory {}", ManagementFactory.getMemoryMXBean().getHeapMemoryUsage());
-                log.info("Writing event: {} ", i);
-                // any exceptions while writing the event will fail the test.
-                writer.writeEvent("", ByteBuffer.wrap(payload)).join();
-                log.info("Wrote event: {} ", i);
-                writer.flush();
-            }
-
-            log.info("Invoking Reader test.");
-            @Cleanup
-            ReaderGroupManager groupManager = ReaderGroupManager.withScope(streamScope, Utils.buildClientConfig(controllerUri));
-            groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(Stream.of(streamScope, streamName)).build());
-            @Cleanup
-            EventStreamReader<ByteBuffer> reader = clientFactory.createReader(UUID.randomUUID().toString(),
-                    readerGroupName,
-                    new ByteBufferSerializer(),
-                    ReaderConfig.builder().build());
-            int readCount = 0;
-
-            EventRead<ByteBuffer> event;
-            do {
-                event = reader.readNextEvent(10_000);
-                log.debug("Read event: {}.", event.getEvent());
-                if (event.getEvent() != null) {
-                    readCount++;
-                }
-                // try reading until all the written events are read, else the test will timeout.
-            } while ((event.getEvent() != null || event.isCheckpoint()) && readCount < NUM_EVENTS);
-            assertEquals("Read count should be equal to write count", NUM_EVENTS, readCount);
+        @Cleanup
+        EventStreamWriter<ByteBuffer> writer = clientFactory.createEventWriter(STREAM_NAME,
+                                                                                 new ByteBufferSerializer(),
+                                                                                 EventWriterConfig.builder().enableLargeEvents(true).build());
+        byte[] payload = new byte[Serializer.MAX_EVENT_SIZE * 10];
+        for (int i = 0; i < NUM_EVENTS; i++) {
+            log.info("Writing event: {} ", i);
+            // any exceptions while writing the event will fail the test.
+            writer.writeEvent("", ByteBuffer.wrap(payload)).join();
+            log.info("Wrote event: {} ", i);
+            writer.flush();
         }
+
+        log.info("Invoking Reader test.");
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, Utils.buildClientConfig(controllerUri));
+        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(STREAM_SCOPE, STREAM_NAME)).build());
+        @Cleanup
+        EventStreamReader<ByteBuffer> reader = clientFactory.createReader(UUID.randomUUID().toString(),
+                                                                      READER_GROUP,
+                                                                      new ByteBufferSerializer(),
+                                                                      ReaderConfig.builder().build());
+        int readCount = 0;
+
+        EventRead<ByteBuffer> event = null;
+        do {
+            event = reader.readNextEvent(10_000);
+            log.debug("Read event: {}.", event.getEvent());
+            if (event.getEvent() != null) {
+                readCount++;
+            }
+            // try reading until all the written events are read, else the test will timeout.
+        } while ((event.getEvent() != null || event.isCheckpoint()) && readCount < NUM_EVENTS);
+        assertEquals("Read count should be equal to write count", NUM_EVENTS, readCount);
     }
 }
