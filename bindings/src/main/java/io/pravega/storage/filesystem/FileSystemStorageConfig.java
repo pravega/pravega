@@ -45,7 +45,7 @@ public class FileSystemStorageConfig {
     private final String root;
 
     /**
-     * Return a boolean.
+     * Whether the {@link FileSystemChunkStorage} instance supports replacement or not.
      */
     @Getter
     private final boolean replaceEnabled;
