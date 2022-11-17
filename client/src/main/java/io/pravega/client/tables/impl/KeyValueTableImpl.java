@@ -215,7 +215,7 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
                                    Function<TableModification, T> convert) {
         val firstInputIterator = Iterators.singletonIterator(convert.apply(firstInput));
         val restIterator = Iterators.transform(inputIterator, i -> {
-            val pk = i.getKey().getPrimaryKey();
+            final ByteBuffer pk = i.getKey().getPrimaryKey();
             Preconditions.checkArgument(firstInput.getKey().getPrimaryKey().equals(pk), "All Keys must have the same Primary Key.");
             Preconditions.checkArgument(firstInput.isRemoval() == i.isRemoval(), "Cannot combine Removals with Updates.");
             return convert.apply(i);
