@@ -55,7 +55,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nonnull;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
@@ -69,8 +68,8 @@ import static io.pravega.common.concurrent.Futures.getThrowingException;
  * It works by creating a Transient segment and then writing the data to the transient segment in multiple commands,
  * then merging the transient segment into the parent segment.
  * 
- * Ordinary connection failures and other transient errors are handled internally. However if the parent segment is sealed
- * this this class will throw {@link SegmentSealedException} and the caller will have to handle it.
+ * Ordinary connection failures and other transient errors are handled internally. However, if the parent segment is sealed
+ * this class will throw {@link SegmentSealedException} and the caller will have to handle it.
  */
 @RequiredArgsConstructor
 @Slf4j
@@ -100,7 +99,6 @@ public class LargeEventWriter {
             EventWriterConfig config) throws NoSuchSegmentException, AuthenticationException, SegmentSealedException {
         List<ByteBuf> payloads = createBufs(events);
         int attempts = 1 + Math.max(0, config.getRetryAttempts());
-        log.info("******* LARGE EVENTS IN writeLargeEvent BEFORE RETRY");
         Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(), attempts, config.getMaxBackoffMillis()).retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
             if (ex instanceof ConnectionFailedException) {
@@ -114,17 +112,14 @@ public class LargeEventWriter {
                 return false;
             }
         }).run(() -> {
-            log.info("******* LARGE EVENTS IN writeLargeEvent BEFORE INSTANTIATING CLIENT");
             @Cleanup
             RawClient client = new RawClient(controller, connectionPool, segment);
-            log.info("******* LARGE EVENTS IN writeLargeEvent BEFORE WRITE");
             write(segment, payloads, client, tokenProvider);
             return null;
         });
     }
 
     private List<ByteBuf> createBufs(List<ByteBuffer> events) {
-        log.info("******** ABOUT TO CREATE LARGE EVENT");
         ByteBuffer[] toWrite = new ByteBuffer[2 * events.size()];
         for (int i = 0; i < events.size(); i++) {
             ByteBuffer event = events.get(i);
@@ -142,7 +137,6 @@ public class LargeEventWriter {
             int toRead = Math.min(master.readableBytes(), WRITE_SIZE);
             result.add(master.readSlice(toRead));
         }
-        log.info("******** BUFFER CREATED LARGE EVENT");
         return result;
     }
 
@@ -150,33 +144,28 @@ public class LargeEventWriter {
             DelegationTokenProvider tokenProvider) throws TokenExpiredException, NoSuchSegmentException,
             AuthenticationException, SegmentSealedException, ConnectionFailedException {
 
-        long requestId = client.getFlow().getNextSequenceNumber();
+        // 1. Create Transient Segment.
         log.info("Writing large event to segment {} with writer id {}", parentSegment, writerId);
-
+        long requestId = client.getFlow().getNextSequenceNumber();
         String token = getThrowingException(tokenProvider.retrieveToken());
-
-        log.info("******* LARGE EVENTS IN write BEFORE CreateTransientSegment");
         CreateTransientSegment createSegment = new CreateTransientSegment(requestId,
                 writerId,
                 parentSegment.getScopedName(),
                 token);
-
-        log.info("******* LARGE EVENTS IN write BEFORE SegmentCreated");
         SegmentCreated created = transformReply(getThrowingException(client.sendRequest(requestId, createSegment)),
                 parentSegment.getScopedName(), SegmentCreated.class);
+
+        // 2. Setup appends for this Transient Segment.
         requestId = client.getFlow().getNextSequenceNumber();
         SetupAppend setup = new SetupAppend(requestId, writerId, created.getSegment(), token);
-
-        log.info("******* LARGE EVENTS IN write BEFORE AppendSetup");
         AppendSetup appendSetup = transformReply(getThrowingException(client.sendRequest(requestId, setup)),
                                                  created.getSegment(), AppendSetup.class);
-
         if (appendSetup.getLastEventNumber() != WireCommands.NULL_ATTRIBUTE_VALUE) {
             throw new IllegalStateException(
                     "Server indicates that transient segment was already written to: " + created.getSegment());
         }
 
-        log.info("******* LARGE EVENTS IN write BEFORE payload processing");
+        // 3. Split input payload into WRITE_SIZE Appends and write them conditionally to guarantee order.
         long expectedOffset = 0;
         for (int i = 0; i < payloads.size(); i++) {
             requestId = client.getFlow().getNextSequenceNumber();
@@ -187,18 +176,13 @@ public class LargeEventWriter {
                     Unpooled.wrappedBuffer(payload),
                     requestId);
             expectedOffset += payload.readableBytes();
-            log.info("******* LARGE EVENTS IN write BEFORE REPLY PROCESSING");
+            // Wait for Appends to complete. Writing in parallel Appends that are expected to be sequential does not help.
             transformReply(getThrowingException(client.sendRequest(requestId, request)), created.getSegment(), DataAppended.class);
-            log.info("******* LARGE EVENTS IN write PROCESSED FUTURE ");
         }
 
-        log.info("******* LARGE EVENTS IN write GETTING REQUEST ID {}", client.getFlow().getNextSequenceNumber());
+        // 4. Once the Appends are complete, we can merge the Transient Segment into the parent Segment.
         requestId = client.getFlow().getNextSequenceNumber();
-
-        log.info("******* LARGE EVENTS IN write BEFORE MERGE SEGMENTS");
         MergeSegments merge = new MergeSegments(requestId, parentSegment.getScopedName(), created.getSegment(), token);
-
-        log.info("******* LARGE EVENTS IN write BEFORE transformSegmentMerged");
         transformReply(getThrowingException(client.sendRequest(requestId, merge)), created.getSegment(), SegmentsMerged.class);
     }
 
