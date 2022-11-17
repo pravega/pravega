@@ -207,6 +207,6 @@ public class ReplicatedChunkStorage extends AsyncBaseChunkStorage {
     }
 
     private static boolean isStorageUnavailable(Throwable ex) {
-        return ex instanceof ChunkNotFoundException;
+        return ex instanceof ChunkNotFoundException || ex instanceof ChunkStorageUnavailableException;
     }
 }

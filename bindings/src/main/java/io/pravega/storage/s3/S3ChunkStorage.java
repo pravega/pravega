@@ -22,6 +22,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageUnavailableException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -48,6 +49,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.UploadPartCopyRequest;
 
 import java.io.InputStream;
+import java.net.ConnectException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -372,6 +374,10 @@ public class S3ChunkStorage extends BaseChunkStorage {
             if (errorCode.equals(ACCESS_DENIED)) {
                 retValue = new ChunkStorageException(chunkName, String.format("Access denied for chunk %s - %s.", chunkName, message), e);
             }
+        }
+
+        if ( e.getCause() instanceof ConnectException || (e.getCause() != null && e.getCause() instanceof ConnectException)) {
+            retValue =  new ChunkStorageUnavailableException(message, e);
         }
 
         if (retValue == null) {
