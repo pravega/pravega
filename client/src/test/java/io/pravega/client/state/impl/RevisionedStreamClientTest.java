@@ -481,7 +481,9 @@ public class RevisionedStreamClientTest {
         assertEquals("a", iterA.next().getValue());
         assertEquals("b", iterA.next().getValue());
         assertThrows(NoSuchElementException.class, () -> iterA.next().getValue());
-
+        Iterator<Entry<Revision, String>> iterB = client.readRange(r0, r0);
+        assertFalse(iterB.hasNext());
+        assertThrows(IllegalStateException.class, () -> client.readRange(rb, r0));
 }
 
 }
