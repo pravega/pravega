@@ -27,6 +27,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.test.common.TestingServerStarter;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -39,6 +40,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
@@ -125,11 +129,44 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         assertEventuallyEquals(2, () -> watermarkingService.getBucketServices().size(), 10000);
 
         //controller1 release buckets here.
-        assertTrue(retentionService.releaseBucketOwnership(retentionBuckets.get(0)).join());
-        assertTrue(watermarkingService.releaseBucketOwnership(watermarkBuckets.get(0)).join());
+        assertTrue(retentionService.releaseBucketOwnership(retentionBuckets.get(0), controller1.getHostId()).join());
+        assertTrue(watermarkingService.releaseBucketOwnership(watermarkBuckets.get(0), controller1.getHostId()).join());
 
-        //controller1 didn't release bucket 0 till now. So it will not start it.
+        //controller1 release bucket 0 now. So it will start it.
         assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
         assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
+    }
+
+    @Test(timeout = 30000)
+    public void testOwnership() throws Exception {
+        String dummyProcessId = "12345";
+        watermarkingService.takeBucketOwnership(0, dummyProcessId, executor).join();
+        watermarkingService.takeBucketOwnership(1, dummyProcessId, executor).join();
+        watermarkingService.takeBucketOwnership(2, dummyProcessId, executor).join();
+
+        addEntryToZkCluster(controller);
+        Thread.sleep(10000);
+        //Verify new controller will start the service, until previous one doesn't release it.
+        Map<Integer, BucketService> bucketServices = watermarkingService.getBucketServices();
+        assertNotNull(bucketServices);
+        assertEquals(0, bucketServices.size());
+        //Verify once older controller release the ownership, newer will acquire it.
+        assertTrue(watermarkingService.releaseBucketOwnership(0, dummyProcessId).join());
+        assertEventuallyEquals(1, () -> watermarkingService.getBucketServices().size(), 10000);
+        bucketServices = watermarkingService.getBucketServices();
+        assertNotNull(bucketServices);
+        assertEquals(1, bucketServices.size());
+
+        assertTrue(watermarkingService.releaseBucketOwnership(1, dummyProcessId).join());
+        //For id which is not existing, it will return as true.
+        assertTrue(watermarkingService.releaseBucketOwnership(1, dummyProcessId).join());
+        assertTrue(watermarkingService.releaseBucketOwnership(2, dummyProcessId).join());
+        //All the bucket services get released from dummy process. Now actual owner will occupy this.
+        assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
+        bucketServices = watermarkingService.getBucketServices();
+        assertNotNull(bucketServices);
+        assertEquals(3, bucketServices.size());
+        //Verifying only owning controller can release the buckets.
+        assertFalse(watermarkingService.releaseBucketOwnership(1, dummyProcessId).join());
     }
 }

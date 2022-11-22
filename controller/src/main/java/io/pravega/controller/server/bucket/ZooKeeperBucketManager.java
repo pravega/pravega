@@ -183,9 +183,9 @@ public class ZooKeeperBucketManager extends BucketManager {
     }
 
     @Override
-    CompletableFuture<Boolean> releaseBucketOwnership(int bucket) {
+    CompletableFuture<Boolean> releaseBucketOwnership(int bucket, String processId) {
         Preconditions.checkArgument(bucket < bucketStore.getBucketCount(getServiceType()));
-        return bucketStore.releaseBucketOwnership(getServiceType(), bucket);
+        return bucketStore.releaseBucketOwnership(getServiceType(), bucket, processId);
     }
 
     @Override

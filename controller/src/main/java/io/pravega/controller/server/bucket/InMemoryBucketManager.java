@@ -111,7 +111,7 @@ public class InMemoryBucketManager extends BucketManager {
     }
 
     @Override
-    CompletableFuture<Boolean> releaseBucketOwnership(int bucket) {
+    CompletableFuture<Boolean> releaseBucketOwnership(int bucket, String processId) {
         Preconditions.checkArgument(bucket < getBucketCount());
         return CompletableFuture.completedFuture(true);
     }

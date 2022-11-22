@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.util.RetryHelper;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -215,40 +216,47 @@ public abstract class BucketManager extends AbstractService {
     }
 
     private CompletableFuture<Void> stopBucketService(Integer bucketId) {
-
-        return releaseBucketOwnership(bucketId).thenCompose(released -> {
-            if (released) {
-                BucketService bucketService;
+        BucketService bucketService;
+        synchronized (lock) {
+            bucketService = buckets.get(bucketId);
+        }
+        CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
+        bucketService.addListener(new Listener() {
+            @Override
+            public void terminated(State from) {
+                super.terminated(from);
                 synchronized (lock) {
-                    bucketService = buckets.get(bucketId);
+                    buckets.remove(bucketId);
+                    log.info("{}: Bucket service {} stopped.", serviceType, bucketId);
                 }
-                CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
-                bucketService.addListener(new Listener() {
-                    @Override
-                    public void terminated(State from) {
-                        super.terminated(from);
-                        synchronized (lock) {
-                            buckets.remove(bucketId);
-                            log.info("{}: Bucket service {} stopped.", serviceType, bucketId);
-                        }
+                releaseBucketOwnership(bucketId, processId).thenAccept(released -> {
+                    if (!released) {
+                        log.warn("{}: Unable to stop bucket service  {} because it doesn't release it ownership.",
+                                serviceType, bucketId);
+                        RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(bucketId),
+                                e -> log.warn("{}: exception while attempting to take ownership for bucket {}: {}.", getServiceType(),
+                                        bucketId, e.getMessage()), getExecutor());
+                    }
+                }).whenComplete((r, e) -> {
+                    if (e == null) {
                         bucketFuture.complete(null);
+                    } else {
+                        bucketFuture.completeExceptionally(e);
                     }
-
-                    @Override
-                    public void failed(State from, Throwable failure) {
-                        super.failed(from, failure);
-                        log.warn("{}: Unable to stop bucket service {} due to {}.", serviceType, bucketId, failure);
-                        bucketFuture.completeExceptionally(failure);
-                    }
-                }, executor);
-                bucketService.stopAsync();
-                return bucketFuture;
-            } else {
-                log.warn("{}: Unable to stop bucket service  {} because it doesn't release it ownership.",
-                        serviceType, bucketId);
-                return CompletableFuture.completedFuture(null);
+                });
             }
-        });
+
+            @Override
+            public void failed(State from, Throwable failure) {
+                super.failed(from, failure);
+                log.warn("{}: Unable to stop bucket service {} due to {}.", serviceType, bucketId, failure);
+                log.warn("{}: Reacquiring the ownership of bucket service {}.", serviceType, bucketId);
+                //if unable to stop the service, reacquire the ownership of bucket service.
+                bucketFuture.completeExceptionally(failure);
+            }
+        }, executor);
+        bucketService.stopAsync();
+        return bucketFuture;
     }
 
     abstract void startBucketOwnershipListener();
@@ -267,9 +275,10 @@ public abstract class BucketManager extends AbstractService {
      * Method to release bucket ownership.
      *
      * @param bucket        bucket id.
+     * @param processId     process id.
      * @return future, which when completed, will contain a boolean which tells if ownership release succeeded or failed.
      */
-    abstract CompletableFuture<Boolean> releaseBucketOwnership(int bucket);
+    abstract CompletableFuture<Boolean> releaseBucketOwnership(int bucket, String processId);
 
     /**
      * Method to take ownership of a bucket.

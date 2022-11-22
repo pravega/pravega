@@ -157,12 +157,23 @@ public class ZookeeperBucketStore implements BucketStore {
                           });
     }
 
-    public CompletableFuture<Boolean> releaseBucketOwnership(final ServiceType serviceType, int bucketId) {
+    public CompletableFuture<Boolean> releaseBucketOwnership(final ServiceType serviceType, int bucketId, String processId) {
         String bucketPath = ZKPaths.makePath(getBucketOwnershipPath(serviceType), "" + bucketId);
         return storeHelper.checkExists(bucketPath).thenCompose(exists -> {
             if (exists) {
-                return storeHelper.deleteNode(bucketPath).thenCompose(v -> storeHelper.checkExists(bucketPath))
-                                  .thenApply(exist -> !exist);
+                return storeHelper.getData(bucketPath, x -> x)
+                                  .thenApply(data -> (SerializationUtils.deserialize(data.getObject())).equals(processId))
+                                  .thenCompose(isValid -> {
+                                      if (isValid) {
+                                          return storeHelper.deleteNode(bucketPath).thenCompose(v ->
+                                                                    storeHelper.checkExists(bucketPath))
+                                                            .thenApply(exist -> !exist);
+                                      } else {
+                                          log.warn("{} : Unable to release the bucket service {} as it is acquired by another controller instance",
+                                                  serviceType, bucketId);
+                                          return CompletableFuture.completedFuture(false);
+                                      }
+                                  });
             } else {
                 return CompletableFuture.completedFuture(true);
             }
