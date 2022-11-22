@@ -19,8 +19,12 @@ import io.pravega.test.common.AssertExtensions;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Tests the functionality of methods within the Exceptions class.
@@ -113,5 +117,16 @@ public class ExceptionsTests {
 
         // These should not throw.
         Exceptions.checkNotClosed(false, "object");
+    }
+
+    /**
+     * Tests the assertEventuallyEquals method message.
+     */
+    @Test
+    public void testAssertEventuallyEquals() {
+        Exception exception  = assertThrows(TimeoutException.class,
+                () -> AssertExtensions.assertEventuallyEquals(true, () -> false, 1000));
+
+        assertEquals("Timeout expired prior to the condition becoming true. Expected value: true observed: false", exception.getMessage());
     }
 }
