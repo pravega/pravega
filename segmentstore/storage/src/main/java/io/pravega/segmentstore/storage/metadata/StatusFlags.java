@@ -34,6 +34,11 @@ public final class StatusFlags {
     public static final int SEALED = 0x0002;
 
     /**
+     * Flag to indicate whether all writes are atomic.
+     */
+    public static final int ATOMIC_WRITES = 0x0004;
+
+    /**
      * Flag to indicate whether the segment is storage system segment.
      */
     public static final int SYSTEM_SEGMENT = 0x0010;
