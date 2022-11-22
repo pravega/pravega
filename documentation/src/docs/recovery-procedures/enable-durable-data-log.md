@@ -35,7 +35,7 @@ Persistent errors are those that impact the data and/or metadata of the log (i.e
 Recovering from these errors may require data recovery procedures as explained in other documents of this
 section. Attempts to enable a log in this state are not advisable and will likely result in the Segment
 Store disabling the log again, once the data corruption is detected. On the other hand, Transient errors 
-are severe but recoverable errors that might lead to also disable the log, such an out of memory problem. 
+are severe but recoverable errors that might also lead to disabling the log, such as an out of memory problem. 
 This article focuses on the latter category and describes how to re-enable a `DurableDataLog` that has been 
 _disabled_ for reasons different from data corruption.
 
