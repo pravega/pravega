@@ -362,7 +362,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService(), null);
-        // When stream is not seal then we are able to write to the stream.
+        //When stream is not seal then we are able to write to the stream.
         writer.writeEvent(routingKey, "Foo");
         writer.writeEvent(routingKey, "Bar");
 
