@@ -40,6 +40,8 @@ import org.apache.curator.utils.ZKPaths;
 @SuppressWarnings("deprecation")
 @Slf4j
 public class ZooKeeperBucketManager extends BucketManager {
+    private static final String BUCKET_DISTRIBUTOR_LEADER_PATH = "bucketDistributorLeader";
+    private static final String ROOT_PATH = "/";
     private final ZookeeperBucketStore bucketStore;
     private final ConcurrentMap<BucketStore.ServiceType, PathChildrenCache> bucketOwnershipCacheMap;
     private final LeaderSelector leaderSelector;
@@ -47,9 +49,6 @@ public class ZooKeeperBucketManager extends BucketManager {
 
     private final BucketManagerLeader bucketManagerLeader;
     private final NodeCache cache;
-
-    private static final String BUCKET_DISTRIBUTOR_LEADER_PATH = "bucketDistributorLeader";
-    private static final String ROOT_PATH = "/";
 
     ZooKeeperBucketManager(String processId, ZookeeperBucketStore bucketStore, BucketStore.ServiceType serviceType, ScheduledExecutorService executor,
                            Function<Integer, BucketService> bucketServiceSupplier, BucketManagerLeader bucketManagerLeader) {
@@ -253,7 +252,7 @@ public class ZooKeeperBucketManager extends BucketManager {
      *
      * @return zpath for leader.
      */
-    private String getLeaderZkPath () {
+    private String getLeaderZkPath() {
         String rootPath = ZKPaths.makePath(ROOT_PATH, getServiceType().getName());
         return ZKPaths.makePath(rootPath, BUCKET_DISTRIBUTOR_LEADER_PATH);
     }
