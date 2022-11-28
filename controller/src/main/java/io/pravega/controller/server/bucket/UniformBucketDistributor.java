@@ -17,6 +17,8 @@
 package io.pravega.controller.server.bucket;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -56,7 +58,7 @@ public class UniformBucketDistributor implements BucketDistributor {
         }
 
         if (previousBucketControllerMapping.size() == 0 || currentControllers.size() == 1) {
-            log.info("Creating new balanced map");
+            log.info("Creating new balanced map for controllers {}", currentControllers);
             return initializeMap(currentControllers, bucketCount);
         }
 
@@ -94,7 +96,8 @@ public class UniformBucketDistributor implements BucketDistributor {
         //Add the orphaned buckets into the TreeSet, while balancing it.
         for (Integer bucket : orphanedBuckets) {
             Map.Entry<String, Set<Integer>> first = mapElements.pollFirst();
-            first.getValue().add(bucket);
+            ImmutableSet.Builder<Integer> builder = ImmutableSet.builder();
+            first.setValue(builder.addAll(first.getValue()).add(bucket).build());
             mapElements.add(first);
         }
 
@@ -107,8 +110,9 @@ public class UniformBucketDistributor implements BucketDistributor {
             Map.Entry<String, Set<Integer>> last = mapElements.pollLast();
 
             Integer removeCont = last.getValue().iterator().next();
-            last.getValue().remove(removeCont);
-            first.getValue().add(removeCont);
+            last.setValue(ImmutableSet.copyOf(Sets.difference( last.getValue(), ImmutableSet.of(removeCont))));
+            ImmutableSet.Builder<Integer> builder = ImmutableSet.builder();
+            first.setValue(builder.addAll(first.getValue()).add(removeCont).build());
 
             mapElements.add(first);
             mapElements.add(last);

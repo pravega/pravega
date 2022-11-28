@@ -16,6 +16,7 @@
 
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableSet;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -23,8 +24,6 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -36,7 +35,7 @@ public class BucketSet {
     static final BucketSet.BucketSetSerializer SERIALIZER = new BucketSet.BucketSetSerializer();
 
     @Getter
-    private final Set<Integer> bucketSet;
+    private final ImmutableSet<Integer> bucketSet;
 
     public static class BucketSetBuilder implements ObjectBuilder<BucketSet> {
 
@@ -56,8 +55,9 @@ public class BucketSet {
         }
 
         private void read00(RevisionDataInput revisionDataInput, BucketSet.BucketSetBuilder bucketSetBuilder) throws IOException {
-            bucketSetBuilder
-                    .bucketSet(revisionDataInput.readCollection(DataInput::readInt, HashSet::new));
+            ImmutableSet.Builder<Integer> builder = ImmutableSet.builder();
+            revisionDataInput.readCollection(DataInput::readInt, builder);
+            bucketSetBuilder.bucketSet(builder.build());
         }
 
         private void write00(BucketSet bucketSet, RevisionDataOutput revisionDataOutput) throws IOException {

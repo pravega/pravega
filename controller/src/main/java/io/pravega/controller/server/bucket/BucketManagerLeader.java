@@ -52,7 +52,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
     // The minimum interval between any two redistribution operations. The minimum duration is not guaranteed when leadership
     // moves across controllers. Since this is uncommon and there are no significant side-effects to it, we don't
     // handle this scenario.
-    private Duration minBucketRedistributionIntervalInSeconds;
+    private final Duration minBucketRedistributionIntervalInSeconds;
 
     // The controller to bucket distributor.
     @Getter
@@ -172,8 +172,8 @@ public class BucketManagerLeader implements LeaderSelectorListener {
                 controller.getHostId()).collect(Collectors.toSet());
 
         bucketStore.getBucketControllerMap(serviceType)
-                   .thenApply(controllers -> bucketDistributor.distribute(controllers, currentControllers,
-                           bucketStore.getBucketCount(serviceType)))
+                   .thenApply(currentControllerMapping -> bucketDistributor.distribute(currentControllerMapping,
+                           currentControllers, bucketStore.getBucketCount(serviceType)))
                    .thenCompose(newMapping -> bucketStore.updateBucketControllerMap(newMapping, serviceType))
                    .whenComplete((r, e) -> {
                        if (e != null) {

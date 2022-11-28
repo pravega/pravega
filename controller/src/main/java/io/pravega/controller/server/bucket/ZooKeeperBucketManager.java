@@ -42,11 +42,14 @@ import org.apache.curator.utils.ZKPaths;
 public class ZooKeeperBucketManager extends BucketManager {
     private final ZookeeperBucketStore bucketStore;
     private final ConcurrentMap<BucketStore.ServiceType, PathChildrenCache> bucketOwnershipCacheMap;
-    private LeaderSelector leaderSelector;
+    private final LeaderSelector leaderSelector;
     private final String processId;
 
     private final BucketManagerLeader bucketManagerLeader;
-    private NodeCache cache;
+    private final NodeCache cache;
+
+    private static final String BUCKET_DISTRIBUTOR_LEADER_PATH = "bucketDistributorLeader";
+    private static final String ROOT_PATH = "/";
 
     ZooKeeperBucketManager(String processId, ZookeeperBucketStore bucketStore, BucketStore.ServiceType serviceType, ScheduledExecutorService executor,
                            Function<Integer, BucketService> bucketServiceSupplier, BucketManagerLeader bucketManagerLeader) {
@@ -55,6 +58,8 @@ public class ZooKeeperBucketManager extends BucketManager {
         this.bucketStore = bucketStore;
         this.processId = processId;
         this.bucketManagerLeader = bucketManagerLeader;
+        leaderSelector = new LeaderSelector(bucketStore.getClient(), getLeaderZkPath(), bucketManagerLeader);
+        cache = bucketStore.getBucketControllerMapNodeCache(getServiceType());
     }
 
     /**
@@ -152,7 +157,6 @@ public class ZooKeeperBucketManager extends BucketManager {
     public void startBucketControllerMapListener() {
         ZKUtils.createPathIfNotExists(bucketStore.getClient(), bucketStore.getBucketControllerMapPath(getServiceType()),
                 BucketControllerMap.EMPTY.toBytes());
-        cache = bucketStore.getBucketControllerMapNodeCache(getServiceType());
         cache.getListenable().addListener(this::handleBuckets);
         log.info("{}: Bucket controller map listener registered.", getServiceType());
         cache.start(true);
@@ -190,11 +194,6 @@ public class ZooKeeperBucketManager extends BucketManager {
 
     @Override
     public void startLeaderElection() {
-        String bucketDistributorLeader = "bucketDistributorLeader";
-        String leaderSubPath = ZKPaths.makePath("cluster", getServiceType().getName());
-        String leaderZKPath = ZKPaths.makePath(leaderSubPath, bucketDistributorLeader);
-
-        leaderSelector = new LeaderSelector(bucketStore.getClient(), leaderZKPath, bucketManagerLeader);
         //Listen for any zookeeper connection state changes
         bucketStore.getClient().getConnectionStateListenable().addListener(
                 (curatorClient, newState) -> {
@@ -247,5 +246,15 @@ public class ZooKeeperBucketManager extends BucketManager {
                 log.warn("{}: Manage bucket finished with exception {}.", getServiceType(), e);
             }
         });
+    }
+
+    /**
+     * Method to get the leader path.
+     *
+     * @return zpath for leader.
+     */
+    private String getLeaderZkPath () {
+        String rootPath = ZKPaths.makePath(ROOT_PATH, getServiceType().getName());
+        return ZKPaths.makePath(rootPath, BUCKET_DISTRIBUTOR_LEADER_PATH);
     }
 }

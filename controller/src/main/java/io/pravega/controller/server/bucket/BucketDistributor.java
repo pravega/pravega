@@ -24,10 +24,13 @@ public interface BucketDistributor {
     /**
      * Distribute the buckets among available controllers.
      *
-     * @param previousMapping    Existing controllers to bucket mapping.
+     * @param previousMapping    Existing controllers to bucket mapping. Map contains controller's host id as key and
+     *                           set of ids of assigned buckets as value.
      * @param currentControllers Updated list of controllers in cluster.
      * @param bucketCount        Bucket count.
-     * @return                   The new controller to buckets mapping after performing a distribute operation.
+     * @return                   The new controller to buckets mapping after performing a distribute operation. Map
+     *                           contains controller's host id as key and set of ids of assigned buckets as per new
+     *                           distribution as value.
      */
     Map<String, Set<Integer>> distribute(Map<String, Set<Integer>> previousMapping, Set<String> currentControllers,
                                          int bucketCount);

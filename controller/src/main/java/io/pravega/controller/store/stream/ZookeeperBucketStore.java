@@ -42,6 +42,7 @@ import org.apache.curator.utils.ZKPaths;
 public class ZookeeperBucketStore implements BucketStore {
     private static final String ROOT_PATH = "/";
     private static final String OWNERSHIP_CHILD_PATH = "ownership";
+    private static final String BUCKET_CONTROLLER_MAPPING_PATH = "bucketControllerMapping";
     private final ImmutableMap<ServiceType, Integer> bucketCountMap;
     @Getter
     private final ZKStoreHelper storeHelper;
@@ -222,8 +223,7 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     public String getBucketControllerMapPath(final ServiceType serviceType) {
-        String bucketHostMapping = "bucketControllerMapping";
         String bucketRootPath = getBucketRootPath(serviceType);
-        return ZKPaths.makePath(bucketRootPath, bucketHostMapping);
+        return ZKPaths.makePath(bucketRootPath, BUCKET_CONTROLLER_MAPPING_PATH);
     }
 }

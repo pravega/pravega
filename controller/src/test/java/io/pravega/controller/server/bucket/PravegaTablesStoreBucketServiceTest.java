@@ -145,7 +145,6 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         watermarkingService.takeBucketOwnership(2, dummyProcessId, executor).join();
 
         addEntryToZkCluster(controller);
-        Thread.sleep(10000);
         //Verify new controller will start the service, until previous one doesn't release it.
         Map<Integer, BucketService> bucketServices = watermarkingService.getBucketServices();
         assertNotNull(bucketServices);

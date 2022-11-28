@@ -70,13 +70,11 @@ public abstract class BucketManager extends AbstractService {
 
     @Override
     protected void doStart() {
-        initializeService().thenAccept(v -> startBucketControllerMapListener())
-                           .thenAccept(v -> startLeaderElection())
+        initializeService().thenAccept(v -> startAllListeners())
                            .thenCompose(v -> bucketStore.getBucketsForController(processId, serviceType))
                            .thenCompose(buckets -> Futures.allOf(buckets.stream().map(x -> initializeBucket(x)
                                                                                 .thenCompose(v -> tryTakeOwnership(x)))
                                                                         .collect(Collectors.toList())))
-                           .thenAccept(x -> startBucketOwnershipListener())
                            .whenComplete((r, e) -> {
                                if (e != null) {
                                    notifyFailed(e);
@@ -104,25 +102,27 @@ public abstract class BucketManager extends AbstractService {
      * @return Completable future which when complete indicate that controller manages buckets according to new mapping.
      */
     protected CompletableFuture<Void> manageBuckets() {
-        AtomicReference<Set<Integer>> removeableBuckets = new AtomicReference<>();
+
         return bucketStore.getBucketsForController(processId, getServiceType())
                           .thenCompose(newBuckets -> {
-                              Set<Integer> addBuckets;
+                              Set<Integer> addBuckets, removableBuckets;
                               synchronized (lock) {
                                   addBuckets = newBuckets.stream().filter(x -> !buckets.containsKey(x))
                                                          .collect(Collectors.toSet());
-                                  removeableBuckets.set(buckets.keySet().stream().filter(x -> !newBuckets.contains(x))
-                                                               .collect(Collectors.toSet()));
+                                  removableBuckets = buckets.keySet().stream().filter(x -> !newBuckets.contains(x))
+                                                               .collect(Collectors.toSet());
                               }
                               log.info("{}: Buckets added to process : {} are {}.", serviceType, processId, addBuckets);
                               return Futures.allOf(addBuckets.stream().map(x -> initializeBucket(x)
                                                                      .thenCompose(v -> tryTakeOwnership(x)))
-                                                             .collect(Collectors.toList()));
-                          }).thenAccept(v -> {
-                              if (removeableBuckets.get().size() > 0) {
-                                  stopBucketServices(removeableBuckets.get(), false);
-                              }
-                              log.info("{}: Buckets removed from process : {} are {}.", serviceType, processId, removeableBuckets);
+                                                             .collect(Collectors.toList()))
+                                            .thenAccept(v -> {
+                                                if (removableBuckets.size() > 0) {
+                                                    stopBucketServices(removableBuckets, false);
+                                                }
+                                                log.info("{}: Buckets removed from process : {} are {}.", serviceType,
+                                                        processId, removableBuckets);
+                                            });
                           });
     }
 
@@ -293,5 +293,14 @@ public abstract class BucketManager extends AbstractService {
     @VisibleForTesting
     Map<Integer, BucketService> getBucketServices() {
         return Collections.unmodifiableMap(buckets);
+    }
+
+    /**
+     * Method to start all listener required for bucket manager.
+     */
+    private void startAllListeners() {
+        startBucketControllerMapListener();
+        startLeaderElection();
+        startBucketOwnershipListener();
     }
 }
