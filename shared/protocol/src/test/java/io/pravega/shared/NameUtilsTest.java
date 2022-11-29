@@ -175,7 +175,7 @@ public class NameUtilsTest {
                 "_system/containers/_sysjournal.epoch3.container2.file4");
         Assert.assertEquals(NameUtils.getSystemJournalSnapshotFileName(5, 6, 7),
                 "_system/containers/_sysjournal.epoch6.container5.snapshot7");
-        Assert.assertTrue(NameUtils.getSegmentChunkName("segment", 8, 9).startsWith("segment.E-8-O-9"));
+        Assert.assertTrue(NameUtils.getSegmentChunkName("segment", 8, 9).startsWith("segment/E-8-O-9"));
         Assert.assertEquals(NameUtils.getSegmentReadIndexBlockName("segment", 10), "segment.B-10");
     }
 

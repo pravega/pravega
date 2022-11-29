@@ -397,7 +397,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         val list = taskQueueManager.drain(chunkedSegmentStorage.getGarbageCollector().getTaskQueueName(), 2);
         Assert.assertTrue(chunksListBefore.contains(list.get(0).getName()));
 
-        val nameTemplate = String.format("%s.E-%d-O-%d.", testSegmentName, chunkedSegmentStorage.getEpoch(), 8);
+        val nameTemplate = String.format("%s/E-%d-O-%d.", testSegmentName, chunkedSegmentStorage.getEpoch(), 8);
         Assert.assertTrue("New first chunk should be added to GC queue.", list.get(1).getName().startsWith(nameTemplate));
     }
 
