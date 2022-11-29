@@ -41,7 +41,7 @@ public class TestUtils {
 
     // We use a random start position here to avoid ports conflicts when this method is executed from multiple processes
     // in parallel. This is needed since the processes will contend for the same port sequence.
-    private static final AtomicInteger NEXT_PORT = new AtomicInteger(RAND.nextInt());
+    private static final AtomicInteger NEXT_PORT = new AtomicInteger(RAND.nextInt(MAX_PORT_COUNT));
 
     /**
      * A helper method to get a random free TCP port.
@@ -58,7 +58,6 @@ public class TestUtils {
                 return candidatePort;
             } catch (IOException e) {
                 // Do nothing. Try another port.
-                NEXT_PORT.addAndGet(RAND.nextInt());
             }
         }
         throw new IllegalStateException(
