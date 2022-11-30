@@ -815,6 +815,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * processed. If it failed, it will be completed with an appropriate exception.
      */
     private CompletableFuture<Void> processAppend(StreamSegmentAppendOperation appendOperation, TimeoutTimer timer) {
+        if (this.config.isDataIntegrityChecksEnabled()) {
+            // Compute the hash of the Append contents at the beginning of the ingestion pipeline.
+            appendOperation.setContentHash(appendOperation.getData().hash());
+        }
         CompletableFuture<Void> result = processAttributeUpdaterOperation(appendOperation, timer);
         Futures.exceptionListener(result, ex -> appendOperation.close());
         return result;

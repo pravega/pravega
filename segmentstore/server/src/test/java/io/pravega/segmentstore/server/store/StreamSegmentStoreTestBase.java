@@ -178,7 +178,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * after we have merged transactions into them. Default is true, but some tests may take longer to execute so this
      * can be disabled for those.
      *
-     * @return True if {@link #testEndToEnd()} should append data after merging transactions, false otherwise.
+     * @return True if {@link #testEndToEndWithChunkedStorage()} should append data after merging transactions, false otherwise.
      */
     protected boolean appendAfterMerging() {
         return true;
@@ -257,23 +257,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 debugStreamSegmentContainerMap.get(containerId).close();
             }
         }
-    }
-
-    /**
-     * Tests an end-to-end scenario for the SegmentStore, utilizing a read-write SegmentStore for making modifications
-     * (writes, seals, creates, etc.) and another instance to verify the changes being persisted into Storage.
-     * This test does not use ChunkedSegmentStorage.
-     * * Appends
-     * * Reads
-     * * Segment and transaction creation
-     * * Transaction mergers
-     * * Recovery
-     *
-     * @throws Exception If an exception occurred.
-     */
-    @Test(timeout = 120000)
-    public void testEndToEnd() throws Exception {
-        endToEndProcess(true, false);
     }
 
     /**
@@ -505,17 +488,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         log.info("Finished.");
     }
 
-    /**
-     * Tests an end-to-end scenario for the SegmentStore where operations are continuously executed while the SegmentStore
-     * itself is being fenced out by new instances. The difference between this and testEndToEnd() is that this does not
-     * do a graceful shutdown of the Segment Store, instead it creates a new instance while the previous one is still running.
-     *
-     * @throws Exception If an exception occurred.
-     */
-    @Test(timeout = 120000)
-    public void testEndToEndWithFencing() throws Exception {
-        endToEndProcessWithFencing(true, false);
-    }
 
     /**
      * Tests an end-to-end scenario for the SegmentStore where operations are continuously executed while the SegmentStore
@@ -881,7 +853,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             Retry.withExpBackoff(100, 2, 10, TIMEOUT.toMillis() / 5)
                     .retryWhen(ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException || info.get().getLength() != info.get().getStorageLength())
                     .run(() -> {
-                        val latestInfo =  (StreamSegmentInformation) store.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+                        final StreamSegmentInformation latestInfo = (StreamSegmentInformation) store.getStreamSegmentInfo(segmentName, TIMEOUT).join();
                         try {
                             checkSegmentReads(segmentName, expectedCurrentOffset, info.get().getLength(), store, expectedData);
                         } catch (Exception ex2) {

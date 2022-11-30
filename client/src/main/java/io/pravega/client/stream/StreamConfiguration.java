@@ -82,7 +82,6 @@ public class StreamConfiguration implements Serializable {
 
     /**
      * API to return the configured tags for the Stream.
-     * @param tag The tag(s) for the Stream.
      * @return List of tag(s) for the Stream.
      */
     @Singular

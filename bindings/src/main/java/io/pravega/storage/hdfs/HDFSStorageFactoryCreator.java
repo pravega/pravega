@@ -33,10 +33,6 @@ public class HDFSStorageFactoryCreator implements StorageFactoryCreator {
                 StorageFactoryInfo.builder()
                         .name("HDFS")
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
-                        .build(),
-                StorageFactoryInfo.builder()
-                        .name("HDFS")
-                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
     }
@@ -52,7 +48,7 @@ public class HDFSStorageFactoryCreator implements StorageFactoryCreator {
                     setup.getConfig(HDFSStorageConfig::builder),
                     executor);
         } else {
-            return new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), executor);
+            throw new UnsupportedOperationException("RollingStorage is deprecated.");
         }
     }
 }

@@ -67,6 +67,7 @@ import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.EvictMetaDataCacheCommand;
 import io.pravega.cli.admin.segmentstore.EvictReadIndexCacheCommand;
 import io.pravega.cli.admin.segmentstore.storage.ListChunksCommand;
+import io.pravega.cli.admin.segmentstore.storage.StorageUpdateSnapshotCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentEntryCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.ListTableSegmentKeysCommand;
@@ -401,6 +402,7 @@ public abstract class AdminCommand {
                         .put(GetSegmentStoreByContainerCommand::descriptor, GetSegmentStoreByContainerCommand::new)
                         .put(PasswordFileCreatorCommand::descriptor, PasswordFileCreatorCommand::new)
                         .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)
+                        .put(StorageUpdateSnapshotCommand::descriptor, StorageUpdateSnapshotCommand::new)
                         .put(DurableLogInspectCommand::descriptor, DurableLogInspectCommand::new)
                         .put(DurableLogRecoveryCommand::descriptor, DurableLogRecoveryCommand::new)
                         .put(DurableDataLogRepairCommand::descriptor, DurableDataLogRepairCommand::new)

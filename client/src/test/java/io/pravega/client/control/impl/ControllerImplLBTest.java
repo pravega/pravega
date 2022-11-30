@@ -19,6 +19,7 @@ import io.grpc.Server;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
@@ -44,6 +45,13 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 
 /**
  * Tests for ControllerImpl with Service Discovery, Loadbalancing and Failover support.
@@ -277,7 +285,7 @@ public class ControllerImplLBTest {
         Assert.assertTrue(testRPCServer3.isTerminated());
 
         AssertExtensions.assertThrows(RetriesExhaustedException.class,
-                () -> controllerClient.getEndpointForSegment("a/b/0").get());
+                () -> controllerClient.getPravegaNodeUri(Segment.fromScopedName("a/b/0")).get());
     }
 
     private Set<PravegaNodeUri> fetchFromServers(ControllerImpl client, int numServers) {
@@ -288,7 +296,10 @@ public class ControllerImplLBTest {
         // client-server connection timing issues.
         while (uris.size() < numServers) {
             try {
-                uris.add(client.getEndpointForSegment("a/b/0").get());
+                // We have added cache support in getEndPointForSegment API.
+                // Since it will always return the same value from cache for ID 0, so the condition in while loop can never be met and will eventually timeout and fail.
+                // hence we did change the call to getPravegaNodeUriForTesting.
+                uris.add(client.getPravegaNodeUri(Segment.fromScopedName("a/b/0")).get());
             } catch (Exception e) {
                 // Ignore temporary exceptions which happens due to failover.
             }
@@ -307,5 +318,12 @@ public class ControllerImplLBTest {
             }
         }
         return true;
+    }
+
+    @Test
+    public void testDefaultUpdateStaleValueInCache() {
+            Controller connection = Mockito.spy(Controller.class);
+            connection.updateStaleValueInCache("dummySegment", new PravegaNodeUri("dummyhost", 12345));
+            verify(connection, times(1)).updateStaleValueInCache(anyString(), any());
     }
 }
