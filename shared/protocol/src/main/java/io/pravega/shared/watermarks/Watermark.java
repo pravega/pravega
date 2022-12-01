@@ -50,44 +50,13 @@ public class Watermark {
     private final long upperTimeBound;
     private final Map<SegmentWithRange, Long> streamCut;
 
-    //  private StreamCut streamCuts;
-
-    /* private String scope;
-
-    private String streamName;
-
-    private Long segmentId;*/
-
-    // private StreamCut streamCutImpl;
-
-    // stream var name - Add stream+segment ID - construct SEgment
-
     @Builder
     public Watermark(long lowerTimeBound, long upperTimeBound, Map<SegmentWithRange, Long> streamCut) {
-        //, StreamCutImpl streamCut1
         Preconditions.checkArgument(upperTimeBound >= lowerTimeBound);
         this.lowerTimeBound = lowerTimeBound;
         this.upperTimeBound = upperTimeBound;
         this.streamCut = streamCut;
-        //  streamCutImpl = null;
     }
-
-    /*public Watermark(long lowerTimeBound, long upperTimeBound, Map<SegmentWithRange, Long> streamCut, String streamName, String scope, Long segmentId) {
-        this(lowerTimeBound, upperTimeBound, streamCut);
-        this.streamName = streamName;
-        this.scope = scope;
-        this.segmentId = segmentId;
-        streamCutImpl = formStreamCut(streamCut, streamName, scope); // construct StreamCut - Stream + positions
-    }
-
-    private static StreamCut formStreamCut(Map<SegmentWithRange, Long> streamCut, String streamName, String scope) {
-        Stream stream = Stream.of(scope, streamName);
-        Map<io.pravega.client.segment.impl.Segment, Long> position = new LinkedHashMap<>();
-        for (Map.Entry<SegmentWithRange, Long> entry : streamCut.entrySet()) {
-             position.put(new Segment(scope, streamName, entry.getKey().getSegmentId()), entry.getValue());
-        }
-        return new StreamCutImpl(stream, position);
-    }*/
 
     public static class WatermarkBuilder implements ObjectBuilder<Watermark> {
 
