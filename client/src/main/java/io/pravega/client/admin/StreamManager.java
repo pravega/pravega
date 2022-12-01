@@ -249,4 +249,14 @@ public interface StreamManager extends AutoCloseable {
      */
     @Override
     void close();
+
+    /**
+     * Fetch the distance between two streamCuts.
+     *
+     * @param stream The stream with streamCuts.
+     * @param fromStreamCut start streamCut.
+     * @param toStreamCut end streamCut.
+     * @return A future containing {@link Long} value which is the distance between two streamCuts.
+     */
+    CompletableFuture<Long> getDistanceBetweenTwoStreamCuts(Stream stream, StreamCut fromStreamCut, StreamCut toStreamCut);
 }

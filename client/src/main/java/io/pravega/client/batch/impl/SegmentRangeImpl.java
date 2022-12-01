@@ -71,6 +71,11 @@ public final class SegmentRangeImpl implements SegmentRange {
     }
 
     @Override
+    public Segment getASegment() {
+        return this.segment;
+    }
+
+    @Override
     public SegmentRangeImpl asImpl() {
         return this;
     }
