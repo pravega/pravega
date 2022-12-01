@@ -99,7 +99,7 @@ public interface BatchClientFactory extends AutoCloseable {
      * Provides a list of SegmentRange in between a start and end streamCut.
      *
      * @param startStreamCut start streamCut.
-     * @param endStreamCut ens streamCut.
+     * @param endStreamCut end streamCut.
      * @return A list of segment range in between a start and end stream cut.
      */
     List<SegmentRange> getSegmentRangeBetweenStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut);

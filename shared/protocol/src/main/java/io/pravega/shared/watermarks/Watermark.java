@@ -45,7 +45,6 @@ import lombok.SneakyThrows;
 public class Watermark {
     public static final WatermarkSerializer SERIALIZER = new WatermarkSerializer();
     public static final Watermark EMPTY = new Watermark(Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of());
-    // , "SCOPE", "STREAM", 0L//TODO: check on the default val for stream scope and segment
     private final long lowerTimeBound;
     private final long upperTimeBound;
     private final Map<SegmentWithRange, Long> streamCut;
