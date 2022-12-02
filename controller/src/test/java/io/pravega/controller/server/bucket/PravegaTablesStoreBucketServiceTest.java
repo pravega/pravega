@@ -216,6 +216,9 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         // Try to stop bucket service 1, it should give exception.
         bucketManager.stopBucketServices(Set.of(1), false);
         assertEquals(2,  bucketManager.getBucketServices().size());
+        // Try to stop bucket service 1, it should give exception and notify the manager.
+        bucketManager.stopBucketServices(Set.of(1), true);
+        assertEquals(2,  bucketManager.getBucketServices().size());
 
     }
 
