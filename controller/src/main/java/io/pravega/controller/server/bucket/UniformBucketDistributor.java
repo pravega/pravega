@@ -19,6 +19,7 @@ package io.pravega.controller.server.bucket;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import io.pravega.common.hash.HashHelper;
 import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -84,7 +85,8 @@ public class UniformBucketDistributor implements BucketDistributor {
                     } else {
                         // Position elements with equal bucket length using object hashCode to provide strict weak
                         // ordering. We don't need any specific ordering using information from the controller.
-                        return o1.getKey().hashCode() - o2.getKey().hashCode();
+                        HashHelper hashHelper = HashHelper.seededWith("ControllerHostId");
+                        return (int) (hashHelper.hash(o1.getKey()) - hashHelper.hash(o2.getKey()));
                     }
                 });
 

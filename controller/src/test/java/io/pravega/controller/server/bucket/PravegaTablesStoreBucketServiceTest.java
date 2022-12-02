@@ -25,11 +25,16 @@ import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.ZookeeperBucketStore;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.curator.framework.CuratorFramework;
@@ -44,6 +49,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 
 public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     private TestingServer zkServer;
@@ -97,14 +104,14 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     @Test(timeout = 30000)
     public void testFailover() throws Exception {
         addEntryToZkCluster(controller);
-        assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
-        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
+        assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 3000);
+        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 3000);
 
         //add new controller instance in pravgea cluster.
         Host controller1 = new Host(UUID.randomUUID().toString(), 9090, null);
         addEntryToZkCluster(controller1);
-        assertEventuallyEquals(2, () -> retentionService.getBucketServices().size(), 10000);
-        assertEventuallyEquals(2, () -> watermarkingService.getBucketServices().size(), 10000);
+        assertEventuallyEquals(2, () -> retentionService.getBucketServices().size(), 3000);
+        assertEventuallyEquals(2, () -> watermarkingService.getBucketServices().size(), 3000);
 
         List<Integer> retentionBuckets = IntStream.range(0, 3).filter(x ->
                 !retentionService.getBucketServices().keySet().contains(x)).boxed().collect(Collectors.toList());
@@ -117,24 +124,24 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         //add new controller instance in pravgea cluster.
         Host controller2 = new Host(UUID.randomUUID().toString(), 9090, null);
         addEntryToZkCluster(controller2);
-        assertEventuallyEquals(1, () -> retentionService.getBucketServices().size(), 10000);
-        assertEventuallyEquals(1, () -> watermarkingService.getBucketServices().size(), 10000);
+        assertEventuallyEquals(1, () -> retentionService.getBucketServices().size(), 3000);
+        assertEventuallyEquals(1, () -> watermarkingService.getBucketServices().size(), 3000);
 
         //remove controller instances from pravega cluster.
         removeControllerFromZkCluster(controller1, cluster);
         removeControllerFromZkCluster(controller2, cluster);
 
         //controller1 didn't release bucket 0 till now. So it will not start it.
-        assertEventuallyEquals(2, () -> retentionService.getBucketServices().size(), 10000);
-        assertEventuallyEquals(2, () -> watermarkingService.getBucketServices().size(), 10000);
+        assertEventuallyEquals(2, () -> retentionService.getBucketServices().size(), 3000);
+        assertEventuallyEquals(2, () -> watermarkingService.getBucketServices().size(), 3000);
 
         //controller1 release buckets here.
         assertTrue(retentionService.releaseBucketOwnership(retentionBuckets.get(0), controller1.getHostId()).join());
         assertTrue(watermarkingService.releaseBucketOwnership(watermarkBuckets.get(0), controller1.getHostId()).join());
 
         //controller1 release bucket 0 now. So it will start it.
-        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
-        assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
+        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 3000);
+        assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 3000);
     }
 
     @Test(timeout = 30000)
@@ -167,5 +174,53 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         assertEquals(3, bucketServices.size());
         //Verifying only owning controller can release the buckets.
         assertFalse(watermarkingService.releaseBucketOwnership(1, dummyProcessId).join());
+    }
+
+    @Test(timeout = 30000)
+    public void testFailureCase() throws Exception {
+        BucketService bucketService = spy(new ZooKeeperBucketService(BucketStore.ServiceType.WatermarkingService,
+                2, (ZookeeperBucketStore) bucketStore, executor, 2,
+                Duration.ofMillis(5), periodicWatermarking::watermark));
+
+        BucketService bucketService1 = spy(new ZooKeeperBucketService(BucketStore.ServiceType.WatermarkingService,
+                1, (ZookeeperBucketStore) bucketStore, executor, 2,
+                Duration.ofMillis(5), periodicWatermarking::watermark));
+
+        doThrow(new RuntimeException("Service start failed.")).when(bucketService).doStart();
+
+        doThrow(new RuntimeException("Service stop failed.")).when(bucketService1).doStop();
+
+        Function<Integer, BucketService> zkSupplier = bucket -> bucket == 0 ?
+                new ZooKeeperBucketService(BucketStore.ServiceType.WatermarkingService,
+                bucket, (ZookeeperBucketStore) bucketStore, executor, 2,
+                Duration.ofMillis(5), periodicWatermarking::watermark)
+                : bucket == 1 ? bucketService1 : bucketService;
+
+        BucketManager bucketManager = new ZooKeeperBucketManager(hostId, (ZookeeperBucketStore) bucketStore,
+                BucketStore.ServiceType.WatermarkingService, executor, zkSupplier,
+                getBucketManagerLeader(BucketStore.ServiceType.WatermarkingService));
+        bucketManager.startAsync();
+        bucketManager.awaitRunning();
+        // Bucket 2 will not be able to start as dostart() is throwing RunTimeException. So in this case buckets which
+        // will be in running states are [0,1].
+        // Start bucket service 0.
+        bucketManager.tryTakeOwnership(0).join();
+        assertEquals(1, bucketManager.getBucketServices().size());
+        // Start bucket service 1.
+        bucketManager.tryTakeOwnership(1).join();
+        assertEquals(2, bucketManager.getBucketServices().size());
+        // Try to start bucket service 2, it should give exception.
+        AssertExtensions.assertThrows("Unable to start bucket service.",
+                () -> bucketManager.tryTakeOwnership(2).join(), e -> e instanceof RuntimeException);
+        assertEquals(2,  bucketManager.getBucketServices().size());
+        // Try to stop bucket service 1, it should give exception.
+        bucketManager.stopBucketServices(Set.of(1), false);
+        assertEquals(2,  bucketManager.getBucketServices().size());
+
+    }
+
+    private BucketManagerLeader getBucketManagerLeader(BucketStore.ServiceType serviceType) {
+        return new BucketManagerLeader(bucketStore, 1,
+                new UniformBucketDistributor(), serviceType);
     }
 }

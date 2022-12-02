@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -40,6 +41,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
 
     private final BucketStore bucketStore;
     // The pravega cluster which this controller manages.
+    @GuardedBy("lock")
     private Cluster pravegaServiceCluster = null;
     // Semaphore to notify the leader thread to trigger a rebalance.
     private final Semaphore controllerChange = new Semaphore(0);
@@ -63,7 +65,8 @@ public class BucketManagerLeader implements LeaderSelectorListener {
     public BucketManagerLeader(BucketStore bucketStore, int minBucketRedistributionIntervalInSeconds,
                                BucketDistributor bucketDistributor, BucketStore.ServiceType serviceType) {
         Preconditions.checkNotNull(bucketStore, "bucketStore");
-        Preconditions.checkArgument(minBucketRedistributionIntervalInSeconds >= 0, "minBucketRedistributionInterval should not be negative");
+        Preconditions.checkArgument(minBucketRedistributionIntervalInSeconds >= 0,
+                "minBucketRedistributionInterval should not be negative");
 
         this.bucketStore = bucketStore;
         this.minBucketRedistributionIntervalInSeconds = Duration.ofSeconds(minBucketRedistributionIntervalInSeconds);

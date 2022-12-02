@@ -19,7 +19,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.util.RetryHelper;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -72,7 +71,7 @@ public abstract class BucketManager extends AbstractService {
         initializeService().thenAccept(v -> startAllListeners())
                            .thenCompose(v -> bucketStore.getBucketsForController(processId, serviceType))
                            .thenCompose(buckets -> Futures.allOf(buckets.stream().map(x -> initializeBucket(x)
-                                                                                .thenCompose(v -> tryTakeOwnership(x)))
+                                                                                .thenCompose(v -> startBucketService(x)))
                                                                         .collect(Collectors.toList())))
                            .whenComplete((r, e) -> {
                                if (e != null) {
@@ -101,7 +100,6 @@ public abstract class BucketManager extends AbstractService {
      * @return Completable future which when complete indicate that controller manages buckets according to new mapping.
      */
     protected CompletableFuture<Void> manageBuckets() {
-
         return bucketStore.getBucketsForController(processId, getServiceType())
                           .thenCompose(newBuckets -> {
                               Set<Integer> addBuckets, removableBuckets;
@@ -109,18 +107,18 @@ public abstract class BucketManager extends AbstractService {
                                   addBuckets = newBuckets.stream().filter(x -> !buckets.containsKey(x))
                                                          .collect(Collectors.toSet());
                                   removableBuckets = buckets.keySet().stream().filter(x -> !newBuckets.contains(x))
-                                                               .collect(Collectors.toSet());
+                                                            .collect(Collectors.toSet());
                               }
                               log.info("{}: Buckets added to process : {} are {}.", serviceType, processId, addBuckets);
+                              log.info("{}: Buckets removed from process : {} are {}.", serviceType, processId,
+                                      removableBuckets);
                               return Futures.allOf(addBuckets.stream().map(x -> initializeBucket(x)
-                                                                     .thenCompose(v -> tryTakeOwnership(x)))
+                                                                     .thenCompose(v -> startBucketService(x)))
                                                              .collect(Collectors.toList()))
                                             .thenAccept(v -> {
                                                 if (removableBuckets.size() > 0) {
                                                     stopBucketServices(removableBuckets, false);
                                                 }
-                                                log.info("{}: Buckets removed from process : {} are {}.", serviceType,
-                                                        processId, removableBuckets);
                                             });
                           });
     }
@@ -166,10 +164,12 @@ public abstract class BucketManager extends AbstractService {
             public void failed(State from, Throwable failure) {
                 super.failed(from, failure);
                 log.error("{}: Failed to start bucket: {}.", BucketManager.this.serviceType, bucket);
-                synchronized (lock) {
-                    buckets.remove(bucket);
+                if (from == State.STARTING) {
+                    synchronized (lock) {
+                        buckets.remove(bucket);
+                    }
+                    bucketFuture.completeExceptionally(failure);
                 }
-                bucketFuture.completeExceptionally(failure);
             }
         }, executor);
         bucketService.startAsync();
@@ -183,8 +183,8 @@ public abstract class BucketManager extends AbstractService {
         synchronized (lock) { 
             tmp = new HashSet<>(buckets.keySet());
         }
-        stopBucketOwnershipListener();
         stopBucketServices(tmp, true);
+        stopBucketOwnershipListener();
         stopBucketControllerMapListener();
         stopLeader();
     }
@@ -228,18 +228,22 @@ public abstract class BucketManager extends AbstractService {
                     buckets.remove(bucketId);
                     log.info("{}: Bucket service {} stopped.", serviceType, bucketId);
                 }
-                releaseBucketOwnership(bucketId, processId).thenAccept(released -> {
+                releaseBucketOwnership(bucketId, processId).thenCompose(released -> {
                     if (!released) {
-                        log.warn("{}: Unable to stop bucket service  {} because it doesn't release it ownership.",
+                        log.warn("{}: Unable to stop bucket service  {} because it doesn't release it's ownership.",
                                 serviceType, bucketId);
-                        RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(bucketId),
-                                e -> log.warn("{}: exception while attempting to take ownership for bucket {}: {}.", getServiceType(),
-                                        bucketId, e.getMessage()), getExecutor());
+                        return startBucketService(bucketId);
                     }
+                    return CompletableFuture.completedFuture(null);
                 }).whenComplete((r, e) -> {
                     if (e == null) {
                         bucketFuture.complete(null);
                     } else {
+                        //if unable to stop the service, reacquire the ownership of bucket service.
+                        log.warn("{}: Reacquiring the ownership of bucket service {}.", serviceType, bucketId);
+                        startBucketService(bucketId).whenComplete((result, exception) -> {
+                            log.info("{} : Trying to restart the service {}.", getServiceType(), bucketId);
+                        });
                         bucketFuture.completeExceptionally(e);
                     }
                 });
@@ -249,8 +253,6 @@ public abstract class BucketManager extends AbstractService {
             public void failed(State from, Throwable failure) {
                 super.failed(from, failure);
                 log.warn("{}: Unable to stop bucket service {} due to {}.", serviceType, bucketId, failure);
-                log.warn("{}: Reacquiring the ownership of bucket service {}.", serviceType, bucketId);
-                //if unable to stop the service, reacquire the ownership of bucket service.
                 bucketFuture.completeExceptionally(failure);
             }
         }, executor);
@@ -301,5 +303,15 @@ public abstract class BucketManager extends AbstractService {
         startBucketControllerMapListener();
         startLeaderElection();
         startBucketOwnershipListener();
+    }
+
+    /**
+     * Make an indefinite retries to start an assigned bucket.
+     *
+     * @param bucketId Id of bucket service.
+     * @return future, which when complete indicate that ownership acquired successfully.
+     */
+    private CompletableFuture<Void> startBucketService(int bucketId) {
+       return tryTakeOwnership(bucketId);
     }
 }

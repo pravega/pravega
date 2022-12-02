@@ -53,6 +53,8 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class BucketServiceTest {
 
+    protected PeriodicWatermarking periodicWatermarking;
+    protected String hostId;
     StreamMetadataStore streamMetadataStore;
     BucketStore bucketStore;
     BucketManager retentionService;
@@ -60,9 +62,7 @@ public abstract class BucketServiceTest {
     ScheduledExecutorService executor;
     StreamMetadataTasks streamMetadataTasks;
     Host controller;
-    private PeriodicWatermarking periodicWatermarking;
     private ConnectionFactory connectionFactory;
-    private String hostId;
     private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
@@ -81,7 +81,7 @@ public abstract class BucketServiceTest {
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, taskMetadataStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
-        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2, 5);
+        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2, 1);
         PeriodicRetention periodicRetention = new PeriodicRetention(streamMetadataStore, streamMetadataTasks, executor, requestTracker);
         retentionService = bucketStoreFactory.createRetentionService(Duration.ofMillis(5), periodicRetention::retention, executor);
         retentionService.startAsync();
@@ -116,7 +116,7 @@ public abstract class BucketServiceTest {
     @Test (timeout = 30000)
     public void testRetentionService() throws Exception {
         addEntryToZkCluster(controller);
-        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
+        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 3000);
         Map<Integer, BucketService> bucketServices = retentionService.getBucketServices();
 
         assertNotNull(bucketServices);
@@ -154,7 +154,7 @@ public abstract class BucketServiceTest {
     @Test(timeout = 30000)
     public void testWatermarkingService() throws Exception {
         addEntryToZkCluster(controller);
-        assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
+        assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 3000);
         Map<Integer, BucketService> bucketServices = watermarkingService.getBucketServices();
 
         assertNotNull(bucketServices);

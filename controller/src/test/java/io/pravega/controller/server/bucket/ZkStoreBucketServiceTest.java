@@ -104,7 +104,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
     @Test(timeout = 10000)
     public void testBucketOwnership() throws Exception {
         addEntryToZkCluster(controller);
-        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 10000);
+        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 3000);
 
         // Introduce connection failure error
         zkClient.getZookeeperClient().close();
@@ -165,7 +165,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         String streamName2 = "stream2";
         bucketStore2.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope2, streamName2, executor2).join();
 
-        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore2, 5, 10);
+        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore2, 5, 1);
 
         BucketManager service2 = bucketStoreFactory.createRetentionService(Duration.ofMillis(5000), stream -> CompletableFuture.completedFuture(null), executor2);
         service2.startAsync();
