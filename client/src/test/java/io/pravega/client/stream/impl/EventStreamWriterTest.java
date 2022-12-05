@@ -371,10 +371,14 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(controller.getSuccessors(segment1)).thenReturn(noFutures);
 
         assertEquals(2, outputStream1.unacked.size());
+        assertEquals(0, outputStream1.acked.size());
+        val pendingEvents1 = outputStream1.getUnackedEventsOnSeal();
         //invoke the sealed callback invocation simulating a netty call back with segment sealed exception.
         outputStream1.sealed = true;
         outputStream1.invokeSealedCallBack();
 
+        // If stream is sealed then all the pending event should complete exceptionally.
+        pendingEvents1.forEach(p -> p.getAckFuture().completeExceptionally(new IllegalStateException()));
         assertThrows("Stream should throw IllegalStateException", () -> writer.writeEvent(routingKey, "foo"), e -> e.getClass().equals(IllegalStateException.class));
         assertThrows("Stream should be sealed", () -> writer.writeEvent(routingKey, "Bar"), e -> e.getMessage().contains("sealed"));
         writer.close();
