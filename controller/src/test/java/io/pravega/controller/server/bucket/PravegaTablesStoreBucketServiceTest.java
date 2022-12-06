@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -49,6 +50,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 
@@ -178,12 +180,17 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
 
     @Test(timeout = 30000)
     public void testFailureCase() throws Exception {
+        BucketStore spyBucketStore = spy(bucketStore);
+        doReturn(CompletableFuture.completedFuture(false))
+                .when((ZookeeperBucketStore) spyBucketStore)
+                .releaseBucketOwnership(BucketStore.ServiceType.WatermarkingService, 0, hostId);
+
         BucketService bucketService = spy(new ZooKeeperBucketService(BucketStore.ServiceType.WatermarkingService,
-                2, (ZookeeperBucketStore) bucketStore, executor, 2,
+                2, (ZookeeperBucketStore) spyBucketStore, executor, 2,
                 Duration.ofMillis(5), periodicWatermarking::watermark));
 
         BucketService bucketService1 = spy(new ZooKeeperBucketService(BucketStore.ServiceType.WatermarkingService,
-                1, (ZookeeperBucketStore) bucketStore, executor, 2,
+                1, (ZookeeperBucketStore) spyBucketStore, executor, 2,
                 Duration.ofMillis(5), periodicWatermarking::watermark));
 
         doThrow(new RuntimeException("Service start failed.")).when(bucketService).doStart();
@@ -192,13 +199,13 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
 
         Function<Integer, BucketService> zkSupplier = bucket -> bucket == 0 ?
                 new ZooKeeperBucketService(BucketStore.ServiceType.WatermarkingService,
-                bucket, (ZookeeperBucketStore) bucketStore, executor, 2,
+                bucket, (ZookeeperBucketStore) spyBucketStore, executor, 2,
                 Duration.ofMillis(5), periodicWatermarking::watermark)
                 : bucket == 1 ? bucketService1 : bucketService;
 
-        BucketManager bucketManager = new ZooKeeperBucketManager(hostId, (ZookeeperBucketStore) bucketStore,
+        BucketManager bucketManager = new ZooKeeperBucketManager(hostId, (ZookeeperBucketStore) spyBucketStore,
                 BucketStore.ServiceType.WatermarkingService, executor, zkSupplier,
-                getBucketManagerLeader(BucketStore.ServiceType.WatermarkingService));
+                getBucketManagerLeader(spyBucketStore, BucketStore.ServiceType.WatermarkingService));
         bucketManager.startAsync();
         bucketManager.awaitRunning();
         // Bucket 2 will not be able to start as dostart() is throwing RunTimeException. So in this case buckets which
@@ -216,10 +223,21 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         // Try to stop bucket service 1, it should give exception.
         bucketManager.stopBucketServices(Set.of(1), true);
         assertEquals(2,  bucketManager.getBucketServices().size());
+        // Unable to release bucket ownership, service should continue on same controller instance.
+        bucketManager.stopBucketServices(Set.of(0), true);
+        assertEventuallyEquals(2, () -> bucketManager.getBucketServices().size(), 10000);
+
+        // Throw exception while releasing the ownership of bucket service.
+        CompletableFuture<Boolean> completableFuture = new CompletableFuture();
+        completableFuture.completeExceptionally(new RuntimeException("Exception while releasing ownership."));
+        doReturn(completableFuture).when((ZookeeperBucketStore) spyBucketStore)
+                .releaseBucketOwnership(BucketStore.ServiceType.WatermarkingService, 0, hostId);
+        bucketManager.stopBucketServices(Set.of(0), false);
+        assertEventuallyEquals(2, () -> bucketManager.getBucketServices().size(), 10000);
 
     }
 
-    private BucketManagerLeader getBucketManagerLeader(BucketStore.ServiceType serviceType) {
+    private BucketManagerLeader getBucketManagerLeader(BucketStore bucketStore, BucketStore.ServiceType serviceType) {
         return new BucketManagerLeader(bucketStore, 1,
                 new UniformBucketDistributor(), serviceType);
     }
