@@ -15,20 +15,16 @@
  */
 package io.pravega.cli.admin.dataRecovery;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Table;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TableSegmentUtils;
 import io.pravega.client.tables.impl.TableSegmentEntry;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ImmutableDate;
-import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -54,43 +50,51 @@ import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
+import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
+import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
-import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadata;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import lombok.Cleanup;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.val;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Loads the storage instance, recovers all segments from there.
  */
-public class RecoverFromStorageCommand extends DataRecoveryCommand {
+public class RecoverFromStorage3Command extends DataRecoveryCommand {
     private static final int CONTAINER_EPOCH = 1;
-    private static final Duration TIMEOUT = Duration.ofMillis(1000 * 1000);
+    private static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
 
     private static final String ATTRIBUTE_SUFFIX = "$attributes.index";
 
@@ -118,6 +122,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     //    private final String TIER2_PATH = getFileSystemStorageConfig().getRoot();
     private final int containerCount;
     private final int RETRY_ATTEMPT = 3;
+
+    private final int BUFFER_SIZE =  8048576;
     private final StorageFactory storageFactory;
 
 
@@ -126,33 +132,17 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      *
      * @param args The arguments for the command.
      */
-    public RecoverFromStorageCommand(CommandArgs args) {
+    public RecoverFromStorage3Command(CommandArgs args) {
         super(args);
         this.containerCount = getServiceConfig().getContainerCount();
         this.storageFactory = createStorageFactory(this.executorService);
     }
 
-    private DebugStreamSegmentContainer createDebugSegmentContainer(Context context, int containerId, DurableDataLogFactory dataLogFactory) throws Exception {
+    private DebugStreamSegmentContainer createDebugSegmentContainer(Context context, int containerId, DurableDataLogFactory dataLogFactory, String path) throws Exception {
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG, dataLogFactory, executorService);
-        DebugStreamSegmentContainer debugStreamSegmentContainer = new DebugStreamSegmentContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory, context.getReadIndexFactory(), context.getAttributeIndexFactory(), context.getWriterFactory(), this.storageFactory, context.getDefaultExtensions(), executorService);
+        DebugStreamSegmentContainer debugStreamSegmentContainer = new DebugContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory, context.getReadIndexFactory(), context.getAttributeIndexFactory(), context.getWriterFactory(), this.storageFactory, context.getDefaultExtensions(), executorService, path);
         Services.startAsync(debugStreamSegmentContainer, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         return debugStreamSegmentContainer;
-    }
-
-    private static class FileComparator implements Comparator<File> {
-        @Override
-        public int compare(File f1, File f2) {
-            String[] file1 = f1.getName().split(EPOCH_SPLITTER);
-            String[] file2 = f2.getName().split(EPOCH_SPLITTER);
-            String file1Epoch = file1[file1.length - 1].split("-")[0];
-            String file2Epoch = file2[file2.length - 1].split("-")[0];
-            if (Long.parseLong(file1Epoch) != Long.parseLong(file2Epoch)) {
-                return Long.valueOf(file1Epoch).compareTo(Long.valueOf(file2Epoch));
-            }
-            file1 = f1.getName().split(OFFSET_SPLITTER);
-            file2 = f2.getName().split(OFFSET_SPLITTER);
-            return Long.valueOf(file1[file1.length - 1].split("\\.")[0]).compareTo(Long.valueOf(file2[file2.length - 1].split("\\.")[0]));
-        }
     }
 
     public void execute() throws Exception {
@@ -173,56 +163,41 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         output("Started ZK Client at %s.", getServiceConfig().getZkURL());
 
         output("Starting recovery...");
+        for (int i = 0; i < 1; i++) {
+            output("Recovering container %s", containerId);
+            DebugStreamSegmentContainer debugStreamSegmentContainer = createDebugSegmentContainer(context, containerId, dataLogFactory, tableSegmentDataChunksPath);
 
-        DebugStreamSegmentContainer debugStreamSegmentContainer = createDebugSegmentContainer(context, containerId, dataLogFactory);
+            // table segment raw bytes
+            List<ByteArraySegment> segmentRawBytesList = readSegmentBytes(NameUtils.getMetadataSegmentName(debugStreamSegmentContainer.getId()), debugStreamSegmentContainer).get();
+            List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations = TableSegmentUtils.getOperationsFromBytes(segmentRawBytesList);
+            writeEntriesToNewTableSegment(debugStreamSegmentContainer, NameUtils.getMetadataSegmentName(containerId), tableSegmentOperations);
 
-        output("Debugsegment container initiazed...");
+            // storage table segment raw bytes
+            List<ByteArraySegment> storageSegmentBytes = readSegmentBytes(NameUtils.getStorageMetadataSegmentName(debugStreamSegmentContainer.getId()), debugStreamSegmentContainer).get();
+            List<TableSegmentUtils.TableSegmentOperation> storageTableSegmentOperations = TableSegmentUtils.getOperationsFromBytes(storageSegmentBytes);
+            writeStorageEntriesToNewTableSegment(debugStreamSegmentContainer, NameUtils.getMetadataSegmentName(containerId), storageTableSegmentOperations);
 
-        // STEP 1: Get all the segment chunks related to the main Segment in order.
-        File[] potentialFiles = new File(tableSegmentDataChunksPath).listFiles();
-        assert potentialFiles != null;
 
-        Map<String, List<File>> metadataSegments = segregateMetadataSegments(potentialFiles);
-        Preconditions.checkState(metadataSegments.size() == 2, "Only MetadataSegment and Storage MetadataSegment chunks should be present");
-        List<File> storageChunks = null;
-        boolean firstRun = true;
-        int attempts = 0;
-
-        ChunkValidator chunkValidator = new ChunkValidator(debugStreamSegmentContainer);
-        while( firstRun || (!chunkValidator.validate() /*&& attempts < RETRY_ATTEMPT*/ ) ) {
-            if( firstRun ) firstRun = !firstRun;
-            for (String segment : metadataSegments.keySet()) {
-                List<File> chunks = metadataSegments.get(segment);
-                chunks.sort(new FileComparator());
-                if (chunks.get(0).getName().contains("storage")) {
-                    storageChunks = chunks;
-                    continue;
-                }
-                List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations = TableSegmentUtils.getOperationsFromChunks(chunks);
-                writeEntriesToNewTableSegment(debugStreamSegmentContainer, NameUtils.getMetadataSegmentName(containerId), tableSegmentOperations);
-            }
-            //write storage entries in the end after container entries (to avoid length mismatch).
-            if (storageChunks != null) {
-                writeStorageEntriesToNewTableSegment(debugStreamSegmentContainer, NameUtils.getStorageMetadataSegmentName(containerId), TableSegmentUtils.getOperationsFromChunks(storageChunks));
-            }
-
-            //flush to storage
-            output("Flushing to stoarge");
             flushToStorage(debugStreamSegmentContainer);
-            attempts++;
+            reconcileStorageSegment(debugStreamSegmentContainer);
+
+            SystemJournal journal = ((ChunkedSegmentStorage) debugStreamSegmentContainer.getStorage()).getSystemJournal();
+            output("Generating snapshot info for container %s", containerId);
+            journal.generateSnapshotIfRequired().join();
+            journal.writeSnapshotInfoIfRequired().join();
+            debugStreamSegmentContainer.flushToStorage(TIMEOUT);
+            Thread.sleep(5000);
+            listKeysinStorage(debugStreamSegmentContainer);
+            output("Stopping container %s",containerId);
+            debugStreamSegmentContainer.close();
+
         }
-        output("Reconciling segments");
-        reconcileStorageSegment(debugStreamSegmentContainer);
-
-        Thread.sleep(5000);
-//        listKeysinStorage(debugStreamSegmentContainer);
-
-//        Thread.sleep(5000);
-        output("Stopping DebugSegmentContainer");
-        debugStreamSegmentContainer.close();
     }
 
+
     private void reconcileStorageSegment(DebugStreamSegmentContainer container) throws Exception {
+
+        output("Reconciling metadata and storage");
 
         Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), executorService, TIMEOUT, NameUtils.getStorageMetadataSegmentName(container.getId()));
         Set<String> segments = segmentsByContainer.get(container.getId());
@@ -258,12 +233,6 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                         .lastModified(new ImmutableDate(storageSegment.getLastModified()))
                         .attributes(segmentInfo.getProperties().getAttributes())
                         .build();
-                StringBuilder builder = new StringBuilder();
-                if(segmentInfo.getProperties().getName().contains("readerGroupsInScope")){
-                    for( Map.Entry<AttributeId, Long> e : segmentInfo.getProperties().getAttributes().entrySet()) {
-                        builder.append( "Key %s  : Value %s  ||||||".format(e.getKey().toString(), e.getValue().toString()));
-                    }
-                }
                 MetadataStore.SegmentInfo sereializedContainerSegment = MetadataStore.SegmentInfo.builder()
                         .segmentId(segmentInfo.getSegmentId())
                         .properties(segmentProperties)
@@ -273,49 +242,6 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 extension.put(NameUtils.getMetadataSegmentName(container.getId()), Collections.singletonList(unversionedEntry), TIMEOUT).join();
             }
         }
-    }
-
-    private void listKeysinStorage(DebugStreamSegmentContainer container) {
-        try {
-            Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), executorService, TIMEOUT, NameUtils.getStorageMetadataSegmentName(container.getId()));
-            System.out.println("----------------------------");
-            output("segments retrieved from storage");
-            for(Set<String> segs : segmentsByContainer.values()){
-                segs.forEach((seg) -> System.out.println(seg));
-            }
-            System.out.println("----------------------------");
-        }catch(Exception e){
-            output("exception while fetching all segments in storage "+e);
-        }
-    }
-
-    private Map<String, List<File>> segregateMetadataSegments(File[] chunkFiles) {
-        Map<String, List<File>> metadataSegments = new HashMap<>();
-        Arrays.stream(chunkFiles)
-                .filter(File::isFile)
-                .filter(f -> !f.getName().contains(ATTRIBUTE_SUFFIX))
-                .forEach(file -> {
-                    String segment = file.getName().split(EPOCH_SPLITTER)[0];
-                    metadataSegments.putIfAbsent(segment, new ArrayList<File>());
-                    metadataSegments.get(segment).add(file);
-                });
-        return metadataSegments;
-    }
-
-    private void clearSegmentEntries(DebugStreamSegmentContainer debugStreamSegmentContainer) throws Exception {
-        Map<Integer, Set<String>> segmentsMap = ContainerRecoveryUtils.getExistingSegments(ImmutableMap.of(debugStreamSegmentContainer.getMetadata().getContainerId(), debugStreamSegmentContainer), this.executorService, TIMEOUT, NameUtils.getMetadataSegmentName(debugStreamSegmentContainer.getId()));
-        assert segmentsMap.entrySet().size() == 1;
-        Set<String> segments = segmentsMap.entrySet().iterator().next().getValue();
-        segments.forEach(segment -> {
-            try {
-                System.out.println("Deleting entry for " + segment);
-                debugStreamSegmentContainer.deleteStreamSegment(segment, TIMEOUT);
-            } catch (Exception e) {
-                if (!(e instanceof StreamSegmentNotExistsException)) {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
     }
 
     private void writeEntriesToNewTableSegment(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
@@ -381,36 +307,45 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         }
     }
 
-    private TableEntry reconcileEntry(TableEntry entry) throws IOException {
-        BufferView value = entry.getValue();
-        BaseMetadataStore.TransactionData transactionData = new BaseMetadataStore.TransactionData.TransactionDataSerializer().deserialize(value);
-        StorageMetadata storageMetadata = transactionData.getValue();
-        if (storageMetadata instanceof SegmentMetadata) {
-            SegmentMetadata segmentMetadata = (SegmentMetadata) storageMetadata;
-            String lastChunk = segmentMetadata.getLastChunk();
-            File chunkFile = new File(lastChunk);
-            if (chunkFile.exists()) {
-                long expectedChunkLength = ((SegmentMetadata) storageMetadata).getLength() - ((SegmentMetadata) storageMetadata).getLastChunkStartOffset();
-                if (expectedChunkLength != chunkFile.length()) {
-                    ((SegmentMetadata) storageMetadata).setLength(chunkFile.length());
-                    ByteArraySegment transactionBytes = new BaseMetadataStore.TransactionData.TransactionDataSerializer().serialize(transactionData);
-                    return TableEntry.unversioned(entry.getKey().getKey(), transactionBytes);
-                }
-            } else {
-                output("Did not find the last chunk for segment " + segmentMetadata.getName());
+
+    private CompletableFuture<List<ByteArraySegment>> readSegmentBytes(String segment, DebugStreamSegmentContainer container) throws ExecutionException, InterruptedException {
+        Storage storage = container.getStorage();
+        byte[] buffer = new byte[BUFFER_SIZE];
+        SegmentProperties info = storage.getStreamSegmentInfo(segment,TIMEOUT).get();
+        AtomicInteger bytesToRead = new AtomicInteger((int) info.getLength());
+        final List<ByteArraySegment> byteArraySegments = new ArrayList<>();
+        AtomicLong totalBytesRead = new AtomicLong();
+        CompletableFuture<Void> sg = storage.openRead(segment).thenCompose(segmentHandle -> {
+            return Futures.loop(
+                    () -> bytesToRead.get() > 0,
+                    () -> {
+                       return storage.read(segmentHandle, totalBytesRead.get(), buffer, 0, Math.min(BUFFER_SIZE, bytesToRead.get()), TIMEOUT)
+                                .thenAcceptAsync((bytesRead) -> {
+                                    bytesToRead.addAndGet(-bytesRead);
+                                    byteArraySegments.add(new ByteArraySegment(buffer,0,bytesRead));
+                                    totalBytesRead.set(totalBytesRead.get()+bytesRead);
+                                }, executorService);
+                    },
+                    executorService);
+        });
+        output("total bytes read for segment %s is %d",segment, totalBytesRead.get());
+        return sg.handle((v, ex) -> {
+            return byteArraySegments;
+        });
+    }
+
+    private void listKeysinStorage(DebugStreamSegmentContainer container) {
+        try {
+            Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), executorService, TIMEOUT, NameUtils.getStorageMetadataSegmentName(container.getId()));
+            System.out.println("----------------------------");
+            output("segments retrieved from storage");
+            for(Set<String> segs : segmentsByContainer.values()){
+                segs.forEach((seg) -> System.out.println(seg));
             }
-        } else if (storageMetadata instanceof ChunkMetadata) {
-            ChunkMetadata chunkMetadata = (ChunkMetadata) storageMetadata;
-            File chunkFile = new File(chunkMetadata.getName());
-            if (null == chunkMetadata.getNextChunk() && chunkFile.exists()) {
-                if (chunkMetadata.getLength() != chunkFile.length()) {
-                    chunkMetadata.setLength(chunkFile.length());
-                    ByteArraySegment transactionBytes = new BaseMetadataStore.TransactionData.TransactionDataSerializer().serialize(transactionData);
-                    return TableEntry.unversioned(entry.getKey().getKey(), transactionBytes);
-                }
-            }
+            System.out.println("----------------------------");
+        }catch(Exception e){
+            output("exception while fetching all segments in storage "+e);
         }
-        return null;
     }
 
     private void flushToStorage(DebugStreamSegmentContainer debugSegmentContainer) {
@@ -426,72 +361,6 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         return new Context(scheduledExecutorService);
     }
 
-    private interface Validator {
-       boolean validate() throws Exception;
-    }
-
-    private class ChunkValidator implements Validator {
-
-        DebugStreamSegmentContainer container;
-
-        ChunkValidator(DebugStreamSegmentContainer container) {
-            this.container = container;
-        }
-
-        @Override
-        public boolean validate() throws Exception {
-            Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), RecoverFromStorageCommand.this.executorService, TIMEOUT, NameUtils.getStorageMetadataSegmentName(container.getId()));
-            for (Set<String> segs : segmentsByContainer.values()) {
-                for(String seg: segs) {
-                    try {
-                        if (!validateSegment(seg)) {
-                            return false;
-                        }
-                    } catch (Exception e) {
-                        output("Error validating segment {}", seg);
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-
-        private boolean validateSegment(String seg) throws Exception {
-
-            ContainerTableExtension extension = this.container.getExtension(ContainerTableExtension.class);
-
-            try {
-                output("running validation for " + seg);
-                List<TableEntry> entries = extension.get(NameUtils.getStorageMetadataSegmentName(this.container.getId()), Collections.singletonList(BufferView.wrap(seg.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
-                TableEntry entry = entries.get(0);
-                StorageMetadata storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().getCopy()).getValue();
-
-                if (storageMetadata instanceof ChunkMetadata) {
-                    ChunkMetadata chunkMetdata = (ChunkMetadata) storageMetadata;
-                    if (chunkMetdata.getNextChunk() != null && !chunkMetdata.getNextChunk().equalsIgnoreCase("null")) {
-                        output("next chunk for "+seg+ " is "+chunkMetdata.getNextChunk());
-                        return validateSegment(chunkMetdata.getNextChunk());
-                    } else {
-                        System.out.println("----------");
-                        System.out.println("----------");
-                        return true;
-                    }
-                }
-                if (storageMetadata instanceof SegmentMetadata) {
-                    SegmentMetadata segmentMetadata = (SegmentMetadata) storageMetadata;
-                    output("is segmentmetadata. first chunk is  "+segmentMetadata.getFirstChunk() + " segment metadata is "+segmentMetadata.toString());
-                    if (segmentMetadata.getFirstChunk() != null && !segmentMetadata.getFirstChunk().equalsIgnoreCase("null")) {
-                        output("first chunk of "+seg + " is "+segmentMetadata.getFirstChunk());
-                        return validateSegment(segmentMetadata.getFirstChunk());
-                    }
-                }
-            } catch (Exception e) {
-                output("There was exception fetching entry from " + NameUtils.getStorageMetadataSegmentName(this.container.getId()) + " exception " + e);
-                return false;
-            }
-            return true;
-        }
-    }
 
     private static class Context implements AutoCloseable {
         @Getter
@@ -525,5 +394,62 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             this.cacheManager.close();
             this.cacheStorage.close();
         }
+    }
+
+    public class DebugContainer extends DebugStreamSegmentContainer {
+
+        String journalPath;
+
+        public DebugContainer(int debugSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
+                              ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory,
+                              WriterFactory writerFactory, StorageFactory storageFactory,
+                              SegmentContainerFactory.CreateExtensions createExtensions, ScheduledExecutorService executor, String chunkPath) {
+            super(debugSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory,
+                    storageFactory, createExtensions, executor);
+            this.journalPath = chunkPath;
+        }
+
+        @Override
+        @SneakyThrows
+        protected CompletableFuture<SnapshotInfo> readStorageSnapshot(Duration timeout) {
+
+            File[] journalFiles = new File(this.journalPath).listFiles();
+            AtomicLong latestEpoch = new AtomicLong();
+            AtomicLong latestSnapshot = new AtomicLong();
+            Arrays.stream(journalFiles)
+                    .filter(file -> file.getName().contains(String.valueOf("container"+this.metadata.getContainerId())))
+                    .filter(file -> file.getName().contains("snapshot"))
+                    .forEach(file -> {
+                        String[] journalParts = file.getName().split("\\.");
+                        Matcher matcherepoch = Pattern.compile("\\d+").matcher(journalParts[1]);
+                        matcherepoch.find();
+                        long epoch = Long.parseLong(matcherepoch.group(0)); // only one number
+                        Matcher snapshotMatcher = Pattern.compile("\\d+").matcher(journalParts[3]);
+                        snapshotMatcher.find();
+                        long snapshot = Long.parseLong(snapshotMatcher.group(0));
+                        latestEpoch.set(Math.max(latestEpoch.get(),epoch));
+                        latestSnapshot.set(Math.max(latestSnapshot.get(),snapshot));
+                    });
+            val retValue = SnapshotInfo.builder()
+                    .snapshotId(latestSnapshot.get())
+                    .epoch(latestEpoch.get())
+                    .build();
+            output("latest epoch is %s and latest snapshot is %s for container %s",latestEpoch.get(),latestSnapshot.get(), this.metadata.getContainerId());
+            return CompletableFuture.completedFuture(retValue);
+        }
+
+//        @Override
+//        public CompletableFuture<Void> startSecondaryServicesAsync() {
+//            CompletableFuture<Void> cf = super.startSecondaryServicesAsync();
+//            return CompletableFuture.allOf(cf, super.startSecondaryServicesAsync());
+//        }
+//
+//        private CompletableFuture<Void> syncContainerAndStorageMetadata() {
+//
+//
+//
+//            return CompletableFuture.completedFuture(null);
+//        }
+
     }
 }

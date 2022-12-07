@@ -253,6 +253,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 () -> readStorageSnapshot(config.getStorageSnapshotTimeout()));
     }
 
+    Storage getStorage() {
+        return this.storage;
+    }
+
     //endregion
 
     //region AutoCloseable Implementation
@@ -350,7 +354,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         }
     }
 
-    private CompletableFuture<Void> startSecondaryServicesAsync() {
+    protected CompletableFuture<Void> startSecondaryServicesAsync() {
         return CompletableFuture.allOf(
                 Services.startAsync(this.metadataCleaner, this.executor),
                 Services.startAsync(this.writer, this.executor));
@@ -670,7 +674,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     //endregion
-    private CompletableFuture<SnapshotInfo> readStorageSnapshot(Duration timeout) {
+    protected CompletableFuture<SnapshotInfo> readStorageSnapshot(Duration timeout) {
         val segmentId =   this.metadata.getStreamSegmentId(NameUtils.getMetadataSegmentName(this.metadata.getContainerId()), false);
         if (segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
             val map =  this.metadata.getStreamSegmentMetadata(segmentId).getAttributes();

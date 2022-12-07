@@ -471,7 +471,7 @@ public class SystemJournal {
     /**
      * Generate a snapshot if required.
      */
-    private CompletableFuture<Void> generateSnapshotIfRequired() {
+    public CompletableFuture<Void> generateSnapshotIfRequired() {
         // Generate a snapshot if no snapshot was saved before or when threshold for either time or number batches is reached.
         boolean shouldGenerate = true;
         if (lastSavedSystemSnapshot.get() == null) {
@@ -509,7 +509,7 @@ public class SystemJournal {
     /**
      * Write snapshot info if required.
      */
-    private CompletableFuture<Void> writeSnapshotInfoIfRequired() {
+    public CompletableFuture<Void> writeSnapshotInfoIfRequired() {
         // Save if we have generated newer snapshot since last time we saved.
         if (lastSavedSystemSnapshot.get() != null) {
             boolean shouldSave = true;

@@ -6,6 +6,7 @@ import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.server.tables.EntrySerializer;
 import lombok.Getter;
+import org.apache.commons.lang.ArrayUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,6 +26,20 @@ public class TableSegmentUtils {
             ByteArraySegment chunkData = new ByteArraySegment(getBytesToProcess(partialEntryFromLastChunk, f));
             unprocessedBytesFromLastChunk = scanAllEntriesInTableSegmentChunks(chunkData, tableSegmentOperations);
             partialEntryFromLastChunk = unprocessedBytesFromLastChunk > 0 ? chunkData.getReader(chunkData.getLength() - unprocessedBytesFromLastChunk, unprocessedBytesFromLastChunk).readAllBytes() : null;
+        }
+        return tableSegmentOperations;
+    }
+
+    public static List<TableSegmentUtils.TableSegmentOperation> getOperationsFromBytes(List<ByteArraySegment> byteArraySegments) throws IOException {
+        byte[] partialEntryFromLastChunk = null;
+        List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations = new ArrayList<>();
+        int unprocessedBytesFromLastChunk = 0;
+        for(ByteArraySegment byteArray : byteArraySegments) {
+            if(partialEntryFromLastChunk != null) {
+                byteArray = new ByteArraySegment(ArrayUtils.addAll(partialEntryFromLastChunk, byteArray.array()));
+            }
+            unprocessedBytesFromLastChunk = scanAllEntriesInTableSegmentChunks(byteArray, tableSegmentOperations);
+            partialEntryFromLastChunk = unprocessedBytesFromLastChunk > 0 ? byteArray.getReader(byteArray.getLength() - unprocessedBytesFromLastChunk, unprocessedBytesFromLastChunk).readAllBytes() : null;
         }
         return tableSegmentOperations;
     }

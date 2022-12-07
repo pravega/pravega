@@ -99,7 +99,7 @@ public class ContainerRecoveryUtils {
         log.info("Recovery started for all containers...");
         // Get all segments in the metadata store for each debug segment container instance.
         Map<Integer, Set<String>> existingSegmentsMap = getExistingSegments(debugStreamSegmentContainersMap, executorService,
-                timeout);
+                timeout, NameUtils.getMetadataSegmentName(0));
 
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount, true);
 
@@ -175,7 +175,7 @@ public class ContainerRecoveryUtils {
      */
     public static Map<Integer, Set<String>> getExistingSegments(Map<Integer, DebugStreamSegmentContainer> containerMap,
                                                                  ExecutorService executorService,
-                                                                 Duration timeout) throws Exception {
+                                                                 Duration timeout, String metadataSegment) throws Exception {
         Map<Integer, Set<String>> metadataSegmentsMap = new HashMap<>();
         val args = IteratorArgs.builder().fetchTimeout(timeout).build();
 
@@ -183,8 +183,7 @@ public class ContainerRecoveryUtils {
         for (val containerEntry : containerMap.entrySet()) {
             Preconditions.checkNotNull(containerEntry.getValue());
             val tableExtension = containerEntry.getValue().getExtension(ContainerTableExtension.class);
-            val keyIterator = tableExtension.keyIterator(getStorageMetadataSegmentName(
-                    containerEntry.getKey()), args).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            val keyIterator = tableExtension.keyIterator(metadataSegment, args).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
             // Store the segments in a set
             Set<String> metadataSegments = new HashSet<>();
