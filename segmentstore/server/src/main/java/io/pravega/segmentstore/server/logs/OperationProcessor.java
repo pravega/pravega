@@ -50,7 +50,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -267,7 +266,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             try {
                 // If the operationQueue is closed, it means that OperationProcessor needs to shut down. This may
                 // require first interrupting any current delay, so the shutdown sequence can be executed.
-                notifyThrottleSourceChanged(this.operationQueue::isClosed);
+                if (this.operationQueue.isClosed()) {
+                    getThrottler().notifyThrottleSourceChanged();
+                }
                 this.operationQueue.add(new CompletableOperation(operation, priority, result));
             } catch (Throwable e) {
                 if (Exceptions.mustRethrow(e)) {
@@ -280,16 +281,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             // A throttle-exempt operation has just been added (these are time-critical operations, which must execute
             // right away). If there is a throttling delay in progress, we must abort it, otherwise this operation
             // may not get a chance to execute.
-            notifyThrottleSourceChanged(priority::isThrottlingExempt);
+            if (priority.isThrottlingExempt()) {
+                getThrottler().notifyThrottleSourceChanged();
+            }
         }
 
         return result;
-    }
-
-    private void notifyThrottleSourceChanged(Supplier<Boolean> condition) {
-        if (condition.get()) {
-            getThrottler().notifyThrottleSourceChanged();
-        }
     }
 
     /**
