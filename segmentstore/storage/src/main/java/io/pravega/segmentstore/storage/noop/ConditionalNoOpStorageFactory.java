@@ -29,7 +29,8 @@ public class ConditionalNoOpStorageFactory implements SimpleStorageFactory {
 
     /**
      * Creates an instance of Storage.
-     * @param containerId Container ID.
+     *
+     * @param containerId   Container ID.
      * @param metadataStore {@link ChunkMetadataStore} store to use.
      * @return returns Storage
      */
@@ -50,12 +51,12 @@ public class ConditionalNoOpStorageFactory implements SimpleStorageFactory {
 
     @Override
     public ChunkedSegmentStorageConfig getChunkedSegmentStorageConfig() {
-            return inner.getChunkedSegmentStorageConfig();
+        return inner.getChunkedSegmentStorageConfig();
     }
 
     @Override
     public ChunkStorage createChunkStorage() {
-            val innerChunkStorage = inner.createChunkStorage();
-            return new ConditionalNoOpChunkStorage(innerChunkStorage, executor);
+        val innerChunkStorage = inner.createChunkStorage();
+        return new ConditionalNoOpChunkStorage(innerChunkStorage, executor);
     }
 }

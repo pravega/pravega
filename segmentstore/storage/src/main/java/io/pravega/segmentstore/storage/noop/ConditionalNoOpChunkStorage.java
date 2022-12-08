@@ -12,7 +12,6 @@ import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * {@link ChunkStorage} implementation that introduces ConditionalNoOpChunkStorage to inner instance.
- *
  */
 public class ConditionalNoOpChunkStorage implements ChunkStorage {
 
@@ -46,57 +45,59 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
 
     /**
      * Checks for the existence of the chunk in the chunkStorage.
+     *
      * @param chunkName Name of the storage object to check.
      * @return boolean value depending on the chunk's existence
      */
     @Override
     public CompletableFuture<Boolean> exists(String chunkName) {
-        return isMetadataCall(chunkName) ? inner.exists(chunkName) : noOpChunkStorage.exists(chunkName);
+        return isMetadataCall(getChunkHandle(chunkName)) ? inner.exists(chunkName) : noOpChunkStorage.exists(chunkName);
     }
 
     /**
      * Creates a chunk in the chunkStorage.
+     *
      * @param chunkName String name of the storage object to create.
      * @return handle to a chunk
      */
     @Override
     public CompletableFuture<ChunkHandle> create(String chunkName) {
-        return isMetadataCall(chunkName) ? inner.create(chunkName) : noOpChunkStorage.create(chunkName);
+        return isMetadataCall(getChunkHandle(chunkName)) ? inner.create(chunkName) : noOpChunkStorage.create(chunkName);
     }
 
     @Override
     public CompletableFuture<ChunkHandle> createWithContent(String chunkName, int length, InputStream data) {
-        return isMetadataCall(chunkName) ? inner.createWithContent(chunkName, length, data) : noOpChunkStorage.createWithContent(chunkName, length, data);
+        return isMetadataCall(getChunkHandle(chunkName)) ? inner.createWithContent(chunkName, length, data) : noOpChunkStorage.createWithContent(chunkName, length, data);
     }
 
     @Override
     public CompletableFuture<Void> delete(ChunkHandle handle) {
-        return isMetadataCall(handle.getChunkName()) ? inner.delete(handle) : noOpChunkStorage.delete(handle);
+        return isMetadataCall(handle) ? inner.delete(handle) : noOpChunkStorage.delete(handle);
     }
 
     @Override
     public CompletableFuture<ChunkHandle> openRead(String chunkName) {
-        return isMetadataCall(chunkName) ? inner.openRead(chunkName) : noOpChunkStorage.openRead(chunkName);
+        return isMetadataCall(getChunkHandle(chunkName)) ? inner.openRead(chunkName) : noOpChunkStorage.openRead(chunkName);
     }
 
     @Override
     public CompletableFuture<ChunkHandle> openWrite(String chunkName) {
-        return isMetadataCall(chunkName) ? inner.openWrite(chunkName) : noOpChunkStorage.openWrite(chunkName);
+        return isMetadataCall(getChunkHandle(chunkName)) ? inner.openWrite(chunkName) : noOpChunkStorage.openWrite(chunkName);
     }
 
     @Override
     public CompletableFuture<ChunkInfo> getInfo(String chunkName) {
-        return isMetadataCall(chunkName) ? inner.getInfo(chunkName) : noOpChunkStorage.getInfo(chunkName);
+        return isMetadataCall(getChunkHandle(chunkName)) ? inner.getInfo(chunkName) : noOpChunkStorage.getInfo(chunkName);
     }
 
     @Override
     public CompletableFuture<Integer> read(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) {
-        return isMetadataCall(handle.getChunkName()) ? inner.read(handle, fromOffset, length, buffer, bufferOffset) : noOpChunkStorage.read(handle, fromOffset, length, buffer, bufferOffset);
+        return isMetadataCall(handle) ? inner.read(handle, fromOffset, length, buffer, bufferOffset) : noOpChunkStorage.read(handle, fromOffset, length, buffer, bufferOffset);
     }
 
     @Override
     public CompletableFuture<Integer> write(ChunkHandle handle, long offset, int length, InputStream data) {
-        return isMetadataCall(handle.getChunkName()) ? inner.write(handle, offset, length, data) : noOpChunkStorage.write(handle, offset, length, data);
+        return isMetadataCall(handle) ? inner.write(handle, offset, length, data) : noOpChunkStorage.write(handle, offset, length, data);
     }
 
     @Override
@@ -106,12 +107,12 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
 
     @Override
     public CompletableFuture<Boolean> truncate(ChunkHandle handle, long offset) {
-        return isMetadataCall(handle.getChunkName()) ? inner.truncate(handle, offset) : noOpChunkStorage.truncate(handle, offset);
+        return isMetadataCall(handle) ? inner.truncate(handle, offset) : noOpChunkStorage.truncate(handle, offset);
     }
 
     @Override
     public CompletableFuture<Void> setReadOnly(ChunkHandle handle, boolean isReadonly) {
-        return isMetadataCall(handle.getChunkName()) ? inner.setReadOnly(handle, isReadonly) : noOpChunkStorage.setReadOnly(handle, isReadonly);
+        return isMetadataCall(handle) ? inner.setReadOnly(handle, isReadonly) : noOpChunkStorage.setReadOnly(handle, isReadonly);
     }
 
     @Override
@@ -132,7 +133,11 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
         }
     }
 
-    private boolean isMetadataCall(String chunkName) {
-        return null != chunkName && chunkName.startsWith("_system");
+    private ChunkHandle getChunkHandle(String chunkName) {
+        return chunkName == null ? null : ChunkHandle.readHandle(chunkName);
+    }
+
+    private boolean isMetadataCall(ChunkHandle handle) {
+        return handle != null && null != handle.getChunkName() && handle.getChunkName().startsWith("_system");
     }
 }
