@@ -15,6 +15,8 @@
  */
 package io.pravega.client.admin.impl;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.pravega.client.ClientConfig;
@@ -41,11 +43,14 @@ import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.EventPointerImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.TransactionInfoImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
@@ -864,5 +869,42 @@ public class StreamManagerImplTest {
         List<TransactionInfo> listTransactions = streamManagerImpl.listCompletedTransactions(new StreamImpl(scope, stream));
         assertEquals(2, listTransactions.size());
         AssertExtensions.assertThrows(Exception.class, () -> streamManager.listCompletedTransactions(new StreamImpl(scope, stream)));
+    }
+
+    @Test
+    public void testGetDistanceBetweenTwoStreamCuts() {
+        String scope = "scope";
+        String stream = "stream";
+        Stream stream1 = new StreamImpl(scope, stream);
+        final StreamCut startStreamCut = getStreamCut("scope", stream, 10L, 1, 2);
+        final StreamCut endStreamCut = getStreamCut("scope", stream, 30L, 1, 2);
+
+        Controller mockController = mock(Controller.class);
+        ConnectionPoolImpl pool = new ConnectionPoolImpl(ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
+        @Cleanup final StreamManager streamManagerImpl = new StreamManagerImpl(mockController, pool);
+
+        ImmutableSet<Segment> r = ImmutableSet.<Segment>builder()
+                .addAll(startStreamCut.asImpl().getPositions().keySet())
+                .addAll(endStreamCut.asImpl().getPositions().keySet()).build();
+
+        when(mockController.getSegments(startStreamCut,
+                endStreamCut)).thenReturn(CompletableFuture.completedFuture(new StreamSegmentSuccessors(r, "")));
+        CompletableFuture<Long> cf = streamManagerImpl.getDistanceBetweenTwoStreamCuts(stream1, startStreamCut,
+                endStreamCut);
+        try {
+            Long distance = cf.join();
+            assertEquals(Long.valueOf(40), distance);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private StreamCut getStreamCut(String scope, String streamName, long offset, int... segmentNumbers) {
+        ImmutableMap.Builder<Segment, Long> builder = ImmutableMap.<Segment, Long>builder();
+        Arrays.stream(segmentNumbers).forEach(seg -> {
+            builder.put(new Segment(scope, streamName, seg), offset);
+        });
+
+        return new StreamCutImpl(Stream.of(scope, streamName), builder.build());
     }
 }

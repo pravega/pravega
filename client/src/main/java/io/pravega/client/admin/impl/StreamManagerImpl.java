@@ -28,6 +28,8 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchEventException;
@@ -35,6 +37,10 @@ import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.InvalidStreamException;
@@ -46,11 +52,13 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.EventSegmentReaderUtility;
 import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.AccessOperation;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.ByteBuffer;
@@ -58,7 +66,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import lombok.Getter;
 import lombok.AccessLevel;
@@ -79,6 +90,8 @@ public class StreamManagerImpl implements StreamManager {
     private final StreamCutHelper streamCutHelper;
     private final SegmentInputStreamFactory inputStreamFactory;
     private final  EventSegmentReaderUtility eventSegmentReaderUtility;
+
+    private final SegmentMetadataClientFactory metaFactory;
 
     public StreamManagerImpl(ClientConfig clientConfig) {
         this(clientConfig, ControllerImplConfig.builder().clientConfig(clientConfig).build());
@@ -105,6 +118,7 @@ public class StreamManagerImpl implements StreamManager {
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
         this.inputStreamFactory = inputStreamFactory;
         this.eventSegmentReaderUtility = new EventSegmentReaderUtility(inputStreamFactory);
+        this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
     }
 
     @Override
@@ -344,5 +358,41 @@ public class StreamManagerImpl implements StreamManager {
         if (this.connectionPool != null) {
             this.connectionPool.close();
         }
+    }
+
+    public CompletableFuture<Long> getDistanceBetweenTwoStreamCuts(Stream stream, StreamCut fromStreamCut, StreamCut toStreamCut) {
+        final CompletableFuture<StreamSegmentSuccessors> unread;
+        final Map<Segment, Long> endPositions;
+        if (toStreamCut.equals(StreamCut.UNBOUNDED)) {
+            unread = controller.getSuccessors(fromStreamCut);
+            endPositions = Collections.emptyMap();
+        } else {
+            unread = controller.getSegments(fromStreamCut, toStreamCut);
+            endPositions = toStreamCut.asImpl().getPositions();
+        }
+        return unread.thenCompose(unreadVal -> {
+            DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
+                    .create(controller, stream.getScope(), stream.getStreamName(), AccessOperation.READ);
+            return Futures.allOfWithResults(unreadVal.getSegments().stream().map(s -> {
+                if (endPositions.containsKey(s)) {
+                    return CompletableFuture.completedFuture(endPositions.get(s));
+                } else {
+                    SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, tokenProvider);
+                    CompletableFuture<Long> result = metadataClient.fetchCurrentSegmentLength();
+                    result.whenComplete((r, e) -> metadataClient.close());
+                    return result;
+                }
+            }).collect(Collectors.toList()));
+        }).thenApply(sizes -> {
+            long totalLength = 0;
+            for (long bytesRemaining : sizes) {
+                totalLength += bytesRemaining;
+            }
+            for (long bytesRead : fromStreamCut.asImpl().getPositions().values()) {
+                totalLength -= bytesRead;
+            }
+            log.debug("Remaining bytes from position: {} to position: {} is {}", fromStreamCut, toStreamCut, totalLength);
+            return totalLength;
+        });
     }
 }
