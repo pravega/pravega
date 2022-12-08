@@ -86,6 +86,7 @@ From that point onwards, you can check the available commands by typing `help`:
 > help
 All available commands:
         bk cleanup : Removes orphan BookKeeper Ledgers that are not used by any BookKeeperLog.
+        bk delete-ledgers <log-id> <ledger-id>: Deletes all the ledgers for a bookkeeper log starting with and including given ledger-id as the starting index. Note that this is a destructive operation that should be used only to remove missing or corrupted ledgers that prevent a container from recovering.
         bk details <log-id>: Lists metadata details about a BookKeeperLog, including BK Ledger information.
         bk disable <log-id>: Disables a BookKeeperLog by open-fencing it and updating its metadata in ZooKeeper (with the Enabled flag set to 'false').
         bk enable <log-id>: Enables a BookKeeperLog by updating its metadata in ZooKeeper (with the Enabled flag set to 'true').
@@ -125,6 +126,7 @@ All available commands:
         segmentstore read-segment <qualified-segment-name> <offset> <length> <segmentstore-endpoint> <file-name>: Read a range from a given Segment into given file.
         segmentstore update-segment-attribute <qualified-segment-name> <attribute-id> <attribute-new-value> <attribute-old-value> <segmentstore-endpoint>: Updates an attribute for a Segment.
         storage list-chunks <qualified-segment-name> <segmentstore-endpoint>: Get the list of storage chunks for the given segment.
+        storage update-latest-journal-snapshot <segment-chunks-path> <journal-file-path> <latest-snapshot-path> <output-directory>: Updates the segment metadata in Journal Snapshot with the segment details in the provided path
         table-segment get <qualified-table-segment-name> <key> <segmentstore-endpoint>: Get the entry for the given key in the table.Use the command "table-segment set-serializer <serializer-name>" to use the appropriate serializer before using this command.
         table-segment get-info <qualified-table-segment-name> <segmentstore-endpoint>: Get the details of a given table.
         table-segment list-keys <qualified-table-segment-name> <key-count> <segmentstore-endpoint>: List at most the required number of keys from the table segment.

@@ -29,6 +29,7 @@ import io.pravega.cli.admin.bookkeeper.BookKeeperEnableCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperListAllLedgersCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperListCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperLogReconcileCommand;
+import io.pravega.cli.admin.bookkeeper.BookkeeperDeleteLedgersCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerContinuousRecoveryCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerRecoverCommand;
 import io.pravega.cli.admin.controller.ControllerDeleteReaderGroupCommand;
@@ -63,6 +64,7 @@ import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.storage.ListChunksCommand;
+import io.pravega.cli.admin.segmentstore.storage.StorageUpdateSnapshotCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentEntryCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.ListTableSegmentKeysCommand;
@@ -369,6 +371,7 @@ public abstract class AdminCommand {
                         .put(ConfigSetCommand::descriptor, ConfigSetCommand::new)
                         .put(BookKeeperCleanupCommand::descriptor, BookKeeperCleanupCommand::new)
                         .put(BookKeeperListCommand::descriptor, BookKeeperListCommand::new)
+                        .put(BookkeeperDeleteLedgersCommand::descriptor, BookkeeperDeleteLedgersCommand::new)
                         .put(BookKeeperDetailsCommand::descriptor, BookKeeperDetailsCommand::new)
                         .put(BookKeeperEnableCommand::descriptor, BookKeeperEnableCommand::new)
                         .put(BookKeeperDisableCommand::descriptor, BookKeeperDisableCommand::new)
@@ -388,6 +391,7 @@ public abstract class AdminCommand {
                         .put(GetSegmentStoreByContainerCommand::descriptor, GetSegmentStoreByContainerCommand::new)
                         .put(PasswordFileCreatorCommand::descriptor, PasswordFileCreatorCommand::new)
                         .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)
+                        .put(StorageUpdateSnapshotCommand::descriptor, StorageUpdateSnapshotCommand::new)
                         .put(DurableLogInspectCommand::descriptor, DurableLogInspectCommand::new)
                         .put(DurableLogRecoveryCommand::descriptor, DurableLogRecoveryCommand::new)
                         .put(DurableDataLogRepairCommand::descriptor, DurableDataLogRepairCommand::new)

@@ -32,7 +32,6 @@ public class ChunkedSegmentStorageConfigTests {
     public void testProvidedValues() {
         Properties props = new Properties();
         props.setProperty(ChunkedSegmentStorageConfig.APPENDS_ENABLED.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "false");
-        props.setProperty(ChunkedSegmentStorageConfig.LAZY_COMMIT_ENABLED.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "false");
         props.setProperty(ChunkedSegmentStorageConfig.INLINE_DEFRAG_ENABLED.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "false");
         props.setProperty(ChunkedSegmentStorageConfig.MAX_BUFFER_SIZE_FOR_APPENDS.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "1");
         props.setProperty(ChunkedSegmentStorageConfig.MAX_SIZE_LIMIT_FOR_CONCAT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "2");
@@ -58,11 +57,12 @@ public class ChunkedSegmentStorageConfigTests {
         props.setProperty(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_SIZE_BYTES.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "20");
         props.setProperty(ChunkedSegmentStorageConfig.MIN_TRUNCATE_RELOCATION_PERCENT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "21");
         props.setProperty(ChunkedSegmentStorageConfig.MAX_TRUNCATE_RELOCATION_SIZE_BYTES.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "22");
+        props.setProperty(ChunkedSegmentStorageConfig.SELF_CHECK_DATA_INTEGRITY.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "true");
+        props.setProperty(ChunkedSegmentStorageConfig.SELF_CHECK_METADATA_INTEGRITY.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "true");
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
         Assert.assertFalse(config.isAppendEnabled());
-        Assert.assertFalse(config.isLazyCommitEnabled());
         Assert.assertFalse(config.isInlineDefragEnabled());
         Assert.assertEquals(config.getMaxBufferSizeForChunkDataTransfer(), 1);
         Assert.assertEquals(config.getMaxSizeLimitForConcat(), 2);
@@ -88,6 +88,8 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMinSizeForTruncateRelocationInbytes(), 20);
         Assert.assertEquals(config.getMinPercentForTruncateRelocation(), 21);
         Assert.assertEquals(config.getMaxSizeForTruncateRelocationInbytes(), 22);
+        Assert.assertEquals(config.isSelfCheckForDataEnabled(), true);
+        Assert.assertEquals(config.isSelfCheckForMetadataEnabled(), true);
     }
 
     @Test
@@ -101,7 +103,6 @@ public class ChunkedSegmentStorageConfigTests {
 
     private void testDefaultValues(ChunkedSegmentStorageConfig config) {
         Assert.assertEquals(config.isAppendEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isAppendEnabled());
-        Assert.assertEquals(config.isLazyCommitEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isLazyCommitEnabled());
         Assert.assertEquals(config.isInlineDefragEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isInlineDefragEnabled());
         Assert.assertEquals(config.getMaxBufferSizeForChunkDataTransfer(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxBufferSizeForChunkDataTransfer());
         Assert.assertEquals(config.getMaxSizeLimitForConcat(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxSizeLimitForConcat());
@@ -127,6 +128,8 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMinSizeForTruncateRelocationInbytes(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinSizeForTruncateRelocationInbytes());
         Assert.assertEquals(config.getMaxSizeForTruncateRelocationInbytes(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxSizeForTruncateRelocationInbytes());
         Assert.assertEquals(config.getMinPercentForTruncateRelocation(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinPercentForTruncateRelocation());
+        Assert.assertEquals(config.isSelfCheckForDataEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isSelfCheckForDataEnabled());
+        Assert.assertEquals(config.isSelfCheckForMetadataEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isSelfCheckForMetadataEnabled());
     }
 
     @Test

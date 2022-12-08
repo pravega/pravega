@@ -15,6 +15,7 @@
  */
 package io.pravega.cli.admin.dataRecovery;
 
+import com.google.common.base.Preconditions;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.pravega.cli.admin.AdminCommandState;
@@ -35,6 +36,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
@@ -50,22 +52,25 @@ import io.pravega.segmentstore.server.tables.EntrySerializer;
 import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.DebugBookKeeperLogWrapper;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyBookkeeperLogMetadata;
+import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
-import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.utils.LocalServiceStarter;
 import lombok.Cleanup;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang.StringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -83,6 +88,9 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -135,7 +143,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
-        this.storageFactory = new FileSystemStorageFactory(adapterConfig, executorService());
+        this.storageFactory = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, adapterConfig, executorService());
     }
 
     @After
@@ -153,6 +161,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
      * @throws Exception    In case of any exception thrown while execution.
      */
     @Test
+    @Ignore("ChunkedSegmentStorage not supported by this command.")
     public void testDataRecoveryCommand() throws Exception {
         int instanceId = 0;
         int bookieCount = 3;
@@ -217,6 +226,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
      * @throws Exception    In case of any exception thrown while execution.
      */
     @Test
+    @Ignore("ChunkedSegmentStorage not supported by this command.")
     public void testListSegmentsCommand() throws Exception {
         int instanceId = 0;
         int bookieCount = 3;
@@ -964,6 +974,58 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testTableSegmentRecoveryCommandUnVersioned() throws Exception {
+        // set pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "CHUNKED_STORAGE");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", "/pravega/bookkeeper/ledgers0");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Create the data to test.
+        File testDataDir = Files.createTempDirectory("test-data-table-segment-recovery-unversioned").toFile().getAbsoluteFile();
+        File pravegaStorageDir = Files.createTempDirectory("table-segment-recovery-command-unversioned").toFile().getAbsoluteFile();
+
+        List<TableEntry> tableSegmentVersionedPuts = List.of(
+                TableEntry.versioned(new ByteArraySegment("kv1".getBytes()), new ByteArraySegment("vv1".getBytes()), 100003L),
+                TableEntry.versioned(new ByteArraySegment("kv2".getBytes()), new ByteArraySegment("vv2".getBytes()), 222222L));
+
+        List<TableKey> tableSegmentRemovals = List.of(TableKey.versioned(new ByteArraySegment("kv3".getBytes()), 1111L),
+                TableKey.unversioned(new ByteArraySegment("key".getBytes())));
+
+        MyEntrySerializer entrySerializer = new MyEntrySerializer();
+        BufferView serializedEntries = BufferView.builder().add(entrySerializer.serializeUpdateWithExplicitVersion(tableSegmentVersionedPuts))
+                .add(entrySerializer.serializeRemoval(tableSegmentRemovals))
+                .build();
+        InputStream serializedEntriesReader = serializedEntries.getReader();
+
+        Path p1 = Files.createTempFile(testDataDir.toPath(), "mychunk-v1", ".txt");
+        Path p2 = Files.createTempFile(testDataDir.toPath(), "mychunk-v2", ".txt");
+        Files.write(p1, serializedEntriesReader.readNBytes(serializedEntries.getLength() / 2), StandardOpenOption.WRITE);
+        Files.write(p2, serializedEntriesReader.readAllBytes(), StandardOpenOption.WRITE);
+
+        // Command under test
+        TestUtils.executeCommand("data-recovery tableSegment-recovery " + testDataDir.getAbsolutePath() + " testVersioned " + pravegaStorageDir, STATE.get());
+        Assert.assertNotNull(TableSegmentRecoveryCommand.descriptor());
+
+        // After that, we need to check that the storage data chunk in Pravega instance is the same as the one generated in the test.
+        File[] potentialFiles = new File(pravegaStorageDir.toString()).listFiles();
+        assert potentialFiles != null;
+        List<File> listOfFiles = Arrays.stream(potentialFiles)
+                .filter(File::isFile)
+                .filter(f -> !f.getName().contains("$attributes.index")) // We are interested in the data, not the attribute segments.
+                .sorted()
+                .collect(Collectors.toList());
+        // There should one only one data chunk for this Table Segment.
+        Assert.assertEquals(1, listOfFiles.size());
+        // The contents of the test data chunks with version and the contents of the Pravega Table Segment data chunks without version must differ.
+        Assert.assertNotEquals(Files.readAllBytes(Paths.get(pravegaStorageDir.toString(), listOfFiles.get(0).getName())), serializedEntries.getCopy());
+    }
+
+    @Test
     public void testDurableLogInspectCommandExpectedLogOutput() throws Exception {
         int instanceId = 0;
         int bookieCount = 3;
@@ -1607,5 +1669,59 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Map<Long, Long> resultMap = originalOperations.size() == 0 ? new HashMap<>() :
                 originalOperations.stream().collect(Collectors.groupingBy(op -> op.getSequenceNumber(), Collectors.counting()));
         return resultMap;
+    }
+
+    /*
+    * Creating a test version of EntrySerializer to serialize Table Segment entry
+    * for recovery purposes without changing visibility of methods from original class.
+    * */
+    static class MyEntrySerializer extends EntrySerializer {
+
+        public static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES;
+        static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
+        static final int MAX_SERIALIZATION_LENGTH = TableStore.MAXIMUM_KEY_LENGTH + TableStore.MAXIMUM_VALUE_LENGTH;
+        static final int MAX_BATCH_SIZE = 32 * MAX_SERIALIZATION_LENGTH;
+        private static final int VERSION_POSITION = 0;
+        private static final int KEY_POSITION = VERSION_POSITION + 1;
+        private static final int VALUE_POSITION = KEY_POSITION + Integer.BYTES;
+        private static final int ENTRY_VERSION_POSITION = VALUE_POSITION + Integer.BYTES;
+        private static final byte CURRENT_SERIALIZATION_VERSION = 0;
+
+        BufferView serializeUpdateWithExplicitVersion(@NonNull Collection<TableEntry> entries) {
+            return serializeUpdate(entries, TableKey::getVersion);
+        }
+
+        private BufferView serializeUpdate(@NonNull Collection<TableEntry> entries, Function<TableKey, Long> getVersion) {
+            val builder = BufferView.builder(entries.size() * 3);
+            entries.forEach(e -> serializeUpdate(e, getVersion, builder::add));
+            Preconditions.checkArgument(builder.getLength() <= MAX_BATCH_SIZE, "Update batch size cannot exceed %s. Given %s.", MAX_BATCH_SIZE, builder.getLength());
+            return builder.build();
+        }
+
+        private void serializeUpdate(@NonNull TableEntry entry, Function<TableKey, Long> getVersion, Consumer<BufferView> acceptBuffer) {
+            val key = entry.getKey().getKey();
+            val value = entry.getValue();
+            Preconditions.checkArgument(key.getLength() <= MAX_KEY_LENGTH, "Key too large.");
+            int serializationLength = getUpdateLength(entry);
+            Preconditions.checkArgument(serializationLength <= MAX_SERIALIZATION_LENGTH, "Key+Value serialization too large.");
+
+            // Serialize Header.
+            acceptBuffer.accept(serializeHeader(key.getLength(), value.getLength(), getVersion.apply(entry.getKey())));
+            acceptBuffer.accept(key);
+            acceptBuffer.accept(value);
+        }
+
+        private int getUpdateLength(@NonNull TableEntry entry) {
+            return HEADER_LENGTH + entry.getKey().getKey().getLength() + entry.getValue().getLength();
+        }
+
+        private BufferView serializeHeader(int keyLength, int valueLength, long entryVersion) {
+            ByteArraySegment data = new ByteArraySegment(new byte[HEADER_LENGTH]);
+            data.set(0, CURRENT_SERIALIZATION_VERSION);
+            data.setInt(KEY_POSITION, keyLength);
+            data.setInt(VALUE_POSITION, valueLength);
+            data.setLong(ENTRY_VERSION_POSITION, entryVersion);
+            return data;
+        }
     }
 }
