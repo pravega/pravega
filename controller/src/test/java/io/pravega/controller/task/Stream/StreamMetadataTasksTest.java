@@ -183,7 +183,7 @@ public abstract class StreamMetadataTasksTest {
     private StreamRequestHandler streamRequestHandler;
     private ConnectionFactory connectionFactory;
 
-    private RequestTracker requestTracker = new RequestTracker(true);
+    private final RequestTracker requestTracker = new RequestTracker(true);
     private EventStreamWriterMock<CommitEvent> commitWriter;
     private EventStreamWriterMock<AbortEvent> abortWriter;
     @Mock
@@ -348,7 +348,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture.join());
 
         configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor).join().getObject();
-        assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration));
+        assertEquals(configProp.getStreamConfiguration(), streamConfiguration);
 
         streamConfiguration = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(6)).build();
@@ -539,7 +539,7 @@ public abstract class StreamMetadataTasksTest {
                 .stream(stream1ScopedName).stream(stream3ScopedName)
                 .build();
 
-        assertTrue(ReaderGroupConfig.DEFAULT_UUID.equals(rgConfigNonSubscriber.getReaderGroupId()));
+        assertEquals(ReaderGroupConfig.DEFAULT_UUID, rgConfigNonSubscriber.getReaderGroupId());
         assertEquals(ReaderGroupConfig.StreamDataRetention.NONE, rgConfigNonSubscriber.getRetentionType());
 
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
@@ -578,14 +578,14 @@ public abstract class StreamMetadataTasksTest {
                 System.currentTimeMillis(), 0L).join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse.getStatus());
         assertEquals(0L, createResponse.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse.getConfig().getReaderGroupId());
 
         // Create ReaderGroup 4
         createResponse = streamMetadataTasks.createReaderGroupInternal(SCOPE, "rg4", rgConfigNonSubscriber, 
                 System.currentTimeMillis(), 0L).join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse.getStatus());
         assertEquals(0L, createResponse.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse.getConfig().getReaderGroupId());
 
         // List all subscriber ReaderGroup, there should be 3
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, 0L).get();
@@ -692,7 +692,7 @@ public abstract class StreamMetadataTasksTest {
         updateResponse = streamMetadataTasks.updateReaderGroup(SCOPE, "rg3", subscriberToNonSubscriberConfig, 0L);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         Controller.UpdateReaderGroupResponse updateRGResponse = updateResponse.join();
-        assertTrue(Controller.UpdateReaderGroupResponse.Status.SUCCESS.equals(updateRGResponse.getStatus()));
+        assertEquals(Controller.UpdateReaderGroupResponse.Status.SUCCESS, updateRGResponse.getStatus());
         assertEquals(1L, updateRGResponse.getGeneration());
 
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream3, 0L).get();
@@ -715,9 +715,9 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(subscriberToNonSubscriberConfig.getAutomaticCheckpointIntervalMillis(), responseRG3.getConfig().getAutomaticCheckpointIntervalMillis());
         assertEquals(subscriberToNonSubscriberConfig.getStartingStreamCuts().size(), responseRG3.getConfig().getStartingStreamCutsCount());
         assertEquals(subscriberToNonSubscriberConfig.getEndingStreamCuts().size(), responseRG3.getConfig().getEndingStreamCutsCount());
-        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY) > 0);
-        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY) > 0);
-        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY) > 0);
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY) >= 0);
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY) >= 0);
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY) >= 0);
     }
 
     @Test(timeout = 30000)
@@ -871,7 +871,7 @@ public abstract class StreamMetadataTasksTest {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.75, 1.0));
         ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(1L),
                 newRanges, 30, 0L).get();
-        assertTrue(scaleOpResult.getStatus().equals(ScaleStreamStatus.STARTED));
+        assertEquals(scaleOpResult.getStatus(), ScaleStreamStatus.STARTED);
 
         ScaleOperationTask scaleTask = new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor);
         assertTrue(Futures.await(scaleTask.execute((ScaleOpEvent) requestEventWriter.eventQueue.take())));
@@ -891,8 +891,8 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateFuture.join());
 
         truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor).join().getObject();
-        assertTrue(truncProp.getStreamCut().equals(streamCut));
-        assertTrue(truncProp.getStreamCut().equals(streamCut));
+        assertEquals(truncProp.getStreamCut(), streamCut);
+        assertEquals(truncProp.getStreamCut(), streamCut);
 
         // 2. change state to scaling
         streamStorePartialMock.setState(SCOPE, "test", State.SCALING, null, executor).get();
@@ -1044,8 +1044,8 @@ public abstract class StreamMetadataTasksTest {
         // verify that only one stream cut is in retention set. streamCut2 is not added
         // verify that truncation did not happen
         assertTrue(list.contains(streamCut1));
-        assertTrue(!list.contains(streamCut2));
-        assertTrue(!truncProp.isUpdating());
+        assertFalse(list.contains(streamCut2));
+        assertFalse(truncProp.isUpdating());
 
         Map<Long, Long> map3 = new HashMap<>();
         map3.put(0L, 20L);
@@ -1068,9 +1068,9 @@ public abstract class StreamMetadataTasksTest {
         truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor).get().getObject();
 
         assertTrue(list.contains(streamCut1));
-        assertTrue(!list.contains(streamCut2));
+        assertFalse(list.contains(streamCut2));
         assertTrue(list.contains(streamCut3));
-        assertTrue(!truncProp.isUpdating());
+        assertFalse(truncProp.isUpdating());
 
         Map<Long, Long> map4 = new HashMap<>();
         map4.put(0L, 20L);
@@ -1092,8 +1092,8 @@ public abstract class StreamMetadataTasksTest {
                                      }).join();
         truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor).get().getObject();
 
-        assertTrue(!list.contains(streamCut1));
-        assertTrue(!list.contains(streamCut2));
+        assertFalse(list.contains(streamCut1));
+        assertFalse(list.contains(streamCut2));
         assertTrue(list.contains(streamCut3));
         assertTrue(list.contains(streamCut4));
         assertTrue(truncProp.isUpdating());
@@ -1172,7 +1172,7 @@ public abstract class StreamMetadataTasksTest {
         // verify that truncation did not happen
         assertTrue(list.contains(streamCut1));
         assertTrue(list.contains(streamCut2));
-        assertTrue(!truncProp.isUpdating());
+        assertFalse(truncProp.isUpdating());
         // endregion
 
         // region latest - previous > retention.size
@@ -1201,7 +1201,7 @@ public abstract class StreamMetadataTasksTest {
                                       }).join();
         truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, null, executor).get().getObject();
 
-        assertTrue(!list.contains(streamCut1));
+        assertFalse(list.contains(streamCut1));
         assertTrue(list.contains(streamCut2));
         assertTrue(list.contains(streamCut3));
         assertTrue(truncProp.isUpdating());
@@ -1638,7 +1638,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         Controller.CreateReaderGroupResponse createResponse1 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse1.getStatus());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse1.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse1.getConfig().getReaderGroupId());
         assertEquals(0L, createResponse1.getConfig().getGeneration());
 
         String subscriber2 = "subscriber2";
@@ -1646,7 +1646,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         Controller.CreateReaderGroupResponse createResponse2 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse2.getStatus());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse2.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse2.getConfig().getReaderGroupId());
         assertEquals(0L, createResponse2.getConfig().getGeneration());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
@@ -2090,7 +2090,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.CreateReaderGroupResponse createResponse1 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse1.getStatus());
         assertEquals(0L, createResponse1.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse1.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse1.getConfig().getReaderGroupId());
 
         String subscriber2 = "subscriber2";
         createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, consumpRGConfig, System.currentTimeMillis(), 0L);
@@ -2098,7 +2098,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.CreateReaderGroupResponse createResponse2 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse2.getStatus());
         assertEquals(0L, createResponse2.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse2.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse2.getConfig().getReaderGroupId());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
@@ -2319,7 +2319,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.CreateReaderGroupResponse createResponse1 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse1.getStatus());
         assertEquals(0L, createResponse1.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse1.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse1.getConfig().getReaderGroupId());
 
         String subscriber2 = "subscriber2";
         createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, consumpRGConfig, System.currentTimeMillis(), 0L);
@@ -2327,7 +2327,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.CreateReaderGroupResponse createResponse2 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse2.getStatus());
         assertEquals(0L, createResponse2.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse2.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse2.getConfig().getReaderGroupId());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
@@ -2431,7 +2431,7 @@ public abstract class StreamMetadataTasksTest {
         String scopedStreamName = String.format("%s/%s", SCOPE, stream);
 
         // verify that stream is not added to bucket
-        assertTrue(!bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
+        assertFalse(bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
 
         UpdateStreamTask task = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor);
 
@@ -2456,7 +2456,7 @@ public abstract class StreamMetadataTasksTest {
         task.execute(update).join();
 
         // verify that the stream is no longer present in the bucket
-        assertTrue(!bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
+        assertFalse(bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
     }
 
     @Test(timeout = 30000)

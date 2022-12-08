@@ -39,6 +39,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.api.ReadHandle;
 import lombok.val;
@@ -51,14 +52,16 @@ import org.apache.curator.framework.CuratorFramework;
  * NOTE: this class is not meant to be used for regular, production code. It exposes operations that should only be executed
  * from the admin tools.
  */
+@Slf4j
 public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
     //region Members
 
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
-    private final BookKeeperLog log;
+    private final BookKeeperLog bkLog;
     private final BookKeeper bkClient;
     private final BookKeeperConfig config;
     private final AtomicBoolean initialized;
+    private final String traceObjectId;
 
     //endregion
 
@@ -74,10 +77,11 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
      * @param executor   An Executor to use for async operations.
      */
     DebugBookKeeperLogWrapper(int logId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executor) {
-        this.log = new BookKeeperLog(logId, zkClient, bookKeeper, config, executor);
+        this.bkLog = new BookKeeperLog(logId, zkClient, bookKeeper, config, executor);
         this.bkClient = bookKeeper;
         this.config = config;
         this.initialized = new AtomicBoolean();
+        this.traceObjectId = String.format("DebugBookKeeperLogWrapper[%s]", this.bkLog.getLogId());
     }
 
     //endregion
@@ -86,7 +90,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
 
     @Override
     public void close() {
-        this.log.close();
+        this.bkLog.close();
     }
 
     //endregion
@@ -95,7 +99,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
 
     @Override
     public DurableDataLog asReadOnly() throws DataLogInitializationException {
-        return new ReadOnlyBooKeeperLog(this.log.getLogId(), this.log.loadMetadata());
+        return new ReadOnlyBooKeeperLog(this.bkLog.getLogId(), this.bkLog.loadMetadata());
     }
 
     /**
@@ -108,7 +112,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
      */
     @Override
     public ReadOnlyBookkeeperLogMetadata fetchMetadata() throws DataLogInitializationException {
-        return this.log.loadMetadata();
+        return this.bkLog.loadMetadata();
     }
 
     /**
@@ -127,7 +131,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
      * @throws DurableDataLogException If an exception occurred.
      */
     public void enable() throws DurableDataLogException {
-        this.log.enable();
+        this.bkLog.enable();
     }
 
     /**
@@ -137,7 +141,17 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
      */
     public void disable() throws DurableDataLogException {
         initialize();
-        this.log.disable();
+        this.bkLog.disable();
+    }
+
+    /**
+     * Disables the BookKeeperLog and updates the metadata in ZooKeeper by setting its Enabled flag to false.
+     * It ignores fence-out and should be used wisely and for administration purpose only.
+     * @throws DurableDataLogException If an exception occurred.
+     */
+    public void markAsDisabled() throws DurableDataLogException {
+        val metadata = this.bkLog.loadMetadata();
+        forceMetadataOverWrite(metadata.asDisabled());
     }
 
     /**
@@ -157,7 +171,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
      */
     public boolean reconcileLedgers(List<? extends ReadHandle> candidateLedgers) throws DurableDataLogException {
         // Load metadata and verify if disabled (metadata may be null if it doesn't exist).
-        LogMetadata metadata = this.log.loadMetadata();
+        LogMetadata metadata = this.bkLog.loadMetadata();
         final long highestLedgerId;
         if (metadata != null) {
             Preconditions.checkState(!metadata.isEnabled(), "BookKeeperLog is enabled; cannot reconcile ledgers.");
@@ -180,7 +194,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         // First, we filter out any Ledger that does not reference this Log as their owner or that are empty.
         candidateLedgers = candidateLedgers
                 .stream()
-                .filter(lh -> Ledgers.getBookKeeperLogId(lh) == this.log.getLogId()
+                .filter(lh -> Ledgers.getBookKeeperLogId(lh) == this.bkLog.getLogId()
                         && lh.getLength() > 0)
                 .collect(Collectors.toList());
 
@@ -226,7 +240,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
                     .updateVersion(getOrDefault(metadata, LogMetadata::getUpdateVersion, LogMetadata.INITIAL_VERSION))
                     .ledgers(newLedgerList)
                     .build();
-            this.log.overWriteMetadata(newMetadata);
+            this.bkLog.overWriteMetadata(newMetadata);
         }
 
         return changed;
@@ -243,7 +257,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
     public void forceMetadataOverWrite(ReadOnlyLogMetadata metadata) throws DurableDataLogException {
         try {
             byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize((LogMetadata) metadata).getCopy();
-            this.log.getZkClient().setData().forPath(this.log.getLogNodePath(), serializedMetadata);
+            this.bkLog.getZkClient().setData().forPath(this.bkLog.getLogNodePath(), serializedMetadata);
         } catch (Exception e) {
             throw new DurableDataLogException("Problem overwriting Bookkeeper Log metadata.", e);
         }
@@ -258,16 +272,52 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
     @Override
     public void deleteDurableLogMetadata() throws DurableDataLogException {
         try {
-            this.log.getZkClient().delete().forPath(this.log.getLogNodePath());
+            this.bkLog.getZkClient().delete().forPath(this.bkLog.getLogNodePath());
         } catch (Exception e) {
             throw new DurableDataLogException("Problem deleting Bookkeeper Log metadata.", e);
         }
     }
 
+    /**
+     * Deletes all the ledgers of the log starting (including) given starting ledger id.
+     * CAUTION: This is a destructive operation and should be
+     * used wisely for administration purposes (e.g., repair a damaged BookkeeperLog).
+     *
+     * @param startId It refers to the ledger id from where deletion happens.
+     * @return The total number of ledgers deleted.
+     * @throws DurableDataLogException in case there is a problem while deleting ledger.
+     */
+    public int deleteLedgersStartingWithId(long startId) throws DurableDataLogException {
+        LogMetadata metadata = this.bkLog.loadMetadata();
+        List<LedgerMetadata> ledgers = metadata.getLedgers();
+        List<Long> ids = ledgers.stream()
+                .map(ledgerMetadata -> ledgerMetadata.getLedgerId())
+                .collect(Collectors.toList());
+        if (!ids.contains(startId)) {
+            throw new DurableDataLogException(String.format("No such ledger exist with ledger id: %d.", this.bkLog.getLogId()));
+        }
+        // Start deleting the ledgers with starting ledger id
+        AtomicInteger count = new AtomicInteger(0);
+        val ledgersToDelete = ids.stream()
+                .filter(ledgerId -> ledgerId >= startId )
+                .collect(Collectors.toList());
+
+        ledgersToDelete.forEach(id -> {
+            try {
+                Ledgers.delete(id, this.bkClient);
+                log.info("{}: Deleted ledger {}.", this.traceObjectId, id);
+                count.incrementAndGet();
+            } catch (DurableDataLogException ex) {
+                log.error("{}: Unable to delete ledger {}.", this.traceObjectId, id, ex);
+            }
+        });
+        return count.get();
+    }
+
     private void initialize() throws DurableDataLogException {
         if (this.initialized.compareAndSet(false, true)) {
             try {
-                this.log.initialize(DEFAULT_TIMEOUT);
+                this.bkLog.initialize(DEFAULT_TIMEOUT);
             } catch (Exception ex) {
                 this.initialized.set(false);
                 throw ex;
@@ -334,7 +384,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         public void disable() {
             throw new UnsupportedOperationException();
         }
-
+        
         @Override
         public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
             throw new UnsupportedOperationException();
