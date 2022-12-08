@@ -8,7 +8,12 @@ import lombok.Getter;
 
 import java.io.InputStream;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
+/**
+ * {@link ChunkStorage} implementation that introduces ConditionalNoOpChunkStorage to inner instance.
+ *
+ */
 public class ConditionalNoOpChunkStorage implements ChunkStorage {
 
     @Getter
@@ -16,9 +21,12 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
 
     final protected NoOpChunkStorage noOpChunkStorage;
 
-    public ConditionalNoOpChunkStorage(ChunkStorage inner, NoOpChunkStorage noOpChunkStorage) {
+    final protected ScheduledExecutorService executorService;
+
+    public ConditionalNoOpChunkStorage(ChunkStorage inner, ScheduledExecutorService executorService) {
         this.inner = inner;
-        this.noOpChunkStorage = noOpChunkStorage;
+        this.noOpChunkStorage = new NoOpChunkStorage(executorService);
+        this.executorService = executorService;
     }
 
     @Override
@@ -118,11 +126,9 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
 
     @Override
     public void close() throws Exception {
+        this.noOpChunkStorage.close();
         if (this.inner != null) {
             this.inner.close();
-        }
-        if (noOpChunkStorage != null) {
-            this.noOpChunkStorage.close();
         }
     }
 

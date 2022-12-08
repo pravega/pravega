@@ -19,10 +19,13 @@ import java.util.ServiceLoader;
 import java.util.concurrent.ScheduledExecutorService;
 
 import io.pravega.segmentstore.storage.ConfigSetup;
+import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageLayoutType;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.segmentstore.storage.mocks.SlowStorageFactory;
+import io.pravega.segmentstore.storage.noop.ConditionalNoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -53,7 +56,11 @@ public class StorageLoader {
                     if (storageExtraConfig.isStorageNoOpMode()) {
                         //The specified storage implementation is in No-Op mode.
                         log.warn("{} IS IN NO-OP MODE: DATA LOSS WILL HAPPEN! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);
-                        return new NoOpStorageFactory(storageExtraConfig, executor, factory, null);
+                        if (factory instanceof SimpleStorageFactory) {
+                            return new ConditionalNoOpStorageFactory(executor, (SimpleStorageFactory) factory, storageExtraConfig);
+                        } else {
+                            return new NoOpStorageFactory(storageExtraConfig, executor, factory, null);
+                        }
                     }
                     if (storageExtraConfig.isSlowModeEnabled()) {
                         log.warn("{} IS IN SLOW MODE: PERF DEGRADATION EXPECTED! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);

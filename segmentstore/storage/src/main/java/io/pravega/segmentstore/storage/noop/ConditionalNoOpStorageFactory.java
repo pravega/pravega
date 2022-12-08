@@ -6,14 +6,15 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
-import io.pravega.segmentstore.storage.mocks.SlowChunkStorage;
-import io.pravega.segmentstore.storage.mocks.SlowStorage;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 import java.util.concurrent.ScheduledExecutorService;
 
+/**
+ * Creates an instance of {@link  ConditionalNoOpStorageFactory} and delegates calls to inner {@link SimpleStorageFactory}.
+ */
 @RequiredArgsConstructor
 public class ConditionalNoOpStorageFactory implements SimpleStorageFactory {
 
@@ -30,21 +31,21 @@ public class ConditionalNoOpStorageFactory implements SimpleStorageFactory {
      * Creates an instance of Storage.
      * @param containerId Container ID.
      * @param metadataStore {@link ChunkMetadataStore} store to use.
-     * @return
+     * @return returns Storage
      */
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
+        return new ChunkedSegmentStorage(containerId,
                 createChunkStorage(),
                 metadataStore,
                 this.executor,
                 getChunkedSegmentStorageConfig());
-        return chunkedSegmentStorage;
     }
 
     @Override
     public Storage createStorageAdapter() {
-        return new SlowStorage(inner.createStorageAdapter(), executor, config);
+        throw new UnsupportedOperationException("createStorageAdapter method is not supported for ConditionalNoOpStorageFactory, use the parameterized method instead.");
+
     }
 
     @Override
@@ -54,7 +55,7 @@ public class ConditionalNoOpStorageFactory implements SimpleStorageFactory {
 
     @Override
     public ChunkStorage createChunkStorage() {
-            val innerChunkStorage = ((SimpleStorageFactory) inner).createChunkStorage();
-            return new SlowChunkStorage(innerChunkStorage, executor, config);
+            val innerChunkStorage = inner.createChunkStorage();
+            return new ConditionalNoOpChunkStorage(innerChunkStorage, executor);
     }
 }
