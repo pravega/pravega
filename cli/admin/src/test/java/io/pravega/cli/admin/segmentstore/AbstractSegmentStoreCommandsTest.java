@@ -387,7 +387,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testEvictReadIndexCacheCommand() throws Exception {
-        String commonResult = TestUtils.executeCommand("storage evict-read-index-cache 0 localhost", STATE.get());
+        String commonResult = TestUtils.executeCommand("storage evict-read-index-cache 0 null localhost", STATE.get());
         Assert.assertTrue(commonResult.contains("Read Index Cache evicted for the Segment Container with containerId 0."));
         Assert.assertNotNull(EvictReadIndexCacheCommand.descriptor());
     }

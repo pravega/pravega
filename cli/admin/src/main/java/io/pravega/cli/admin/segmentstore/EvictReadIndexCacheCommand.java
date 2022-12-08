@@ -36,7 +36,6 @@ public class EvictReadIndexCacheCommand extends StorageCommand {
 
     @Override
     public void execute() throws Exception {
-        ensureArgCount(3);
 
         final int containerId = getIntArg(0);
         final String fullyQualifiedSegmentName = getArg(1, null);
