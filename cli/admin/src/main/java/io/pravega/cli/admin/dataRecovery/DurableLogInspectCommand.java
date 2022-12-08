@@ -293,7 +293,8 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "durableLog-inspect", "Allows to inspect DurableLog " +
                 "damaged/corrupted Operations.",
-                new ArgDescriptor("container-id", "Id of the Container to inspect."));
+                new ArgDescriptor("container-id", "Id of the Container to inspect."),
+                new ArgDescriptor("filename", "Name of the file to save the result."));
     }
 
     @Getter
