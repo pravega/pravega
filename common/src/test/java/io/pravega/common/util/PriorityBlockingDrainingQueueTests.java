@@ -57,6 +57,7 @@ public class PriorityBlockingDrainingQueueTests {
 
         Assert.assertEquals(0, q.size());
         Assert.assertEquals(0, q.close().size());
+        Assert.assertTrue(q.isClosed());
     }
 
     /**
@@ -178,6 +179,7 @@ public class PriorityBlockingDrainingQueueTests {
     public void testClose() {
         @Cleanup
         val q = new PriorityBlockingDrainingQueue<TestItem>(MAX_PRIORITY);
+        Assert.assertFalse(q.isClosed());
 
         // Add 3 items with different priority levels.
         val item1 = new TestItem(1, (byte) 5);
@@ -193,6 +195,7 @@ public class PriorityBlockingDrainingQueueTests {
         Assert.assertSame("Unexpected result item from close", item2, closeResult.poll());
         Assert.assertSame("Unexpected result item from close", item1, closeResult.poll());
         Assert.assertSame("Unexpected result item from close", item3, closeResult.poll());
+        Assert.assertTrue(q.isClosed());
     }
 
     private Queue<TestItem> getFirstItems(ConcurrentSkipListSet<TestItem> set, int count) {
