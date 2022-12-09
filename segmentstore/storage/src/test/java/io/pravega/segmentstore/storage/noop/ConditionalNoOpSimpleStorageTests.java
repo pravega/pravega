@@ -20,8 +20,6 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedRollingStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 
-import java.util.concurrent.ScheduledExecutorService;
-
 /**
  * Unit tests for {@link ConditionalNoOpChunkStorage} using {@link SimpleStorageTests}.
  */
