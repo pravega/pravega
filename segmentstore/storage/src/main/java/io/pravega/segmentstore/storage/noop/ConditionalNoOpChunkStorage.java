@@ -37,6 +37,11 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
 
     final protected ScheduledExecutorService executorService;
 
+    /**
+     * Creates a new instance of ConditionalNoOpChunkStorage.
+     * @param inner inner Storage for this instance.
+     * @param executorService executorService to be used.
+     */
     public ConditionalNoOpChunkStorage(ChunkStorage inner, ScheduledExecutorService executorService) {
         this.inner = inner;
         this.noOpChunkStorage = new NoOpChunkStorage(executorService);
@@ -58,12 +63,6 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
         return inner.supportsConcat();
     }
 
-    /**
-     * Checks for the existence of the chunk in the chunkStorage.
-     *
-     * @param chunkName Name of the storage object to check.
-     * @return boolean value depending on the chunk's existence
-     */
     @Override
     public CompletableFuture<Boolean> exists(String chunkName) {
         return isMetadataCall(getChunkHandle(chunkName)) ? inner.exists(chunkName) : noOpChunkStorage.exists(chunkName);
