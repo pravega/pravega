@@ -731,7 +731,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         val operationProcessor = new ThrottledOperationProcessor(context.metadata, context.stateUpdater,
                 dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService(), throttler);
         // Here we set the isSuspendedReference with the right supplier.
-        isSuspendedReference.set(operationProcessor::hasToSuspendThrottlingDelay);
+        isSuspendedReference.set(operationProcessor::shouldSuspendThrottlingDelay);
         operationProcessor.startAsync().awaitRunning();
 
         // Close the queue, simulating that some error unexpectedly close it.
@@ -782,7 +782,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         val operationProcessor = new ThrottledOperationProcessor(context.metadata, context.stateUpdater,
                 dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService(), throttler);
         // Here we set the isSuspendedReference with the right supplier.
-        isSuspendedReference.set(operationProcessor::hasToSuspendThrottlingDelay);
+        isSuspendedReference.set(operationProcessor::shouldSuspendThrottlingDelay);
         operationProcessor.startAsync().awaitRunning();
 
         // Close the queue, simulating that some error unexpectedly close it.

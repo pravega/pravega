@@ -124,7 +124,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 .operationLogThrottler(this.stateUpdater::getInMemoryOperationLogSize, throttlerPolicy.getMaxDelayMillis(),
                         throttlerPolicy.getOperationLogMaxSize(), throttlerPolicy.getOperationLogTargetSize())
                 .build();
-        this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, this::hasToSuspendThrottlingDelay, executor, this.metrics);
+        this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, this::shouldSuspendThrottlingDelay, executor, this.metrics);
         this.cacheUtilizationProvider.registerCleanupListener(this.throttler);
         durableDataLog.registerQueueStateChangeListener(this.throttler);
         this.stateUpdater.registerReadListener(this.throttler);
@@ -309,7 +309,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * @return True if throttling needs to be suspended, false otherwise.
      */
     @VisibleForTesting
-    protected boolean hasToSuspendThrottlingDelay() {
+    protected boolean shouldSuspendThrottlingDelay() {
         if (this.operationQueue.isClosed()) {
             // The operationQueue has been closed. This means that any throttling delay should be interrupted and shut down.
             return true;
@@ -376,7 +376,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     count = 0;
-                    if (hasToSuspendThrottlingDelay() || !getThrottler().isThrottlingRequired()) {
+                    if (shouldSuspendThrottlingDelay() || !getThrottler().isThrottlingRequired()) {
                         // Only pull in new operations if we do not require throttling. If we do, we need to go back to
                         // the main OperationProcessor loop and delay processing the next batch of operations.
                         operations = this.operationQueue.poll(getFetchCount());
