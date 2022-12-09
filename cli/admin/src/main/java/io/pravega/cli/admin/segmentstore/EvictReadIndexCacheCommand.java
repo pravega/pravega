@@ -37,9 +37,9 @@ public class EvictReadIndexCacheCommand extends StorageCommand {
     @Override
     public void execute() throws Exception {
 
-        final int containerId = getIntArg(0);
-        final String fullyQualifiedSegmentName = getArg(1, null);
-        final String segmentStoreHost = getArg(2);
+        final String segmentStoreHost = getArg(0);
+        final int containerId = getIntArg(1);
+        final String fullyQualifiedSegmentName = getArg(2, null);
 
         @Cleanup
         CuratorFramework zkClient = createZKClient();
@@ -61,8 +61,8 @@ public class EvictReadIndexCacheCommand extends StorageCommand {
 
     public static AdminCommand.CommandDescriptor descriptor() {
         return new AdminCommand.CommandDescriptor(COMPONENT, "evict-read-index-cache", "Evict entire Read Index Cache.",
+                new AdminCommand.ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
                 new AdminCommand.ArgDescriptor("container-id", "The container Id of the Segment Container for which read index cache is evicted"),
-                new AdminCommand.ArgDescriptor("fully-qualified-segment-name", "Fully qualified name of the Segment.", true),
-                new AdminCommand.ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
+                new AdminCommand.ArgDescriptor("fully-qualified-segment-name", "Fully qualified name of the Segment.", true));
     }
 }

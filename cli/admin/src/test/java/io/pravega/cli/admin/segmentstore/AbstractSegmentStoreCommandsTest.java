@@ -373,28 +373,28 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testCheckChunkStorageSanityCommand() throws Exception {
-        String commandResult = TestUtils.executeCommand("storage check-chunk-sanity 0 test 100 localhost", STATE.get());
+        String commandResult = TestUtils.executeCommand("storage check-chunk-sanity localhost 0 test 100", STATE.get());
         Assert.assertTrue(commandResult.contains("Chunk sanity checked for the Segment Container with containerId 0."));
         Assert.assertNotNull(CheckChunkSanityCommand.descriptor());
     }
 
     @Test
     public void testEvictMetaDataCacheCommand() throws Exception {
-        String commandResult = TestUtils.executeCommand("storage evict-meta-data-cache 0 localhost", STATE.get());
+        String commandResult = TestUtils.executeCommand("storage evict-meta-data-cache localhost 0", STATE.get());
         Assert.assertTrue(commandResult.contains("Meta Data Cache evicted for the Segment Container with containerId 0."));
         Assert.assertNotNull(EvictMetaDataCacheCommand.descriptor());
     }
 
     @Test
     public void testEvictReadIndexCacheCommand() throws Exception {
-        String commonResult = TestUtils.executeCommand("storage evict-read-index-cache 0 null localhost", STATE.get());
+        String commonResult = TestUtils.executeCommand("storage evict-read-index-cache localhost 0", STATE.get());
         Assert.assertTrue(commonResult.contains("Read Index Cache evicted for the Segment Container with containerId 0."));
         Assert.assertNotNull(EvictReadIndexCacheCommand.descriptor());
     }
 
     @Test
     public void testEvictReadIndexCacheForSegmentCommand() throws Exception {
-        String commonResult = TestUtils.executeCommand("storage evict-read-index-cache 0 testSegment localhost", STATE.get());
+        String commonResult = TestUtils.executeCommand("storage evict-read-index-cache localhost 0 testSegment", STATE.get());
         Assert.assertTrue(commonResult.contains("Read Index Cache evicted for the Segment Container with containerId 0."));
         Assert.assertNotNull(EvictReadIndexCacheCommand.descriptor());
     }

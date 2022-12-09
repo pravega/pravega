@@ -37,8 +37,8 @@ public class EvictMetaDataCacheCommand extends StorageCommand {
     public void execute() throws Exception {
         ensureArgCount(2);
 
-        final int containerId = getIntArg(0);
-        final String segmentStoreHost = getArg(1);
+        final String segmentStoreHost = getArg(0);
+        final int containerId = getIntArg(1);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
@@ -52,7 +52,7 @@ public class EvictMetaDataCacheCommand extends StorageCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "evict-meta-data-cache", "Evicts all eligible entries from buffer cache and all entries from guava cache.",
-                new ArgDescriptor("container-id", "The container Id of the Segment Container for which meta data cache is evicted."),
-                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
+                new ArgDescriptor("container-id", "The container Id of the Segment Container for which meta data cache is evicted."));
     }
 }
