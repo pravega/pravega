@@ -18,6 +18,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
+import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -29,7 +30,7 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public class ConditionalNoOpStorageFactoryTest {
 
-    @Test(expected = UnsupportedOperationException.class)
+    @Test
     public void testCreateSyncStorage() {
         StorageExtraConfig config = StorageExtraConfig.builder().build();
         @Cleanup("shutdownNow")
@@ -41,6 +42,16 @@ public class ConditionalNoOpStorageFactoryTest {
         var storage = factory.createStorageAdapter(43, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
         Assert.assertTrue(storage instanceof ChunkedSegmentStorage);
         Assert.assertTrue(((ChunkedSegmentStorage) storage).getChunkStorage() instanceof ConditionalNoOpChunkStorage);
-        factory.createSyncStorage();
+        ((ChunkedSegmentStorage) storage).getChunkStorage().report();
+
+        AssertExtensions.assertThrows(
+                "factory.createSyncStorage should not succeed.",
+                () -> factory.createSyncStorage(),
+                ex -> ex instanceof UnsupportedOperationException);
+
+        AssertExtensions.assertThrows(
+                "factory.createSyncStorage should not succeed.",
+                () -> factory.createStorageAdapter(),
+                ex -> ex instanceof UnsupportedOperationException);
     }
 }
