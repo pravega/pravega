@@ -76,12 +76,12 @@ Some observations about the figure above:
 - If the node has only 1 drive, we cannot guarantee any kind of failure tolerance. Also, both
 journal and ledger directories will land on the same drive, thus impacting performance.
 - If the node has 2 drives, we have the option to chose whether to instantiate one or two Bookies.
-With one Bookie, we can place journal and ledger in separate directories to favor performance but without.
-being able to recover from a failure of a drive or the Bookie itself. With two Bookies, we can decide 
-whether to still have 1 or 2 data replicas. The former choice would have better performance, and it would 
-tolerate temporarily unavailability of one of the Bookies while continue serving writes. The latter choice
-would have lower performance due to replication costs, but it can tolerate permanent failure of one Bookie or
-drive.
+With one Bookie, we can place journal and ledger in separate directories to favor performance but without
+being able to tolerate a permanent failure of a drive or a Bookie itself. With two Bookies, we can decide 
+to create 1 or 2 data replicas. The former choice would have better performance, and it would 
+tolerate temporarily unavailability of one of the Bookies while continue serving writes but no permanenet failures. 
+The latter choice would have lower performance due to replication costs, but it can tolerate permanent failure 
+of one Bookie or drive.
 - The situation in which the node has 4 drives is similar to the case for 2 drives, but in this case
 we could tolerate up to 2 permanent Bookie or drive failures without losing data.
 
@@ -128,13 +128,13 @@ and data durability trade-offs.
 
 In summary, we highlight the following takeaways:
 - In these guidelines, we have intentionally mentioned examples using `ensembleSize = writeQuorum = ackQuorum` 
-  as to simplify the discussion. However, it is important to understand that the Bookkeeper client implements
+  as a way to simplify the discussion. However, it is important to understand that the Bookkeeper client implements
   "opportunistic striping". That is, if we configure `ensembleSize=3`, `writeQuorum=2` and `ackQuorum=2`, 
   the Bookkeeper client will exploit the throughput of 3 Bookies to write 2 replicas of data. Also, it can 
   tolerate a temporary failure of one Bookie; in that case, the ledgers created during the temporary failure 
   will be written using `ensembleSize=2`, `writeQuorum=2` and `ackQuorum=2`.
-- In many cases, you need to chose between tolerating temporary write failure  
-  or read failures. This is because for very small clusters, the replication factor
+- In many cases, you need to chose between tolerating temporary write failure or read failures. 
+  This is because for very small clusters, the replication factor
   configured in the client is the same as the number of Bookies, so no write failure
   is allowed (but we can still read data and tolerate permanent Bookie crashes).
 - Some cluster layouts force users to trade-off between good performance
