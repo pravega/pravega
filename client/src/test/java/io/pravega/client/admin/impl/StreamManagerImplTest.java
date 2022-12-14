@@ -942,14 +942,14 @@ public class StreamManagerImplTest {
         StreamInfo info = streamManager.fetchStreamInfo(defaultScope, streamName).join();
         System.out.println("Testing the streamcuts using fSI **^^** "+ info.getScope() +"--scope-- "+ info.getStreamName() +"-- StreamName--"+ info.getTailStreamCut().asImpl().getPositions().size() +"-- stream size--");
 
-        final StreamCut startStreamCut = getStreamCut(defaultScope, streamName, 10L, 1, 2);
+        final StreamCut startStreamCut = getStreamCut(defaultScope, streamName, 10L, 0, 1);
         final StreamCut endStreamCut = StreamCut.UNBOUNDED;
 
         CompletableFuture<Long> cf = streamManager.getDistanceBetweenTwoStreamCuts(stream, startStreamCut,
                 endStreamCut);
         try {
             Long distance = cf.join();
-            assertEquals(Long.valueOf(40), distance);
+            assertEquals(Long.valueOf(20), distance);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
