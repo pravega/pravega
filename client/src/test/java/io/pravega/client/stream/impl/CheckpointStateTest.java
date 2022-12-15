@@ -160,9 +160,9 @@ public class CheckpointStateTest {
     @Test
     public void testGetReaderBlockingCheckpointsMap() {
         CheckpointState state = new CheckpointState();
-        state.beginNewCheckpoint("1", ImmutableSet.of("a","b"), Collections.emptyMap());
+        state.beginNewCheckpoint("1", ImmutableSet.of("a", "b"), Collections.emptyMap());
         state.beginNewCheckpoint("2" + SILENT, ImmutableSet.of("a"), Collections.emptyMap());
-        state.beginNewCheckpoint("3", ImmutableSet.of("a","b"), Collections.emptyMap());
+        state.beginNewCheckpoint("3", ImmutableSet.of("a", "b"), Collections.emptyMap());
         // Silent checkpoint should not be counted as part of CheckpointState#getOutstandingCheckpoints.
 
         assertEquals(2, state.getReaderBlockingCheckpointsMap().size());
