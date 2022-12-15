@@ -280,7 +280,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
             // process the checkpoint we're at
             position = refreshAndGetPosition();
             groupState.checkpoint(atCheckpoint, position);
-            log.info("Reader {} completed checkpoint {}", groupState.getReaderId(), atCheckpoint);
+            log.info("Reader {} completed checkpoint {} at postion {}", groupState.getReaderId(), atCheckpoint, position);
             releaseSegmentsIfNeeded(position);
             groupState.updateTruncationStreamCutIfNeeded();
         }
