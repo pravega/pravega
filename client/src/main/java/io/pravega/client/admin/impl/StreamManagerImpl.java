@@ -67,7 +67,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -364,13 +363,10 @@ public class StreamManagerImpl implements StreamManager {
         final CompletableFuture<StreamSegmentSuccessors> unread;
         final Map<Segment, Long> endPositions;
         if (toStreamCut.equals(StreamCut.UNBOUNDED)) {
-            /*unread = controller.getSuccessors(fromStreamCut);
-            endPositions = Collections.emptyMap();*/
-            CompletableFuture<StreamInfo> si = fetchStreamInfo(stream.getScope(), stream.getStreamName());
-            StreamCut endSC = si.join().getTailStreamCut();
+            CompletableFuture<StreamInfo> streamInfo = fetchStreamInfo(stream.getScope(), stream.getStreamName());
+            StreamCut endSC = streamInfo.join().getTailStreamCut();
             unread = controller.getSegments(fromStreamCut, endSC);
             endPositions = endSC.asImpl().getPositions();
-                    //Collections.emptyMap();
         } else {
             unread = controller.getSegments(fromStreamCut, toStreamCut);
             endPositions = toStreamCut.asImpl().getPositions();
@@ -394,7 +390,6 @@ public class StreamManagerImpl implements StreamManager {
                 totalLength += bytesRemaining;
             }
             for (long bytesRead : fromStreamCut.asImpl().getPositions().values()) {
-                log.info("total length ** "+ totalLength+ "bytes read ** "+ bytesRead);
                 totalLength -= bytesRead;
             }
             log.debug("Remaining bytes from position: {} to position: {} is {}", fromStreamCut, toStreamCut, totalLength);

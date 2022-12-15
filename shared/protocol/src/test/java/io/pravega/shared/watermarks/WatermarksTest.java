@@ -50,7 +50,7 @@ public class WatermarksTest {
         ByteBuffer serialized = watermark.toByteBuf();
         Watermark deserialized = Watermark.fromByteBuf(serialized);
         assertEquals(deserialized, watermark);
-        AssertExtensions.assertThrows("upper bound less than lower bound", () -> new Watermark(1L, 0L, map,"scope", "stream"),
+        AssertExtensions.assertThrows("upper bound less than lower bound", () -> new Watermark(1L, 0L, map, "scope", "stream"),
                 e -> e instanceof IllegalArgumentException);
     }
 }

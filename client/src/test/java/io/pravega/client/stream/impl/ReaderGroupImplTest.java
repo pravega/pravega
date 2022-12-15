@@ -17,14 +17,10 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import io.pravega.client.ClientConfig;
 import io.pravega.client.SynchronizerClientFactory;
-import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
-import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ReaderGroupConfigRejectedException;
 import io.pravega.client.segment.impl.Segment;
@@ -32,13 +28,15 @@ import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.Checkpoint;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReaderSegmentDistribution;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
-import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
-import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import java.util.Arrays;
@@ -361,45 +359,19 @@ public class ReaderGroupImplTest {
 
     @Test
     public void getUnreadBytesBasedOnLastCheckpointPosition() {
-      /*  final String stream = "s1";
+        final String stream = "s1";
         final StreamCut startStreamCut = getStreamCut(stream, 10L, 1, 2);
-        final StreamCut endStreamCut = StreamCut.UNBOUNDED;*/
-                //getStreamCut(stream, 25L, 1, 2);
+        final StreamCut endStreamCut = getStreamCut(stream, 25L, 1, 2);
         //setup mocks
-        String scope = "scope";
-        String stream = "stream";
-        Stream stream1 = new StreamImpl(scope, stream);
-
-       /* final StreamCut startStreamCut = getStreamCut("scope", stream, 10L, 1, 2);
-        final StreamCut endStreamCut = StreamCut.UNBOUNDED;*/
-
-        // Controller mockController = mock(Controller.class);
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
-        @Cleanup
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        @Cleanup
-        MockController mockController = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
-        mockController.createScope(scope);
-        mockController.createStream(scope, stream, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build()).join();
-
-        //new StreamImpl(scope, stream);
-        final StreamCut startStreamCut = getStreamCut( stream, 10L, 1, 2);
-        final StreamCut endStreamCut = StreamCut.UNBOUNDED;
-        ConnectionPoolImpl pool = new ConnectionPoolImpl(ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
-        @Cleanup final StreamManager streamManagerImpl = new StreamManagerImpl(mockController, pool);
-
-
         when(state.getPositionsForLastCompletedCheckpoint())
                 .thenReturn(Optional.of(ImmutableMap.of(Stream.of(SCOPE, stream), startStreamCut.asImpl().getPositions())));
-        when(state.getEndSegments()).thenReturn(Collections.emptyMap());
+        when(state.getEndSegments()).thenReturn(endStreamCut.asImpl().getPositions());
         when(synchronizer.getState()).thenReturn(state);
         ImmutableSet<Segment> segmentSet = ImmutableSet.<Segment>builder()
-                .addAll(startStreamCut.asImpl().getPositions().keySet()).build(); //.addAll(endStreamCut.asImpl().getPositions().keySet()
+                .addAll(startStreamCut.asImpl().getPositions().keySet()).addAll(endStreamCut.asImpl().getPositions().keySet()).build();
         when(controller.getSegments(startStreamCut, endStreamCut))
                 .thenReturn(CompletableFuture.completedFuture(new StreamSegmentSuccessors(segmentSet, "")));
 
-
-        System.out.println("unreda bytes :::::: "+ readerGroup.unreadBytes());
         assertEquals(30L, readerGroup.unreadBytes());
     }
 

@@ -49,10 +49,10 @@ import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.EventPointerImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
-import io.pravega.client.stream.impl.StreamCutImpl;
-import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.TransactionInfoImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -900,7 +900,7 @@ public class StreamManagerImplTest {
     }
 
     @Test
-    public void testGetDistanceBetweenTwoStreamCutsUnbounded() throws ConnectionFailedException {
+    public void testGetDistanceBetweenTwoSCWithEndSCUnbounded() throws ConnectionFailedException {
         final String streamName = "stream";
         final Stream stream = new StreamImpl(defaultScope, streamName);
 
@@ -938,10 +938,6 @@ public class StreamManagerImplTest {
         streamManager.createStream(defaultScope, streamName, StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
-        // fetch StreamInfo.
-        StreamInfo info = streamManager.fetchStreamInfo(defaultScope, streamName).join();
-        System.out.println("Testing the streamcuts using fSI **^^** "+ info.getScope() +"--scope-- "+ info.getStreamName() +"-- StreamName--"+ info.getTailStreamCut().asImpl().getPositions().size() +"-- stream size--");
-
         final StreamCut startStreamCut = getStreamCut(defaultScope, streamName, 10L, 0, 1);
         final StreamCut endStreamCut = StreamCut.UNBOUNDED;
 

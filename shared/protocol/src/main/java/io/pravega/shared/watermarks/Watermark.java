@@ -44,20 +44,12 @@ import lombok.SneakyThrows;
 @Data
 public class Watermark {
     public static final WatermarkSerializer SERIALIZER = new WatermarkSerializer();
-    public static final Watermark EMPTY = new Watermark(Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of(), "scope", "stream"); // TODO : "scope", "stream"  check on these default vals
+    public static final Watermark EMPTY = new Watermark(Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of(), "scope", "stream");
     private final long lowerTimeBound;
     private final long upperTimeBound;
     private final Map<SegmentWithRange, Long> streamCut;
     private String scope;
     private String stream;
-
-  /*  @Builder
-    public Watermark(long lowerTimeBound, long upperTimeBound, Map<SegmentWithRange, Long> streamCut) {
-        Preconditions.checkArgument(upperTimeBound >= lowerTimeBound);
-        this.lowerTimeBound = lowerTimeBound;
-        this.upperTimeBound = upperTimeBound;
-        this.streamCut = streamCut;
-    }*/
 
     @Builder
     public Watermark(long lowerTimeBound, long upperTimeBound, Map<SegmentWithRange, Long> streamCut, String scope, String stream) {
