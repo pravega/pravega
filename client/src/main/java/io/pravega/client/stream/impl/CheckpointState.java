@@ -200,10 +200,10 @@ public class CheckpointState {
      * Get the map of CheckpointId to list of readers blocking that checkpoint.
      * @return the map.
      */
-    Map<String, List<String>> getReaderBlockingCheckpointsMap(){
+    Map<String, List<String>> getReaderBlockingCheckpointsMap() {
         return  uncheckpointedHosts.entrySet().stream()
                                    .filter(checkpoint -> !(isCheckpointSilent(checkpoint.getKey()) || isCheckpointComplete(checkpoint.getKey())))
-                                   .collect(Collectors.toMap(Map.Entry::getKey,Map.Entry::getValue));
+                                   .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     void clearCheckpointsBefore(String checkpointId) {
