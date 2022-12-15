@@ -18,6 +18,9 @@ package io.pravega.segmentstore.contracts;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 
+/**
+ * Tests for {@link SegmentAdminApi}
+ */
 public class SegmentAdminApiTest {
 
     /**
