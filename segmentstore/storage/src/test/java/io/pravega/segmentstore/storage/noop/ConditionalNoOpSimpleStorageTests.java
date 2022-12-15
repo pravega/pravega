@@ -76,6 +76,11 @@ public class ConditionalNoOpSimpleStorageTests extends SimpleStorageTests {
 
     public static class ConditionalNoOpChunkStorageMetadataTest extends ChunkStorageTests {
 
+        @Override
+        protected ChunkStorage createChunkStorage() {
+            return new ConditionalNoOpChunkStorage(new InMemoryChunkStorage(executorService()), executorService());
+        }
+
         /**
          * Test basic chunk lifecycle.
          */
