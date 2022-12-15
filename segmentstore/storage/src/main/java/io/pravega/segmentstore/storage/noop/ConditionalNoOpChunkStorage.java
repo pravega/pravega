@@ -142,9 +142,7 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
     @Override
     public void close() throws Exception {
         this.noOpChunkStorage.close();
-        if (this.inner != null) {
-            this.inner.close();
-        }
+        this.inner.close();
     }
 
     private ChunkHandle getChunkHandle(String chunkName) {
@@ -152,6 +150,6 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
     }
 
     private boolean isMetadataCall(ChunkHandle handle) {
-        return handle != null && null != handle.getChunkName() && handle.getChunkName().startsWith("_system");
+        return handle != null && handle.getChunkName().startsWith("_system");
     }
 }

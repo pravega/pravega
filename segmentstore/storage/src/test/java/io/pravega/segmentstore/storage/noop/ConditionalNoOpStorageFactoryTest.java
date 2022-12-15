@@ -44,6 +44,12 @@ public class ConditionalNoOpStorageFactoryTest {
         Assert.assertTrue(((ChunkedSegmentStorage) storage).getChunkStorage() instanceof ConditionalNoOpChunkStorage);
         ((ChunkedSegmentStorage) storage).getChunkStorage().report();
 
+        if (!((ChunkedSegmentStorage) storage).getChunkStorage().supportsConcat()) {
+            AssertExtensions.assertThrows("storage.concat should not succed.",
+                    () -> ((ChunkedSegmentStorage) storage).getChunkStorage().concat(null),
+                    ex -> ex instanceof UnsupportedOperationException);
+        }
+
         AssertExtensions.assertThrows(
                 "factory.createSyncStorage should not succeed.",
                 () -> factory.createSyncStorage(),
