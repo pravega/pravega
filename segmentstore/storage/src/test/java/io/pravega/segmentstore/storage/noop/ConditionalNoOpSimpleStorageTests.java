@@ -246,5 +246,10 @@ public class ConditionalNoOpSimpleStorageTests extends SimpleStorageTests {
                     chunkStorage.delete(ChunkHandle.writeHandle(chunkName)),
                     ex -> ex instanceof ChunkNotFoundException && ex.getMessage().contains(chunkName));
         }
+
+        @Override
+        protected void populate(byte[] data) {
+            // Do nothing keep data uninitialized.
+        }
     }
 }
