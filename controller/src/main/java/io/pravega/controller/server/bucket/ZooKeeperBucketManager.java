@@ -20,7 +20,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.BucketControllerMap;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
-import io.pravega.controller.util.RetryHelper;
 import io.pravega.controller.util.ZKUtils;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
@@ -89,13 +88,11 @@ public class ZooKeeperBucketManager extends BucketManager {
                 case CHILD_REMOVED:
                     int bucketId = Integer.parseInt(ZKPaths.getNodeFromPath(event.getData().getPath()));
                     bucketStore.getBucketsForController(processId, getServiceType())
-                               .thenAccept(buckets -> {
-                                   log.debug("{}: Buckets assigned to controller {} are {}.", getServiceType(), processId, buckets);
-                                   if (buckets.contains(bucketId)) {
-                                       RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(bucketId),
-                                               e -> log.warn("{}: exception while attempting to take ownership for bucket {}: {}.", getServiceType(),
-                                                       bucketId, e.getMessage()), getExecutor());
-                                   }
+                               .thenCompose(buckets -> {
+                                   log.debug("{}: Buckets assigned to controller {} are {}.", getServiceType(),
+                                           processId, buckets);
+                                   return buckets.contains(bucketId) ? startBucketService(bucketId) :
+                                           CompletableFuture.completedFuture(null);
                                }).whenComplete((r, e) -> {
                                    if (e == null) {
                                        log.info("{}: Take Ownership for bucket service {} finished successfully.",
@@ -163,7 +160,7 @@ public class ZooKeeperBucketManager extends BucketManager {
             if (e == null) {
                 log.debug("{}: Manage buckets completes with result: {}.", getServiceType(), r);
             } else {
-                log.error("{}: Manage buckets completes with result: {} and exception: {}.", getServiceType(), r, e);
+                log.error("{}: Manage buckets completes with exception.", getServiceType(), e);
             }
         });
     }
@@ -240,9 +237,9 @@ public class ZooKeeperBucketManager extends BucketManager {
     private void handleBuckets() {
         manageBuckets().whenComplete((r, e) -> {
             if (e == null) {
-                log.info("{}: Manage bucket finished successfully.", getServiceType());
+                log.info("{}: Manage buckets finished successfully.", getServiceType());
             } else {
-                log.warn("{}: Manage bucket finished with exception {}.", getServiceType(), e);
+                log.warn("{}: Manage buckets finished with exception.", getServiceType(), e);
             }
         });
     }

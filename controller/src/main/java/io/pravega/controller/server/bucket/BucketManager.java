@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.util.RetryHelper;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,6 +45,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public abstract class BucketManager extends AbstractService {
+    private static final int NO_OF_RETRIES = 10;
     private final String processId;
     @Getter(AccessLevel.PROTECTED)
     private final BucketStore.ServiceType serviceType;
@@ -306,12 +308,14 @@ public abstract class BucketManager extends AbstractService {
     }
 
     /**
-     * Make an indefinite retries to start an assigned bucket.
+     * Start a new bucket service on controller instance. If any exception occurs while starting the bucket, it will
+     * retry for 10 times.
      *
      * @param bucketId Id of bucket service.
      * @return future, which when complete indicate that ownership acquired successfully.
      */
-    private CompletableFuture<Void> startBucketService(int bucketId) {
-       return tryTakeOwnership(bucketId);
+    protected CompletableFuture<Void> startBucketService(int bucketId) {
+       return RetryHelper.withRetriesAsync(() -> tryTakeOwnership(bucketId),
+               RetryHelper.UNCONDITIONAL_PREDICATE, NO_OF_RETRIES, getExecutor());
     }
 }

@@ -234,7 +234,8 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
                 .releaseBucketOwnership(BucketStore.ServiceType.WatermarkingService, 0, hostId);
         bucketManager.stopBucketServices(Set.of(0), false);
         assertEventuallyEquals(2, () -> bucketManager.getBucketServices().size(), 10000);
-
+        bucketManager.stopAsync();
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> bucketManager.awaitTerminated());
     }
 
     private BucketManagerLeader getBucketManagerLeader(BucketStore bucketStore, BucketStore.ServiceType serviceType) {
