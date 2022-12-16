@@ -29,7 +29,7 @@ are examples of this kind of deployment.
 However, there may be cases in which users need to deploy Pravega
 (and Bookkeeper) in small clusters (i.e., very limited number of nodes
 and/or storage per node). Note that a "node" can be either a physical or
-a virtual entity running Bookies. In this scenario, the decisions taken to 
+a virtual instance running Bookies. In this scenario, the decisions taken to 
 deploy Bookkeeper and configure the Bookkeeper client in Pravega may have 
 important implications on, at least, the following key aspects:
 
@@ -116,7 +116,7 @@ data loss.
 ![Trade-off Deploying Small Bookkeeper Clusters for Pravega](../img/bookkeeper-small-deployment-3-nodes.png)
 
 Some observations about the figure above:
-- With 1 drive per node, we could decide whether to create 1 or 2 replicase of data, for instance. The performance
+- With 1 drive per node, we could decide whether to create 1 or 2 replicas of data, for instance. The performance
 penalty of co-locating journal and ledger directories for Bookies is unavoidable. Still, we can decide whether
 we favor performance (1 replica) or data durability (2 replicas).
 - With 2 drives per node, we could make Bookies to operate in the optimal configuration using 1 drive for each
