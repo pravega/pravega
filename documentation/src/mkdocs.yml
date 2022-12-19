@@ -105,6 +105,7 @@ nav:
     - 'Durable Log Configuration': 'admin-guide/durable-log-config.md'
     - 'Number of Segment Containers': 'admin-guide/num-containers.md'
     - 'Segment Store Memory': 'admin-guide/segmentstore-memory.md'
+    - 'Deploying Small Bookkeeper Clusters': 'admin-guide/deploying-small-bookkeeper-clusters.md'
     - 'Data Recovery Tool': 'admin-guide/data-recovery-tools.md'
     - 'Security':
       - 'Overview': 'security/pravega-security-authorization-authentication.md'
@@ -119,6 +120,7 @@ nav:
     - 'Recovery Procedures':
       - 'Corrupted Table Segment Index': 'recovery-procedures/table-segment-recovery.md'
       - 'Recover from Table Segment Pre-Index Full': 'recovery-procedures/table-segment-recover-pre-index-full.md'
+      - 'Safely Enable Durable Data Logs': 'recovery-procedures/enable-durable-data-log.md' 
   - Contributing:
     - 'Coding guildelines': 'contributing.md'
     - 'Pravega Roadmap': 'roadmap.md'
