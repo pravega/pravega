@@ -74,6 +74,9 @@ public class ConditionalNoOpSimpleStorageTests extends SimpleStorageTests {
         }
     }
 
+    /**
+     * Unit tests for {@link ConditionalNoOpChunkStorageMetadataTest} using {@link ChunkStorageTests}.
+     */
     public static class ConditionalNoOpChunkStorageMetadataTest extends ChunkStorageTests {
 
         @Override
