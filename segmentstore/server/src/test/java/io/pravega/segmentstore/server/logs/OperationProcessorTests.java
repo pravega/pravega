@@ -527,7 +527,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         val interrupted = new AtomicBoolean(false);
         @Cleanup
-        val throttler = new ManualThrottler(() -> interrupted.set(true), executorService());
+        val throttler = new ManualThrottler(() -> interrupted.set(true), new NoOpCalculator(), () -> false, executorService());
         @Cleanup
         val operationProcessor = new ThrottledOperationProcessor(context.metadata, context.stateUpdater,
                 dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService(), throttler);
@@ -696,6 +696,97 @@ public class OperationProcessorTests extends OperationLogTestBase {
         AssertExtensions.assertFutureThrows("Expected ObjectClosedException when adding new operation.",
                 operationProcessor.process(mock(Operation.class), OperationPriority.Critical),
                 ex -> ex instanceof ObjectClosedException || ex instanceof IllegalContainerStateException);
+
+        // Check that eventually the OperationProcessor is unblocked and shuts down.
+        AssertExtensions.assertEventuallyEquals(false, operationProcessor::isRunning, 6000);
+    }
+
+    /**
+     * Verifies that the OperationProcessor can shut down when the operationQueue is closed and the Throttler is inducing
+     * MAX_DELAYs and there are incoming operations.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testOperationProcessorClosedQueueWhileMaxThrottlingAndOperations() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // Setup an OperationProcessor and start it.
+        @Cleanup
+        TestDurableDataLog dataLog = spy(TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService()));
+        dataLog.initialize(TIMEOUT);
+
+        // There is some entanglement between Throttler and OperationProcessor which makes testing the shutdown of OperationProcessor
+        // when MAX_DELAY is being induced a bit tricky. The isSuspended() supplier in Throttler actually depends on
+        // OperationProcessor.hasToSuspendThrottlingDelay(). And, at the same time, if we want to control the Throttler
+        // to retrieve MAX_DELAY, we need to instantiate it outside OperationProcessor, despite it depends on it. To solve this,
+        // we use the isSuspendedReference to build the Throttler initialized to "false", and once the OperationProcessot is
+        // instantiated. we then set the supplier to actually use the OperationProcessor.hasToSuspendThrottlingDelay() method.
+        AtomicReference<Supplier<Boolean>> isSuspendedReference = new AtomicReference<>(() -> false);
+        int maxDelay = DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue();
+        @Cleanup
+        val throttler = new TestThrottler(new MaxDelayThrottler(maxDelay), () -> isSuspendedReference.get().get(), maxDelay, executorService());
+        @Cleanup
+        val operationProcessor = new ThrottledOperationProcessor(context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService(), throttler);
+        // Here we set the isSuspendedReference with the right supplier.
+        isSuspendedReference.set(operationProcessor::shouldSuspendThrottlingDelay);
+        operationProcessor.startAsync().awaitRunning();
+
+        // Close the queue, simulating that some error unexpectedly close it.
+        operationProcessor.closeQueue(new CompletionException(new IntentionalException("")));
+
+        // Make sure that we get an ObjectClosedException when attempting to add a Normal operation to process.
+        AssertExtensions.assertFutureThrows("Expected ObjectClosedException when adding new Normal operation.",
+                operationProcessor.process(mock(Operation.class), OperationPriority.Normal),
+                ex -> ex instanceof ObjectClosedException || ex instanceof IllegalContainerStateException);
+
+        // Make sure that we get an ObjectClosedException when attempting to add a Critical operation to process, but we
+        // should expect the OperationProcessor to shut down.
+        AssertExtensions.assertFutureThrows("Expected ObjectClosedException when adding new Critical operation.",
+                operationProcessor.process(mock(Operation.class), OperationPriority.Critical),
+                ex -> ex instanceof ObjectClosedException || ex instanceof IllegalContainerStateException);
+
+        // Check that eventually the OperationProcessor is unblocked and shuts down.
+        AssertExtensions.assertEventuallyEquals(false, operationProcessor::isRunning, 6000);
+    }
+
+    /**
+     * Verifies that the OperationProcessor can shut down when the operationQueue is closed and the Throttler is inducing
+     * MAX_DELAYs and there are no incoming operations.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testOperationProcessorClosedQueueWhileMaxThrottlingAndNoOperations() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // Setup an OperationProcessor and start it.
+        @Cleanup
+        TestDurableDataLog dataLog = spy(TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService()));
+        dataLog.initialize(TIMEOUT);
+
+        // There is some entanglement between Throttler and OperationProcessor which makes testing the shutdown of OperationProcessor
+        // when MAX_DELAY is being induced a bit tricky. The isSuspended() supplier in Throttler actually depends on
+        // OperationProcessor.hasToSuspendThrottlingDelay(). And, at the same time, if we want to control the Throttler
+        // to retrieve MAX_DELAY, we need to instantiate it outside OperationProcessor, despite it depends on it. To solve this,
+        // we use the isSuspendedReference to build the Throttler initialized to "false", and once the OperationProcessot is
+        // instantiated. we then set the supplier to actually use the OperationProcessor.hasToSuspendThrottlingDelay() method.
+        AtomicReference<Supplier<Boolean>> isSuspendedReference = new AtomicReference<>(() -> false);
+        int maxDelay = 3000;
+        @Cleanup
+        val throttler = new TestThrottler(new MaxDelayThrottler(maxDelay), () -> isSuspendedReference.get().get(), maxDelay, executorService());
+        @Cleanup
+        val operationProcessor = new ThrottledOperationProcessor(context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), getDefaultThrottlerSettings(), executorService(), throttler);
+        // Here we set the isSuspendedReference with the right supplier.
+        isSuspendedReference.set(operationProcessor::shouldSuspendThrottlingDelay);
+        operationProcessor.startAsync().awaitRunning();
+
+        // Close the queue, simulating that some error unexpectedly close it.
+        operationProcessor.closeQueue(new CompletionException(new IntentionalException("")));
 
         // Check that eventually the OperationProcessor is unblocked and shuts down.
         AssertExtensions.assertEventuallyEquals(false, operationProcessor::isRunning, 6000);
@@ -906,12 +997,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
     private static class ThrottledOperationProcessor extends OperationProcessor {
         @Getter
-        private final ManualThrottler throttler;
+        private final Throttler throttler;
 
         ThrottledOperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater,
                                     DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy,
                                     ThrottlerPolicy throttlerPolicy, ScheduledExecutorService executor,
-                                    ManualThrottler throttler) {
+                                    Throttler throttler) {
             super(metadata, stateUpdater, durableDataLog, checkpointPolicy, throttlerPolicy, executor);
             this.throttler = throttler;
         }
@@ -922,9 +1013,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
         private final AtomicReference<CompletableFuture<Void>> lastDelayFuture = new AtomicReference<>();
         private final Runnable onNotifyThrottleSourceChanged;
 
-        ManualThrottler(Runnable onNotifyThrottleSourceChanged, ScheduledExecutorService executor) {
-            super(CONTAINER_ID, ThrottlerCalculator.builder().maxDelayMillis(DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue()).throttler(new NoOpCalculator()).build(), () -> false, executor,
-                    new SegmentStoreMetrics.OperationProcessor(CONTAINER_ID));
+        ManualThrottler(Runnable onNotifyThrottleSourceChanged, ThrottlerCalculator.Throttler throttler, Supplier<Boolean> isSuspended, ScheduledExecutorService executor) {
+            super(CONTAINER_ID, ThrottlerCalculator.builder().maxDelayMillis(DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue()).throttler(throttler).build(),
+                    isSuspended, executor, new SegmentStoreMetrics.OperationProcessor(CONTAINER_ID));
             this.onNotifyThrottleSourceChanged = onNotifyThrottleSourceChanged;
         }
 
@@ -967,7 +1058,38 @@ public class OperationProcessorTests extends OperationLogTestBase {
         }
     }
 
-    private static class NoOpCalculator extends ThrottlerCalculator.Throttler {
+    private static class TestThrottler extends Throttler {
+        TestThrottler(ThrottlerCalculator.Throttler throttler, Supplier<Boolean> isSuspended, int maxDelay, ScheduledExecutorService executor) {
+            super(CONTAINER_ID, ThrottlerCalculator.builder().maxDelayMillis(maxDelay).throttler(throttler).build(),
+                    isSuspended, executor, new SegmentStoreMetrics.OperationProcessor(CONTAINER_ID));
+        }
+    }
+
+    static class MaxDelayThrottler extends ThrottlerCalculator.Throttler {
+
+        private final int maxDelay;
+
+        MaxDelayThrottler(int maxDelay) {
+            this.maxDelay = maxDelay;
+        }
+
+        @Override
+        boolean isThrottlingRequired() {
+            return true;
+        }
+
+        @Override
+        int getDelayMillis() {
+            return this.maxDelay;
+        }
+
+        @Override
+        ThrottlerCalculator.ThrottlerName getName() {
+            return ThrottlerCalculator.ThrottlerName.DurableDataLog;
+        }
+    }
+
+    static class NoOpCalculator extends ThrottlerCalculator.Throttler {
         @Override
         boolean isThrottlingRequired() {
             return false;
