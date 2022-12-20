@@ -90,8 +90,11 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testChunkLifeCycle() throws Exception {
+        testChunkLifeCycle("testchunk");
+    }
+
+    protected void testChunkLifeCycle(String chunkName) throws Exception {
         // try reading non existent chunk
-        String chunkName = "testchunk";
         testNotExists(chunkName);
 
         // Perform basic operations.
@@ -114,8 +117,11 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testChunkLifeCycleCreateWithContent() throws Exception {
+        this.testChunkLifeCycleCreateWithContent("testchunk");
+    }
+
+    protected void testChunkLifeCycleCreateWithContent(String chunkName) throws Exception {
         // try reading non existent chunk
-        String chunkName = "testchunk";
         testNotExists(chunkName);
 
         // Perform basic operations.
@@ -143,11 +149,12 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleReadWrite() throws Exception {
+        this.testSimpleReadWrite("testchunk");
+    }
+    protected void testSimpleReadWrite(String chunkName) throws Exception {
         if (!chunkStorage.supportsAppend()) {
             return;
         }
-
-        String chunkName = "testchunk";
 
         // Create.
         ChunkHandle chunkHandle = chunkStorage.create(chunkName).get();
@@ -172,8 +179,9 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testSimpleReadWriteCreateWithContent() throws Exception {
-        String chunkName = "testchunk";
-
+        this.testSimpleReadWriteCreateWithContent("testchunk");
+    }
+    protected void testSimpleReadWriteCreateWithContent(String chunkName) throws Exception {
         // Create.
         byte[] writeBuffer = new byte[10];
         populate(writeBuffer);
