@@ -49,7 +49,7 @@ public class Watermark {
     private final long upperTimeBound;
     private final Map<SegmentWithRange, Long> streamCut;
     private String scope;
-    private String stream;
+    private String stream; 
 
     @Builder
     public Watermark(long lowerTimeBound, long upperTimeBound, Map<SegmentWithRange, Long> streamCut, String scope, String stream) {
