@@ -151,6 +151,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
     public void testSimpleReadWrite() throws Exception {
         this.testSimpleReadWrite("testchunk");
     }
+
     protected void testSimpleReadWrite(String chunkName) throws Exception {
         if (!chunkStorage.supportsAppend()) {
             return;
@@ -181,6 +182,7 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
     public void testSimpleReadWriteCreateWithContent() throws Exception {
         this.testSimpleReadWriteCreateWithContent("testchunk");
     }
+
     protected void testSimpleReadWriteCreateWithContent(String chunkName) throws Exception {
         // Create.
         byte[] writeBuffer = new byte[10];
