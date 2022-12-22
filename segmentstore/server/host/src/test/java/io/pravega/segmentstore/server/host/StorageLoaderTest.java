@@ -25,9 +25,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.mocks.SlowStorageFactory;
-import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
@@ -50,43 +48,6 @@ import static org.mockito.Mockito.when;
 public class StorageLoaderTest {
 
     private StorageFactory expectedFactory;
-
-    @Test
-    public void testNoOpWithInMemoryStorage() throws Exception {
-        @Cleanup("shutdownNow")
-        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
-        ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
-                .builder()
-                .include(StorageExtraConfig.builder()
-                        .with(StorageExtraConfig.STORAGE_NO_OP_MODE, true))
-                .include(ServiceConfig.builder()
-                        .with(ServiceConfig.CONTAINER_COUNT, 1)
-                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY.name()));
-
-        ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
-                .withStorageFactory(setup -> {
-                    StorageLoader loader = new StorageLoader();
-                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.ROLLING_STORAGE, executor);
-                    return expectedFactory;
-                });
-        builder.initialize();
-        assertTrue(expectedFactory instanceof NoOpStorageFactory);
-        builder.close();
-
-        configBuilder
-                .include(StorageExtraConfig.builder()
-                        .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false));
-
-        builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
-                .withStorageFactory(setup -> {
-                    StorageLoader loader = new StorageLoader();
-                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.ROLLING_STORAGE, executor);
-                    return expectedFactory;
-                });
-        builder.initialize();
-        assertTrue(expectedFactory instanceof InMemoryStorageFactory);
-        builder.close();
-    }
 
     @Test
     public void testFileSystemStorage() throws Exception {

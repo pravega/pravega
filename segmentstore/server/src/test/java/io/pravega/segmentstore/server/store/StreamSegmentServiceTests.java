@@ -15,9 +15,12 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+
 import java.util.concurrent.ScheduledExecutorService;
+
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -25,12 +28,12 @@ import org.junit.Before;
  * Unit tests for the StreamSegmentService class.
  */
 public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
-    private InMemoryStorageFactory storageFactory;
+    private InMemorySimpleStorageFactory storageFactory;
     private InMemoryDurableDataLogFactory durableDataLogFactory;
 
     @Before
     public void setUp() {
-        this.storageFactory = new InMemoryStorageFactory(executorService());
+        this.storageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), true);
         this.durableDataLogFactory = new PermanentDurableDataLogFactory(executorService());
     }
 
@@ -42,7 +45,6 @@ public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
         }
 
         if (this.storageFactory != null) {
-            this.storageFactory.close();
             this.storageFactory = null;
         }
     }

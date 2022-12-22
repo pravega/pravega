@@ -41,7 +41,6 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
      */
     @Override
     protected Storage createStorage() throws Exception {
-        useOldLayout = false;
         ScheduledExecutorService executor = executorService();
         // Initialize
         synchronized (ChunkedRollingStorageTests.class) {

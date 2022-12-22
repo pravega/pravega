@@ -264,14 +264,6 @@ public class ServiceConfig {
     private final StorageLayoutType storageLayout;
 
     /**
-     * Whether this SegmentStore instance is Read-Only (i.e., it can only process reads from Storage and nothing else).
-     * Note that if this is set to 'true', then many other settings will not apply. The most important other one to set
-     * is 'Storage Implementation'.
-     */
-    @Getter
-    private final boolean readOnlySegmentStore;
-
-    /**
      * Enables TLS support for the server.
      */
     @Getter
@@ -393,7 +385,6 @@ public class ServiceConfig {
         this.dataLogTypeImplementation = properties.getEnum(DATALOG_IMPLEMENTATION, DataLogType.class);
         this.storageImplementation = properties.get(STORAGE_IMPLEMENTATION);
         this.storageLayout = properties.getEnum(STORAGE_LAYOUT, StorageLayoutType.class);
-        this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
         this.secureZK = properties.getBoolean(SECURE_ZK);
         this.zkTrustStore = properties.get(ZK_TRUSTSTORE_LOCATION);
         this.zkTrustStorePasswordPath = properties.get(ZK_TRUST_STORE_PASSWORD_PATH);
@@ -465,7 +456,6 @@ public class ServiceConfig {
                 .append(String.format("clusterName: %s, ", clusterName))
                 .append(String.format("dataLogTypeImplementation: %s, ", dataLogTypeImplementation.name()))
                 .append(String.format("storageImplementation: %s, ", storageImplementation))
-                .append(String.format("readOnlySegmentStore: %b, ", readOnlySegmentStore))
                 .append(String.format("enableTls: %b, ", enableTls))
                 .append(String.format("tlsProtocolVersion: %s, ", Arrays.toString(tlsProtocolVersion)))
                 .append(String.format("certFile is %s, ",

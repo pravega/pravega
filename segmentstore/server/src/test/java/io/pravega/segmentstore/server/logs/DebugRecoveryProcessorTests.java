@@ -36,6 +36,7 @@ import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -50,6 +51,7 @@ import java.util.function.Predicate;
  * Unit tests for the DebugRecoveryProcessor class.
  *
  * */
+@Ignore("NEEDS TO BE REWRITTEN")
 public class DebugRecoveryProcessorTests extends ThreadPooledTestSuite {
 
     protected static final Duration TIMEOUT = Duration.ofMillis(30000);

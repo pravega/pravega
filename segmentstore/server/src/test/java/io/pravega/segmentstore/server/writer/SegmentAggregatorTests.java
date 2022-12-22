@@ -48,7 +48,8 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.segmentstore.storage.chunklayer.SegmentStorageHandle;
+import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
@@ -822,7 +823,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageInfo.getLength());
         Assert.assertTrue("Segment is not sealed in storage post flush.", storageInfo.isSealed());
         Assert.assertTrue("Segment is not marked in metadata as sealed in storage post flush.", context.segmentAggregator.getMetadata().isSealedInStorage());
-        context.storage.read(InMemoryStorage.newHandle(context.segmentAggregator.getMetadata().getName(), false), 0, actualData, 0, actualData.length, TIMEOUT).join();
+        context.storage.read(SegmentStorageHandle.readHandle(context.segmentAggregator.getMetadata().getName()), 0, actualData, 0, actualData.length, TIMEOUT).join();
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
 
@@ -842,7 +843,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.segmentAggregator.add(sealOp);
 
         // Seal the segment in Storage, behind the scenes.
-        context.storage.seal(InMemoryStorage.newHandle(context.segmentAggregator.getMetadata().getName(), false), TIMEOUT).join();
+        context.storage.seal(SegmentStorageHandle.writeHandle(context.segmentAggregator.getMetadata().getName()), TIMEOUT).join();
 
         // Call flush and verify no exception is thrown.
         context.segmentAggregator.flush(TIMEOUT).join();
@@ -1217,7 +1218,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageInfo.getLength());
         Assert.assertEquals("Unexpected truncation offset in Storage.", truncateOp.getStreamSegmentOffset(),
                 context.storage.getTruncationOffset(context.segmentAggregator.getMetadata().getName()));
-        context.storage.read(InMemoryStorage.newHandle(context.segmentAggregator.getMetadata().getName(), false), 0, actualData, 0, actualData.length, TIMEOUT).join();
+        context.storage.read(SegmentStorageHandle.writeHandle(context.segmentAggregator.getMetadata().getName()), 0, actualData, 0, actualData.length, TIMEOUT).join();
 
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
@@ -1285,7 +1286,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         Assert.assertTrue("Unexpected sealed status in Storage.", storageInfo.isSealed());
         Assert.assertEquals("Unexpected truncation offset in Storage.", lastTruncateOp.getStreamSegmentOffset(),
                 context.storage.getTruncationOffset(context.segmentAggregator.getMetadata().getName()));
-        context.storage.read(InMemoryStorage.newHandle(context.segmentAggregator.getMetadata().getName(), false), 0, actualData, 0, actualData.length, TIMEOUT).join();
+        context.storage.read(SegmentStorageHandle.writeHandle(context.segmentAggregator.getMetadata().getName()), 0, actualData, 0, actualData.length, TIMEOUT).join();
 
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
@@ -1661,49 +1662,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 "flush() did not throw when unable to read data from ReadIndex.",
                 () -> context.segmentAggregator.flush(TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);
-    }
-
-    @Test
-    public void testMismatchOperationAndStorageOffsets() throws Exception {
-        final WriterConfig config = DEFAULT_CONFIG;
-
-        @Cleanup
-        TestContext context = new TestContext(config);
-        context.segmentAggregator.initialize(TIMEOUT).join();
-
-        // Add one operation big enough to trigger a Flush.
-        byte[] appendData = new byte[config.getFlushThresholdBytes() + 1];
-        UpdateableSegmentMetadata segmentMetadata = context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID);
-        long offset = segmentMetadata.getLength();
-        segmentMetadata.setLength(offset + appendData.length);
-
-        // Normal Append so far.
-        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(appendData), null);
-        op.setStreamSegmentOffset(offset);
-        op.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
-
-        context.dataSource.recordAppend(op);
-        context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(op));
-        Assert.assertTrue("Unexpected value returned by mustFlush() (size threshold).", context.segmentAggregator.mustFlush());
-
-        // Call flush() and verify it throws DataCorruptionException.
-        context.segmentAggregator.flush(TIMEOUT);
-
-        // Add one operation big enough to trigger a Flush.
-        segmentMetadata = context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID);
-        offset += segmentMetadata.getLength();
-        segmentMetadata.setLength(offset + appendData.length);
-
-        StreamSegmentAppendOperation op2 = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(appendData), null);
-        op2.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
-
-        // By some reason, assume that there is a discrepancy between the offset in Storage we know about this Segment
-        // and the offset of the Append that is supposed to have.
-        op2.setStreamSegmentOffset(offset - 1);
-        context.dataSource.recordAppend(op2);
-
-        // This should be detected upon adding the Operation to the Aggregator.
-        AssertExtensions.assertThrows(DataCorruptionException.class, () -> context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(op2)));
     }
 
     /**
@@ -2519,11 +2477,11 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     }
 
     private SegmentHandle writeHandle(String segmentName) {
-        return InMemoryStorage.newHandle(segmentName, false);
+        return SegmentStorageHandle.writeHandle(segmentName);
     }
 
     private SegmentHandle readHandle(String segmentName) {
-        return InMemoryStorage.newHandle(segmentName, true);
+        return SegmentStorageHandle.readHandle(segmentName);
     }
 
     //endregion
@@ -2541,7 +2499,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         TestContext(WriterConfig config) {
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.storage = new TestStorage(new InMemoryStorage(), executorService());
+            this.storage = new TestStorage(CONTAINER_ID, new InMemoryChunkStorage(executorService()), executorService());
             this.storage.initialize(1);
             this.timer = new ManualTimer();
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();

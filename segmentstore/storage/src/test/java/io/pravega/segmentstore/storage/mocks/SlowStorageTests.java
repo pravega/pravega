@@ -20,7 +20,6 @@ import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
-import io.pravega.segmentstore.storage.rolling.RollingStorageTests;
 import lombok.val;
 
 import java.util.concurrent.ScheduledExecutorService;
@@ -55,14 +54,4 @@ public class SlowStorageTests extends StorageTestBase {
                 .build());
     }
 
-    /**
-     * Extending StorageTestBase implementation
-     */
-    public static class SlowRollingTests extends RollingStorageTests {
-        @Override
-        protected Storage createStorage() {
-            useOldLayout = false;
-            return getSlowStorage(executorService());
-        }
-    }
 }

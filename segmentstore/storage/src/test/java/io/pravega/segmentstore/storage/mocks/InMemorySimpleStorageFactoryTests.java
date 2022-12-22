@@ -16,13 +16,11 @@
 package io.pravega.segmentstore.storage.mocks;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
 import io.pravega.segmentstore.storage.StorageLayoutType;
-import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.test.common.AssertExtensions;
@@ -50,15 +48,11 @@ public class InMemorySimpleStorageFactoryTests {
                 StorageFactoryInfo.builder()
                         .name("INMEMORY")
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
-                        .build(),
-                StorageFactoryInfo.builder()
-                        .name("INMEMORY")
-                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
 
         val factoryInfoList = factoryCreator.getStorageFactories();
-        Assert.assertEquals(2, factoryInfoList.length);
+        Assert.assertEquals(1, factoryInfoList.length);
         Assert.assertArrayEquals(expected, factoryInfoList);
 
         // Simple Storage
@@ -70,18 +64,6 @@ public class InMemorySimpleStorageFactoryTests {
         @Cleanup
         Storage storage1 = ((InMemorySimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
-
-        // Legacy Storage
-        ConfigSetup configSetup2 = mock(ConfigSetup.class);
-        when(configSetup2.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
-        val factory2 = factoryCreator.createFactory(expected[1], configSetup2, executor);
-
-        Assert.assertTrue(factory2 instanceof InMemoryStorageFactory);
-        Storage storage2 = factory2.createStorageAdapter();
-        Assert.assertTrue(storage2 instanceof AsyncStorageWrapper);
-
-        SyncStorage syncStorage = factory2.createSyncStorage();
-        Assert.assertNotNull(syncStorage);
     }
 
     @Test
