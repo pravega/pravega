@@ -35,8 +35,6 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
 
     final protected NoOpChunkStorage noOpChunkStorage;
 
-    final protected ScheduledExecutorService executorService;
-
     /**
      * Creates a new instance of ConditionalNoOpChunkStorage.
      * @param inner inner Storage for this instance.
@@ -45,7 +43,6 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
     public ConditionalNoOpChunkStorage(ChunkStorage inner, ScheduledExecutorService executorService) {
         this.inner = inner;
         this.noOpChunkStorage = new NoOpChunkStorage(executorService);
-        this.executorService = executorService;
     }
 
     @Override
@@ -116,7 +113,8 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
 
     @Override
     public CompletableFuture<Integer> concat(ConcatArgument[] chunks) {
-        return inner.concat(chunks);
+        boolean isMetadataCall = chunks != null && chunks.length > 0 && chunks[0] != null && isMetadataCall(getChunkHandle(chunks[0].getName()));
+        return isMetadataCall ? inner.concat(chunks) : noOpChunkStorage.concat(chunks);
     }
 
     @Override
@@ -141,8 +139,11 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
 
     @Override
     public void close() throws Exception {
-        this.noOpChunkStorage.close();
-        this.inner.close();
+        try {
+            this.noOpChunkStorage.close();
+        } finally {
+            this.inner.close();
+        }
     }
 
     private ChunkHandle getChunkHandle(String chunkName) {
