@@ -34,13 +34,13 @@ import java.util.concurrent.ScheduledExecutorService;
 public class ConditionalNoOpStorageFactory implements SimpleStorageFactory {
 
     @Getter
-    final protected ScheduledExecutorService executor;
+    final private ScheduledExecutorService executor;
 
     @Getter
-    final protected SimpleStorageFactory inner;
+    final private SimpleStorageFactory inner;
 
     @Getter
-    final protected StorageExtraConfig config;
+    final private StorageExtraConfig config;
 
     /**
      * Creates an instance of Storage.
