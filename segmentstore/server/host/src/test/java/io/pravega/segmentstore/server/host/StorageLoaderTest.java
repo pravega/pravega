@@ -27,6 +27,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.mocks.SlowStorageFactory;
+import io.pravega.segmentstore.storage.noop.ConditionalNoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
@@ -35,12 +36,11 @@ import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
-
-import java.util.concurrent.ScheduledExecutorService;
-
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Test;
+
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -72,6 +72,15 @@ public class StorageLoaderTest {
         builder.initialize();
         assertTrue(expectedFactory instanceof NoOpStorageFactory);
         builder.close();
+
+        builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
+                        .withStorageFactory(setup -> {
+                           StorageLoader loader = new StorageLoader();
+                           expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.CHUNKED_STORAGE, executor);
+                           return expectedFactory;
+                        });
+        builder.initialize();
+        assertTrue(expectedFactory instanceof ConditionalNoOpStorageFactory);
 
         configBuilder
                 .include(StorageExtraConfig.builder()
