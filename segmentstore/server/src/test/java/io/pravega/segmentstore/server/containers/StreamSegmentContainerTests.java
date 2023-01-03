@@ -84,16 +84,19 @@ import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
-import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
-import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
+import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -164,7 +167,6 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-import org.mockito.Mockito;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static org.junit.Assert.assertEquals;
@@ -2622,44 +2624,48 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     public void testCheckChunkStorageSanity() {
         val chunkName = "testChunk";
         val dataSize = 10;
-        ChunkSegmentStorageFactory chunkSegmentStorageFactory = new ChunkSegmentStorageFactory();
+        InMemorySimpleStorageFactory chunkSegmentStorageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
-        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory);
+        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory, metadataStore);
         val durableLog = new AtomicReference<OperationLog>();
         val durableLogFactory = new WatchableOperationLogFactory(context.operationLogFactory, durableLog::set);
         @Cleanup
         val container = new StreamSegmentContainer(CONTAINER_ID, DEFAULT_CONFIG, durableLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.newStorageFactory,
                 context.getDefaultExtensions(), executorService());
-        context.container.checkChunkStorageSanity(CONTAINER_ID, chunkName, dataSize, TIMEOUT).join();
+        container.checkChunkStorageSanity(CONTAINER_ID, chunkName, dataSize, TIMEOUT).join();
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 30000)
     public void testEvictMetaDataCache() throws Exception {
-        ChunkSegmentStorageFactory chunkSegmentStorageFactory = new ChunkSegmentStorageFactory();
+        InMemorySimpleStorageFactory chunkSegmentStorageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
-        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory);
+        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory, metadataStore);
         val container = (StreamSegmentContainer) context.container;
-        container.evictMetaDataCache(CONTAINER_ID, TIMEOUT);
+        container.evictMetaDataCache(CONTAINER_ID, TIMEOUT).join();
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 30000)
     public void testEvictReadIndexCache() throws Exception {
-        ChunkSegmentStorageFactory chunkSegmentStorageFactory = new ChunkSegmentStorageFactory();
+        InMemorySimpleStorageFactory chunkSegmentStorageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
-        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory);
+        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory, metadataStore);
         val container = (StreamSegmentContainer) context.container;
-        container.evictReadIndexCache(CONTAINER_ID, TIMEOUT);
+        container.evictReadIndexCache(CONTAINER_ID, TIMEOUT).join();
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 30000)
     public void testEvictReadIndexCacheForSegment() throws Exception {
         val testSegmentName = "TestSegmentName";
-        ChunkSegmentStorageFactory chunkSegmentStorageFactory = new ChunkSegmentStorageFactory();
+        InMemorySimpleStorageFactory chunkSegmentStorageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
-        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory);
+        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory, metadataStore);
         val container = (StreamSegmentContainer) context.container;
-        container.evictReadIndexCacheForSegment(CONTAINER_ID, testSegmentName, TIMEOUT);
+        container.evictReadIndexCacheForSegment(CONTAINER_ID, testSegmentName, TIMEOUT).join();
     }
 
     /**
@@ -3128,7 +3134,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final CacheManager cacheManager;
         private final Storage storage;
 
-        private final StorageFactory newStorageFactory;
+        private final SimpleStorageFactory newStorageFactory;
 
         TestContext(ContainerConfig config, SegmentContainerFactory.CreateExtensions createAdditionalExtensions) {
             this(config, DEFAULT_DURABLE_LOG_CONFIG, DEFAULT_WRITER_CONFIG, createAdditionalExtensions);
@@ -3153,7 +3159,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         TestContext(ContainerConfig config, DurableLogConfig durableLogConfig, WriterConfig writerConfig,
-                    SegmentContainerFactory.CreateExtensions createAdditionalExtensions, StorageFactory newStorageFactory) {
+                    SegmentContainerFactory.CreateExtensions createAdditionalExtensions, SimpleStorageFactory newStorageFactory, ChunkMetadataStore metadataStore) {
 
             this.storageFactory = new WatchableInMemoryStorageFactory(executorService());
             this.newStorageFactory = newStorageFactory;
@@ -3164,11 +3170,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, executorService());
             this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, executorService());
             this.writerFactory = new StorageWriterFactory(writerConfig, executorService());
-            this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
-                    this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.newStorageFactory,
+            this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory, this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.newStorageFactory,
                     createExtensions(createAdditionalExtensions), executorService());
             this.container = this.containerFactory.createStreamSegmentContainer(CONTAINER_ID);
-            this.storage = this.newStorageFactory.createStorageAdapter();
+            this.storage = this.newStorageFactory.createStorageAdapter(CONTAINER_ID, metadataStore);
         }
 
         SegmentContainerFactory.CreateExtensions getDefaultExtensions() {
@@ -3472,22 +3477,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
     }
-
-    private static class ChunkSegmentStorageFactory  implements StorageFactory {
-        @Override
-        public Storage createStorageAdapter() {
-            ChunkedSegmentStorage chunkedSegmentStorage = Mockito.mock(ChunkedSegmentStorage.class, Mockito.RETURNS_DEEP_STUBS);
-            BaseMetadataStore baseMetadataStore = Mockito.mock(BaseMetadataStore.class);
-
-            Mockito.when(chunkedSegmentStorage.getMetadataStore()).thenReturn(baseMetadataStore);
-            Mockito.when(chunkedSegmentStorage.getExecutor()).thenReturn(Mockito.mock(Executor.class));
-            Mockito.doNothing().when(baseMetadataStore).evictAllEligibleEntriesFromBuffer();
-            Mockito.doNothing().when(baseMetadataStore).evictFromCache();
-
-            return chunkedSegmentStorage;
-        }
-    }
-
 
     private static class RefCountByteArraySegment extends ByteArraySegment {
         private final AtomicInteger refCount = new AtomicInteger();

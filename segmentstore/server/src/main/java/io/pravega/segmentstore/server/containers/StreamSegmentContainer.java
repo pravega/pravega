@@ -109,6 +109,7 @@ import lombok.val;
 
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage.getReference;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -230,7 +231,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> initializeStorage() {
         log.info("{}: Initializing storage.", this.traceObjectId);
         this.storage.initialize(this.metadata.getContainerEpoch());
-        val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
+        val chunkedSegmentStorage = getReference(this.storage);
         if (null != chunkedSegmentStorage) {
             val snapshotInfoStore = getStorageSnapshotInfoStore();
             // Bootstrap
@@ -314,7 +315,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
         // are not required for accepting new operations and can still start in the background.
         delayedStart.thenComposeAsync(v -> {
-                    val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
+                    val chunkedSegmentStorage = getReference(this.storage);
                     if (null != chunkedSegmentStorage) {
                         return chunkedSegmentStorage.finishBootstrap();
                     }
@@ -739,7 +740,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @SneakyThrows
     @Override
     public CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize, Duration timeout) {
-        val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
+        val chunkedSegmentStorage = getReference(this.storage);
         UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
         return wrapper.checkChunkSegmentStorageSanity(chunkName, 10);
     }
@@ -747,7 +748,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @SneakyThrows
     @Override
     public CompletableFuture<Void> evictMetaDataCache(int containerId, Duration timeout) {
-        val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
+        val chunkedSegmentStorage = getReference(this.storage);
         UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
         return wrapper.evictMetadataCache();
     }
@@ -755,7 +756,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @SneakyThrows
     @Override
     public CompletableFuture<Void> evictReadIndexCache(int containerId, Duration timeout) {
-        val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
+        val chunkedSegmentStorage = getReference(this.storage);
         UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
         return wrapper.evictReadIndexCache();
     }
@@ -763,7 +764,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @SneakyThrows
     @Override
     public CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
-        val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
+        val chunkedSegmentStorage = getReference(this.storage);
         UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
         return wrapper.evictReadIndexCacheForSegment(segmentName);
     }
