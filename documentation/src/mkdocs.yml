@@ -85,7 +85,7 @@ nav:
       - 'Presto Connector': 'https://github.com/pravega/presto-connector/blob/main/README.md'
       - 'Boomi Connector': 'https://github.com/pravega/boomi-connector/blob/master/README.md'
       - 'NiFi Connector': 'https://github.com/pravega/nifi-pravega/blob/master/README.md'
-    - Client Bingings: 'bindings.md'
+    - Client Bindings: 'bindings.md'
     - Tools:
       - 'User CLI': 'https://github.com/pravega/pravega/blob/master/cli/user/README.md'
       - 'Gateways': 'gateways.md'
@@ -99,14 +99,14 @@ nav:
     - 'Manual Install': 'deployment/manual-install.md'
     - 'Kubernetes Operators': 'admin-guide/operators.md'
     - 'Docker Swarm': 'deployment/docker-swarm.md'
-    - 'DC/OS': 'deployment/dcos-install.md'
-    - 'AWS': 'deployment/aws-install.md'
   - Admin Guide:
     - 'Cluster Dependencies': 'admin-guide/cluster-dependencies.md'
     - 'LTS Right-Sizing': 'admin-guide/lts-sizing.md'
     - 'Durable Log Configuration': 'admin-guide/durable-log-config.md'
     - 'Number of Segment Containers': 'admin-guide/num-containers.md'
     - 'Segment Store Memory': 'admin-guide/segmentstore-memory.md'
+    - 'Deploying Small Bookkeeper Clusters': 'admin-guide/deploying-small-bookkeeper-clusters.md'
+    - 'Data Recovery Tool': 'admin-guide/data-recovery-tools.md'
     - 'Security':
       - 'Overview': 'security/pravega-security-authorization-authentication.md'
       - 'Authentication/Authorization Plugin': 'auth/auth-plugin.md'
@@ -117,6 +117,10 @@ nav:
       - 'Distributed Mode': 'security/securing-distributed-mode-cluster.md'
       - 'TLS Artifacts': 'security/generating-tls-artifacts.md'
     - 'Admin CLI': 'https://github.com/pravega/pravega/blob/master/cli/admin/README.md'
+    - 'Recovery Procedures':
+      - 'Corrupted Table Segment Index': 'recovery-procedures/table-segment-recovery.md'
+      - 'Recover from Table Segment Pre-Index Full': 'recovery-procedures/table-segment-recover-pre-index-full.md'
+      - 'Safely Enable Durable Data Logs': 'recovery-procedures/enable-durable-data-log.md' 
   - Contributing:
     - 'Coding guildelines': 'contributing.md'
     - 'Pravega Roadmap': 'roadmap.md'

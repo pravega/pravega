@@ -29,10 +29,8 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.ClassRule;
-import org.junit.rules.Timeout;
 
 import java.util.Arrays;
 import java.util.List;
@@ -51,10 +49,6 @@ public class SegmentContainerMonitorTest {
     @ClassRule
     public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private static final String CLUSTER_NAME = "testcluster";
-
-    //Ensure each test completes within 30 seconds.
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     private Cluster cluster;
 
@@ -89,7 +83,7 @@ public class SegmentContainerMonitorTest {
         testMonitor(hostStore, latches);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testMonitorWithInMemoryStore() throws Exception {
         HostMonitorConfig config = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(false)

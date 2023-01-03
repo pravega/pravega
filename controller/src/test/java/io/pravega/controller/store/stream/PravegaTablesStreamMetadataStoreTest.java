@@ -66,7 +66,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
+import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
@@ -264,6 +264,56 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         SimpleEntry<Long, Long> simpleEntrySplitsMerges3 = findSplitsAndMerges(scope, stream);
         assertEquals("Number of splits ", 3L, simpleEntrySplitsMerges3.getKey().longValue());
         assertEquals("Number of merges", 4L, simpleEntrySplitsMerges3.getValue().longValue());
+    }
+
+    @Test
+    public void testListCompletedTransactions() throws Exception {
+        try (PravegaTablesStreamMetadataStore testStore = new PravegaTablesStreamMetadataStore(
+                segmentHelperMockForTables, PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, Duration.ofSeconds(100),
+                GrpcAuthHelper.getDisabledAuthHelper())) {
+            AtomicInteger currentBatch = new AtomicInteger(0);
+            Supplier<Integer> supplier = currentBatch::get;
+            ZKGarbageCollector gc = mock(ZKGarbageCollector.class);
+            doAnswer(x -> supplier.get()).when(gc).getLatestBatch();
+            testStore.setCompletedTxnGCRef(gc);
+
+            final String scope = "ScopeListTxn";
+            final String stream = "StreamListTxn";
+            final ScalingPolicy policy = ScalingPolicy.fixed(4);
+            final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+            long start = System.currentTimeMillis();
+            testStore.createScope(scope, null, executor).get();
+
+            testStore.createStream(scope, stream, configuration, start, null, executor).get();
+            testStore.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+            Map<UUID, TxnStatus> listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
+            assertEquals(0, listTxn.size());
+
+            UUID txnId1 = testStore.generateTransactionId(scope, stream, null, executor).join();
+            VersionedTransactionData tx1 = testStore.createTransaction(scope, stream, txnId1,
+                    100, 100, null, executor).get();
+
+            UUID txnId2 = testStore.generateTransactionId(scope, stream, null, executor).join();
+            VersionedTransactionData tx2 = testStore.createTransaction(scope, stream, txnId2,
+                    100, 100, null, executor).get();
+
+            testStore.sealTransaction(scope, stream, txnId1, true, Optional.of(tx1.getVersion()), "",
+                    Long.MIN_VALUE, null, executor).join();
+            testStore.sealTransaction(scope, stream, txnId2, true, Optional.of(tx2.getVersion()), "",
+                    Long.MIN_VALUE, null, executor).join();
+
+            VersionedMetadata<CommittingTransactionsRecord> record = testStore.startCommitTransactions(scope, stream, 2,
+                    null, executor).join().getKey();
+            testStore.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
+            testStore.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
+
+            listTxn = testStore.listCompletedTxns(scope, stream, null, executor).join();
+            assertEquals(2, listTxn.size());
+
+            testStore.setState(scope, stream, State.ACTIVE, null, executor).join();
+        }
     }
     
     @Test
@@ -557,11 +607,44 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         scope.removeKVTableFromScope(kvt, context).join();
         AssertExtensions.assertFutureThrows("delete scope should have failed", scope.deleteScope(context),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException);
-        
+
         scope.removeReaderGroupFromScope(rg, context).join();
         // now that we have deleted entries from all tables, the delete scope should succeed
         scope.deleteScope(context).join();
+    }
 
+    @Test
+    public void testDeleteScopeRecursive() {
+        PravegaTablesStreamMetadataStore store = (PravegaTablesStreamMetadataStore) this.store;
+
+        String scopeName = "testDeleteScopeRec";
+        OperationContext context = store.createScopeContext(scopeName, 0L);
+
+        Controller.CreateScopeStatus status = store.createScope(scopeName, context, executor).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, status.getStatus());
+
+        PravegaTablesScope scope = (PravegaTablesScope) store.getScope(scopeName, context);
+
+        String stream = "stream";
+        scope.addStreamToScope(stream, context).join();
+        assertEquals(stream, scope.listStreamsInScope(context).join().get(0));
+
+        UUID rgId = UUID.randomUUID();
+        String rg = "rg";
+        scope.addReaderGroupToScope(rg, rgId, context).join();
+        assertEquals(rgId, scope.getReaderGroupId(rg, context).join());
+
+        String kvt = "kvt";
+        scope.addKVTableToScope(kvt, UUID.randomUUID(), context).join();
+        assertEquals(kvt, scope.listKeyValueTables(10, "", executor, context).join().getKey().get(0));
+
+        // This should have failed at this point as the tables are not empty
+        AssertExtensions.assertFutureThrows("delete scope should have failed", scope.deleteScopeRecursive(context),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException);
+        scope.removeReaderGroupFromScope(rg, context).join();
+        scope.removeKVTableFromScope(kvt, context).join();
+        scope.removeStreamFromScope(stream, context);
+        scope.deleteScopeRecursive(context).join();
     }
 
     private Set<Integer> getAllBatches(PravegaTablesStreamMetadataStore testStore) {

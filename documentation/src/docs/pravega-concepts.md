@@ -393,8 +393,13 @@ access patterns to Stream data. Tier 2 Storage is based on an HDFS model. 
 
 Pravega allows users to store data in Tier 2 as long as there is storage capacity available. But sometimes, users may not be interested to keep all the historical data related to a Stream. Instead, there are use-cases in which it may be useful to retain just a fraction of a Stream's data. For this reason, Streams can be configured with **Retention Policies**.  
 
-Pravega supports two types of Retention Policies:
+Pravega supports the following Retention Policies:
 
  - **Time-based Retention**: It allows the developer to control for how long the data is kept in a Stream before it is deleted. The developer can specify the time limit (milliseconds) in the Stream policy, which is ideal for situations like regulatory compliance that mandate certain retention periods.
 
-- **Size-based Retention**: Retains the newest subset of a Stream's data that does not exceed the specified size in bytes.
+ - **Size-based Retention**: Retains the newest subset of a Stream's data that does not exceed the specified size in bytes.
+
+ - **Consumption-based Retention**: Attempts to retain only unconsumed data in the Stream.
+
+For details about retention policies and their working, please refer to [Pravega Stream Retention](retention.md).
+ 

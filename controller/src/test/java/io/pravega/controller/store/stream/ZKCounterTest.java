@@ -25,7 +25,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -33,9 +32,7 @@ import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -50,8 +47,6 @@ import static org.mockito.Mockito.verify;
  * Zookeeper based counter tests.
  */
 public class ZKCounterTest {
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     private TestingServer zkServer;
     private CuratorFramework cli;
     private ScheduledExecutorService executor;
@@ -74,7 +69,7 @@ public class ZKCounterTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testCounter() throws Exception {
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
         storeHelper.createZNodeIfNotExist("/store/scope").join();
@@ -136,7 +131,7 @@ public class ZKCounterTest {
         assertEquals(Long.MAX_VALUE - 99, newCounter2.getLsb());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testCounterConcurrentUpdates() {
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
         storeHelper.createZNodeIfNotExist("/store/scope").join();

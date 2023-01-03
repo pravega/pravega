@@ -20,10 +20,10 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
-import io.grpc.netty.GrpcSslContexts;
-import io.grpc.netty.NettyServerBuilder;
-import io.netty.channel.ChannelOption;
-import io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
+import io.grpc.netty.shaded.io.netty.channel.ChannelOption;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
@@ -88,8 +88,8 @@ public class GRPCServer extends AbstractIdleService {
     @SneakyThrows(SSLException.class)
     private SslContext getSSLContext(GRPCServerConfig serverConfig) {
         return GrpcSslContexts.forServer(new File(serverConfig.getTlsCertFile()), new File(serverConfig.getTlsKeyFile()))
-                .protocols(serverConfig.getTlsProtocolVersion())
-                .build();
+                              .protocols(serverConfig.getTlsProtocolVersion())
+                              .build();
     }
 
     /**
@@ -99,8 +99,8 @@ public class GRPCServer extends AbstractIdleService {
     protected void startUp() throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
-            log.info("Starting gRPC server listening on port: {}", this.config.getPort());
             this.server.start();
+            log.info("Started gRPC server listening on port: {}", this.config.getPort());
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }

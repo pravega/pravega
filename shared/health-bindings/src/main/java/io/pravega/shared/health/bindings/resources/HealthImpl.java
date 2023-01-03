@@ -189,7 +189,7 @@ public class HealthImpl implements ApiV1.HealthApi {
         }
     }
 
-    // The follow methods provide a means to cast the HealthService framework models, to the generated models.
+    // The following methods provide a means to cast the HealthService framework models, to the generated models.
     private static HealthResult adapter(Health health) {
         return new HealthResult()
                 .name(health.getName())

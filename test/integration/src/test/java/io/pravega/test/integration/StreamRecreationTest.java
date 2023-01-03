@@ -40,7 +40,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
@@ -164,10 +164,10 @@ public class StreamRecreationTest {
             assertEquals("Wrong event read in re-created stream", eventContent, readResult);
 
             // Delete the stream.
-            StreamInfo streamInfo = streamManager.getStreamInfo(myScope, myStream);
+            StreamInfo streamInfo = streamManager.fetchStreamInfo(myScope, myStream).join();
             assertFalse(streamInfo.isSealed());
             assertTrue("Unable to seal re-created stream.", streamManager.sealStream(myScope, myStream));
-            streamInfo = streamManager.getStreamInfo(myScope, myStream);
+            streamInfo = streamManager.fetchStreamInfo(myScope, myStream).join();
             assertTrue(streamInfo.isSealed());
             assertTrue("Unable to delete re-created stream.", streamManager.deleteStream(myScope, myStream));
         }

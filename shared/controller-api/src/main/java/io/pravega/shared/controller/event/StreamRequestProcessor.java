@@ -107,4 +107,12 @@ public interface StreamRequestProcessor extends RequestProcessor {
      */
     CompletableFuture<Void> processUpdateReaderGroup(UpdateReaderGroupEvent updateRGEvent);
 
+    /**
+     * Method to process delete scope event.
+     *
+     * @param deleteScopeEvent update reader group event.
+     * @return CompletableFuture that caller can use to synchronize.
+     */
+    CompletableFuture<Void> processDeleteScopeRecursive(DeleteScopeEvent deleteScopeEvent);
+
 }

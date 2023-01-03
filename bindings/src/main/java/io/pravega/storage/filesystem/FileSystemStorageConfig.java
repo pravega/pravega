@@ -45,8 +45,7 @@ public class FileSystemStorageConfig {
     private final String root;
 
     /**
-     * Whether {@link FileSystemStorage#withReplaceSupport()} should return a {@link FileSystemStorage} that supports
-     * replacement or not.
+     * Whether the {@link FileSystemChunkStorage} instance supports replacement or not.
      */
     @Getter
     private final boolean replaceEnabled;

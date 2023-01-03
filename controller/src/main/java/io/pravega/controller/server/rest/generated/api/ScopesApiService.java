@@ -29,6 +29,7 @@ import javax.validation.constraints.*;
 public abstract class ScopesApiService {
     public abstract Response createScope(CreateScopeRequest createScopeRequest,SecurityContext securityContext) throws NotFoundException;
     public abstract Response createStream(String scopeName,CreateStreamRequest createStreamRequest,SecurityContext securityContext) throws NotFoundException;
+    public abstract Response deleteReaderGroup(String scopeName,String readerGroupName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response deleteScope(String scopeName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response deleteStream(String scopeName,String streamName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response getReaderGroup(String scopeName,String readerGroupName,SecurityContext securityContext) throws NotFoundException;

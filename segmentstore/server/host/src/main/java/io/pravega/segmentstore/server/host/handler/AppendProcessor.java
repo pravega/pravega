@@ -34,6 +34,7 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -41,6 +42,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.DelegatingRequestProcessor;
@@ -49,37 +51,43 @@ import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
+import io.pravega.shared.protocol.netty.WireCommands.CreateTransientSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import io.pravega.shared.security.token.JsonWebToken;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-
-import io.pravega.shared.security.token.JsonWebToken;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
-
+import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
+import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
  */
-public class AppendProcessor extends DelegatingRequestProcessor {
+public class AppendProcessor extends DelegatingRequestProcessor implements AutoCloseable {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
@@ -94,6 +102,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
     private final ScheduledExecutorService tokenExpiryHandlerExecutor;
+    private final Collection<String> transientSegmentNames;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     //endregion
 
@@ -110,6 +120,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         this.tokenVerifier = tokenVerifier;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.tokenExpiryHandlerExecutor = tokenExpiryHandlerExecutor;
+        this.transientSegmentNames = Collections.synchronizedSet(new HashSet<>());
     }
 
     /**
@@ -135,7 +146,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
         if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
             log.warn(hello.getRequestId(), "Incompatible wire protocol versions {} from connection {}", hello, connection);
-            connection.close();
+            close();
         }
     }
 
@@ -216,7 +227,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     // and retrying the request with a new token.
                     log.debug("Closing client connection for writer {} due to token expiry, when processing " +
                                 "request {} for segment {}", writerId, requestId, segment);
-                    connection.close();
+                    this.close();
                 }
                 return null;
             }, token.durationToExpiry(), this.tokenExpiryHandlerExecutor);
@@ -251,6 +262,30 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     append.getData().release();
                 });
     }
+
+    @Override
+    public void createTransientSegment(CreateTransientSegment createTransientSegment) {
+        String operation = "createTransientSegment";
+        long traceId = LoggerHelpers.traceEnter(log, operation, createTransientSegment);
+        Collection<AttributeUpdate> attributes = Arrays.asList(
+                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
+                new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.TRANSIENT_SEGMENT.getValue())
+        );
+        String transientSegmentName = NameUtils.getTransientNameFromId(createTransientSegment.getParentSegment(), createTransientSegment.getWriterId());
+        store.createStreamSegment(transientSegmentName, SegmentType.TRANSIENT_SEGMENT, attributes, TIMEOUT)
+                .thenAccept(v -> {
+                    transientSegmentNames.add(transientSegmentName);
+                    connection.send(new SegmentCreated(createTransientSegment.getRequestId(), transientSegmentName));
+                })
+                .exceptionally(e -> handleException(createTransientSegment.getWriterId(),
+                        createTransientSegment.getRequestId(),
+                        transientSegmentName,
+                        operation,
+                        e));
+
+        LoggerHelpers.traceLeave(log, operation, traceId);
+    }
+
 
     private CompletableFuture<Long> storeAppend(Append append, long lastEventNumber) {
         AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
@@ -348,11 +383,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
-    private void handleException(UUID writerId, long requestId, String segment, String doingWhat, Throwable u) {
-        handleException(writerId, requestId, segment, -1L, doingWhat, u);
+    private Void handleException(UUID writerId, long requestId, String segment, String doingWhat, Throwable u) {
+        return handleException(writerId, requestId, segment, -1L, doingWhat, u);
     }
 
-    private void handleException(UUID writerId, long requestId, String segment, long eventNumber, String doingWhat, Throwable u) {
+    private Void handleException(UUID writerId, long requestId, String segment, long eventNumber, String doingWhat, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
             log.error(requestId, "Append processor: Error {} on segment = '{}'", doingWhat, segment, exception);
@@ -378,11 +413,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.send(new WrongHost(requestId, segment, "", clientReplyStackTrace));
         } else if (u instanceof BadAttributeUpdateException) {
             log.warn(requestId, "Bad attribute update by {} on segment {}.", writerId, segment, u);
-            connection.send(new InvalidEventNumber(writerId, requestId, clientReplyStackTrace));
-            connection.close();
+            connection.send(new InvalidEventNumber(writerId, requestId, clientReplyStackTrace, eventNumber));
+            close();
         } else if (u instanceof TokenExpiredException) {
             log.warn(requestId, "Token expired for writer {} on segment {}.", writerId, segment, u);
-            connection.close();
+            close();
         } else if (u instanceof TokenException) {
             log.warn(requestId, "Token check failed or writer {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
@@ -393,11 +428,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else if (u instanceof CancellationException) {
             // Cancellation exception is thrown when the Operation processor is shutting down.
             log.info("Closing connection '{}' while performing append on Segment '{}' due to {}.", connection, segment, u.toString());
-            connection.close();
+            close();
         } else {
             logError(segment, u);
-            connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
+            close(); // Closing connection should reinitialize things, and hopefully fix the problem
         }
+
+        return null;
     }
 
     private void logError(String segment, Throwable u) {
@@ -406,6 +443,21 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
         }
+    }
+
+    @Override
+    public void close() {
+        if (closed.compareAndSet(false, true)) {
+            connection.close();
+            // The AppendProcessor marks the tracked Transient Segments for deletion -- but does not synchronously wait for
+            // the deletion to complete. The Transient Segments will be cleaned up at the SegmentStore's discretion.
+            transientSegmentNames.forEach(name -> store.deleteStreamSegment(name, TIMEOUT));
+        }
+    }
+
+    @Override
+    public void connectionDropped() {
+        close();
     }
 
     //endregion

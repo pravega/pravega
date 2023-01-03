@@ -17,8 +17,10 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.State;
@@ -62,6 +64,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final DeleteStreamEvent request) {
+        Timer timer = new Timer();
         String scope = request.getScope();
         String stream = request.getStream();
         long requestId = request.getRequestId();
@@ -81,7 +84,8 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
                     }
                     return deleteAssociatedStreams(scope, stream, requestId)
                             .thenCompose(v -> removeTagsFromIndex(context, scope, stream, requestId))
-                            .thenCompose(v -> notifyAndDelete(context, scope, stream, requestId));
+                            .thenCompose(v -> notifyAndDelete(context, scope, stream, requestId))
+                            .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorDeleteStreamEvent(timer.getElapsed()));
                 }, executor)
                 .exceptionally(e -> {
                     if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {

@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  * 2. The size of each append
  * 3. The number of unackedAppends there are outstanding
  * 
- * If the number of unacked appends is <= 1 batching is disabled. This improves latency for low volume and 
+ * If the number of unacked appends is &lt;= 1 batching is disabled. This improves latency for low volume and
  * synchronous writers. Otherwise the batch size is set to the amount of data that will be written in the next
  * {@link #MAX_BATCH_TIME_MILLIS} or half the server round trip time (whichever is less)
  */

@@ -102,7 +102,7 @@ public class ContainerRecoveryUtils {
 
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount, true);
 
-        Iterator<SegmentProperties> segmentIterator = storage.listSegments();
+        Iterator<SegmentProperties> segmentIterator = storage.listSegments().join();
         Preconditions.checkNotNull(segmentIterator);
 
         // Iterate through all segments. Create each one of their using their respective debugSegmentContainer instance.

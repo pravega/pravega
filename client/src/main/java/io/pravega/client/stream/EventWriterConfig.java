@@ -18,14 +18,26 @@ package io.pravega.client.stream;
 import com.google.common.base.Preconditions;
 import java.io.Serializable;
 
+import io.pravega.client.control.impl.CachedPravegaNodeUri;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.ObjectBuilder;
+
 import lombok.Builder;
 import lombok.Data;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import lombok.SneakyThrows;
 
 @Data
 @Builder
 public class EventWriterConfig implements Serializable {
-    
-    private static final long serialVersionUID = 1L;
+
+    private static final long serialVersionUID = 2L;
+
+    private static final EventWriterConfigSerializer SERIALIZER = new EventWriterConfigSerializer();
     /**
      * Initial backoff in milli seconds used in the retry logic of the writer. The default value is 1ms.
      *
@@ -67,7 +79,7 @@ public class EventWriterConfig implements Serializable {
      */
     private final boolean enableConnectionPooling;
 
-    /*
+    /**
      * The transaction timeout parameter corresponds to the lease renewal period.
      * In every period, the client must send at least one ping to keep the txn alive.
      * If the client fails to do so, then Pravega aborts the txn automatically. The client
@@ -82,11 +94,14 @@ public class EventWriterConfig implements Serializable {
      *
      * The maximum allowed lease time by default is 600s, see:
      *
-     * {@link io.pravega.controller.util.Config.PROPERTY_TXN_MAX_LEASE}
+     * io.pravega.controller.util.Config.PROPERTY_TXN_MAX_LEASE
      *
      * The maximum allowed lease time is a configuration parameter of the controller
      * and can be changed accordingly. Note that being a controller-wide parameter,
      * it affects all transactions.
+     *
+     * @param transactionTimeoutTime Transaction timeout parameter
+     * @return Transaction timeout parameter corresponding to lease renewal period
      */
     private final long transactionTimeoutTime;
 
@@ -99,17 +114,28 @@ public class EventWriterConfig implements Serializable {
      */
     private final boolean automaticallyNoteTime;
 
-    public static final class EventWriterConfigBuilder {
+    /**
+     * Enable or disable whether LargeEvent writes should be processed and sent to the SegmentStore. A LargeEvent
+     * is defined as any event containing a number of bytes greater than {@link Serializer#MAX_EVENT_SIZE}.
+     *
+     * @param enableLargeEvents Enable or disables LargeEvent processing.
+     * @return LargeEvent processing is enabled or disabled.
+     */
+    private final boolean enableLargeEvents;
+
+    public static final class EventWriterConfigBuilder implements ObjectBuilder<EventWriterConfig> {
         private static final long MIN_TRANSACTION_TIMEOUT_TIME_MILLIS = 10000;
         private int initialBackoffMillis = 1;
-        private int maxBackoffMillis = 20000;
+        private int maxBackoffMillis = CachedPravegaNodeUri.MAX_BACKOFF_MILLIS;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
         private long transactionTimeoutTime = 600 * 1000 - 1;
         private boolean automaticallyNoteTime = false; 
         // connection pooling for event writers is disabled by default.
         private boolean enableConnectionPooling = false;
-        
+        private boolean enableLargeEvents = false;
+
+        @Override
         public EventWriterConfig build() {
             Preconditions.checkArgument(transactionTimeoutTime >= MIN_TRANSACTION_TIMEOUT_TIME_MILLIS, "Transaction time must be at least 10 seconds.");
             Preconditions.checkArgument(initialBackoffMillis >= 0, "Backoff times must be positive numbers");
@@ -119,7 +145,74 @@ public class EventWriterConfig implements Serializable {
             return new EventWriterConfig(initialBackoffMillis, maxBackoffMillis, retryAttempts, backoffMultiple,
                                          enableConnectionPooling,
                                          transactionTimeoutTime,
-                                         automaticallyNoteTime);
+                                         automaticallyNoteTime,
+                                         enableLargeEvents);
+        }
+    }
+
+    static class EventWriterConfigSerializer
+            extends VersionedSerializer.WithBuilder<EventWriterConfig, EventWriterConfigBuilder> {
+        @Override
+        protected EventWriterConfigBuilder newBuilder() {
+            return builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, EventWriterConfigBuilder builder) throws IOException {
+            builder.initialBackoffMillis(revisionDataInput.readInt());
+            builder.maxBackoffMillis(revisionDataInput.readInt());
+            builder.retryAttempts(revisionDataInput.readInt());
+            builder.backoffMultiple(revisionDataInput.readInt());
+            builder.enableConnectionPooling(revisionDataInput.readBoolean());
+            builder.transactionTimeoutTime(revisionDataInput.readLong());
+            builder.automaticallyNoteTime(revisionDataInput.readBoolean());
+            builder.enableLargeEvents(revisionDataInput.readBoolean());
+        }
+
+        private void write00(EventWriterConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeInt(object.getInitialBackoffMillis());
+            revisionDataOutput.writeInt(object.getMaxBackoffMillis());
+            revisionDataOutput.writeInt(object.getRetryAttempts());
+            revisionDataOutput.writeInt(object.getBackoffMultiple());
+            revisionDataOutput.writeBoolean(object.enableConnectionPooling);
+            revisionDataOutput.writeLong(object.getTransactionTimeoutTime());
+            revisionDataOutput.writeBoolean(object.automaticallyNoteTime);
+            revisionDataOutput.writeBoolean(object.enableLargeEvents);
+        }
+    }
+
+    @SneakyThrows(IOException.class)
+    public ByteBuffer toBytes() {
+        ByteArraySegment serialized = SERIALIZER.serialize(this);
+        return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
+    }
+
+    @SneakyThrows(IOException.class)
+    public static EventWriterConfig fromBytes(ByteBuffer buff) {
+        return SERIALIZER.deserialize(new ByteArraySegment(buff));
+    }
+
+    @SneakyThrows(IOException.class)
+    private Object writeReplace() {
+        return new EventWriterConfig.SerializedForm(SERIALIZER.serialize(this).getCopy());
+    }
+
+    @Data
+    private static class SerializedForm implements Serializable {
+        private static final long serialVersionUID = 2L;
+        private final byte[] value;
+        @SneakyThrows(IOException.class)
+        Object readResolve() {
+            return SERIALIZER.deserialize(new ByteArraySegment(value));
         }
     }
 }

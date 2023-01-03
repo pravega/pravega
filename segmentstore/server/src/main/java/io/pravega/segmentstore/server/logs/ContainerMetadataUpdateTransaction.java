@@ -54,6 +54,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -637,7 +638,9 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
         private void write00(ContainerMetadataUpdateTransaction t, RevisionDataOutput output) throws IOException {
             val toSerialize = t.realMetadata.getAllStreamSegmentIds().stream()
-                                            .map(t.realMetadata::getStreamSegmentMetadata).collect(Collectors.toList());
+                    .map(t.realMetadata::getStreamSegmentMetadata)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
             output.writeCollection(toSerialize, this::writeSegmentMetadata00);
         }
 
@@ -823,7 +826,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                         // This segment existed in our Update Transaction/Base Metadata, however this checkpoint no longer has it.
                         // This means that the segment has been evicted at one point between the last checkpoint and this one,
                         // so it should be safe to remove it from our list (if possible).
-                        log.debug("MetadataUpdate[{}]: Un-mapping Segment Id '%s' because it is no longer present in a MetadataCheckpoint.", t.containerId);
+                        log.debug("MetadataUpdate[{}]: Un-mapping Segment Id {} because it is no longer present in a MetadataCheckpoint.", t.containerId, segmentId);
                         t.removeNewSegment(segmentId);
                     }
                 } else {

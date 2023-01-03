@@ -28,6 +28,8 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -37,11 +39,11 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.test.common.ThreadPooledTestSuite;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
@@ -50,17 +52,15 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
-
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -78,9 +78,6 @@ import static org.mockito.Mockito.when;
 @Slf4j
 public class LocalControllerTest extends ThreadPooledTestSuite {
 
-    //Ensure each test completes within 10 seconds.
-    @Rule
-    public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
     boolean authEnabled = false;
 
     private ControllerService mockControllerService;
@@ -97,7 +94,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         this.testController = new LocalController(this.mockControllerService, authEnabled, "secret");
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testListScopes() {
         when(this.mockControllerService.listScopes(any(), anyInt(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(new ImmutablePair<>(Lists.newArrayList("a", "b", "c"),
@@ -111,7 +108,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         Assert.assertNull(iterator.getNext().join());
     }
     
-    @Test
+    @Test(timeout = 10000)
     public void testCreateScope() throws ExecutionException, InterruptedException {
         when(this.mockControllerService.createScope(any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateScopeStatus.newBuilder()
@@ -153,7 +150,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testDeleteScope() throws ExecutionException, InterruptedException {
         when(this.mockControllerService.deleteScope(any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
@@ -187,12 +184,12 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
-    public void testCreateStream() throws ExecutionException, InterruptedException {
-        when(this.mockControllerService.createStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
+    @Test(timeout = 10000)
+    public void testCreateStream() {
+        when(this.mockControllerService.createInternalStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.SUCCESS).build()));
-        Assert.assertTrue(this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join());
+        Assert.assertTrue(this.testController.createInternalStream("scope", "stream", StreamConfiguration.builder().build()).join());
 
         when(this.mockControllerService.getStream(eq("scope"), eq("stream"), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build()));
@@ -201,41 +198,41 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "stream not found")));
         Assert.assertFalse(this.testController.checkStreamExists("scope", "notExist").join());
 
-        when(this.mockControllerService.createStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
+        when(this.mockControllerService.createInternalStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.STREAM_EXISTS).build()));
-        Assert.assertFalse(this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join());
+        Assert.assertFalse(this.testController.createInternalStream("scope", "stream", StreamConfiguration.builder().build()).join());
 
-        when(this.mockControllerService.createStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
+        when(this.mockControllerService.createInternalStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join(),
+                () -> this.testController.createInternalStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof ControllerFailureException);
 
-        when(this.mockControllerService.createStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
+        when(this.mockControllerService.createInternalStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.INVALID_STREAM_NAME).build()));
         assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join(),
+                () -> this.testController.createInternalStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.createStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
+        when(this.mockControllerService.createInternalStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.SCOPE_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join(),
+                () -> this.testController.createInternalStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.createStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
+        when(this.mockControllerService.createInternalStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join(),
+                () -> this.testController.createInternalStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testUpdateStream() throws ExecutionException, InterruptedException {
         when(this.mockControllerService.updateStream(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
@@ -271,7 +268,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testCreateReaderGroup() throws ExecutionException, InterruptedException {
         final Segment seg0 = new Segment("scope", "stream1", 0L);
         final Segment seg1 = new Segment("scope", "stream1", 1L);
@@ -339,7 +336,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testGetReaderGroupConfig() throws ExecutionException, InterruptedException {
         final String scope = "scope";
         final String streamName = "stream1";
@@ -397,7 +394,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testDeleteReaderGroup() throws ExecutionException, InterruptedException {
         final  UUID someUUID = UUID.randomUUID();
         when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any(), anyLong())).thenReturn(
@@ -432,7 +429,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testUpdateReaderGroup() throws ExecutionException, InterruptedException {
         final Segment seg0 = new Segment("scope", "stream1", 0L);
         final Segment seg1 = new Segment("scope", "stream1", 1L);
@@ -484,7 +481,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testUpdateSubscriberStreamCut() throws ExecutionException, InterruptedException {
         UUID someId = UUID.randomUUID();
         StreamCut streamCut = new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap());
@@ -528,7 +525,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof IllegalArgumentException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testListSubscribers() throws ExecutionException, InterruptedException {
         List<String> subscriberList = new ArrayList<>(3);
         subscriberList.add("sub1");
@@ -563,7 +560,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
 
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testSealStream() throws ExecutionException, InterruptedException {
         when(this.mockControllerService.sealStream(any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
@@ -599,7 +596,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testDeleteStream() throws ExecutionException, InterruptedException {
         when(this.mockControllerService.deleteStream(any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.DeleteStreamStatus.newBuilder()
@@ -633,7 +630,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testScaleStream() throws ExecutionException, InterruptedException {
         when(this.mockControllerService.checkScale(anyString(), anyString(), anyInt(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ScaleStatusResponse.newBuilder()
@@ -667,7 +664,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testGetSegmentsBetween() throws ExecutionException, InterruptedException {
         List<StreamSegmentRecord> list = new ArrayList<>();
         when(this.mockControllerService.getSegmentsBetweenStreamCuts(any(), anyLong())).thenReturn(
@@ -676,7 +673,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()))));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testCreateKeyValueTable() {
         val kvtConfig = KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(4).secondaryKeyLength(4).build();
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong(), anyLong())).thenReturn(
@@ -724,7 +721,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testGetCurrentSegmentsKeyValueTable() throws Exception {
         Controller.StreamInfo info = Controller.StreamInfo.newBuilder().setScope("scope").setStream("kvtable").build();
         Controller.SegmentId segment1 = Controller.SegmentId.newBuilder().setSegmentId(1).setStreamInfo(info).build();
@@ -746,7 +743,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         assertEquals(3, segments.getSegments().size());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testListKeyValueTable() throws Exception {
         List<String> tablelist = new ArrayList<String>();
         tablelist.add("kvtable1");
@@ -757,7 +754,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         assertEquals("kvtable1", info.getKeyValueTableName());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testGetKeyValueTableConfiguration() {
         KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
         when(this.mockControllerService.getKeyValueTableConfiguration(any(), any(), anyLong())).thenReturn(
@@ -791,7 +788,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testDeleteKeyValueTable() throws ExecutionException, InterruptedException {
         when(this.mockControllerService.deleteKeyValueTable(any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
@@ -819,6 +816,33 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testDeleteScopeRecursive() {
+        when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
+                        .setStatus(Controller.DeleteScopeStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.deleteScopeRecursive("testScope").join());
+
+        when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
+                        .setStatus(Controller.DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build()));
+        Assert.assertFalse(this.testController.deleteScopeRecursive("testScope").join());
+
+        when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
+                        .setStatus(Controller.DeleteScopeStatus.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.deleteScopeRecursive("testScope").join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.deleteScopeRecursive(any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteScopeStatus.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.deleteScopeRecursive("testScope").join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test(timeout = 10000)
     public void testGetOrRefreshDelegationToken() {
         String token = this.testController.getOrRefreshDelegationTokenFor("scope", "stream", null).join();
          if (this.authEnabled) {
@@ -828,7 +852,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
          }
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testGetCurrentSegments() {
         Controller.StreamInfo info = Controller.StreamInfo.newBuilder().setScope("scope").setStream("stream").build();
         Controller.SegmentId segment1 = Controller.SegmentId.newBuilder().setSegmentId(1).setStreamInfo(info).build();
@@ -851,5 +875,22 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         assertEquals(3, currentSegments.getSegments().size());
         assertEquals(new Segment("scope", "stream", 1), currentSegments.getSegmentForKey(0.2));
         assertEquals(new Segment("scope", "stream", 3), currentSegments.getSegmentForKey(0.9));
+    }
+
+    @Test
+    public void testListCompletedTransactions() {
+        Map<UUID, TxnStatus> listResponse = new HashMap<>();
+        listResponse.put(UUID.randomUUID(), TxnStatus.ABORTED);
+        listResponse.put(UUID.randomUUID(), TxnStatus.COMMITTED);
+
+        when(this.mockControllerService.listCompletedTxns(any(), any(), anyLong())).thenReturn(CompletableFuture.completedFuture(listResponse));
+        List<TransactionInfo> listTxns = this.testController.listCompletedTransactions(new StreamImpl("scope", "stream")).join();
+
+        assertEquals(listTxns.size(), listResponse.keySet().size());
+        assertEquals(listTxns.get(0).getStream().getStreamName(), "stream");
+        assertEquals(listTxns.get(0).getStream().getScope(), "scope");
+        assertEquals(listTxns.get(0).getTransactionStatus(), Transaction.Status.valueOf(listResponse.values().stream().collect(Collectors.toList()).get(0).name()));
+        assertEquals(listTxns.get(0).getTransactionId(), listResponse.keySet().stream().collect(Collectors.toList()).get(0));
+        Assert.assertTrue(listResponse.keySet().stream().collect(Collectors.toList()).contains(listTxns.get(0).getTransactionId()));
     }
 }

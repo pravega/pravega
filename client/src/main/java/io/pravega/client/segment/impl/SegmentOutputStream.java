@@ -56,6 +56,12 @@ public interface SegmentOutputStream extends AutoCloseable {
     public abstract void flush() throws SegmentSealedException;
 
     /**
+     * This is meant to notify that an asynchronous flush call was called. Possibly a keep alive response
+     * can be triggered.
+     */
+    public abstract void flushAsync();
+
+    /**
      * Change the state of SegmentOutputStream to sealed to prevent future writes and return the list of unackedEvents.
      * This is invoked by the segmentSealed callback to fetch the unackedEvents to be resent to the right
      * SegmentOutputStreams.

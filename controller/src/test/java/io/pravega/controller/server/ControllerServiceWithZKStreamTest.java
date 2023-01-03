@@ -15,6 +15,8 @@
  */
 package io.pravega.controller.server;
 
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +29,11 @@ public class ControllerServiceWithZKStreamTest extends ControllerServiceWithStre
     @Override
     StreamMetadataStore getStore() {
         return StreamStoreFactory.createZKStore(zkClient, executor);
+    }
+
+    @Override
+    KVTableMetadataStore getKVTStore() {
+        return KVTableStoreFactory.createZKStore(zkClient, executor);
     }
 
     @Override

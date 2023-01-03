@@ -61,22 +61,27 @@ public class StreamConfiguration implements Serializable {
     private final RetentionPolicy retentionPolicy;
     
     /**
-     * The duration after the last call to {@link EventStreamWriter#noteTime(long)} which the
-     * timestamp should be considered valid before it is forgotten. Meaning that after this long of
-     * not calling {@link EventStreamWriter#noteTime(long)} the writer will be forgotten.
-     * If there are no known writers, readers that call {@link EventStreamReader#getCurrentTimeWindow(Stream)}
+     * The duration after the last call to {@link EventStreamWriter#noteTime(long)} until which the
+     * writer would be considered for computing {@link EventStreamReader#getCurrentTimeWindow(Stream)}
+     * Meaning that after this long of not calling {@link EventStreamWriter#noteTime(long)} 
+     * a writer's previously reported time would be ignored for computing the time window.
+     *
+     * However, after the timestampAggregationTimeout elapses the same writer may resume noting time
+     * at any time.
+     *
+     * If no writer have noted time within the timestampAggregationTimeout, readers that call 
+     * {@link EventStreamReader#getCurrentTimeWindow(Stream)}
      * will receive a `null` when they are at the corresponding position in the stream.
      *
      * @param timestampAggregationTimeout The duration after the last call to {@link EventStreamWriter#noteTime(long)}
-     *                                    which the timestamp should be considered valid before it is forgotten.
-     * @return The duration after the last call to {@link EventStreamWriter#noteTime(long)} which the timestamp should
-     * be considered valid before it is forgotten.
+     *                                    until which the writer would be considered active.
+     * @return The duration after the last call to {@link EventStreamWriter#noteTime(long)}
+     * to continue to consider the provided time.
      */
     private final long timestampAggregationTimeout;
 
     /**
      * API to return the configured tags for the Stream.
-     * @param tag The tag(s) for the Stream.
      * @return List of tag(s) for the Stream.
      */
     @Singular
@@ -93,6 +98,15 @@ public class StreamConfiguration implements Serializable {
      * @return Rollover size for the segment in this Stream.
      */
     private final long rolloverSizeBytes;
+
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "scalingPolicy", scalingPolicy != null ? scalingPolicy.toString() : "null") + "\n" +
+                String.format("%s = %s", "retentionPolicy", retentionPolicy != null ? retentionPolicy.toString() : "null") + "\n" +
+                String.format("%s = %s", "timestampAggregationTimeout", timestampAggregationTimeout) + "\n" +
+                String.format("%s = %s", "tags", tags) + "\n" +
+                String.format("%s = %s", "rolloverSizeBytes", rolloverSizeBytes);
+    }
 
     public static final class StreamConfigurationBuilder {
         private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);

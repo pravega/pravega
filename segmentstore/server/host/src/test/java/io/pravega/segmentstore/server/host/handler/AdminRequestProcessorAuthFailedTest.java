@@ -55,4 +55,10 @@ public class AdminRequestProcessorAuthFailedTest {
         processor.flushToStorage(new WireCommands.FlushToStorage(0, "", 1));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
     }
+
+    @Test
+    public void listStorageChunks() {
+        processor.listStorageChunks(new WireCommands.ListStorageChunks("dummy", "", 1));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
+    }
 }

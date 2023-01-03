@@ -26,9 +26,11 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.DurableDataLog;
+import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.cache.NoOpCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
@@ -37,15 +39,20 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
+
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Recovery Processor used for Debugging purposes.
  * NOTE: this class is not meant to be used for regular, production code. It exposes operations that should only be executed
  * from the admin tools.
  */
+@Slf4j
 public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoCloseable {
     //region Members
 
@@ -53,18 +60,22 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
     private final ReadIndexFactory readIndexFactory;
     private final CacheManager cacheManager;
     private final Storage storage;
+    private final AtomicBoolean errorOnDataCorruption;
+    private final String traceObjectId;
 
     //endregion
 
     //region Constructor
 
     private DebugRecoveryProcessor(UpdateableContainerMetadata metadata, DurableDataLog durableDataLog, ReadIndexFactory readIndexFactory,
-                                   Storage storage, CacheManager cacheManager, OperationCallbacks callbacks) {
+                                   Storage storage, CacheManager cacheManager, OperationCallbacks callbacks, boolean errorOnDataCorruption) {
         super(metadata, durableDataLog, new MemoryStateUpdater(new NoOpInMemoryLog(), readIndexFactory.createReadIndex(metadata, storage)));
         this.readIndexFactory = readIndexFactory;
         this.storage = storage;
         this.callbacks = callbacks;
         this.cacheManager = cacheManager;
+        this.errorOnDataCorruption = new AtomicBoolean(errorOnDataCorruption);
+        this.traceObjectId = String.format("DebugRecoveryProcessor[%s]", this.getMetadata().getContainerId());
     }
 
     @Override
@@ -83,10 +94,11 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
      * @param readIndexConfig A ReadIndexConfig to use during recovery.
      * @param executor        An Executor to use for background tasks.
      * @param callbacks       Callbacks to invoke during recovery.
+     * @param errorOnDataCorruption flag controlling whethere to throw DataCorruptionException
      * @return A new instance of the DebugRecoveryProcessor.
      */
     public static DebugRecoveryProcessor create(int containerId, DurableDataLog durableDataLog, ContainerConfig config, ReadIndexConfig readIndexConfig,
-                                                ScheduledExecutorService executor, OperationCallbacks callbacks) {
+                                                ScheduledExecutorService executor, OperationCallbacks callbacks, boolean errorOnDataCorruption) {
         Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(readIndexConfig, "readIndexConfig");
@@ -99,7 +111,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
         cacheManager.startAsync().awaitRunning();
         ContainerReadIndexFactory rf = new ContainerReadIndexFactory(readIndexConfig, cacheManager, executor);
         Storage s = new InMemoryStorageFactory(executor).createStorageAdapter();
-        return new DebugRecoveryProcessor(metadata, durableDataLog, rf, s, cacheManager, callbacks);
+        return new DebugRecoveryProcessor(metadata, durableDataLog, rf, s, cacheManager, callbacks, errorOnDataCorruption);
     }
 
     //endregion
@@ -113,7 +125,9 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
         }
 
         try {
-            super.recoverOperation(dataFrameRecord, metadataUpdater);
+            if (this.callbacks.allowOperationRecovery.apply(dataFrameRecord.getItem())) {
+                super.recoverOperation(dataFrameRecord, metadataUpdater);
+            }
         } catch (Throwable ex) {
             if (this.callbacks.operationFailed != null) {
                 Callbacks.invokeSafely(this.callbacks.operationFailed, dataFrameRecord.getItem(), ex, null);
@@ -125,6 +139,11 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
         if (this.callbacks.operationSuccess != null) {
             Callbacks.invokeSafely(this.callbacks.operationSuccess, dataFrameRecord.getItem(), null);
         }
+    }
+
+    @Override
+    protected DataFrameReader<Operation> createDataFrameReader() throws DurableDataLogException {
+       return new DebugDataFrameReader<>(this.getDurableDataLog(), OperationSerializer.DEFAULT, this.getMetadata().getContainerId(), this.errorOnDataCorruption.get());
     }
 
     //endregion
@@ -140,6 +159,11 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
          * Invoked before attempting to recover an operation. Args: Operation, DataFrameEntries making up that operation.
          */
         private final BiConsumer<Operation, List<DataFrameRecord.EntryInfo>> beginRecoverOperation;
+
+        /**
+         * Invoked before doing the actual recovery of an operation to decide whether to do it or not.
+         */
+        private final Function<Operation, Boolean> allowOperationRecovery;
 
         /**
          * Invoked when an operation was successfully recovered.

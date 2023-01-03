@@ -22,9 +22,7 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.UnlockFailedException;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -32,7 +30,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -45,8 +42,6 @@ import static org.junit.Assert.assertTrue;
  */
 public abstract class TaskMetadataStoreTests {
 
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected TaskMetadataStore taskMetadataStore;
 
     private final Resource resource = new Resource("scope", "stream1");

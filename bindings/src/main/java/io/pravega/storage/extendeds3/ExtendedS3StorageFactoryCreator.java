@@ -37,7 +37,7 @@ public class ExtendedS3StorageFactoryCreator implements StorageFactoryCreator {
                     setup.getConfig(ExtendedS3StorageConfig::builder),
                     executor);
         } else {
-            return new ExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), executor);
+            throw new UnsupportedOperationException("RollingStorage is deprecated.");
         }
     }
 
@@ -47,10 +47,6 @@ public class ExtendedS3StorageFactoryCreator implements StorageFactoryCreator {
                 StorageFactoryInfo.builder()
                         .name("EXTENDEDS3")
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
-                        .build(),
-                StorageFactoryInfo.builder()
-                        .name("EXTENDEDS3")
-                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
     }

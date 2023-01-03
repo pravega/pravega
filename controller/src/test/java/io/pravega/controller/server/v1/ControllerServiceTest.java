@@ -27,6 +27,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.PravegaZkCuratorResource;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
@@ -44,6 +45,7 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -56,23 +58,22 @@ import io.pravega.test.common.AssertExtensions;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.ClassRule;
-import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -80,6 +81,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 
@@ -91,8 +93,6 @@ public class ControllerServiceTest {
     @ClassRule
     public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private static final String SCOPE = "scope";
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
@@ -281,6 +281,21 @@ public class ControllerServiceTest {
         assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
         reset(streamStore);
     }
+
+    @Test
+    public void testListCompletedTransactions() {
+        TransactionMetrics.initialize();
+        OperationContext context = streamStore.createStreamContext(SCOPE, stream1, 0L);
+        Map<UUID, TxnStatus> listResponse = new HashMap<>();
+        listResponse.put(UUID.randomUUID(), TxnStatus.ABORTED);
+        listResponse.put(UUID.randomUUID(), TxnStatus.COMMITTED);
+
+        doAnswer(x -> CompletableFuture.completedFuture(listResponse)).when(streamStore).listCompletedTxns(any(), any(), any(), any());
+
+        Map<UUID, TxnStatus> listTxns = consumer.listCompletedTxns(SCOPE, stream1, 0L).join();
+        assertEquals(listResponse.size(), listTxns.size());
+        assertTrue(listTxns.keySet().stream().collect(Collectors.toList()).contains(listResponse.keySet().stream().collect(Collectors.toList()).get(0)));
+    }
     
     @Test(timeout = 10000L)
     public void testWriterMark() {
@@ -304,5 +319,20 @@ public class ControllerServiceTest {
                 consumer.noteTimestampFromWriter(scope, stream, writerId, 100L, Collections.singletonMap(1L, 1L), 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         
+    }
+
+    @Test
+    public void testDeleteScope() {
+        String testScope = "testScope";
+        streamStore.createScope(testScope, null, executor).join();
+        StreamMetadataTasks streamMetadataTasks1 = mock(StreamMetadataTasks.class);
+        doAnswer(invocation -> {
+            CompletableFuture<Controller.DeleteScopeStatus.Status> future = new CompletableFuture<>();
+            future.complete(Controller.DeleteScopeStatus.Status.SUCCESS);
+            return future;
+        }).when(streamMetadataTasks1).deleteScopeRecursive(testScope, 123L);
+        StreamMetrics.initialize();
+        CompletableFuture<Controller.DeleteScopeStatus> future = consumer.deleteScopeRecursive(testScope, 123L);
+        future.join();
     }
 }

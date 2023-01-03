@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static javax.ws.rs.core.Response.Status.CREATED;
 
 /**
  * Remote Sequential is TestExecutor which runs the test as Mesos Task.
@@ -62,7 +62,7 @@ public class RemoteSequential implements TestExecutor {
         return CompletableFuture.runAsync(() -> {
             client.createJob(newJob(jobId, className, methodName));
             Response response = client.triggerJobRun(jobId);
-            if (response.status() != CREATED.code()) {
+            if (response.status() != CREATED.getStatusCode()) {
                 throw new TestFrameworkException(TestFrameworkException.Type.ConnectionFailed, "Error while starting " +
                         "test " + testMethod);
             } else {

@@ -15,7 +15,16 @@
  */
 package io.pravega.client.stream;
 
+import io.pravega.common.util.ByteArraySegment;
+import lombok.Cleanup;
+import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.junit.Test;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.nio.ByteBuffer;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
@@ -24,7 +33,7 @@ public class EventWriterConfigTest {
 
 
     @Test
-    public void testValidValues() {
+    public void testValidValues() throws IOException, ClassNotFoundException {
         EventWriterConfig config = EventWriterConfig.builder()
                 .automaticallyNoteTime(true)
                 .backoffMultiple(2)
@@ -34,13 +43,38 @@ public class EventWriterConfigTest {
                 .retryAttempts(3)
                 .transactionTimeoutTime(100000)
                 .build();
-        assertEquals(true, config.isAutomaticallyNoteTime());
-        assertEquals(2, config.getBackoffMultiple());
-        assertEquals(false, config.isEnableConnectionPooling());
-        assertEquals(100, config.getInitialBackoffMillis());
-        assertEquals(1000, config.getMaxBackoffMillis());
-        assertEquals(3, config.getRetryAttempts());
-        assertEquals(100000, config.getTransactionTimeoutTime());
+
+        EventWriterConfig.EventWriterConfigSerializer serializer = new EventWriterConfig.EventWriterConfigSerializer();
+        ByteArraySegment buff = serializer.serialize(config);
+        EventWriterConfig result1 = serializer.deserialize(buff);
+
+        ByteBuffer buffer = config.toBytes();
+        EventWriterConfig result2 = EventWriterConfig.fromBytes(buffer);
+
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        @Cleanup
+        ObjectOutputStream oout = new ObjectOutputStream(bout);
+        oout.writeObject(config);
+        byte[] byteArray = bout.toByteArray();
+        ObjectInputStream oin = new ObjectInputStream(new ByteArrayInputStream(byteArray));
+        Object revision = oin.readObject();
+        assertEquals(config, revision);
+
+        assertEquals(true, result1.isAutomaticallyNoteTime());
+        assertEquals(2, result1.getBackoffMultiple());
+        assertEquals(false, result1.isEnableConnectionPooling());
+        assertEquals(100, result1.getInitialBackoffMillis());
+        assertEquals(1000, result1.getMaxBackoffMillis());
+        assertEquals(3, result1.getRetryAttempts());
+        assertEquals(100000, result1.getTransactionTimeoutTime());
+
+        assertEquals(true, result2.isAutomaticallyNoteTime());
+        assertEquals(2, result2.getBackoffMultiple());
+        assertEquals(false, result2.isEnableConnectionPooling());
+        assertEquals(100, result2.getInitialBackoffMillis());
+        assertEquals(1000, result2.getMaxBackoffMillis());
+        assertEquals(3, result2.getRetryAttempts());
+        assertEquals(100000, result2.getTransactionTimeoutTime());
     }
 
     @Test

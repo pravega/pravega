@@ -24,7 +24,6 @@ import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 import javax.ws.rs.ProcessingException;
 import javax.ws.rs.client.Client;
@@ -34,20 +33,13 @@ import javax.ws.rs.core.UriBuilder;
 import org.glassfish.jersey.SslConfigurator;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
-
 import static org.junit.Assert.assertEquals;
 
 /**
  * Test for ping API.
  */
 public abstract class PingTest {
-
-    //Ensure each test completes within 30 seconds.
-    @Rule
-    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
@@ -74,7 +66,7 @@ public abstract class PingTest {
         restServer.awaitTerminated();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void test() {
         URI streamResourceURI = UriBuilder.fromPath("//localhost:" + serverConfig.getPort() + "/ping")
                                           .scheme(getURLScheme()).build();

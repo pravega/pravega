@@ -17,6 +17,7 @@ package io.pravega.segmentstore.storage.noop;
 
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.Property;
+import io.pravega.segmentstore.storage.mocks.StorageDelayDistributionType;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -28,6 +29,8 @@ public class StorageExtraConfigTest {
         StorageExtraConfig defaultConfig = StorageExtraConfig.builder().build();
         assertEquals(20, defaultConfig.getStorageWriteNoOpLatencyMillis());
         assertEquals(false, defaultConfig.isStorageNoOpMode());
+        assertEquals(false, defaultConfig.isSlowModeEnabled());
+        assertEquals(true, defaultConfig.isSlowModeInjectChunkStorageOnly());
     }
 
     @Test
@@ -42,5 +45,27 @@ public class StorageExtraConfigTest {
         ConfigBuilder<StorageExtraConfig> builder = StorageExtraConfig.builder();
         builder.with(Property.named("storageNoOpMode"), true);
         assertEquals(true, builder.build().isStorageNoOpMode());
+    }
+
+    @Test
+    public void testSlowModeEnabled() {
+        ConfigBuilder<StorageExtraConfig> builder = StorageExtraConfig.builder();
+        builder.with(Property.named("slow.enable"), true);
+        builder.with(Property.named("slow.inject.chunk.storage"), false);
+        assertEquals(true, builder.build().isSlowModeEnabled());
+        assertEquals(false, builder.build().isSlowModeInjectChunkStorageOnly());
+    }
+
+    @Test
+    public void testSlowModeProperties() {
+        ConfigBuilder<StorageExtraConfig> builder = StorageExtraConfig.builder();
+        builder.with(Property.named("slow.latency.mean.ms"), 42);
+        builder.with(Property.named("slow.latency.std.ms"), 43);
+        builder.with(Property.named("slow.latency.cycle.ms"), 44);
+        builder.with(Property.named("slow.type"), StorageDelayDistributionType.FIXED_DISTRIBUTION_TYPE);
+        assertEquals(42, builder.build().getSlowModeLatencyMeanMillis());
+        assertEquals(43, builder.build().getSlowModeLatencyStdDevMillis());
+        assertEquals(44, builder.build().getSlowModeLatencyCycleTimeMillis());
+        assertEquals(StorageDelayDistributionType.FIXED_DISTRIBUTION_TYPE, builder.build().getDistributionType());
     }
 }

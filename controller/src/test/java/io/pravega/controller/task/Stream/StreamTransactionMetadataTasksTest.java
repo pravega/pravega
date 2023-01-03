@@ -88,7 +88,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -106,9 +105,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -134,8 +131,6 @@ import static org.mockito.Mockito.verify;
 public class StreamTransactionMetadataTasksTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream1";
-    @Rule
-    public Timeout globalTimeout = new Timeout(1, TimeUnit.MINUTES);
 
     boolean authEnabled = false;
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
@@ -767,7 +762,7 @@ public class StreamTransactionMetadataTasksTest {
         txnTasks.writeAbortEvent(SCOPE, STREAM, 0, txnId, TxnStatus.ABORTING, 0L).join();
         Pair<String, AbortEvent> request = abortWriter.requestsReceived.take();
         assertEquals(request.getKey(), request.getValue().getKey());
-        txnTasks.writeAbortEvent(new AbortEvent(SCOPE, STREAM, 0, txnId)).join();
+        txnTasks.writeAbortEvent(new AbortEvent(SCOPE, STREAM, 0, txnId, 10L)).join();
         Pair<String, AbortEvent> request2 = abortWriter.requestsReceived.take();
         assertEquals(request2.getKey(), request2.getValue().getKey());
         // verify that both use the same key

@@ -23,16 +23,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryNTimes;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -43,9 +40,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class ZkOrderedStoreTest {
-    //Ensure each test completes within 30 seconds.
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     private TestingServer zkServer;
     private CuratorFramework cli;
@@ -67,7 +61,7 @@ public class ZkOrderedStoreTest {
         zkServer.close();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testStore() {
         String test = "test";
         String scope = "test";
@@ -141,7 +135,7 @@ public class ZkOrderedStoreTest {
         assertFalse(store.isDeleted(scope, stream, 2).join());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testSync() {
         String test = "test";
         String scope = "test";

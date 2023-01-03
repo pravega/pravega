@@ -29,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 /**
  * Data class for storing information about stream's subscribers.
@@ -71,6 +72,16 @@ public class StreamSubscriber {
     @SneakyThrows(IOException.class)
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "subscriber", subscriber) + "\n" +
+                String.format("%s = %s", "generation", generation) + "\n" +
+                String.format("%s = %s", "truncationStreamCut", truncationStreamCut.keySet().stream()
+                        .map(key -> key + " : " + truncationStreamCut.get(key))
+                        .collect(Collectors.joining(", ", "{", "}"))) + "\n" +
+                String.format("%s = %s", "updateTime", updateTime);
     }
     
     private static class StreamSubscriberSerializer

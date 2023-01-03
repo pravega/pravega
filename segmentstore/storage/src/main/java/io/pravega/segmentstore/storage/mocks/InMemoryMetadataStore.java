@@ -19,6 +19,8 @@ package io.pravega.segmentstore.storage.mocks;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
+import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
+import io.pravega.segmentstore.storage.metadata.StorageMetadata;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.val;
@@ -30,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * InMemoryMetadataStore stores the key-values in memory.
@@ -135,6 +138,34 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
                 }
             }
         }, getExecutor());
+    }
+
+    /**
+     * Retrieve all key-value pairs stored in this instance of {@link ChunkMetadataStore}.
+     * There is no order guarantee provided.
+     *
+     * @return A CompletableFuture that, when completed, will contain {@link Stream} of {@link StorageMetadata} entries.
+     * If the operation failed, it will be completed with the appropriate exception.
+     */
+    @Override
+    public CompletableFuture<Stream<StorageMetadata>> getAllEntries() {
+        return CompletableFuture.completedFuture(backingStore.values().stream()
+                .filter(transactionData -> transactionData != null && transactionData.getValue() != null)
+                .map(TransactionData::getValue));
+    }
+
+    /**
+     * Retrieve all keys stored in this instance of {@link ChunkMetadataStore}.
+     * There is no order guarantee provided.
+     *
+     * @return A CompletableFuture that, when completed, will contain {@link Stream} of  {@link String} keys.
+     * If the operation failed, it will be completed with the appropriate exception.
+     */
+    @Override
+    public CompletableFuture<Stream<String>> getAllKeys() {
+        return CompletableFuture.completedFuture(backingStore.values().stream()
+                .filter(transactionData -> transactionData != null && transactionData.getValue() != null)
+                .map(TransactionData::getKey));
     }
 
     /**

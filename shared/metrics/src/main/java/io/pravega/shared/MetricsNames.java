@@ -105,6 +105,8 @@ public final class MetricsNames {
     public static final String TABLE_SEGMENT_ITERATE_ENTRIES = PREFIX + "segmentstore.tablesegment.iterate_entries";       // Counter and Per-segment Counter
     public static final String TABLE_SEGMENT_GET_INFO = PREFIX + "segmentstore.tablesegment.get_info";                     // Counter and Per-segment Counter
 
+    public static final String TABLE_SEGMENT_USED_CREDITS = PREFIX + "segmentstore.tablesegment.used_credits";  // Gauge
+
     // Storage stats
     public static final String STORAGE_READ_LATENCY = PREFIX + "segmentstore.storage.read_latency_ms";     // Histogram
     public static final String STORAGE_WRITE_LATENCY = PREFIX + "segmentstore.storage.write_latency_ms";   // Histogram
@@ -154,10 +156,12 @@ public final class MetricsNames {
     public static final String SLTS_SYSTEM_READ_BYTES = PREFIX + "segmentstore.storage.slts.system_read_bytes";     // Counter
     public static final String SLTS_SYSTEM_WRITE_BYTES = PREFIX + "segmentstore.storage.slts.system_write_bytes";   // Counter
     public static final String SLTS_CONCAT_BYTES = PREFIX + "segmentstore.storage.slts.concat_bytes";      // Counter
+    public static final String SLTS_TRUNCATE_RELOCATION_BYTES = PREFIX + "segmentstore.storage.slts.truncate_relocation_bytes";      // Counter
     public static final String SLTS_CREATE_COUNT = PREFIX + "segmentstore.storage.slts.create_count";      // Counter
     public static final String SLTS_DELETE_COUNT = PREFIX + "segmentstore.storage.slts.delete_count";      // Counter
     public static final String SLTS_CONCAT_COUNT = PREFIX + "segmentstore.storage.slts.concat_count";      // Counter
     public static final String SLTS_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.truncate_count";  // Counter
+    public static final String SLTS_TRUNCATE_RELOCATION_COUNT = PREFIX + "segmentstore.storage.slts.truncate_relocation_count";  // Counter
     public static final String SLTS_SYSTEM_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.system_truncate_count"; // Counter
 
     public static final String SLTS_GC_QUEUE_SIZE = PREFIX + "segmentstore.storage.slts.GC_queue_record_count";         // Counter
@@ -174,6 +178,9 @@ public final class MetricsNames {
     public static final String SLTS_GC_SEGMENT_PROCESSED = PREFIX + "segmentstore.storage.slts.GC.segment_deleted_count";   // Counter
     public static final String SLTS_GC_SEGMENT_RETRY = PREFIX + "segmentstore.storage.slts.GC.segment_retry_count";         // Counter
     public static final String SLTS_GC_SEGMENT_FAILED = PREFIX + "segmentstore.storage.slts.GC.segment_failed_count";       // Counter
+
+    public static final String SLTS_STORAGE_USED_BYTES = PREFIX + "segmentstore.storage.used_bytes";
+    public static final String SLTS_STORAGE_USED_PERCENTAGE = PREFIX + "segmentstore.storage.used_percentage";
 
     // SLTS Metadata stats
     public static final String STORAGE_METADATA_SIZE = PREFIX + "segmentstore.storage.size.";
@@ -273,12 +280,13 @@ public final class MetricsNames {
     public static final String DELETE_KVTABLE_FAILED = PREFIX + "controller.kvtable.delete_failed";
 
     // Scope request counts
-    public static final String CREATE_SCOPE = PREFIX + "controller.scope.created";                           // Counter
-    public static final String CREATE_SCOPE_LATENCY = PREFIX + "controller.scope.created_latency_ms";        // Histogram
-    public static final String CREATE_SCOPE_FAILED = PREFIX + "controller.scope.create_failed";              // Counter and Per-scope Counter
-    public static final String DELETE_SCOPE = PREFIX + "controller.scope.deleted";                           // Counter
-    public static final String DELETE_SCOPE_LATENCY = PREFIX + "controller.scope.deleted_latency_ms";        // Histogram
-    public static final String DELETE_SCOPE_FAILED = PREFIX + "controller.scope.delete_failed";              // Counter and Per-scope Counter
+    public static final String CREATE_SCOPE = PREFIX + "controller.scope.created";                                              // Counter
+    public static final String CREATE_SCOPE_LATENCY = PREFIX + "controller.scope.created_latency_ms";                           // Histogram
+    public static final String CREATE_SCOPE_FAILED = PREFIX + "controller.scope.create_failed";                                 // Counter and Per-scope Counter
+    public static final String DELETE_SCOPE = PREFIX + "controller.scope.deleted";                                              // Counter
+    public static final String DELETE_SCOPE_LATENCY = PREFIX + "controller.scope.deleted_latency_ms";                           // Histogram
+    public static final String DELETE_SCOPE_FAILED = PREFIX + "controller.scope.delete_failed";                                 // Counter and Per-scope Counter
+    public static final String DELETE_SCOPE_RECURSIVE_FAILED = PREFIX + "controller.scope.recursive_delete_failed";              // Counter and Per-scope Counter
 
     // Stream request counts
     public static final String CREATE_STREAM = PREFIX + "controller.stream.created";                         // Counter
@@ -308,6 +316,21 @@ public final class MetricsNames {
     public static final String UPDATE_SUBSCRIBER = PREFIX + "controller.stream.update_subscriber_streamcut";                     // Counter and Per-stream Counter
     public static final String UPDATE_SUBSCRIBER_LATENCY = PREFIX + "controller.stream.update_subscriber_streamcut_latency_ms";  // Histogram
     public static final String UPDATE_SUBSCRIBER_FAILED = PREFIX + "controller.stream.update_subscriber_streamcut_failed";        // Counter and Per-stream Counter
+
+    // Controller EventProcessor framework event's latency Metrics
+    public static final String CONTROLLER_EVENT_PROCESSOR_DELETE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.deleteStream.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_UPDATE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.updateStream.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_SEAL_STREAM_LATENCY = PREFIX + "controller.eventProcessors.sealStream.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.truncateStream.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.scaleStream.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_AUTO_SCALE_STREAM_LATENCY = PREFIX + "controller.eventProcessors.autoScale.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY = PREFIX + "controller.eventProcessors.deleteScope.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY = PREFIX + "controller.eventProcessors.createReaderGroup.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY = PREFIX + "controller.eventProcessors.deleteReaderGroup.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY = PREFIX + "controller.eventProcessors.updateReaderGroup.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY = PREFIX + "controller.eventProcessors.createTable.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY = PREFIX + "controller.eventProcessors.deleteTable.write_latency_ms";      // Histogram
+    public static final String CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_LATENCY = PREFIX + "controller.eventProcessors.transactions.commit.write_latency_ms";      // Histogram
 
     // Transaction request Operations
     public static final String CREATE_TRANSACTION = PREFIX + "controller.transactions.created";                                         // Counter and Per-stream Counter

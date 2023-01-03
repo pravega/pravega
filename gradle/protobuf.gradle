@@ -41,7 +41,7 @@ plugins.withId('com.google.protobuf') {
     }
 
     dependencies {
-        compile group: 'io.grpc', name: 'grpc-netty', version: grpcVersion
+        compile group: 'io.grpc', name: 'grpc-netty-shaded', version: grpcVersion
         compile group: 'io.grpc', name: 'grpc-protobuf', version: grpcVersion
         compile group: 'io.grpc', name: 'grpc-stub', version: grpcVersion
         // override grpc's transitive protobuf version with allprojects' force-upgraded version

@@ -120,7 +120,7 @@ public class ReaderGroupState implements Revisioned {
         this.endSegments = ImmutableMap.copyOf(endSegments);
         this.updatingConfig = updatingConfig;
     }
-    
+
     /**
      * @return A map from Reader to a relative measure of how much data they have to process. The
      *         scale is calibrated to where 1.0 is equal to the largest segment.

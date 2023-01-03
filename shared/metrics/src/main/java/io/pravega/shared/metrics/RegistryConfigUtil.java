@@ -18,6 +18,7 @@ package io.pravega.shared.metrics;
 import io.micrometer.influx.InfluxConfig;
 import io.micrometer.statsd.StatsdConfig;
 import io.micrometer.statsd.StatsdFlavor;
+import io.micrometer.prometheus.PrometheusConfig;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -116,4 +117,31 @@ public class RegistryConfigUtil {
             }
         };
     }
+
+    /**
+     * Create PrometheusConfig for Prometheus Register.
+     *
+     * @param conf The metric config from Pravega.
+     * @return     An instance of PrometheusConfig to be used by Prometheus register.
+     */
+    public static PrometheusConfig createPrometheusConfig(MetricsConfig conf) {
+        log.info("Configuring stats with prometheus");
+        return new PrometheusConfig() {
+            @Override
+            public Duration step() {
+                return Duration.ofSeconds(conf.getOutputFrequencySeconds().getSeconds());
+            }
+
+            @Override
+            public String prefix() {
+                return conf.getMetricsPrefix();
+            }
+
+            @Override
+            public String get(String k) {
+                return null;  // accept the rest of the defaults
+            }
+        };
+    }
+
 }

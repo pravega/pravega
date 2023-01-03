@@ -41,8 +41,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import static io.pravega.shared.MetricsTags.containerTag;
-import static io.pravega.shared.MetricsTags.throttlerTag;
+import static io.pravega.shared.MetricsTags.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
@@ -216,7 +215,7 @@ public class SegmentStoreMetricsTests {
     }
 
     @Test
-    public void testOperationProcessorMetrics() {
+    public void testOperationProcessorMetrics() throws Exception {
         int containerId = 1;
         final String[] containerTag = containerTag(containerId);
         @Cleanup
@@ -231,16 +230,17 @@ public class SegmentStoreMetricsTests {
                 new TestCompletableOperation(30));
         op.operationsFailed(opf);
         assertEquals(20, (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_LATENCY, containerTag).totalTime(TimeUnit.MILLISECONDS));
-
-        assertEquals(3, (int) MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag).count());
-        op.operationLogRead(1);
-        assertEquals(2, (int) MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag).count());
-
-        op.operationLogInit();
-        assertEquals(0, (int) MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag).count());
-
+        op.reportOperationLogSize(1000, containerId);
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getGauge(MetricsNames.OPERATION_LOG_SIZE, containerTag(containerId)).value() == 1000, 2000);
         op.close();
-        assertNull(MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag));
+        assertNull(MetricRegistryUtils.getGauge(MetricsNames.OPERATION_LOG_SIZE, containerTag));
+    }
+
+    @Test
+    public void testTableSegmentCreditsMetrics() throws Exception {
+        String segmentName = "_system/test/segment";
+        SegmentStoreMetrics.tableSegmentUsedCredits(segmentName, 100);
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getGauge(MetricsNames.TABLE_SEGMENT_USED_CREDITS, TAG_SEGMENT, segmentName).value() == 100, 2000);
     }
 
     private static class TestCompletableOperation extends CompletableOperation {

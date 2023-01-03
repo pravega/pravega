@@ -45,6 +45,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.spy;
 
 public class ClientConnectionTest {
 
@@ -320,4 +321,24 @@ public class ClientConnectionTest {
         Assert.assertEquals(2, clientConnection.getConnectionReaderFlowToBatchSizeTracker().getFlowToBatchSizeTrackerMap().size());
     }
 
+    @Test
+    public void testGetLocation() throws Exception {
+        ClientConnectionTest.ReplyProcessor processor = new ClientConnectionTest.ReplyProcessor();
+        @Cleanup
+        MockServer server = new MockServer();
+        server.start();
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
+        @Cleanup
+        TcpClientConnection clientConnection = TcpClientConnection
+                .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
+                .join();
+        Assert.assertEquals("localhost", clientConnection.getLocation().getEndpoint());
+    }
+
+    @Test
+    public void testGetLocationWithSpy() {
+        ClientConnection mockConnection = spy(ClientConnection.class);
+        assertNull("location returned is not null!", mockConnection.getLocation());
+    }
 }

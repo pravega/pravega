@@ -20,3 +20,6 @@
 io.pravega.storage.filesystem.FileSystemStorageFactoryCreator
 io.pravega.storage.hdfs.HDFSStorageFactoryCreator
 io.pravega.storage.extendeds3.ExtendedS3StorageFactoryCreator
+io.pravega.storage.s3.S3StorageFactoryCreator
+io.pravega.storage.gcp.GCPStorageFactoryCreator
+io.pravega.storage.azure.AzureStorageFactoryCreator

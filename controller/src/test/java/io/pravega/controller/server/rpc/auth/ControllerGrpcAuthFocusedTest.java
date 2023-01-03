@@ -28,6 +28,17 @@ import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteScopeTask;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.Credentials;
 import io.pravega.shared.security.auth.DefaultCredentials;
@@ -45,20 +56,10 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.controller.server.security.auth.handler.AuthInterceptor;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.authplugin.basic.PasswordAuthHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
@@ -97,15 +98,12 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.junit.rules.Timeout;
+import org.junit.Assert;
 
 import static io.pravega.auth.AuthFileUtils.credentialsAndAclAsString;
 
@@ -134,16 +132,8 @@ public class ControllerGrpcAuthFocusedTest {
     private final static String DEFAULT_PASSWORD = "1111_aaaa";
 
     /**
-     * This rule makes sure that the tests in this class run in 10 seconds or less.
-     */
-    @Rule
-    public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
-
-    /**
      * This rule is used later to expect both the exception class and the message.
      */
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
 
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
@@ -196,6 +186,7 @@ public class ControllerGrpcAuthFocusedTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, EXECUTOR),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, EXECUTOR),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, kvtMetadataTasks, EXECUTOR),
                 EXECUTOR);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, EXECUTOR));
@@ -263,7 +254,7 @@ public class ControllerGrpcAuthFocusedTest {
         TransactionMetrics.reset();
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void createScopeSucceedsForPrivilegedUser() {
         //Arrange
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
@@ -276,35 +267,31 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(CreateScopeStatus.Status.SUCCESS, status.getStatus());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void createScopeFailsForUnauthorizedUser() {
         //Arrange
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStub(UserNames.SCOPE_READER, DEFAULT_PASSWORD);
 
-        //Verify
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("PERMISSION_DENIED");
-
-        //Act
-        blockingStub.createScope(Controller.ScopeInfo.newBuilder().setScope("dummy").build());
+        //Verify & Act
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class, () -> blockingStub.createScope(Controller.ScopeInfo.newBuilder().setScope("dummy").build()));
+        assertTrue(exception.getMessage().contains("PERMISSION_DENIED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void createScopeFailsForNonExistentUser() {
         //Arrange
         ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStub("whatever", "whatever");
 
-        //Verify
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("UNAUTHENTICATED");
+        //Verify & Act
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> blockingStub.createScope(Controller.ScopeInfo.newBuilder().setScope("dummy").build()));
+        assertTrue(exception.getMessage().contains("UNAUTHENTICATED"));
 
-        //Act
-        blockingStub.createScope(Controller.ScopeInfo.newBuilder().setScope("dummy").build());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void createReaderGroupSucceedsForPrivilegedUserInStrictCase() {
         //Arrange
         String scope = "scope1";
@@ -321,7 +308,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, status.getStatus());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void createReaderGroupSucceedsForLowerPrivilegedUser() {
         //Arrange
         String scope = "scope1";
@@ -338,7 +325,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, status.getStatus());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void createReaderGroupFailsForLowerPrivilegedUserInStrictCase() {
         //Arrange
         String scope = "scope1";
@@ -348,15 +335,13 @@ public class ControllerGrpcAuthFocusedTest {
                 prepareBlockingCallStubStrict(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
 
-        //Verify
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("PERMISSION_DENIED");
-
-        //Act
-        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
+        //Verify & Act
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> blockingStub.createReaderGroup(config));
+        assertTrue(exception.getMessage().contains("PERMISSION_DENIED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void createReaderGroupFailsForUnauthorizedUser() {
         //Arrange
         String scope = "test";
@@ -366,15 +351,13 @@ public class ControllerGrpcAuthFocusedTest {
                 prepareBlockingCallStub(UserNames.SCOPE_READER, DEFAULT_PASSWORD);
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
 
-        //Verify
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("PERMISSION_DENIED");
-
-        //Act
-        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
+        //Verify & Act
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> blockingStub.createReaderGroup(config));
+        assertTrue(exception.getMessage().contains("PERMISSION_DENIED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void createReaderGroupFailsForNonExistentUser() {
         //Arrange
         String scope = "test";
@@ -384,15 +367,13 @@ public class ControllerGrpcAuthFocusedTest {
                 prepareBlockingCallStub("whatever", "whatever");
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
 
-        //Verify
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("UNAUTHENTICATED");
-
-        //Act
-        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
+        //Verify & Act
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> blockingStub.createReaderGroup(config));
+        assertTrue(exception.getMessage().contains("UNAUTHENTICATED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void deleteReaderGroupSucceedsForPrivilegedUserInStrictCase() {
         //Arrange
         String scope = "scope1";
@@ -413,7 +394,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(Controller.DeleteReaderGroupStatus.Status.SUCCESS, status.getStatus());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void deleteReaderGroupSucceedsForLowerPrivilegedUser() {
         //Arrange
         String scope = "scope1";
@@ -434,7 +415,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(Controller.DeleteReaderGroupStatus.Status.SUCCESS, status.getStatus());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void deleteReaderGroupFailsForLowerPrivilegedUserInStrictCase() {
         //Arrange
         String scope = "scope1";
@@ -443,16 +424,14 @@ public class ControllerGrpcAuthFocusedTest {
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStubStrict(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
 
-        //Verify
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("PERMISSION_DENIED");
-
-        //Act
-        Controller.DeleteReaderGroupStatus status = blockingStub.deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope,
-                "group", UUID.randomUUID().toString(), 0));
+        //Verify & Act
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> blockingStub.deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope,
+                        "group", UUID.randomUUID().toString(), 0)));
+        assertTrue(exception.getMessage().contains("PERMISSION_DENIED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void deleteReaderGroupFailsForUnauthorizedUser() {
         //Arrange
         String scope = "test";
@@ -461,16 +440,14 @@ public class ControllerGrpcAuthFocusedTest {
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStub(UserNames.SCOPE_READER, DEFAULT_PASSWORD);
 
-        //Verify
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("PERMISSION_DENIED");
-
-        //Act
-        Controller.DeleteReaderGroupStatus status = blockingStub.deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope,
-                "group", UUID.randomUUID().toString(), 0));
+        //Verify & Act
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> blockingStub.deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope,
+                        "group", UUID.randomUUID().toString(), 0)));
+        assertTrue(exception.getMessage().contains("PERMISSION_DENIED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void deleteReaderGroupFailsForNonExistentUser() {
         //Arrange
         String scope = "test";
@@ -479,16 +456,14 @@ public class ControllerGrpcAuthFocusedTest {
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStub("whatever", "whatever");
 
-        //Verify
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("UNAUTHENTICATED");
-
-        //Act
-        Controller.DeleteReaderGroupStatus status = blockingStub.deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope,
-                "group", UUID.randomUUID().toString(), 0));
+        //Verify & Act
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> blockingStub.deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope,
+                        "group", UUID.randomUUID().toString(), 0)));
+        assertTrue(exception.getMessage().contains("UNAUTHENTICATED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void updateReaderGroupSucceedsForPrivilegedUserInStrictCase() {
         //Arrange
         String scope = "scope1";
@@ -514,7 +489,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(Controller.UpdateReaderGroupResponse.Status.SUCCESS, status.getStatus());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void updateReaderGroupSucceedsForLowerPrivilegedUser() {
         //Arrange
         String scope = "scope1";
@@ -541,7 +516,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(Controller.UpdateReaderGroupResponse.Status.SUCCESS, status.getStatus());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void updateReaderGroupFailsForLowerPrivilegedUserInStrictCase() {
         //Arrange
         String scope = "scope1";
@@ -555,15 +530,13 @@ public class ControllerGrpcAuthFocusedTest {
         rgConfig = ReaderGroupConfig.cloneConfig(rgConfig, rgId, 0L);
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", rgConfig);
 
-        //Verify
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("PERMISSION_DENIED");
-
-        //Act
-        Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
+        //Verify & Act
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> blockingStub.updateReaderGroup(config));
+        assertTrue(exception.getMessage().contains("PERMISSION_DENIED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void updateReaderGroupFailsForUnauthorizedUser() {
         //Arrange
         String scope = "test";
@@ -574,15 +547,13 @@ public class ControllerGrpcAuthFocusedTest {
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group",
                 ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
 
-        //Verify
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("PERMISSION_DENIED");
-
-        //Act
-        Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
+        //Verify & Act
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> blockingStub.updateReaderGroup(config));
+        assertTrue(exception.getMessage().contains("PERMISSION_DENIED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void updateReaderGroupFailsForNonExistentUser() {
         //Arrange
         String scope = "test";
@@ -593,15 +564,13 @@ public class ControllerGrpcAuthFocusedTest {
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group",
                 ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
 
-        //Verify
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("UNAUTHENTICATED");
-
-        //Act
-        Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
+        //Verify & Act
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> blockingStub.updateReaderGroup(config));
+        assertTrue(exception.getMessage().contains("UNAUTHENTICATED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void getUriSucceedsForPrivilegedUser() {
         String scope = "scope1";
         String stream = "stream1";
@@ -622,7 +591,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(12345, nodeUri2.getPort());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void getUriFailsForNonExistentUser() {
         String scope = "scope1";
         String stream = "stream1";
@@ -631,15 +600,13 @@ public class ControllerGrpcAuthFocusedTest {
         createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
         ControllerServiceBlockingStub stub = prepareBlockingCallStub("nonexistentuser", "whatever");
 
-        //Verify
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("UNAUTHENTICATED");
-
-        //Act
-        NodeUri nodeUri1 = stub.getURI(segmentId(scope, stream, 0));
+        //Verify & Act
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> stub.getURI(segmentId(scope, stream, 0)));
+        assertTrue(exception.getMessage().contains("UNAUTHENTICATED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void isSegmentValidSucceedsForAuthorizedUser() {
         String scope = "scope1";
         String stream = "stream1";
@@ -650,7 +617,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertFalse(stub.isSegmentValid(segmentId(scope, stream, 3)).getResponse());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void isSegmentValidFailsForUnauthorizedUser() {
         String scope = "scope1";
         String stream = "stream1";
@@ -660,14 +627,12 @@ public class ControllerGrpcAuthFocusedTest {
         ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.SCOPE1_STREAM2_READ, DEFAULT_PASSWORD);
 
         //Set the expected exception
-        thrown.expect(StatusRuntimeException.class);
-        //thrown.expectMessage();
-        thrown.expectMessage("PERMISSION_DENIED");
-
-        stub.isSegmentValid(segmentId(scope, stream, 0));
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> stub.isSegmentValid(segmentId(scope, stream, 0)));
+        assertTrue(exception.getMessage().contains("PERMISSION_DENIED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void pingTransactionSucceedsForAuthorizedUser() {
         String scope = "scope1";
         String stream = "stream1";
@@ -685,7 +650,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(PingTxnStatus.Status.OK, status.getStatus());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void pingTransactionFailsForUnAuthorizedUser() {
         String scope = "scope1";
         String stream = "stream1";
@@ -696,17 +661,16 @@ public class ControllerGrpcAuthFocusedTest {
         ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.SCOPE1_STREAM1_READ, DEFAULT_PASSWORD);
 
         //Set the expected exception
-        thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("PERMISSION_DENIED");
-
-        PingTxnStatus status = stub.pingTransaction(Controller.PingTxnRequest.newBuilder()
-                .setStreamInfo(StreamInfo.newBuilder().setScope(scope).setStream(stream).build())
-                .setTxnId(transactionId)
-                .setLease(1000)
-                .build());
+        StatusRuntimeException exception = Assert.assertThrows(StatusRuntimeException.class,
+                () -> stub.pingTransaction(Controller.PingTxnRequest.newBuilder()
+                        .setStreamInfo(StreamInfo.newBuilder().setScope(scope).setStream(stream).build())
+                        .setTxnId(transactionId)
+                        .setLease(1000)
+                        .build()));
+        assertTrue(exception.getMessage().contains("PERMISSION_DENIED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void listScopes() {
         // Arrange
         ControllerServiceBlockingStub stub =
@@ -741,7 +705,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals("3", response.getContinuationToken().getToken());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void listStreamsReturnsAllWhenUserHasWildCardAccessUsingBlockingStub() {
         // Arrange
         String scopeName = "scope1";
@@ -761,7 +725,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(2, response.getStreamsList().size());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void listStreamsReturnsAllWhenUserHasWildCardAccessUsingAsyncStub() {
         // Arrange
         String scopeName = "scope1";
@@ -782,7 +746,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(2, streamsInResponse.size());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void listStreamReturnsEmptyResultWhenUserHasNoAccessToStreams() {
         // Arrange
         createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
@@ -800,7 +764,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(0, response.getStreamsList().size());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void listStreamFiltersResultWhenUserHasAccessToSubsetOfStreams() {
         // Arrange
         String scope = "scope1";
@@ -831,7 +795,7 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(2, response.getStreamsList().size());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void listStreamThrowsExceptionWhenUserHasNoAccessToScope() {
         // Arrange
         createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
@@ -849,7 +813,7 @@ public class ControllerGrpcAuthFocusedTest {
                 e -> e.getMessage().contains("PERMISSION_DENIED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void listStreamThrowsExceptionWhenUserIsNonExistent() {
         // Arrange
         createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
@@ -867,7 +831,7 @@ public class ControllerGrpcAuthFocusedTest {
                 e -> e.getMessage().contains("UNAUTHENTICATED"));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void listKVTFiltersResultWhenUserHasAccessToSubsetOfTables() {
         // Arrange
         String scope = "scope1";

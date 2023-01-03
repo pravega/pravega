@@ -33,6 +33,29 @@ public interface DurableDataLogFactory extends AutoCloseable {
      */
     void initialize() throws DurableDataLogException;
 
+    /**
+     * Creates a new DebugDurableDataLogWrapper that can be used for debugging and administration purposes. This should
+     * not be used for regular operations.
+     *
+     * @param logId Id of the Log to create a wrapper for.
+     * @return A new instance of the DebugDurableDataLogWrapper class.
+     */
+    DebugDurableDataLogWrapper createDebugLogWrapper(int logId);
+
+    /**
+     * Provides the reserved id for the Repair Log used for repair and data recovery purposes.
+     *
+     * @return Reserved log id for Repair Log.
+     */
+    int getRepairLogId();
+
+    /**
+     * Provides the reserved id for the Backup Log used for repair and data recovery purposes.
+     *
+     * @return Reserved log id for Backup Log.
+     */
+    int getBackupLogId();
+
     @Override
     void close();
 }

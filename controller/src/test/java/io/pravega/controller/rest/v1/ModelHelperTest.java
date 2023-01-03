@@ -25,12 +25,9 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import java.time.Duration;
-import java.util.concurrent.TimeUnit;
 
 import static io.pravega.controller.server.rest.ModelHelper.encodeStreamResponse;
 import static io.pravega.controller.server.rest.ModelHelper.getCreateStreamConfig;
@@ -41,11 +38,7 @@ import static io.pravega.controller.server.rest.ModelHelper.getUpdateStreamConfi
  */
 public class ModelHelperTest {
 
-    //Ensure each test completes within 10 seconds.
-    @Rule
-    public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
-
-    @Test
+    @Test(timeout = 10000)
     public void testGetCreateStreamConfig() {
         ScalingConfig scalingConfig = new ScalingConfig();
         scalingConfig.setType(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS);
@@ -202,7 +195,7 @@ public class ModelHelperTest {
 
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testGetUpdateStreamConfig() {
         ScalingConfig scalingConfig = new ScalingConfig();
         scalingConfig.setType(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS);
@@ -260,7 +253,7 @@ public class ModelHelperTest {
         Assert.assertEquals(12345L * 1024 * 1024, streamConfig.getRetentionPolicy().getRetentionParam());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testEncodeStreamResponse() {
         StreamConfiguration streamConfig = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))

@@ -381,6 +381,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Call concrete implementation.
         val returnFuture = doWriteAsync(handle, offset, length, data, opContext);
         returnFuture.thenAcceptAsync(bytesWritten -> {
+            Preconditions.checkState(bytesWritten == length, "Wrong number of bytes written. Expected(%s) Actual(%s)", length, bytesWritten);
             val elapsed = opContext.getInclusiveLatency();
 
             ChunkStorageMetrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
@@ -404,6 +405,9 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      */
     @Override
     final public CompletableFuture<Integer> concat(ConcatArgument[] chunks) {
+        if (!supportsConcat()) {
+            throw new UnsupportedOperationException("Chunk storage does not support doConcat");
+        }
         Exceptions.checkNotClosed(this.closed.get(), this);
         checkConcatArgs(chunks);
 
@@ -502,6 +506,28 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         val returnFuture = doSetReadOnlyAsync(handle, isReadonly, opContext);
         if (log.isTraceEnabled()) {
             returnFuture.thenAcceptAsync(v -> LoggerHelpers.traceLeave(log, "setReadOnly", traceId, handle.getChunkName()), executor);
+        }
+        return returnFuture;
+    }
+
+    /**
+     * Get used space in bytes.
+     *
+     * @return Return the total size of storage used in bytes. 0 should be returned if not supported.
+     * If the operation failed, it will contain the cause of the failure.
+     * @throws CompletionException           If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                       {@link ChunkStorageException} In case of I/O related exceptions.
+     */
+    final public CompletableFuture<Long> getUsedSpace() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+
+        val traceId = LoggerHelpers.traceEnter(log, "getUsedSpace");
+
+        // Call concrete implementation.
+        val opContext = new OperationContext();
+        val returnFuture = doGetUsedSpaceAsync(opContext);
+        if (log.isTraceEnabled()) {
+            returnFuture.thenAcceptAsync(v -> LoggerHelpers.traceLeave(log, "getUsedSpace", traceId), executor);
         }
         return returnFuture;
     }
@@ -682,6 +708,18 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
     protected CompletableFuture<Boolean> doTruncateAsync(ChunkHandle handle, long offset, OperationContext opContext) {
         throw new UnsupportedOperationException();
     }
+
+    /**
+     * Get used space in bytes.
+     *
+     * @param opContext Context for the given operation.
+     * @return A CompletableFuture that, when completed, will return the total size of storage used in bytes.
+     *         0 will be returned if not supported.
+     * If the operation failed, it will contain the cause of the failure.
+     * @throws CompletionException           If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                       {@link ChunkStorageException} In case of I/O related exceptions.
+     */
+    abstract protected CompletableFuture<Long> doGetUsedSpaceAsync(OperationContext opContext);
 
     /**
      * Validate chunk name.

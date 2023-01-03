@@ -41,6 +41,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 
 import static io.pravega.common.util.CertificateUtils.createTrustStore;
+import static javax.ws.rs.core.Response.Status.NO_CONTENT;
 import static javax.ws.rs.core.Response.Status.OK;
 import static javax.ws.rs.core.Response.Status.UNAUTHORIZED;
 
@@ -56,7 +57,7 @@ public abstract class ControllerCommand extends AdminCommand {
      *
      * @param args The arguments for the command.
      */
-    ControllerCommand(CommandArgs args) {
+    public ControllerCommand(CommandArgs args) {
         super(args);
     }
 
@@ -107,18 +108,40 @@ public abstract class ControllerCommand extends AdminCommand {
      * @return Response for the REST call.
      */
     String executeRESTCall(Context context, String requestURI) {
-        Invocation.Builder builder;
-        String resourceURL = getCLIControllerConfig().getControllerRestURI() + requestURI;
-        WebTarget webTarget = context.client.target(resourceURL);
-        builder = webTarget.request();
-        Response response = builder.get();
+        Response response = getInvocationBuilder(context, requestURI).get();
         printResponseInfo(response);
         return response.readEntity(String.class);
     }
 
+    /**
+     * Generic method to execute a delete request against the Controller and get the response.
+     *
+     * @param context Controller command context.
+     * @param requestURI URI to execute the request against.
+     * @return Response for the REST call.
+     */
+    protected String executeDeleteRESTCall(Context context, String requestURI) {
+        Response response = getInvocationBuilder(context, requestURI).delete();
+        printResponseInfo(response);
+        return response.readEntity(String.class);
+    }
+
+    /**
+     * Method to get invocationBuilder to execute rest api.
+     *
+     * @param context       Controller command context.
+     * @param requestURI    URI to execute the request against.
+     * @return              InvocationBuilder object.
+     */
+    private Invocation.Builder getInvocationBuilder(final Context context, final String requestURI) {
+        String resourceURL = getCLIControllerConfig().getControllerRestURI() + requestURI;
+        WebTarget webTarget = context.client.target(resourceURL);
+        return webTarget.request();
+    }
+
     @VisibleForTesting
     void printResponseInfo(Response response) {
-        if (OK.getStatusCode() == response.getStatus()) {
+        if (OK.getStatusCode() == response.getStatus() || NO_CONTENT.getStatusCode() == response.getStatus()) {
             output("Successful REST request.");
         } else if (UNAUTHORIZED.getStatusCode() == response.getStatus()) {
             output("Unauthorized REST request. You may need to set the user/password correctly.");

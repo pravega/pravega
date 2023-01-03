@@ -18,6 +18,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventPointer;
+import io.pravega.client.stream.Stream;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -35,7 +36,7 @@ import lombok.SneakyThrows;
  * class to make pointer instances opaque.
  */
 @EqualsAndHashCode(callSuper = false)
-public class EventPointerImpl extends EventPointerInternal {
+public final class EventPointerImpl extends EventPointerInternal {
     private static final EventPointerSerializer SERIALIZER = new EventPointerSerializer();
     private final Segment segment;
     private final long eventStartOffset;
@@ -132,4 +133,10 @@ public class EventPointerImpl extends EventPointerInternal {
     public static EventPointerInternal fromBytes(ByteBuffer data) {
         return SERIALIZER.deserialize(new ByteArraySegment(data));
     }
+
+    @Override
+    public Stream getStream() {
+        return Stream.of(segment.getScope(), segment.getStreamName());
+    }
+
 }

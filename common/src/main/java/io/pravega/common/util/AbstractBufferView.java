@@ -16,7 +16,6 @@
 package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.hash.HashHelper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -31,26 +30,11 @@ import lombok.Getter;
  */
 public abstract class AbstractBufferView implements BufferView {
     static final BufferView EMPTY = new EmptyBufferView();
-    private static final HashHelper HASH = HashHelper.seededWith(AbstractBufferView.class.getName());
 
-    /**
-     * Generates a hash code for the given array. This hash code is identical to that of a {@link BufferView} containing
-     * the same data as in this byte array.
-     *
-     * @param array The array to generate hash code for.
-     * @return The hash code.
-     */
-    public static int hashCode(byte[] array) {
-        HashHelper.HashBuilder builder = HASH.newBuilder();
-        builder.put(ByteBuffer.wrap(array));
-        return builder.getAsInt();
-    }
 
     @Override
     public int hashCode() {
-        HashHelper.HashBuilder builder = HASH.newBuilder();
-        collect(builder::put);
-        return builder.getAsInt();
+        return (int) hash();
     }
 
     @Override
@@ -236,7 +220,7 @@ public abstract class AbstractBufferView implements BufferView {
             }
         }
 
-        private static class EmptyReader extends AbstractReader {
+        private static final class EmptyReader extends AbstractReader {
             @Override
             public int available() {
                 return 0;

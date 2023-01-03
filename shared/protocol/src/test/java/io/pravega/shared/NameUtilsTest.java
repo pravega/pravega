@@ -199,4 +199,32 @@ public class NameUtilsTest {
     public void testGetEventProcessorSegmentName() {
         Assert.assertEquals(NameUtils.getEventProcessorSegmentName(0, "test"), "_system/containers/event_processor_test_0");
     }
+
+    @Test
+    public void testIsTransientSegment() {
+        Assert.assertFalse(NameUtils.isTransientSegment(""));
+        Assert.assertTrue(NameUtils.isTransientSegment(getSegmentName("#transient.")));
+        Assert.assertFalse(NameUtils.isTransientSegment("scope/stream/transientSegment"));
+        Assert.assertTrue(NameUtils.isTransientSegment("#transient.01234567890123456789012345678901"));
+        Assert.assertFalse(NameUtils.isTransientSegment("#transient"));
+    }
+
+    @Test
+    public void testTransientAndTransactionConflicts() {
+        String transientSegmentName = getSegmentName("#transient.");
+        String transactionSegmentName = getSegmentName("#transaction.");
+        // First validate they are valid formats themselves, then ensure each naming convention can't be confused for the other.
+        Assert.assertTrue(NameUtils.isTransactionSegment(transactionSegmentName) && !NameUtils.isTransientSegment(transactionSegmentName));
+        Assert.assertTrue(NameUtils.isTransientSegment(transientSegmentName) && !NameUtils.isTransactionSegment(transientSegmentName));
+    }
+
+    private String getSegmentName(String delimiter) {
+        return String.format("scope/stream/transactionSegment%s01234567890123456789012345678901", delimiter);
+    }
+
+    @Test
+    public void testGetConnectionDetails() {
+        Assert.assertEquals("localhost", NameUtils.getConnectionDetails("localhost :12345")[0].trim());
+        Assert.assertEquals("12345", NameUtils.getConnectionDetails("localhost :12345")[1].trim());
+    }
 }

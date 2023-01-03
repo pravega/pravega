@@ -54,6 +54,8 @@ public interface RequestProcessor {
     void createSegment(CreateSegment createSegment);
 
     void mergeSegments(MergeSegments mergeSegments);
+    
+    void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments);
 
     void sealSegment(SealSegment sealSegment);
 
@@ -82,4 +84,8 @@ public interface RequestProcessor {
     void readTableEntries(WireCommands.ReadTableEntries readTableEntries);
 
     void readTableEntriesDelta(WireCommands.ReadTableEntriesDelta readTableEntriesDelta);
+
+    void createTransientSegment(WireCommands.CreateTransientSegment createTransientSegment);
+
+    void connectionDropped();
 }

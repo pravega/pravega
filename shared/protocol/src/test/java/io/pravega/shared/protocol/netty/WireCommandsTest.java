@@ -15,6 +15,7 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import com.google.common.collect.ImmutableList;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.io.ByteBufferOutputStream;
@@ -46,6 +47,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class WireCommandsTest extends LeakDetectorTestSuite {
 
@@ -493,7 +496,50 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         InvalidEventNumberV5 commandV5 = new InvalidEventNumberV5(uuid, i);
         commandV5.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.InvalidEventNumber(uuid, i, ""));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.InvalidEventNumber(uuid, i, "", b));
+    }
+
+    @Data
+    public static final class InvalidEventNumberV15 implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.INVALID_EVENT_NUMBER;
+        final UUID writerId;
+        final long eventNumber;
+        final String serverStackTrace;
+
+        @Override
+        public void process(ReplyProcessor cp) {}
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeUTF(serverStackTrace);
+        }
+
+        @Override
+        public String toString() {
+            return "Invalid event number: " + eventNumber + " for writer: " + writerId;
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
+    }
+
+    @Test
+    public void testCompatibilityInvalidEventNumberV15() throws IOException {
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        InvalidEventNumberV15 commandV5 = new InvalidEventNumberV15(uuid, i, "");
+        commandV5.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.InvalidEventNumber(uuid, i, "", b));
     }
 
     @Data
@@ -559,6 +605,17 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testStorageFlushed() throws IOException {
         testCommand(new WireCommands.StorageFlushed(l));
+    }
+
+    @Test
+    public void testListStorageChunks() throws IOException {
+        testCommand(new WireCommands.ListStorageChunks(testString1, "", l));
+    }
+
+    @Test
+    public void testStorageChunksListed() throws IOException {
+        List<WireCommands.ChunkInfo> chunks = Collections.singletonList(new WireCommands.ChunkInfo(l, l, l, testString1, false));
+        testCommand(new WireCommands.StorageChunksListed(l, chunks));
     }
 
     @Test
@@ -632,6 +689,29 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testSegmentCreated() throws IOException {
         testCommand(new WireCommands.SegmentCreated(l, testString1));
+    }
+
+    @Test
+    public void testCreateTransientSegment() throws IOException {
+        RequestProcessor rp = mock(RequestProcessor.class);
+        WireCommands.CreateTransientSegment cmd = new WireCommands.CreateTransientSegment(l, new UUID(0, 0), testString1, "");
+        cmd.process(rp);
+        verify(rp, times(1)).createTransientSegment(cmd);
+        testCommand(cmd);
+    }
+
+    @Test
+    public void testMergeSegmentsBatch() throws IOException {
+        List<String> txnSegmentIds = ImmutableList.of("txn1seg0", "txn2seg0");
+        String streamSegmentId = "seg0";
+        testCommand(new WireCommands.MergeSegmentsBatch(l, streamSegmentId, txnSegmentIds, ""));
+    }
+
+    @Test
+    public void testSegmentsBatchMerged() throws IOException {
+        List<String> txnSegmentIds = ImmutableList.of("txn1seg0", "txn2seg0");
+        String streamSegmentId = "seg0";
+        testCommand(new WireCommands.SegmentsBatchMerged(l, streamSegmentId, txnSegmentIds, ImmutableList.of(10L, 11L)));
     }
 
     @Test
@@ -724,7 +804,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testInvalidEventNumber() throws IOException {
-        testCommand(new WireCommands.InvalidEventNumber(uuid, i, "SomeException"));
+        testCommand(new WireCommands.InvalidEventNumber(uuid, i, "SomeException", l));
     }
 
     @Test

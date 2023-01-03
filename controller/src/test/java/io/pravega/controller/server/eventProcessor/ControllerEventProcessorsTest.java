@@ -19,10 +19,10 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Service;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.impl.PositionImpl;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
@@ -66,9 +66,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.listen.Listenable;
 import org.apache.curator.framework.state.ConnectionStateListener;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -89,8 +87,6 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 
 public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @Override
     public int getThreadPoolSize() {
@@ -102,7 +98,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         UUID txid = UUID.randomUUID();
         String scope = "test";
         String stream = "test";
-        AbortEvent abortEvent = new AbortEvent(scope, stream, 0, txid);
+        AbortEvent abortEvent = new AbortEvent(scope, stream, 0, txid, 21L);
         CommitEvent commitEvent = new CommitEvent(scope, stream, 0);
         assertEquals(abortEvent.getKey(), "test/test");
         assertEquals(commitEvent.getKey(), "test/test");
@@ -110,7 +106,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 30000L)
     public void testIsReady() throws Exception {
-        Controller controller = mock(Controller.class);
+        LocalController controller = mock(LocalController.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
         ConnectionPool connectionPool = mock(ConnectionPool.class);
@@ -156,7 +152,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         doAnswer(x -> {
             createStreamSignals.take().complete(null);
             return createStreamResponses.take();
-        }).when(controller).createStream(anyString(), anyString(), any());
+        }).when(controller).createInternalStream(anyString(), anyString(), any());
 
         @Cleanup
         ControllerEventProcessors processors = spy(new ControllerEventProcessors("host1",
@@ -170,10 +166,10 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         Assert.assertFalse(processors.isRunning());
         Assert.assertFalse(processors.isReady());
 
-        // call bootstrap on ControllerEventProcessors
+        // Call bootstrap on ControllerEventProcessors
         processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
 
-        // wait on create scope being called.
+        // Wait on create scope being called.
         createScopeSignalFuture.join();
         createScopeResponseFuture.complete(true);
         createStreamSignalsList.get(0).join();
@@ -204,7 +200,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 10000)
     public void testHandleOrphaned() throws CheckpointStoreException {
-        Controller localController = mock(Controller.class);
+        LocalController localController = mock(LocalController.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
@@ -241,7 +237,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     
     @Test(timeout = 30000L)
     public void testBootstrap() throws Exception {
-        Controller controller = mock(Controller.class);
+        LocalController controller = mock(LocalController.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
@@ -293,7 +289,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         doAnswer(x -> {
             createStreamSignals.take().complete(null);
             return createStreamResponses.take();
-        }).when(controller).createStream(anyString(), anyString(), any());
+        }).when(controller).createInternalStream(anyString(), anyString(), any());
 
         @Cleanup
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
@@ -318,7 +314,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         verify(controller, times(2)).createScope(any());
         
         // so far no create stream should have been invoked
-        verify(controller, times(0)).createStream(anyString(), anyString(), any());
+        verify(controller, times(0)).createInternalStream(anyString(), anyString(), any());
 
         // complete scopeFuture2 successfully
         createScopeResponsesList.get(1).complete(true);
@@ -330,7 +326,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         createStreamSignalsList.get(2).join();
         createStreamSignalsList.get(3).join();
 
-        verify(controller, times(4)).createStream(anyString(), anyString(), any());
+        verify(controller, times(4)).createInternalStream(anyString(), anyString(), any());
 
         // fail first four requests
         createStreamResponsesList.get(0).completeExceptionally(new RuntimeException());
@@ -344,7 +340,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         createStreamSignalsList.get(6).join();
         createStreamSignalsList.get(7).join();
 
-        verify(controller, times(8)).createStream(anyString(), anyString(), any());
+        verify(controller, times(8)).createInternalStream(anyString(), anyString(), any());
         
         // complete successfully
         createStreamResponsesList.get(4).complete(true);
@@ -356,7 +352,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     
     @Test(timeout = 10000L)
     public void testTruncate() throws CheckpointStoreException, InterruptedException {
-        Controller controller = mock(Controller.class);
+        LocalController controller = mock(LocalController.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
@@ -368,32 +364,26 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
 
-        Map<Segment, Long> map1 = new HashMap<>();
-        map1.put(new Segment("scope", "stream", 0L), 10L);
-        map1.put(new Segment("scope", "stream", 1L), 10L);
-        map1.put(new Segment("scope", "stream", 2L), 20L);
-        Map<Segment, Long> map2 = new HashMap<>();
-        map2.put(new Segment("scope", "stream", 0L), 20L);
-        map2.put(new Segment("scope", "stream", 2L), 10L);
-        Map<Segment, Long> map3 = new HashMap<>();
-        map3.put(new Segment("scope", "stream", 3L), 0L);
-        map3.put(new Segment("scope", "stream", 4L), 10L);
-        map3.put(new Segment("scope", "stream", 5L), 20L);
+        Map<SegmentWithRange, Long> map1 = new HashMap<>();
+        map1.put(new SegmentWithRange(new Segment("scope", "stream", 0L), 0.0, 0.33), 10L);
+        map1.put(new SegmentWithRange(new Segment("scope", "stream", 1L), 0.33, 0.66), 10L);
+        map1.put(new SegmentWithRange(new Segment("scope", "stream", 2L), 0.66, 1.0), 20L);
+        Map<SegmentWithRange, Long> map2 = new HashMap<>();
+        map2.put(new SegmentWithRange(new Segment("scope", "stream", 0L), 0.0, 0.33), 20L);
+        map2.put(new SegmentWithRange(new Segment("scope", "stream", 2L), 0.66, 1.0), 10L);
+        Map<SegmentWithRange, Long> map3 = new HashMap<>();
+        map3.put(new SegmentWithRange(new Segment("scope", "stream", 3L), 0.0, 0.33), 0L);
+        map3.put(new SegmentWithRange(new Segment("scope", "stream", 4L), 0.33, 0.66), 10L);
+        map3.put(new SegmentWithRange(new Segment("scope", "stream", 5L), 0.66, 1.0), 20L);
 
-        PositionImpl position1 = mock(PositionImpl.class);
-        when(position1.getOwnedSegmentsWithOffsets()).thenReturn(map1);
-        when(position1.asImpl()).thenReturn(position1);
-        PositionImpl position2 = mock(PositionImpl.class);
-        when(position2.getOwnedSegmentsWithOffsets()).thenReturn(map2);
-        when(position2.asImpl()).thenReturn(position2);
-        PositionImpl position3 = mock(PositionImpl.class);
-        when(position3.getOwnedSegmentsWithOffsets()).thenReturn(map3);
-        when(position3.asImpl()).thenReturn(position3);
+        PositionImpl position1 = new PositionImpl(map1);
+        PositionImpl position2 = new PositionImpl(map2);
+        PositionImpl position3 = new PositionImpl(map3);
         
         doReturn(getProcessor()).when(system).createEventProcessorGroup(any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(null)).when(controller).createScope(anyString());
-        doReturn(CompletableFuture.completedFuture(null)).when(controller).createStream(anyString(), anyString(), any());
+        doReturn(CompletableFuture.completedFuture(null)).when(controller).createInternalStream(anyString(), anyString(), any());
 
         doNothing().when(streamMetadataTasks).initializeStreamWriters(any(), anyString());
         doNothing().when(streamTransactionMetadataTasks).initializeStreamWriters(any(EventStreamClientFactory.class),

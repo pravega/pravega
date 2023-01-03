@@ -32,8 +32,8 @@ import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
 import mesosphere.marathon.client.MarathonException;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
-import static io.netty.handler.codec.http.HttpResponseStatus.SERVICE_UNAVAILABLE;
+import static javax.ws.rs.core.Response.Status.INTERNAL_SERVER_ERROR;
+import static javax.ws.rs.core.Response.Status.SERVICE_UNAVAILABLE;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -62,8 +62,8 @@ public class AuthEnabledMarathonClient {
         @Override
         public Exception decode(String methodKey, Response response) {
             //Retry in-case marathon service returns 503 or 500
-            if (response.status() == SERVICE_UNAVAILABLE.code() || response.status() ==
-                    INTERNAL_SERVER_ERROR.code()) {
+            if (response.status() == SERVICE_UNAVAILABLE.getStatusCode() || response.status() ==
+                    INTERNAL_SERVER_ERROR.getStatusCode()) {
                 //retry after 5 seconds.
                 Calendar retryAfter = Calendar.getInstance();
                 retryAfter.add(Calendar.SECOND, 5);

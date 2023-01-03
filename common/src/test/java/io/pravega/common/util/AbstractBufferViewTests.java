@@ -70,12 +70,10 @@ public class AbstractBufferViewTests {
         Assert.assertEquals(b.hashCode(), cb.hashCode());
         Assert.assertEquals(b, cb);
         Assert.assertEquals(cb, b);
-
         val b2Data = b.getCopy();
 
         // Verify the hashcode stays the same if we make a copy of the buffer.
-        Assert.assertEquals(b.hashCode(), AbstractBufferView.hashCode(b2Data));
-
+        Assert.assertEquals(b.hashCode(), (int) BufferView.wrap(b2Data).hash());
         // Verify the hashcode changes if we alter the data.
         b2Data[1] = (byte) (b2Data[1] + 1);
         val b2 = new ByteArraySegment(b2Data);

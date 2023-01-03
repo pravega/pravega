@@ -15,7 +15,6 @@
  */
 package io.pravega.client.stream.impl;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
 import io.pravega.client.segment.impl.Segment;
@@ -37,7 +36,7 @@ import lombok.Getter;
 import lombok.SneakyThrows;
 
 @EqualsAndHashCode
-public class CheckpointImpl implements Checkpoint {
+public final class CheckpointImpl implements Checkpoint {
 
     private static final CheckpointSerializer SERIALIZER = new CheckpointSerializer();
     @Getter
@@ -46,7 +45,6 @@ public class CheckpointImpl implements Checkpoint {
     private final Map<Stream, StreamCut> positions;
     
     CheckpointImpl(String name, Map<Segment, Long> segmentPositions) {
-        Preconditions.checkArgument(!segmentPositions.isEmpty(), "segment positions should not be empty for checkpoint %s", name);
         this.name = name;
         Map<Stream, ImmutableMap.Builder<Segment, Long>> streamPositions = new HashMap<>();
         for (Entry<Segment, Long> position : segmentPositions.entrySet()) {

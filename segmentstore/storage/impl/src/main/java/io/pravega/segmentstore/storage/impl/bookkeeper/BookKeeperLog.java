@@ -39,19 +39,7 @@ import io.pravega.segmentstore.storage.ThrottlerSourceListenerCollection;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.segmentstore.storage.WriteTooLongException;
-import java.time.Duration;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-import javax.annotation.concurrent.GuardedBy;
-import javax.annotation.concurrent.ThreadSafe;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -63,6 +51,20 @@ import org.apache.bookkeeper.client.api.WriteHandle;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
+
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * Apache BookKeeper implementation of the DurableDataLog interface.
@@ -93,7 +95,9 @@ class BookKeeperLog implements DurableDataLog {
     private static final long REPORT_INTERVAL = 1000;
     @Getter
     private final int logId;
+    @Getter(AccessLevel.PACKAGE)
     private final String logNodePath;
+    @Getter(AccessLevel.PACKAGE)
     private final CuratorFramework zkClient;
     private final BookKeeper bookKeeper;
     private final BookKeeperConfig config;
@@ -769,7 +773,7 @@ class BookKeeperLog implements DurableDataLog {
      *
      * @param currentMetadata   The current metadata.
      * @param newLedger         The newly added Ledger.
-     * @param clearEmptyLedgers If true, the new metadata will not not contain any pointers to empty Ledgers. Setting this
+     * @param clearEmptyLedgers If true, the new metadata will not contain any pointers to empty Ledgers. Setting this
      *                          to true will not remove a pointer to the last few ledgers in the Log (controlled by
      *                          Ledgers.MIN_FENCE_LEDGER_COUNT), even if they are indeed empty (this is so we don't interfere
      *                          with any ongoing fencing activities as another instance of this Log may not have yet been

@@ -27,7 +27,7 @@ import lombok.ToString;
 @RequiredArgsConstructor
 @ToString
 @EqualsAndHashCode
-public class WriterPosition {
+public final class WriterPosition {
 
     private final Map<Segment, Long> segments;
 

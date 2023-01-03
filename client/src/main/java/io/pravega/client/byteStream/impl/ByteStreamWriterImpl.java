@@ -15,6 +15,7 @@
  */
 package io.pravega.client.byteStream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -22,8 +23,13 @@ import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.concurrent.Futures;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
+
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.Synchronized;
+
+import javax.annotation.concurrent.GuardedBy;
 
 @RequiredArgsConstructor
 public class ByteStreamWriterImpl extends ByteStreamWriter {
@@ -32,6 +38,8 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     private final SegmentOutputStream out;
     @NonNull
     private final SegmentMetadataClient meta;
+    @GuardedBy("$lock")
+    private CompletableFuture<Void> latestEventFuture;
 
     @Override
     public void write(int b) throws IOException {
@@ -40,13 +48,20 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     
     @Override
     public void write(ByteBuffer src) throws IOException {
-        out.write(PendingEvent.withoutHeader(null, src, null));
+        out.write(PendingEvent.withoutHeader(null, src, updateLastEventFuture()));
     }
 
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
         ByteBuffer data = ByteBuffer.wrap(b, off, len);
-        out.write(PendingEvent.withoutHeader(null, data, null));
+        out.write(PendingEvent.withoutHeader(null, data, updateLastEventFuture()));
+    }
+
+    @VisibleForTesting
+    @Synchronized
+    CompletableFuture<Void> updateLastEventFuture() {
+        this.latestEventFuture = new CompletableFuture<>();
+        return latestEventFuture;
     }
 
     @Override
@@ -56,8 +71,16 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
+    @Synchronized
     public void flush() throws IOException {
         out.flush();
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Void> flushAsync() {
+        out.flushAsync();
+        return this.latestEventFuture;
     }
 
     @Override

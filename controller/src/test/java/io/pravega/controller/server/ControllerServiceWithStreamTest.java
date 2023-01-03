@@ -45,6 +45,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamT
 import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteScopeTask;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
@@ -71,7 +72,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -80,9 +80,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 import org.mockito.Mock;
 
 import static org.junit.Assert.assertEquals;
@@ -103,8 +101,7 @@ public abstract class ControllerServiceWithStreamTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
     private static final String STREAM1 = "stream1";
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework zkClient;
 
@@ -136,6 +133,7 @@ public abstract class ControllerServiceWithStreamTest {
         zkClient.start();
 
         streamStore = spy(getStore());
+        kvtStore = spy(getKVTStore());
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
@@ -148,6 +146,8 @@ public abstract class ControllerServiceWithStreamTest {
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executor, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", disabledAuthHelper, helperMock);
+        kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock));
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, 
                 "host", disabledAuthHelper);
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
@@ -160,6 +160,7 @@ public abstract class ControllerServiceWithStreamTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, kvtMetadataTasks, executor),
                 executor);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
@@ -169,6 +170,8 @@ public abstract class ControllerServiceWithStreamTest {
 
     abstract StreamMetadataStore getStore();
 
+    abstract KVTableMetadataStore getKVTStore();
+
     @After
     public void teardown() throws Exception {
         streamMetadataTasks.close();
@@ -177,6 +180,7 @@ public abstract class ControllerServiceWithStreamTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
+        kvtStore.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
@@ -185,6 +189,7 @@ public abstract class ControllerServiceWithStreamTest {
     @Test(timeout = 5000)
     public void createStreamTest() throws Exception {
         String stream = "create";
+        String createStream = "_readerGroupStream";
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
                                                                       .scalingPolicy(policy1).build();
@@ -194,19 +199,27 @@ public abstract class ControllerServiceWithStreamTest {
         // Create scope
         Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE, 0L).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
+
+        // create internal stream with invalid name
+        Controller.CreateStreamStatus streamStatus1 = consumer.createInternalStream(SCOPE, "$InvalidStream", configuration1, start, 0L).get();
+        assertEquals(Controller.CreateStreamStatus.Status.INVALID_STREAM_NAME, streamStatus1.getStatus());
         
         // create stream
         Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, stream, configuration1, start, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
 
-        // there will be two invocations because we also create internal mark stream
-        verify(streamStore, times(2)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
+        // create stream starting with underscore
+        Controller.CreateStreamStatus createStreamStatus = consumer.createStream(SCOPE, createStream, configuration1, start, 0L).get();
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
+
+        // there will be two invocations per call because we also create internal mark stream
+        verify(streamStore, times(4)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
         
-        streamStatus = consumer.createStream(SCOPE, stream, configuration1, start, 0L).get();
+        streamStatus = consumer.createInternalStream(SCOPE, stream, configuration1, start, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.STREAM_EXISTS, streamStatus.getStatus());
 
         // verify that create stream is not called again
-        verify(streamStore, times(2)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
+        verify(streamStore, times(4)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
     }
 
     @Test(timeout = 5000)

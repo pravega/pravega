@@ -141,7 +141,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                 try {
                     reader.closeAt(getCheckpoint());
                 } catch (Exception e) {
-                    log.info("Exception while closing EventProcessorCell reader from checkpointStore: {}.", e.getMessage());
+                    log.warn("Exception while closing EventProcessorCell reader from checkpointStore: {}.", e.getMessage());
                 }
             }
         }

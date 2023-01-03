@@ -29,10 +29,8 @@ import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -153,7 +151,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
     }
 
     private CompletableFuture<Void> readData(MetadataTransaction txn) {
-        val chunkReadFutures = Collections.synchronizedList(new ArrayList<CompletableFuture<Void>>());
+        val chunkReadFutures = new Vector<CompletableFuture<Void>>();
         return Futures.loop(
                 () -> bytesRemaining.get() > 0 && null != currentChunkName,
                 () -> {

@@ -49,6 +49,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -67,7 +68,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
     private static final int MAX_COMMIT_QUEUE_SIZE = 50;
-    private static final Duration COMMIT_PROCESSOR_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration PROCESSOR_TIMEOUT = Duration.ofSeconds(5);
 
     private final UpdateableContainerMetadata metadata;
     private final MemoryStateUpdater stateUpdater;
@@ -91,14 +92,16 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     /**
      * Creates a new instance of the OperationProcessor class.
      *
-     * @param metadata         The ContainerMetadata for the Container to process operations for.
-     * @param stateUpdater     A MemoryStateUpdater that is used to update in-memory structures upon successful Operation committal.
-     * @param durableDataLog   The DataFrameLog to write DataFrames to.
-     * @param checkpointPolicy The Checkpoint Policy for Metadata.
-     * @param executor         An Executor to use for async operations.
+     * @param metadata          The ContainerMetadata for the Container to process operations for.
+     * @param stateUpdater      A MemoryStateUpdater that is used to update in-memory structures upon successful Operation committal.
+     * @param durableDataLog    The DataFrameLog to write DataFrames to.
+     * @param checkpointPolicy  The Checkpoint Policy for Metadata.
+     * @param throttlerPolicy Configuration parameters for ThrottlerCalculator.
+     * @param executor          An Executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
-    OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy, ScheduledExecutorService executor) {
+    OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog,
+                       MetadataCheckpointPolicy checkpointPolicy, ThrottlerPolicy throttlerPolicy, ScheduledExecutorService executor) {
         super(String.format("OperationProcessor[%d]", metadata.getContainerId()), executor);
         Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.metadata = metadata;
@@ -113,12 +116,15 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.cacheUtilizationProvider = stateUpdater.getCacheUtilizationProvider();
         val throttlerCalculator = ThrottlerCalculator
                 .builder()
-                .cacheThrottler(this.cacheUtilizationProvider::getCacheUtilization, this.cacheUtilizationProvider.getCacheTargetUtilization(), this.cacheUtilizationProvider.getCacheMaxUtilization())
-                .batchingThrottler(durableDataLog::getQueueStatistics)
-                .durableDataLogThrottler(durableDataLog.getWriteSettings(), durableDataLog::getQueueStatistics)
-                .operationLogThrottler(this.stateUpdater::getInMemoryOperationLogSize)
+                .maxDelayMillis(throttlerPolicy.getMaxDelayMillis())
+                .cacheThrottler(this.cacheUtilizationProvider::getCacheUtilization, this.cacheUtilizationProvider.getCacheTargetUtilization(),
+                        this.cacheUtilizationProvider.getCacheMaxUtilization(), throttlerPolicy.getMaxDelayMillis())
+                .batchingThrottler(durableDataLog::getQueueStatistics, throttlerPolicy.getMaxBatchingDelayMillis())
+                .durableDataLogThrottler(durableDataLog.getWriteSettings(), durableDataLog::getQueueStatistics, throttlerPolicy.getMaxDelayMillis())
+                .operationLogThrottler(this.stateUpdater::getInMemoryOperationLogSize, throttlerPolicy.getMaxDelayMillis(),
+                        throttlerPolicy.getOperationLogMaxSize(), throttlerPolicy.getOperationLogTargetSize())
                 .build();
-        this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, this::hasThrottleExemptOperations, executor, this.metrics);
+        this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, this::shouldSuspendThrottlingDelay, executor, this.metrics);
         this.cacheUtilizationProvider.registerCleanupListener(this.throttler);
         durableDataLog.registerQueueStateChangeListener(this.throttler);
         this.stateUpdater.registerReadListener(this.throttler);
@@ -140,21 +146,22 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         val queueProcessor = Futures
                 .loop(this::isRunning,
                         () -> getThrottler().throttle()
-                                .thenComposeAsync(v -> this.operationQueue.take(getFetchCount()), this.executor)
-                                .thenAcceptAsync(this::processOperations, this.executor),
+                                .thenComposeAsync(v -> this.operationQueue.take(getFetchCount(), PROCESSOR_TIMEOUT, this.executor), this.executor)
+                                .handleAsync((items, ex) -> handleProcessItems(items, this::processOperations, ex, "queueProcessor"), this.executor),
                         this.executor);
 
-        // The CommitProcessor is responsible with the processing of those Operations that have already been committed to
+        // The CommitProcessor is responsible for the processing of those Operations that have already been committed to
         // DurableDataLog and now need to be added to the in-memory State.
         // As opposed from the QueueProcessor, this needs to process all pending commits and not discard them, even when
         // we receive a stop signal (from doStop()), otherwise we could be left with an inconsistent in-memory state.
         val commitProcessor = Futures
-                .loop(() -> (isRunning() && !queueProcessor.isCompletedExceptionally()) || this.commitQueue.size() > 0,
-                        () -> this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE, COMMIT_PROCESSOR_TIMEOUT, this.executor)
-                                .handleAsync(this::handleProcessCommits, this.executor),
+                .loop(() -> (isRunning() && !queueProcessor.isDone()) || this.commitQueue.size() > 0,
+                        () -> this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE, PROCESSOR_TIMEOUT, this.executor)
+                                .handleAsync((items, ex) -> handleProcessItems(items, this::processCommits, ex, "commitProcessor"), this.executor),
                         this.executor)
                 .whenComplete((r, ex) -> {
-                    log.info("{}: Completing and closing commitProcessor. Is OperationProcessor running? {}", this.traceObjectId, isRunning());
+                    log.info("{}: Completing and closing commitProcessor. OperationProcessor running? {}, queueProcessor running? {}.",
+                            this.traceObjectId, isRunning(), queueProcessor.isDone());
                     // The CommitProcessor is done. Safe to close its queue now, regardless of whether it failed or
                     // shut down normally.
                     val uncommittedOperations = this.commitQueue.close();
@@ -171,16 +178,17 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     }
 
     @SneakyThrows
-    private Void handleProcessCommits(Queue<List<CompletableOperation>> items, Throwable ex) {
+    private <T> Void handleProcessItems(T items, Consumer<T> callback, Throwable ex, String processorName) {
         // Check if there is an exception from taking elements from commitQueue. If we get a TimeoutException, it is
         // expected, so do nothing. If any other exception comes form the commitQueue, then re-throw.
         if (ex != null && Exceptions.unwrap(ex) instanceof TimeoutException) {
             return null;
         } else if (ex != null && !(Exceptions.unwrap(ex) instanceof TimeoutException)) {
+            log.warn("{}: Unexpected exception in OperationProcessor while processing items for {}, rethrowing.", this.traceObjectId, processorName, ex);
             throw ex;
         }
         // No exceptions and we got some elements to process.
-        processCommits(items);
+        callback.accept(items);
         return null;
     }
 
@@ -256,6 +264,11 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         } else {
             log.debug("{}: process[{}] {}.", this.traceObjectId, priority, operation);
             try {
+                // If the operationQueue is closed, it means that OperationProcessor needs to shut down. This may
+                // require first interrupting any current delay, so the shutdown sequence can be executed.
+                if (this.operationQueue.isClosed()) {
+                    getThrottler().notifyThrottleSourceChanged();
+                }
                 this.operationQueue.add(new CompletableOperation(operation, priority, result));
             } catch (Throwable e) {
                 if (Exceptions.mustRethrow(e)) {
@@ -265,10 +278,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 result.completeExceptionally(e);
             }
 
+            // A throttle-exempt operation has just been added (these are time-critical operations, which must execute
+            // right away). If there is a throttling delay in progress, we must abort it, otherwise this operation
+            // may not get a chance to execute.
             if (priority.isThrottlingExempt()) {
-                // A throttle-exempt operation has just been added (these are time-critical operations, which must execute
-                // right away). If there is a throttling delay in progress, we must abort it, otherwise this operation
-                // may not get a chance to execute.
                 getThrottler().notifyThrottleSourceChanged();
             }
         }
@@ -288,13 +301,19 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     }
 
     /**
-     * Determines if the {@link #operationQueue} has any {@link CompletableOperation} with an {@link OperationPriority}
-     * that requires an immediate execution (i.e., {@link OperationPriority#isThrottlingExempt()} is true).
+     * Determines whether we have to notify the {@link Throttler} to suspend current delay. This can happen in two cases:
+     * i) If the {@link #operationQueue} has been closed (e.g., Bookkeeper error) while experiencing a maximum delay;
+     * ii) If the {@link #operationQueue} has any {@link CompletableOperation} with an {@link OperationPriority} that
+     * requires an immediate execution (i.e., {@link OperationPriority#isThrottlingExempt()} is true).
      *
      * @return True if throttling needs to be suspended, false otherwise.
      */
     @VisibleForTesting
-    protected boolean hasThrottleExemptOperations() {
+    protected boolean shouldSuspendThrottlingDelay() {
+        if (this.operationQueue.isClosed()) {
+            // The operationQueue has been closed. This means that any throttling delay should be interrupted and shut down.
+            return true;
+        }
         val o = this.operationQueue.peek();
         return o != null && o.getPriority().isThrottlingExempt();
     }
@@ -357,7 +376,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     count = 0;
-                    if (hasThrottleExemptOperations() || !getThrottler().isThrottlingRequired()) {
+                    if (shouldSuspendThrottlingDelay() || !getThrottler().isThrottlingRequired()) {
                         // Only pull in new operations if we do not require throttling. If we do, we need to go back to
                         // the main OperationProcessor loop and delay processing the next batch of operations.
                         operations = this.operationQueue.poll(getFetchCount());
@@ -426,7 +445,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      *
      * @param causingException The exception to fail with. If null, it will default to ObjectClosedException.
      */
-    private void closeQueue(Throwable causingException) {
+    @VisibleForTesting
+    void closeQueue(Throwable causingException) {
         // Close the operation queue and extract any outstanding Operations from it.
         Collection<CompletableOperation> remainingOperations = this.operationQueue.close();
         if (remainingOperations != null && remainingOperations.size() > 0) {
@@ -467,13 +487,14 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 || ex instanceof CacheFullException;
     }
 
-    private void processCommits(Collection<List<CompletableOperation>> items) {
+    private void processCommits(Queue<List<CompletableOperation>> items) {
         try {
             do {
                 Timer memoryCommitTimer = new Timer();
                 this.stateUpdater.process(items.stream().flatMap(List::stream).map(CompletableOperation::getOperation).iterator(),
                         this.state::notifyOperationCommitted);
                 this.metrics.memoryCommit(items.size(), memoryCommitTimer.getElapsed());
+                this.metrics.reportOperationLogSize(this.stateUpdater.getInMemoryOperationLogSize(), this.metadata.getContainerId());
                 items = this.commitQueue.poll(MAX_COMMIT_QUEUE_SIZE);
             } while (!items.isEmpty());
         } catch (Throwable ex) {

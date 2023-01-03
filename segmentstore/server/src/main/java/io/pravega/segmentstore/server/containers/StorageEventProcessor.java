@@ -43,6 +43,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCollector.TaskInfo> {
 
     private final static GarbageCollector.TaskInfo.Serializer SERIALIZER = new GarbageCollector.TaskInfo.Serializer();
+    // For SLTS GC, truncating the ContainerEventProcessor internal Segment every 128KB is enough to prevent unnecessary
+    // storage metadata activity that may occur if we truncate it too frequently.
+    private final static long CONTAINER_EVENT_PROCESSOR_TRUNCATE_DATA_SIZE = 128 * 1024;
 
     private final int containerID;
     private final ContainerEventProcessor eventProcessor;
@@ -81,7 +84,7 @@ public class StorageEventProcessor implements AbstractTaskQueueManager<GarbageCo
     @Override
     public CompletableFuture<Void> addQueue(String queueName, Boolean ignoreProcessing) {
         Preconditions.checkNotNull(queueName, "queueName");
-        val config = new ContainerEventProcessor.EventProcessorConfig(maxItemsAtOnce, Long.MAX_VALUE);
+        val config = new ContainerEventProcessor.EventProcessorConfig(maxItemsAtOnce, Long.MAX_VALUE, CONTAINER_EVENT_PROCESSOR_TRUNCATE_DATA_SIZE);
         val f = ignoreProcessing ?
                 eventProcessor.forDurableQueue(queueName) :
                 eventProcessor.forConsumer(queueName, this::processEvents, config);

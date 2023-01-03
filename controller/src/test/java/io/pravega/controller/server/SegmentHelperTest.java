@@ -268,10 +268,19 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void commitTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        String scope = "testScope";
+        String stream = "testStream";
+        String delegationToken = "";
+        long sourceSegmentId = 1L;
+        long targetSegmentId = 1L;
+        UUID txnId = new UUID(0, 0L);
+        List<UUID> txnIdList = List.of(txnId);
+
         @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
-        CompletableFuture<Long> retVal = helper.commitTransaction("", "", 0L, 
-                0L, new UUID(0, 0L), "", System.nanoTime());
+
+        CompletableFuture<List<Long>> retVal = helper.mergeTxnSegments(scope, stream, targetSegmentId,
+                sourceSegmentId, txnIdList, delegationToken, System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
         AssertExtensions.assertThrows("",
@@ -280,20 +289,22 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
                         && ex.getCause() instanceof AuthenticationException
         );
 
-        CompletableFuture<Long> result = helper.commitTransaction("", "", 0L, 0L,
-                new UUID(0L, 0L), "", System.nanoTime());
+        CompletableFuture<List<Long>> result = helper.mergeTxnSegments(scope, stream, targetSegmentId, sourceSegmentId,
+                txnIdList, delegationToken, System.nanoTime());
         requestId = ((MockConnection) (factory.connection)).getRequestId();
-        factory.rp.process(new WireCommands.SegmentsMerged(requestId, getQualifiedStreamSegmentName("", "", 0L), getQualifiedStreamSegmentName("", "", 0L), 0L));
+        factory.rp.process(new WireCommands.SegmentsBatchMerged(requestId, getQualifiedStreamSegmentName(scope, stream, targetSegmentId), List.of(getQualifiedStreamSegmentName(scope, stream, sourceSegmentId)), List.of(10L)));
         result.join();
 
-        result = helper.commitTransaction("", "", 0L, 0L, 
-                new UUID(0L, 0L), "", System.nanoTime());
+        CompletableFuture<List<Long>> resultException =  helper.mergeTxnSegments(scope, stream, targetSegmentId, sourceSegmentId,
+                txnIdList, delegationToken, System.nanoTime());
         requestId = ((MockConnection) (factory.connection)).getRequestId();
-        factory.rp.process(new WireCommands.NoSuchSegment(requestId, getQualifiedStreamSegmentName("", "", 0L), "", 0L));
-        result.join();
+        factory.rp.process(new WireCommands.NoSuchSegment(requestId, getQualifiedStreamSegmentName(scope, stream, targetSegmentId), "", 0L));
+        AssertExtensions.assertThrows("",
+                () -> resultException.join(),
+                ex -> ex instanceof WireCommandFailedException
+                        && ((WireCommandFailedException) ex).getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist));
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.commitTransaction("", "", 0L, 
-                0L, new UUID(0, 0L), "", System.nanoTime());
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.mergeTxnSegments(scope, stream, targetSegmentId, sourceSegmentId, txnIdList, delegationToken, System.nanoTime());
         validateProcessingFailureCFE(factory, futureSupplier);
 
         testConnectionFailure(factory, futureSupplier);
@@ -1087,6 +1098,11 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         @Override
         public void close() {
 
+        }
+
+        @Override
+        public PravegaNodeUri getLocation() {
+            return null;
         }
     }
 }

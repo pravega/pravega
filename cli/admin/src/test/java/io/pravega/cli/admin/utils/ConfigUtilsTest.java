@@ -24,10 +24,19 @@ import java.io.IOException;
 public class ConfigUtilsTest {
 
     @Test
-    public void testConfigUtils() throws IOException {
+    public void testConfigUtilsWithValidFile() throws IOException {
         @Cleanup
         AdminCommandState commandState = new AdminCommandState();
-        System.setProperty("pravega.configurationFile", "../resources/admin-cli.properties");
+        System.setProperty("pravega.configurationFile", "../../config/admin-cli.properties");
+        System.setProperty("pravegaservice", "pravegaservice");
+        ConfigUtils.loadProperties(commandState);
+    }
+
+    @Test
+    public void testConfigUtilsWithInValidFile() throws IOException {
+        @Cleanup
+        AdminCommandState commandState = new AdminCommandState();
+        System.setProperty("pravega.configurationFile", "dummy");
         System.setProperty("pravegaservice", "pravegaservice");
         ConfigUtils.loadProperties(commandState);
     }

@@ -22,6 +22,7 @@ import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
@@ -29,10 +30,8 @@ import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutException;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -50,8 +49,8 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     private final long offset;
     private final String sourceSegment;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
-    private final List<String> chunksToDelete = Collections.synchronizedList(new ArrayList<>());
-    private final List<ChunkNameOffsetPair> newReadIndexEntries = Collections.synchronizedList(new ArrayList<>());
+    private final List<String> chunksToDelete = new Vector<>();
+    private final List<ChunkNameOffsetPair> newReadIndexEntries = new Vector<>();
     private final Timer timer;
 
     private volatile SegmentMetadata targetSegmentMetadata;
@@ -83,7 +82,8 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
                                         sourceSegmentMetadata = (SegmentMetadata) storageMetadata2;
                                         return performConcat(txn);
                                     }, chunkedSegmentStorage.getExecutor());
-                        }, chunkedSegmentStorage.getExecutor()), chunkedSegmentStorage.getExecutor());
+                        }, chunkedSegmentStorage.getExecutor()), chunkedSegmentStorage.getExecutor())
+                .exceptionally(ex -> handleException(ex));
     }
 
     private CompletableFuture<Void> performConcat(MetadataTransaction txn) {
@@ -125,6 +125,9 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         val ex = Exceptions.unwrap(e);
         if (ex instanceof StorageMetadataWritesFencedOutException) {
             throw new CompletionException(new StorageNotPrimaryException(targetHandle.getSegmentName(), ex));
+        }
+        if (ex instanceof ChunkStorageFullException) {
+            throw new CompletionException(new StorageFullException(targetHandle.getSegmentName(), ex));
         }
         throw new CompletionException(ex);
     }

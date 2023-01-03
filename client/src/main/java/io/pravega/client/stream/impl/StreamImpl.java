@@ -21,7 +21,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 
 @Data
-public class StreamImpl implements StreamInternal, Serializable {
+public final class StreamImpl implements StreamInternal, Serializable {
 
     private static final long serialVersionUID = 1L;
     private final String scope;

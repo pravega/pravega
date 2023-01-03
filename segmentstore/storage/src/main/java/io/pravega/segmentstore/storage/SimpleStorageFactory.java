@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.storage;
 
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 
@@ -42,4 +43,9 @@ public interface SimpleStorageFactory extends StorageFactory {
      * @return ChunkedSegmentStorageConfig used by the factory.
      */
     ChunkedSegmentStorageConfig getChunkedSegmentStorageConfig();
+
+    /**
+     * Creates a new instance of {@link ChunkStorage}.
+     */
+    ChunkStorage createChunkStorage();
 }

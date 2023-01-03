@@ -22,11 +22,13 @@ import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteBufferUtils;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.val;
 
 public class HashHelper {
 
@@ -54,6 +56,11 @@ public class HashHelper {
         return hash.hashBytes(array, offset, length).asInt();
     }
 
+    @VisibleForTesting
+    public byte[] numToBytes(int num) {
+        return hash.hashInt(num).asBytes();
+    }
+    
     public UUID toUUID(String str) {
         assert hash.bits() == 128;
         return bytesToUUID(hash.hashUnencodedChars(str).asBytes());
@@ -160,4 +167,79 @@ public class HashHelper {
             return getHashCode().asInt();
         }
     }
+    
+    /**
+     * Hashes a bufferview in-place. (in contrast to murmur above which needs to copy data into a single array)
+     * (This passes the smhasher quality test suite)
+     * (See updateHashState below for explanation of the hashing function)
+     * @param bufferView The input.
+     */
+    public static final long hashBufferView(BufferView bufferView) {
+        final long multiple = 6364136223846793005L; // From knuth's LCG
+        final long inc = 1442695040888963407L; // From knuth' LCG
+        final int shift = 47; //(arbitrary odd number between 32 and 56)
+        long state = 0xc3a5c85c97cb3127L; // (arbitrary, from farmhash) 
+        long weyl = 0x9ae16a3b2f90404fL; // (arbitrary, from farmhash) 
+        ByteBuffer leftOvers = ByteBuffer.wrap(new byte[16]);
+        val iter = bufferView.iterateBuffers();
+        while (iter.hasNext()) {
+            ByteBuffer buffer = iter.next();
+            if (leftOvers.position() > 0) {
+                ByteBufferUtils.copy(buffer, leftOvers);
+                if (!leftOvers.hasRemaining()) {
+                    leftOvers.flip(); 
+                    state = updateHashState(state, weyl, leftOvers);
+                    weyl += inc; 
+                    leftOvers.clear();
+                }
+            }
+            while (buffer.remaining() >= 16) {
+                state = updateHashState(state, weyl, buffer);
+                weyl += inc;
+            }
+            if (buffer.hasRemaining()) {
+                ByteBufferUtils.copy(buffer, leftOvers);
+            }
+        }
+        leftOvers.flip();
+        while (leftOvers.hasRemaining()) {
+            byte b = leftOvers.get();
+            state = (state ^ b) * weyl;
+            state ^= state >> shift;
+            weyl += inc;
+        }
+        int rot = (int) state & 0b0111111; // (63) RR permutation from PCG
+        return Long.rotateRight(state * multiple + inc, rot); // LGC step + RR
+    }
+    
+    /**
+     * Provides an updated hash state reading two longs from the provided buffer.
+     * This hash uses multiplication as a scrambling function.
+     * In general multiplication is a great scrambler, but it has 3 drawbacks that must be compensated for.
+     * 1. If the value being multiplied by is fixed, then flipping one bit in the input adds a constant to the output, 
+     * which can be 'undone' by flipping that same bit in the other way in a subsequent update.
+     * 2. Input bits only affect output bits that are to the left of their position. So high order input bits have very little effect on the output.
+     * 3. The upper output bits are much stronger than the lower output bits.
+     * Additionally any good update function should:
+     * 1. Have non-linearity
+     * 2. New input bits should affect the state in multiple ways or at multiple places.
+     * 
+     * This function has both of these properties and compensates for each of these drawbacks by:
+     * 1. Using xor between add/multiplication because it is non-commutative with multiplication and addition.
+     * 2. Using a different multiple on each iteration.
+     * 3. Using both the forward and reversed input longs so that all input bits affect at least 33 state bits, and in multiple ways.
+     * 4. xorshifting the high quality upper bits down into the lower portion.
+     * (Note that reverseBytes is very cheap after JIT optimization) 
+     */
+    private static long updateHashState(long state, long multiple, final ByteBuffer buffer) {
+        assert buffer.remaining() >= 16;
+        final long offset = 1013904223; // (arbitrary,From Numerical Recipes)
+        final int shift = 47; //(arbitrary odd number between 32 and 56)
+        long new1 = buffer.getLong();
+        long new2 = buffer.getLong();
+        state = (state ^ new1) * (multiple ^ Long.reverseBytes(new2)); //Changing rather than fixed multiple removes linearity
+        state = (state ^ new2) * ((multiple + offset) ^ Long.reverseBytes(new1)); //Reversing bytes prevents low impact high order bits.
+        state ^= state >> shift; // xorshift some good bits to the bottom
+        return state;
+    } 
 }

@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -27,9 +28,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InOrder;
 
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
+import static io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor.TIMEOUT;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 @Slf4j
 @RunWith(SerializedClassRunner.class)
@@ -47,5 +53,28 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
 
         processor.flushToStorage(new WireCommands.FlushToStorage(0, "", 1));
         order.verify(connection).send(new WireCommands.StorageFlushed(1));
+    }
+
+    @Test(timeout = 60000)
+    public void testListStorageChunks() {
+        String segmentName = "dummy";
+        ExtendedChunkInfo chunk = ExtendedChunkInfo.builder()
+                .lengthInMetadata(10)
+                .lengthInStorage(10)
+                .startOffset(10)
+                .chunkName("chunk")
+                .existsInStorage(false)
+                .build();
+        WireCommands.ChunkInfo chunkInfo = new WireCommands.ChunkInfo(10, 10,
+                10, "chunk", false);
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        when(store.getExtendedChunkInfo(segmentName, TIMEOUT)).thenReturn(CompletableFuture.completedFuture(List.of(chunk)));
+
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
+
+        processor.listStorageChunks(new WireCommands.ListStorageChunks("dummy", "", 1));
+        order.verify(connection).send(new WireCommands.StorageChunksListed(1, List.of(chunkInfo)));
     }
 }

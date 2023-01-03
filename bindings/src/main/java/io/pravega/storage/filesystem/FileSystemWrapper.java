@@ -17,6 +17,7 @@ package io.pravega.storage.filesystem;
 
 import com.google.common.collect.ImmutableSet;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -126,6 +127,16 @@ public class FileSystemWrapper {
      */
     long  getFileSize(Path path) throws IOException {
         return Files.size(path);
+    }
+
+    /**
+     * Gets the used space in bytes corresponding to the partition/volume for given path.
+     * @param path File path.
+     * @return Used space in bytes.
+     */
+    long getUsedSpace(Path path) {
+        File file = path.toFile();
+        return file.getTotalSpace() - file.getUsableSpace();
     }
 
     /**

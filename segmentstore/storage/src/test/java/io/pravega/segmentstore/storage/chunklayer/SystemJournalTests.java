@@ -18,9 +18,11 @@ package io.pravega.segmentstore.storage.chunklayer;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
+import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
@@ -32,6 +34,7 @@ import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Random;
+import java.util.Vector;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import lombok.Cleanup;
@@ -108,6 +111,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStore,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector.initialize(new InMemoryTaskQueueManager()).join();
         int maxLength = 8;
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
@@ -177,6 +181,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStore,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector.initialize(new InMemoryTaskQueueManager()).join();
         val policy = new SegmentRollingPolicy(maxLength);
         val config = getDefaultConfigBuilder(policy).build();
         val journal = new SystemJournal(containerId, chunkStorage, metadataStore, garbageCollector, config, executorService());
@@ -206,6 +211,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStore,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector.initialize(new InMemoryTaskQueueManager()).join();
         int maxLength = 8;
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
@@ -242,6 +248,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStore,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector.initialize(new InMemoryTaskQueueManager()).join();
         val policy = new SegmentRollingPolicy(maxLength);
         val config = getDefaultConfigBuilder(policy).build();
         val journal = new SystemJournal(containerId, chunkStorage, metadataStore, garbageCollector, config, executorService());
@@ -426,6 +433,80 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         segmentStorage2.read(hr, 0, out, 0, b1.length + b2.length, null).join();
         Assert.assertEquals("Hello World", new String(out));
     }
+
+    /**
+     * Test migration from non-atomic to atomic
+     * @throws Exception Throws exception in case of any error.
+     */
+    @Test
+    public void testSimpleBootstrapWithOneMigration() throws Exception {
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
+        @Cleanup
+        ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
+
+        int containerId = 42;
+        String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
+        int maxLength = 8;
+        long epoch = 1;
+        val policy = new SegmentRollingPolicy(maxLength);
+        val config1 = getDefaultConfigBuilder(policy).build();
+
+        val data = new InMemorySnapshotInfoStore();
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
+                snapshotId -> data.setSnapshotId(containerId, snapshotId),
+                () -> data.getSnapshotId(containerId));
+
+        // Init
+        long offset = 0;
+
+        // Start container with epoch 1
+        @Cleanup
+        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config1);
+
+        segmentStorage1.initialize(epoch);
+        segmentStorage1.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+
+        // Bootstrap
+        segmentStorage1.bootstrap(snapshotInfoStore, null).join();
+        deleteGarbage(segmentStorage1);
+        checkSystemSegmentsLayout(segmentStorage1);
+
+        // Simulate some writes to system segment, this should cause some new chunks being added.
+        val h = segmentStorage1.openWrite(systemSegmentName).join();
+        val b1 = "Hello".getBytes();
+        segmentStorage1.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
+        offset += b1.length;
+        val b2 = " World".getBytes();
+        segmentStorage1.write(h, offset, new ByteArrayInputStream(b2), b2.length, null).join();
+        offset += b2.length;
+
+        // Step 2
+        // Start container with epoch 2
+        epoch++;
+
+        val config2 = getDefaultConfigBuilder(policy).build();
+        @Cleanup
+        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config2);
+        segmentStorage2.initialize(epoch);
+        segmentStorage2.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+
+        // Bootstrap
+        segmentStorage2.bootstrap(snapshotInfoStore, null).join();
+        deleteGarbage(segmentStorage2);
+        checkSystemSegmentsLayout(segmentStorage2);
+
+        // Validate
+        val info = segmentStorage2.getStreamSegmentInfo(systemSegmentName, null).join();
+        Assert.assertEquals(b1.length + b2.length, info.getLength());
+        byte[] out = new byte[b1.length + b2.length];
+        val hr = segmentStorage2.openRead(systemSegmentName).join();
+        segmentStorage2.read(hr, 0, out, 0, b1.length + b2.length, null).join();
+        Assert.assertEquals("Hello World", new String(out));
+    }
+
 
     /**
      * Tests a scenario when journal chunks may be partially written during failure.
@@ -619,7 +700,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         } catch (Exception e) {
             val ex = Exceptions.unwrap(e);
             Assert.assertTrue(Exceptions.unwrap(e) instanceof IllegalStateException
-                    && ex.getMessage().contains("Chunk pointed by SnapshotInfo must exist"));
+                    && ex.getMessage().contains("Chunk pointed by SnapshotInfo could not be read"));
         }
     }
 
@@ -966,6 +1047,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreBeforeCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector1.initialize(new InMemoryTaskQueueManager()).join();
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(2);
@@ -982,12 +1064,20 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             String newChunk = "chunk" + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
             totalBytesWritten += policy.getMaxLength();
-            systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
+            val journalRecords = new ArrayList<SystemJournal.SystemJournalRecord>();
+            journalRecords.add(SystemJournal.ChunkAddedRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(policy.getMaxLength() * i)
                     .newChunkName(newChunk)
                     .oldChunkName(lastChunk)
-                    .build()).join();
+                    .build());
+            journalRecords.add(SystemJournal.AppendRecord.builder()
+                    .segmentName(systemSegmentName)
+                    .chunkName(newChunk)
+                    .offset(0)
+                    .length(Math.toIntExact(policy.getMaxLength()))
+                    .build());
+            systemJournalBefore.commitRecords(journalRecords).join();
             lastChunk = newChunk;
         }
         Assert.assertEquals(policy.getMaxLength() * 10, totalBytesWritten);
@@ -1001,6 +1091,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector2.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, garbageCollector2, config, executorService());
 
         systemJournalAfter.bootstrap(epoch + 1, snapshotInfoStore).join();
@@ -1016,6 +1107,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash2,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector3.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, garbageCollector3, config, executorService());
 
         systemJournalAfter2.bootstrap(epoch + 2, snapshotInfoStore).join();
@@ -1046,6 +1138,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreBeforeCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector1.initialize(new InMemoryTaskQueueManager()).join();
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(2);
@@ -1062,12 +1155,20 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             String newChunk = "chunk" + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
             totalBytesWritten += policy.getMaxLength();
-            systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
+            val journalRecords = new ArrayList<SystemJournal.SystemJournalRecord>();
+            journalRecords.add(SystemJournal.ChunkAddedRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(policy.getMaxLength() * i)
                     .newChunkName(newChunk)
                     .oldChunkName(lastChunk)
-                    .build()).join();
+                    .build());
+            journalRecords.add(SystemJournal.AppendRecord.builder()
+                    .segmentName(systemSegmentName)
+                    .chunkName(newChunk)
+                    .offset(0)
+                    .length(Math.toIntExact(policy.getMaxLength()))
+                    .build());
+            systemJournalBefore.commitRecords(journalRecords).join();
             lastChunk = newChunk;
         }
         Assert.assertEquals(policy.getMaxLength() * 10, totalBytesWritten);
@@ -1081,6 +1182,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector2.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, garbageCollector2, config, executorService());
 
         systemJournalAfter.bootstrap(epoch + 1, snapshotInfoStore).join();
@@ -1096,9 +1198,242 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash2,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector3.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, garbageCollector3, config, executorService());
 
         systemJournalAfter2.bootstrap(epoch + 2, snapshotInfoStore).join();
+
+        TestUtils.checkSegmentLayout(metadataStoreAfterCrash2, systemSegmentName, policy.getMaxLength(), 10);
+    }
+
+    @Test
+    public void testSimpleMigrationSequence() throws Exception {
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
+
+        int containerId = 42;
+        val data = new InMemorySnapshotInfoStore();
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
+                snapshotId -> data.setSnapshotId(containerId, snapshotId),
+                () -> data.getSnapshotId(containerId));
+        @Cleanup
+        val garbageCollector1 = new GarbageCollector(containerId,
+                chunkStorage,
+                metadataStoreBeforeCrash,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                executorService());
+        garbageCollector1.initialize(new InMemoryTaskQueueManager()).join();
+        String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
+        long epoch = 1;
+        val policy = new SegmentRollingPolicy(2);
+        val config = getDefaultConfigBuilder(policy).build();
+
+        String lastChunk = null;
+        long totalBytesWritten = 0;
+        // Step 1 : Create journal files.
+        val journalRecords = new ArrayList<SystemJournal.SystemJournalRecord>();
+        ArrayList<SystemJournal.SegmentSnapshotRecord> segmentSnapshotRecords = new ArrayList<>();
+        for (val sysSegment: SystemJournal.getChunkStorageSystemSegments(containerId)) {
+            segmentSnapshotRecords.add(
+                SystemJournal.SegmentSnapshotRecord.builder()
+                    .segmentMetadata(
+                         SegmentMetadata.builder()
+                            .name(sysSegment)
+                            .ownerEpoch(epoch)
+                            .maxRollinglength(config.getStorageMetadataRollingPolicy().getMaxLength())
+                        .build()
+                        .setStorageSystemSegment(true)
+                        .setActive(true))
+                    .chunkMetadataCollection(new Vector<>())
+                .build());
+        }
+        val snapshotRecord = SystemJournal.SystemSnapshotRecord.builder()
+                .segmentSnapshotRecords(segmentSnapshotRecords)
+                .epoch(1)
+                .fileIndex(1)
+                .build();
+        journalRecords.add(snapshotRecord);
+
+        // Write a segment with 10 chunks.
+        // Only write ChunkAddedRecord to the
+        for (int i = 0; i < 10; i++) {
+            String newChunk = "chunk" + i;
+            val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
+            totalBytesWritten += policy.getMaxLength();
+            journalRecords.add(SystemJournal.ChunkAddedRecord.builder()
+                    .segmentName(systemSegmentName)
+                    .offset(policy.getMaxLength() * i)
+                    .newChunkName(newChunk)
+                    .oldChunkName(lastChunk)
+                    .build());
+            lastChunk = newChunk;
+        }
+        Assert.assertEquals(policy.getMaxLength() * 10, totalBytesWritten);
+
+        // Write to journal
+        val serializer = new SystemJournal.SystemJournalRecordBatch.SystemJournalRecordBatchSerializer();
+        ByteArraySegment journalContents = serializer.serialize(SystemJournal.SystemJournalRecordBatch.builder()
+                .systemJournalRecords(journalRecords)
+                .build());
+        chunkStorage.createWithContent(NameUtils.getSystemJournalFileName(containerId, epoch, 1),
+                journalContents.getLength(), journalContents.getReader()).join();
+
+        // Initial set of additions
+        SystemJournal systemJournalBefore = new SystemJournal(containerId, chunkStorage, metadataStoreBeforeCrash, garbageCollector1, config, executorService());
+
+        systemJournalBefore.bootstrap(epoch + 1, snapshotInfoStore).join();
+
+        // Failover
+        @Cleanup
+        ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
+        @Cleanup
+        val garbageCollector2 = new GarbageCollector(containerId,
+                chunkStorage,
+                metadataStoreAfterCrash,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                executorService());
+        garbageCollector2.initialize(new InMemoryTaskQueueManager()).join();
+        SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, garbageCollector2, config, executorService());
+
+        systemJournalAfter.bootstrap(epoch + 2, snapshotInfoStore).join();
+
+        TestUtils.checkSegmentLayout(metadataStoreAfterCrash, systemSegmentName, policy.getMaxLength(), 10);
+        TestUtils.checkSegmentBounds(metadataStoreAfterCrash, systemSegmentName, 0, totalBytesWritten);
+
+        @Cleanup
+        ChunkMetadataStore metadataStoreAfterCrash2 = getMetadataStore();
+        @Cleanup
+        val garbageCollector3 = new GarbageCollector(containerId,
+                chunkStorage,
+                metadataStoreAfterCrash2,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                executorService());
+        garbageCollector3.initialize(new InMemoryTaskQueueManager()).join();
+        SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, garbageCollector3, config, executorService());
+
+        systemJournalAfter2.bootstrap(epoch + 3, snapshotInfoStore).join();
+
+        TestUtils.checkSegmentLayout(metadataStoreAfterCrash2, systemSegmentName, policy.getMaxLength(), 10);
+    }
+
+    @Test
+    public void testSimpleMigrationSequenceWithSnapshot() throws Exception {
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
+
+        int containerId = 42;
+        val data = new InMemorySnapshotInfoStore();
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
+                snapshotId -> data.setSnapshotId(containerId, snapshotId),
+                () -> data.getSnapshotId(containerId));
+
+        @Cleanup
+        val garbageCollector1 = new GarbageCollector(containerId,
+                chunkStorage,
+                metadataStoreBeforeCrash,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                executorService());
+        garbageCollector1.initialize(new InMemoryTaskQueueManager()).join();
+        String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
+        long epoch = 1;
+        val policy = new SegmentRollingPolicy(2);
+        val config = getDefaultConfigBuilder(policy).build();
+
+        String lastChunk = null;
+        long totalBytesWritten = 0;
+        // Step 1 : Create journal files.
+        val journalRecords = new ArrayList<SystemJournal.SystemJournalRecord>();
+        ArrayList<SystemJournal.SegmentSnapshotRecord> segmentSnapshotRecords = new ArrayList<>();
+        for (val sysSegment: SystemJournal.getChunkStorageSystemSegments(containerId)) {
+            segmentSnapshotRecords.add(
+                    SystemJournal.SegmentSnapshotRecord.builder()
+                            .segmentMetadata(
+                                    SegmentMetadata.builder()
+                                            .name(sysSegment)
+                                            .ownerEpoch(epoch)
+                                            .maxRollinglength(config.getStorageMetadataRollingPolicy().getMaxLength())
+                                            .build()
+                                            .setStorageSystemSegment(true)
+                                            .setActive(true))
+                            .chunkMetadataCollection(new Vector<>())
+                            .build());
+        }
+        val snapshotRecord = SystemJournal.SystemSnapshotRecord.builder()
+                .segmentSnapshotRecords(segmentSnapshotRecords)
+                .epoch(1)
+                .fileIndex(1)
+                .build();
+
+        // Write a segment with 10 chunks.
+        // Only write ChunkAddedRecord to the
+        for (int i = 0; i < 10; i++) {
+            String newChunk = "chunk" + i;
+            val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
+            totalBytesWritten += policy.getMaxLength();
+            journalRecords.add(SystemJournal.ChunkAddedRecord.builder()
+                    .segmentName(systemSegmentName)
+                    .offset(policy.getMaxLength() * i)
+                    .newChunkName(newChunk)
+                    .oldChunkName(lastChunk)
+                    .build());
+            lastChunk = newChunk;
+        }
+        Assert.assertEquals(policy.getMaxLength() * 10, totalBytesWritten);
+
+        // Write snapshot
+        val snapshotSerializer = new SystemJournal.SystemSnapshotRecord.Serializer();
+        ByteArraySegment snapshotContent = snapshotSerializer.serialize(snapshotRecord);
+        chunkStorage.createWithContent(NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, 1),
+                snapshotContent.getLength(), snapshotContent.getReader()).join();
+
+        data.setSnapshotId(containerId, SnapshotInfo.builder().epoch(epoch).snapshotId(1).build()).join();
+
+        // Write to journal
+        val serializer = new SystemJournal.SystemJournalRecordBatch.SystemJournalRecordBatchSerializer();
+        ByteArraySegment journalContents = serializer.serialize(SystemJournal.SystemJournalRecordBatch.builder()
+                .systemJournalRecords(journalRecords)
+                .build());
+        chunkStorage.createWithContent(NameUtils.getSystemJournalFileName(containerId, epoch, 2),
+                journalContents.getLength(), journalContents.getReader()).join();
+
+        // Initial set of additions
+        SystemJournal systemJournalBefore = new SystemJournal(containerId, chunkStorage, metadataStoreBeforeCrash, garbageCollector1, config, executorService());
+
+        systemJournalBefore.bootstrap(epoch + 1, snapshotInfoStore).join();
+
+        // Failover
+        @Cleanup
+        ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
+        @Cleanup
+        val garbageCollector2 = new GarbageCollector(containerId,
+                chunkStorage,
+                metadataStoreAfterCrash,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                executorService());
+        garbageCollector2.initialize(new InMemoryTaskQueueManager()).join();
+        SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, garbageCollector2, config, executorService());
+
+        systemJournalAfter.bootstrap(epoch + 2, snapshotInfoStore).join();
+
+        TestUtils.checkSegmentLayout(metadataStoreAfterCrash, systemSegmentName, policy.getMaxLength(), 10);
+        TestUtils.checkSegmentBounds(metadataStoreAfterCrash, systemSegmentName, 0, totalBytesWritten);
+
+        @Cleanup
+        ChunkMetadataStore metadataStoreAfterCrash2 = getMetadataStore();
+        @Cleanup
+        val garbageCollector3 = new GarbageCollector(containerId,
+                chunkStorage,
+                metadataStoreAfterCrash2,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                executorService());
+        garbageCollector3.initialize(new InMemoryTaskQueueManager()).join();
+        SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, garbageCollector3, config, executorService());
+
+        systemJournalAfter2.bootstrap(epoch + 3, snapshotInfoStore).join();
 
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash2, systemSegmentName, policy.getMaxLength(), 10);
     }
@@ -1129,6 +1464,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreBeforeCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector1.initialize(new InMemoryTaskQueueManager()).join();
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(2);
@@ -1144,12 +1480,20 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             String newChunk = "chunk" + i;
             val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
             totalBytesWritten += policy.getMaxLength();
-            systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
+            val journalRecords = new ArrayList<SystemJournal.SystemJournalRecord>();
+            journalRecords.add(SystemJournal.ChunkAddedRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(policy.getMaxLength() * i)
                     .newChunkName(newChunk)
                     .oldChunkName(lastChunk)
-                    .build()).join();
+                    .build());
+            journalRecords.add(SystemJournal.AppendRecord.builder()
+                    .segmentName(systemSegmentName)
+                    .offset(0)
+                    .chunkName(newChunk)
+                    .length(Math.toIntExact(policy.getMaxLength()))
+                    .build());
+            systemJournalBefore.commitRecords(journalRecords).join();
             lastChunk = newChunk;
         }
         Assert.assertEquals(policy.getMaxLength() * 10, totalBytesWritten);
@@ -1163,6 +1507,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector2.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, garbageCollector2, config, executorService());
 
         systemJournalAfter.bootstrap(2, snapshotInfoStore).join();
@@ -1190,6 +1535,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash2,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector3.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, garbageCollector3, config, executorService());
 
         systemJournalAfter2.bootstrap(3, snapshotInfoStore).join();
@@ -1217,6 +1563,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 metadataStoreAfterCrash2,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
+        garbageCollector4.initialize(new InMemoryTaskQueueManager()).join();
         SystemJournal systemJournalAfter3 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash3, garbageCollector4, config, executorService());
 
         systemJournalAfter3.bootstrap(4, snapshotInfoStore).join();
@@ -1345,7 +1692,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         @Override
         protected ChunkStorage getChunkStorage() throws Exception {
-            val chunkStorage = new InMemoryChunkStorage(executorService());
+            val chunkStorage = new InMemoryChunkStorage(super.executorService());
             chunkStorage.setShouldSupportAppend(false);
             return chunkStorage;
         }

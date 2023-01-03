@@ -15,6 +15,8 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -99,6 +101,18 @@ public class EntrySerializerTests {
         }
 
         Assert.assertEquals("Did not read the entire serialization.", serialization.length, offset);
+    }
+
+    /**
+     * Utility method for tests that need to append serialized TableEntries outside the tables package.
+     *
+     * @param entries Table Entries to serialize.
+     * @return Serialized Table Entries.
+     */
+    @VisibleForTesting
+    public static BufferView generateUpdateWithExplicitVersion(List<TableEntry> entries) {
+        val s = new EntrySerializer();
+        return s.serializeUpdateWithExplicitVersion(entries);
     }
 
     private List<TableKey> generateKeys() {

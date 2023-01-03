@@ -31,11 +31,13 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.TransactionInfoImpl;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -48,12 +50,15 @@ import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -71,8 +76,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 
 @Slf4j
 public class LocalController implements Controller {
@@ -180,9 +183,35 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
-        return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong()).thenApply(x -> {
+    public CompletableFuture<Boolean> deleteScopeRecursive(String scopeName) {
+        return this.controller.deleteScopeRecursive(scopeName, requestIdGenerator.nextLong()).thenApply(x -> {
             switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to delete scope recursive: " + scopeName);
+                case SCOPE_NOT_FOUND:
+                    return false;
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status deleting scope recursive: " + scopeName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
+        return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong())
+                .thenApply(x -> getCreateStreamStatus(x, scope, streamName, streamConfig));
+    }
+
+    public CompletableFuture<Boolean> createInternalStream(String scope, String streamName, final StreamConfiguration streamConfig) {
+        return this.controller.createInternalStream(scope, streamName, streamConfig, System.currentTimeMillis(), requestIdGenerator.nextLong())
+                .thenApply(x -> getCreateStreamStatus(x, scope, streamName, streamConfig));
+    }
+
+    private boolean getCreateStreamStatus(CreateStreamStatus streamStatus, String scope, String streamName, StreamConfiguration streamConfig) {
+        switch (streamStatus.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException(String.format("Failed to create stream: %s/%s with config: %s", scope, streamName, streamConfig));
             case INVALID_STREAM_NAME:
@@ -195,9 +224,8 @@ public class LocalController implements Controller {
                 return true;
             default:
                 throw new ControllerFailureException("Unknown return status creating stream " + streamConfig
-                                                     + " " + x.getStatus());
-            }
-        });
+                        + " " + streamStatus.getStatus());
+        }
     }
 
     @Override
@@ -539,6 +567,14 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<List<TransactionInfo>> listCompletedTransactions(Stream stream) {
+               return controller.listCompletedTxns(stream.getScope(), stream.getStreamName(), requestIdGenerator.nextLong())
+                        .thenApply(result -> result.entrySet().stream().map(txnInfo ->
+                                new TransactionInfoImpl(stream, txnInfo.getKey(),
+                                        Transaction.Status.valueOf(txnInfo.getValue().name()))).collect(Collectors.toList()));
+    }
+
+    @Override
     public CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(Stream stream, long timestamp) {
         return controller.getSegmentsAtHead(stream.getScope(), stream.getStreamName(), requestIdGenerator.nextLong())
                          .thenApply(segments -> segments.entrySet()
@@ -706,6 +742,10 @@ public class LocalController implements Controller {
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
         return controller.getCurrentSegmentsKeyValueTable(scope, kvtName, requestIdGenerator.nextLong())
                 .thenApply(this::getKeyValueTableSegments);
+    }
+
+    @Override
+    public void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri) {
     }
 
     private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {

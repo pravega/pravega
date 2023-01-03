@@ -114,6 +114,29 @@ public class SegmentToContainerMapperTests {
         }
     }
 
+    /**
+     * Tests that Transient Segments are mapped to the same container as their parents.
+     */
+    @Test
+    public void testTransientMapping() {
+        int containerCount = 16;
+        int streamSegmentCount = 256;
+        int transientPerParentCount = 10;
+
+        SegmentToContainerMapper m = new SegmentToContainerMapper(containerCount, true);
+
+        // Generate all possible names with the given length and assign them to a container.
+        for (int segmentId = 0; segmentId < streamSegmentCount; segmentId++) {
+            String segmentName = getSegmentName(segmentId);
+            int containerId = m.getContainerId(segmentName);
+            for (int i = 0; i < transientPerParentCount; i++) {
+                String transientSegmentName = NameUtils.getTransientNameFromId(segmentName, UUID.randomUUID());
+                int transientContainerId = m.getContainerId(transientSegmentName);
+                Assert.assertEquals("Parent and Transient Segment were not assigned to the same container.", containerId, transientContainerId);
+            }
+        }
+    }
+
     @Test
     public void testSegmentMapping() {
         int containerCount = 16;

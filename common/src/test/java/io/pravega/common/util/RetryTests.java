@@ -254,6 +254,8 @@ public class RetryTests {
                     }
                 }), pool).get();
         assert i.get() == 10;
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> Retry.indefinitelyWithExpBackoff(0, 0, 0, e -> i.getAndIncrement()));
     }
 
     @Test

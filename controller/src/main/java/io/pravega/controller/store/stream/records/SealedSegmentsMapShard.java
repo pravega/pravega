@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /*
  * Data class for storing information about stream's truncation point.
@@ -75,7 +76,7 @@ public class SealedSegmentsMapShard {
      * support million segments in each shard with a shard size of 1000.
      *
      * Each shard consequently contains segments from a range of epochs in batches of 1000.
-     * To get a sealed segment record -> extract segment epoch from segment id, and compute the shard
+     * To get a sealed segment record -&gt; extract segment epoch from segment id, and compute the shard
      * by taking the modulo of the segment number by the SHARD_SIZE. Fetch the size from the shard map.
      **/
     private final Map<Long, Long> sealedSegmentsSizeMap;
@@ -97,6 +98,14 @@ public class SealedSegmentsMapShard {
     @SneakyThrows(IOException.class)
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "shardNumber", shardNumber) + "\n" +
+                String.format("%s = %s", "sealedSegmentsSizeMap", sealedSegmentsSizeMap.keySet().stream()
+                .map(key -> key + " : " + sealedSegmentsSizeMap.get(key))
+                .collect(Collectors.joining(", ", "{", "}")));
     }
 
     @Synchronized

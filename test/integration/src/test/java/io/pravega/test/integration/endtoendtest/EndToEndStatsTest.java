@@ -40,7 +40,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;

@@ -608,7 +608,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
         val testTaskQueue = new InMemoryTaskQueueManager();
 
-        chunkStorage.setReadOnly(chunkStorage.openWrite("deletedChunk").get(), true);
+        chunkStorage.setReadOnly(chunkStorage.openWrite("deletedChunk").get(), true).join();
 
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,
@@ -1157,7 +1157,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Function<Duration, CompletableFuture<Void>> noDelay = d -> CompletableFuture.completedFuture(null);
         val testTaskQueue = new InMemoryTaskQueueManager();
 
-        chunkStorage.setReadOnly(chunkStorage.openWrite("deletedChunk").get(), true);
+        chunkStorage.setReadOnly(chunkStorage.openWrite("deletedChunk").get(), true).join();
 
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,

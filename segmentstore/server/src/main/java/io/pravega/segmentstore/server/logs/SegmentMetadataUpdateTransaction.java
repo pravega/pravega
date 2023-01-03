@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
@@ -46,6 +47,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiPredicate;
 import javax.annotation.concurrent.NotThreadSafe;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -55,6 +57,12 @@ import lombok.Setter;
 @NotThreadSafe
 class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     //region Members
+
+    /**
+     * The number of Extended Attributes allowed to be associated with a {@link SegmentType#TRANSIENT_SEGMENT}.
+     */
+    @VisibleForTesting
+    public final static int TRANSIENT_ATTRIBUTE_LIMIT = 16;
 
     private final boolean recoveryMode;
     private final Map<AttributeId, Long> baseAttributeValues;
@@ -473,6 +481,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             throws BadAttributeUpdateException, MetadataUpdateException {
         if (attributeUpdates == null) {
             return;
+        }
+
+        // Make sure that the number of existing ExtendedAttributes + incoming ExtendedAttributes does not exceed the limit.
+        if (type.isTransientSegment() && this.baseAttributeValues.size() > TRANSIENT_ATTRIBUTE_LIMIT) {
+            throw new MetadataUpdateException(this.containerId,
+                    String.format("A Transient Segment ('%s') may not exceed %s Extended Attributes.", this.name, TRANSIENT_ATTRIBUTE_LIMIT));
         }
 
         // We must ensure that we aren't trying to set/update attributes that are incompatible with this Segment.

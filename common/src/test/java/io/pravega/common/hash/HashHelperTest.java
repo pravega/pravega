@@ -15,10 +15,13 @@
  */
 package io.pravega.common.hash;
 
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 import java.util.function.BiFunction;
@@ -141,7 +144,46 @@ public class HashHelperTest {
             Assert.assertEquals(range2, range1, 0.01);
         }
     }
-
+    
+    @Test
+    public void testMultipleParts() {
+       val r = new Random(0);
+       val bytes = new byte[1000];
+       r.nextBytes(bytes);
+       BufferView buffer = BufferView.wrap(bytes);
+       BufferView part1 = buffer.slice(0, 10);
+       BufferView part2 = buffer.slice(10, 100);
+       BufferView part3 = buffer.slice(110, 500);
+       BufferView part4 = buffer.slice(610, 380);
+       BufferView part5 = buffer.slice(990, 10);
+       List<BufferView> components = new ArrayList<>();
+       components.add(part1);
+       components.add(part2);
+       components.add(part3);
+       components.add(part4);
+       components.add(part5);
+       BufferView recombined = BufferView.wrap(components);
+       assertEquals(buffer.hash(), recombined.hash());
+       assertEquals(312908254654539963L, buffer.hash()); //Asserts that algorithm does not change.
+    }
+    
+    @Test
+    public void testSlicedInput() {
+        val r = new Random(0);
+        val bytes = new byte[100];
+        r.nextBytes(bytes);
+        for (int i = 0; i < bytes.length; i++) {
+            BufferView buffer = BufferView.wrap(bytes);
+            BufferView part1 = buffer.slice(0, i);
+            BufferView part2 = buffer.slice(i, bytes.length - i);
+            List<BufferView> components = new ArrayList<>();
+            components.add(part1);
+            components.add(part2);
+            BufferView combined = BufferView.wrap(components);
+            assertEquals(buffer.hash(), combined.hash());
+        }
+    }
+    
     private <T> void testHashToRangeUniformity(HashToRangeFunction<T> toTest, Supplier<T> generator) {
         testBucketUniformity(
                 (hh, value, bucketCount) -> {

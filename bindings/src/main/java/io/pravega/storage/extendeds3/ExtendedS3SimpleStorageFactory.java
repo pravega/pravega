@@ -20,6 +20,7 @@ import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
@@ -48,7 +49,7 @@ public class ExtendedS3SimpleStorageFactory implements SimpleStorageFactory {
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
-                new ExtendedS3ChunkStorage(createS3Client(), this.config, this.executor, true, true),
+                createChunkStorage(),
                 metadataStore,
                 this.executor,
                 this.chunkedSegmentStorageConfig);
@@ -61,6 +62,11 @@ public class ExtendedS3SimpleStorageFactory implements SimpleStorageFactory {
     @Override
     public Storage createStorageAdapter() {
         throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
+    }
+
+    @Override
+    public ChunkStorage createChunkStorage() {
+        return new ExtendedS3ChunkStorage(createS3Client(), this.config, this.executor, true, true);
     }
 
     private S3Client createS3Client() {

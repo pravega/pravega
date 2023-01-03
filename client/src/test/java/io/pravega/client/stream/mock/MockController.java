@@ -31,6 +31,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.SegmentWithRange;
@@ -188,6 +189,16 @@ public class MockController implements Controller {
             return Futures.failedFuture(new IllegalStateException("Scope is not empty."));
         }
 
+        createdScopes.remove(scopeName);
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Boolean> deleteScopeRecursive(String scopeName) {
+        if (createdScopes.get(scopeName) == null) {
+            return CompletableFuture.completedFuture(false);
+        }
         createdScopes.remove(scopeName);
         return CompletableFuture.completedFuture(true);
     }
@@ -659,6 +670,11 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<List<TransactionInfo>> listCompletedTransactions(Stream stream) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease) {
         UUID txId = UUID.randomUUID();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
@@ -821,6 +837,10 @@ public class MockController implements Controller {
     @Synchronized
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
         return CompletableFuture.completedFuture(getCurrentSegments(new KeyValueTableInfo(scope, kvtName)));
+    }
+
+    @Override
+    public void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri) {
     }
 
     //endregion

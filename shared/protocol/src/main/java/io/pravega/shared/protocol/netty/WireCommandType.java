@@ -35,6 +35,9 @@ public enum WireCommandType {
     FLUSH_TO_STORAGE(-3, WireCommands.FlushToStorage::readFrom),
     FLUSHED_TO_STORAGE(-4, WireCommands.StorageFlushed::readFrom),
 
+    LIST_STORAGE_CHUNKS(-5, WireCommands.ListStorageChunks::readFrom),
+    STORAGE_CHUNKS_LISTED(-6, WireCommands.StorageChunksListed::readFrom),
+
     EVENT(0, null), // Is read manually.
 
     SETUP_APPEND(1, WireCommands.SetupAppend::readFrom),
@@ -73,6 +76,8 @@ public enum WireCommandType {
 
     TRUNCATE_SEGMENT(38, WireCommands.TruncateSegment::readFrom),
     SEGMENT_TRUNCATED(39, WireCommands.SegmentTruncated::readFrom),
+
+    CREATE_TRANSIENT_SEGMENT(40, WireCommands.CreateTransientSegment::readFrom),
 
     WRONG_HOST(50, WireCommands.WrongHost::readFrom),
     SEGMENT_IS_SEALED(51, WireCommands.SegmentIsSealed::readFrom),
@@ -115,6 +120,8 @@ public enum WireCommandType {
     READ_TABLE_ENTRIES_DELTA(88, WireCommands.ReadTableEntriesDelta::readFrom),
 
     CONDITIONAL_BLOCK_END(89, WireCommands.ConditionalBlockEnd::readFrom),
+    MERGE_SEGMENTS_BATCH(90, WireCommands.MergeSegmentsBatch::readFrom),
+    SEGMENTS_BATCH_MERGED(91, WireCommands.SegmentsBatchMerged::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 

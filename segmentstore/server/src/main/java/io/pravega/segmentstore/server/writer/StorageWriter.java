@@ -454,7 +454,8 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         // Then create the aggregator, and only register it after a successful initialization. Otherwise we risk
         // having a registered aggregator that is not initialized.
         SegmentAggregator segmentAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer, this.executor);
-        AttributeAggregator attributeAggregator = new AttributeAggregator(segmentMetadata, this.dataSource, this.config, this.timer, this.executor);
+        AttributeAggregator attributeAggregator = segmentMetadata.getType().isTransientSegment() ? null :
+                new AttributeAggregator(segmentMetadata, this.dataSource, this.config, this.timer, this.executor);
         ProcessorCollection pc = new ProcessorCollection(segmentAggregator, attributeAggregator, this.createProcessors.apply(segmentMetadata));
         try {
             CompletableFuture<Void> init = segmentAggregator.initialize(this.config.getFlushTimeout());
@@ -613,10 +614,13 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
             // generate the list of processors we make sure to put it first; if there are any issues with the operations
             // to process we need to ensure that no other processor may see those operations before the Segment Aggregator.
             this.aggregator = aggregator;
-            this.processors = ImmutableList.<WriterSegmentProcessor>builder()
+            ImmutableList.Builder<WriterSegmentProcessor> builder = ImmutableList.<WriterSegmentProcessor>builder()
                     .add(aggregator)
-                    .add(attributeAggregator)
-                    .addAll(processors).build();
+                    .addAll(processors);
+            if (attributeAggregator != null) {
+                builder.add(attributeAggregator);
+            }
+            this.processors = builder.build();
         }
 
         //region SegmentAggregator direct wrapper

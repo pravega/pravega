@@ -33,6 +33,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -81,6 +82,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfoStore;
+import io.pravega.segmentstore.storage.chunklayer.UtilsWrapper;
 import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
@@ -88,6 +90,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -114,6 +117,8 @@ import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST
 @Slf4j
 class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
+    // Default buffer size of 1 MB.
+    private static final int BUFFER_SIZE = 1048576;
     private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
             .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
     protected final StreamSegmentContainerMetadata metadata;
@@ -199,7 +204,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private MetadataStore createMetadataStore() {
         MetadataStore.Connector connector = new MetadataStore.Connector(this.metadata, this::mapSegmentId,
-                this::deleteSegmentImmediate, this::deleteSegmentDelayed, this::runMetadataCleanup);
+                this::deleteSegmentImmediate, this::deleteSegmentDelayed, this::runMetadataCleanup, this::pinSegment);
         ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
         Preconditions.checkArgument(tableExtension != null, "ContainerTableExtension required for initialization.");
         return new TableMetadataStore(connector, tableExtension, tableExtension.getConfig(), this.executor);
@@ -225,9 +230,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> initializeStorage() {
         log.info("{}: Initializing storage.", this.traceObjectId);
         this.storage.initialize(this.metadata.getContainerEpoch());
-
-        if (this.storage instanceof ChunkedSegmentStorage) {
-            ChunkedSegmentStorage chunkedSegmentStorage = (ChunkedSegmentStorage) this.storage;
+        val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
+        if (null != chunkedSegmentStorage) {
             val snapshotInfoStore = getStorageSnapshotInfoStore();
             // Bootstrap
             StorageEventProcessor eventProcessor = new StorageEventProcessor(this.metadata.getContainerId(),
@@ -310,8 +314,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
         // are not required for accepting new operations and can still start in the background.
         delayedStart.thenComposeAsync(v -> {
-                    if (this.storage instanceof ChunkedSegmentStorage) {
-                        return ((ChunkedSegmentStorage) this.storage).finishBootstrap();
+                    val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
+                    if (null != chunkedSegmentStorage) {
+                        return chunkedSegmentStorage.finishBootstrap();
                     }
                     return CompletableFuture.completedFuture(null);
                 }, this.executor)
@@ -723,6 +728,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return flusher.flushToStorage(timeout);
     }
 
+    @SneakyThrows
+    @Override
+    public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
+        val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
+        return wrapper.getExtendedChunkInfoList(streamSegmentName, true);
+    }
+
     //endregion
 
     //region Helpers
@@ -774,6 +787,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * processed. If it failed, it will be completed with an appropriate exception.
      */
     private CompletableFuture<Void> processAppend(StreamSegmentAppendOperation appendOperation, TimeoutTimer timer) {
+        if (this.config.isDataIntegrityChecksEnabled()) {
+            // Compute the hash of the Append contents at the beginning of the ingestion pipeline.
+            appendOperation.setContentHash(appendOperation.getData().hash());
+        }
         CompletableFuture<Void> result = processAttributeUpdaterOperation(appendOperation, timer);
         Futures.exceptionListener(result, ex -> appendOperation.close());
         return result;
@@ -974,6 +991,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         OperationPriority priority = calculatePriority(SegmentType.fromAttributes(segmentProperties.getAttributes()), op);
         return this.durableLog.add(op, priority, timeout).thenApply(ignored -> op.getStreamSegmentId());
+    }
+
+    private CompletableFuture<Boolean> pinSegment(long segmentId, String segmentName, boolean pin, Duration timeout) {
+        Preconditions.checkNotNull(segmentName, "SegmentName cannot be null.");
+        Preconditions.checkArgument(segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Segment must have a valid id.");
+
+        UpdateableSegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(segmentId);
+        if (segmentMetadata != null && pin) {
+            segmentMetadata.markPinned();
+            return CompletableFuture.completedFuture(true);
+        }
+        return CompletableFuture.completedFuture(false);
     }
 
     private CompletableFuture<Void> deleteSegmentImmediate(String segmentName, Duration timeout) {

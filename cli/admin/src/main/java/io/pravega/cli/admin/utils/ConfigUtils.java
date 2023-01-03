@@ -36,6 +36,9 @@ public class ConfigUtils {
         // First, load the properties from file, if any.
         try (InputStream input = new FileInputStream(System.getProperty(CONFIG_FILE_PROPERTY_NAME))) {
             pravegaProperties.load(input);
+            for (String propertyName: pravegaProperties.stringPropertyNames()) {
+                pravegaProperties.setProperty(propertyName, getIfEnv(pravegaProperties.getProperty(propertyName)));
+            }
         } catch (Exception e) {
             System.err.println("Exception reading input properties file: " + e.getMessage());
             pravegaProperties.clear();
@@ -46,9 +49,20 @@ public class ConfigUtils {
             if (propertyName.startsWith(PRAVEGA_SERVICE_PROPERTY_NAME)
                     || propertyName.startsWith(CLI_PROPERTY_NAME)
                     || propertyName.startsWith(BOOKKEEPER_PROPERTY_NAME)) {
-                pravegaProperties.setProperty(propertyName, System.getProperties().getProperty(propertyName));
+                pravegaProperties.setProperty(propertyName, getIfEnv(System.getProperties().getProperty(propertyName)));
             }
         }
         state.getConfigBuilder().include(pravegaProperties);
+    }
+
+    public static String getIfEnv(String value) {
+        if (value.startsWith("$")) {
+            String envValue = System.getenv(value.substring(1));
+            if (envValue == null) {
+                throw new IllegalArgumentException(String.format("%s is not a valid environment variable.", value));
+            }
+            return envValue;
+        }
+        return value;
     }
 }

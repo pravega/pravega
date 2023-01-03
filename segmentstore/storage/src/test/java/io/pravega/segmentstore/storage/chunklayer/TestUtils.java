@@ -15,11 +15,14 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.ReadIndexBlockMetadata;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
+import io.pravega.segmentstore.storage.metadata.StatusFlags;
 import io.pravega.segmentstore.storage.metadata.StorageMetadata;
+import io.pravega.segmentstore.storage.mocks.AbstractInMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.shared.NameUtils;
 import lombok.val;
@@ -68,11 +71,9 @@ public class TestUtils {
         Assert.assertNotNull(segmentMetadata.getFirstChunk());
         Assert.assertNotNull(segmentMetadata.getLastChunk());
 
-        int i = 0;
         val chunks = getChunkList(metadataStore, segmentName);
         for (val chunk : chunks) {
             Assert.assertEquals(lengthOfChunk, chunk.getLength());
-            i++;
         }
         Assert.assertEquals(numberOfchunks, chunks.size());
     }
@@ -124,7 +125,7 @@ public class TestUtils {
 
     /**
      * Checks the existence of read index block metadata records for given segment.
-     * @param chunkedSegmentStorage  ChunkedSegmentStorage.
+     * @param chunkedSegmentStorage Instance of {@link ChunkedSegmentStorage}.
      * @param metadataStore  Metadata store to query.
      * @param segmentName    Name of the segment.
      * @param startOffset    Start offset of the segment.
@@ -265,7 +266,7 @@ public class TestUtils {
     /**
      * Checks garbage collection queue to ensure new chunks and truncated chunks are added to GC queue.
      *
-     * @param chunkedSegmentStorage instance of {@link ChunkedSegmentStorage}
+     * @param chunkedSegmentStorage Instance of {@link ChunkedSegmentStorage}.
      * @param beforeSet set of chunks before.
      * @param afterSet set of chunks after.
      */
@@ -347,5 +348,134 @@ public class TestUtils {
             val actualChunkMetadata = actualChunkMetadataList.get(i);
             Assert.assertEquals(expectedChunkMetadata, actualChunkMetadata);
         }
+    }
+
+    /**
+     * Insert Metadata as given.
+     *
+     * @param testSegmentName Name of the segment
+     * @param maxRollingLength Max rolling length.
+     * @param ownerEpoch Owner epoch.
+     * @param metadataStore Instance of {@link ChunkMetadataStore}
+     * @return {@link SegmentMetadata} representing segment.
+     */
+    public static SegmentMetadata insertMetadata(String testSegmentName, int maxRollingLength, int ownerEpoch, ChunkMetadataStore metadataStore) {
+        Preconditions.checkArgument(maxRollingLength > 0, "maxRollingLength");
+        Preconditions.checkArgument(ownerEpoch > 0, "ownerEpoch");
+        try (val txn = metadataStore.beginTransaction(false, new String[]{testSegmentName})) {
+            SegmentMetadata segmentMetadata = SegmentMetadata.builder()
+                    .maxRollinglength(maxRollingLength)
+                    .name(testSegmentName)
+                    .ownerEpoch(ownerEpoch)
+                    .build();
+            segmentMetadata.setActive(true);
+            txn.create(segmentMetadata);
+            txn.commit().join();
+            return segmentMetadata;
+        }
+    }
+
+    /**
+     * Insert Metadata as given.
+     *
+     * @param testSegmentName        Name of the segment
+     * @param maxRollingLength       Max rolling length.
+     * @param ownerEpoch             Owner epoch.
+     * @param chunkLengthsInMetadata Chunk lengths to set in metadata.
+     * @param chunkLengthsInStorage  Chunk lengths to set in storage.
+     * @param addIndex               Whether to add index.
+     * @param addIndexMetadata       Whether to add index metadata.
+     * @param metadataStore          Instance of {@link ChunkMetadataStore}
+     * @param chunkedSegmentStorage  Instance of {@link ChunkedSegmentStorage}.
+     * @param statusFlags            Status flags to set.
+     * @return {@link SegmentMetadata} representing segment.
+     */
+    public static SegmentMetadata insertMetadata(String testSegmentName, long maxRollingLength, int ownerEpoch,
+                                                 long[] chunkLengthsInMetadata,
+                                                 long[] chunkLengthsInStorage,
+                                                 boolean addIndex, boolean addIndexMetadata,
+                                                 ChunkMetadataStore metadataStore,
+                                                 ChunkedSegmentStorage chunkedSegmentStorage,
+                                                 int statusFlags) {
+        Preconditions.checkArgument(maxRollingLength > 0, "maxRollingLength");
+        Preconditions.checkArgument(ownerEpoch > 0, "ownerEpoch");
+        try (val txn = metadataStore.beginTransaction(false, new String[]{testSegmentName})) {
+            String firstChunk = null;
+            String lastChunk = null;
+            TreeMap<Long, String> index = new TreeMap<>();
+            // Add chunks.
+            long length = 0;
+            long startOfLast = 0;
+            long startOffset = 0;
+            int chunkCount = 0;
+            for (int i = 0; i < chunkLengthsInMetadata.length; i++) {
+                String chunkName = testSegmentName + "_chunk_" + Integer.toString(i);
+                ChunkMetadata chunkMetadata = ChunkMetadata.builder()
+                        .name(chunkName)
+                        .length(chunkLengthsInMetadata[i])
+                        .nextChunk(i == chunkLengthsInMetadata.length - 1 ? null : testSegmentName + "_chunk_" + Integer.toString(i + 1))
+                        .build();
+                chunkMetadata.setActive(true);
+                if (addIndex) {
+                    chunkedSegmentStorage.getReadIndexCache().addIndexEntry(testSegmentName, chunkName, startOffset);
+                }
+                index.put(startOffset, chunkName);
+                startOffset += chunkLengthsInMetadata[i];
+                length += chunkLengthsInMetadata[i];
+                txn.create(chunkMetadata);
+
+                addChunk(chunkedSegmentStorage.getChunkStorage(), chunkName, chunkLengthsInStorage[i]);
+                chunkCount++;
+            }
+
+            // Fix the first and last
+            if (chunkLengthsInMetadata.length > 0) {
+                firstChunk = testSegmentName + "_chunk_0";
+                lastChunk = testSegmentName + "_chunk_" + Integer.toString(chunkLengthsInMetadata.length - 1);
+                startOfLast = length - chunkLengthsInMetadata[chunkLengthsInMetadata.length - 1];
+            }
+
+            // Finally save
+            SegmentMetadata segmentMetadata = SegmentMetadata.builder()
+                    .maxRollinglength(maxRollingLength)
+                    .name(testSegmentName)
+                    .ownerEpoch(ownerEpoch)
+                    .firstChunk(firstChunk)
+                    .lastChunk(lastChunk)
+                    .length(length)
+                    .status(statusFlags)
+                    .lastChunkStartOffset(startOfLast)
+                    .build();
+            segmentMetadata.setActive(true);
+            segmentMetadata.setChunkCount(chunkCount);
+            segmentMetadata.checkInvariants();
+            txn.create(segmentMetadata);
+
+            if (addIndexMetadata) {
+                for (long blockStartOffset = 0; blockStartOffset < segmentMetadata.getLength(); blockStartOffset += chunkedSegmentStorage.getConfig().getIndexBlockSize()) {
+                    val floor = index.floorEntry(blockStartOffset);
+                    txn.create(ReadIndexBlockMetadata.builder()
+                            .name(NameUtils.getSegmentReadIndexBlockName(segmentMetadata.getName(), blockStartOffset))
+                            .startOffset(floor.getKey())
+                            .chunkName(floor.getValue())
+                            .status(StatusFlags.ACTIVE)
+                            .build());
+                }
+            }
+
+            txn.commit().join();
+            return segmentMetadata;
+        }
+    }
+
+    /**
+     * Adds chunk of specified length to the underlying {@link ChunkStorage}.
+     *
+     * @param chunkStorage Instance of {@link ChunkStorage}.
+     * @param chunkName Name of chunk to add.
+     * @param length length of chunk to add.
+     */
+    public static void addChunk(ChunkStorage chunkStorage, String chunkName, long length) {
+        ((AbstractInMemoryChunkStorage) chunkStorage).addChunk(chunkName, length);
     }
 }

@@ -23,7 +23,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.test.integration.auth.customplugin.TestAuthHandler;
-import io.pravega.test.integration.demo.ClusterWrapper;
+import io.pravega.test.integration.utils.ClusterWrapper;
 import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
 import lombok.Cleanup;
 import org.junit.Rule;

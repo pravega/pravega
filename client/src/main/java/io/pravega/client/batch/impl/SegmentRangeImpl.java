@@ -33,7 +33,7 @@ import lombok.ToString;
 @Builder
 @ToString
 @EqualsAndHashCode
-public class SegmentRangeImpl implements SegmentRange {
+public final class SegmentRangeImpl implements SegmentRange {
     private static final long serialVersionUID = 1L;
 
     /**

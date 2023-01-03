@@ -40,7 +40,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @param controllerUri The Controller URI.
      * @return Instance of Stream Manager implementation.
      */
-    public static ReaderGroupManager withScope(String scope, URI controllerUri) {
+    static ReaderGroupManager withScope(String scope, URI controllerUri) {
         return withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
     }
 
@@ -51,7 +51,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @param clientConfig Configuration for the client.
      * @return Instance of Stream Manager implementation.
      */
-    public static ReaderGroupManager withScope(String scope, ClientConfig clientConfig) {
+    static ReaderGroupManager withScope(String scope, ClientConfig clientConfig) {
         // Change the max number of number of allowed connections to the segment store to 1.
         val updatedClientConfig = clientConfig.toBuilder()
                 .maxConnectionsPerSegmentStore(1)

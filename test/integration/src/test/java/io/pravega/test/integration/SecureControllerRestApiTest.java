@@ -39,7 +39,7 @@ import io.pravega.controller.server.rest.generated.model.ReaderGroupsListReaderG
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.integration.demo.ClusterWrapper;
+import io.pravega.test.integration.utils.ClusterWrapper;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.RandomStringUtils;

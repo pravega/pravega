@@ -28,10 +28,15 @@ import lombok.Getter;
  */
 public class DurableLogConfig {
     //region Config Names
+
     public static final Property<Integer> CHECKPOINT_MIN_COMMIT_COUNT = Property.named("checkpoint.commit.count.min", 300, "checkpointMinCommitCount");
     public static final Property<Integer> CHECKPOINT_COMMIT_COUNT = Property.named("checkpoint.commit.threshold.count", 300, "checkpointCommitCountThreshold");
     public static final Property<Long> CHECKPOINT_TOTAL_COMMIT_LENGTH = Property.named("checkpoint.commit.length.total", 256 * 1024 * 1024L, "checkpointTotalCommitLengthThreshold");
     public static final Property<Integer> START_RETRY_DELAY_MILLIS = Property.named("start.retry.delay.millis", 60 * 1000, "startRetryDelayMillis");
+    public static final Property<Integer> MAX_BATCHING_DELAY_MILLIS = Property.named("throttler.max.batching.delay.millis", 50);
+    public static final Property<Integer> MAX_DELAY_MILLIS = Property.named("throttler.max.delay.millis", 25000);
+    public static final Property<Integer> OPERATION_LOG_TARGET_SIZE = Property.named("throttler.operation.log.size.target", (int) (1_000_000 * 0.95));
+    public static final Property<Integer> OPERATION_LOG_MAX_SIZE = Property.named("throttler.operation.log.size.max", 1_000_000);
     private static final String COMPONENT_CODE = "durablelog";
 
     //endregion
@@ -60,7 +65,31 @@ public class DurableLogConfig {
      * The amount of time to wait between consecutive start attempts in case of retryable startup failure (i.e., offline).
      */
     @Getter
-    private Duration startRetryDelay;
+    private final Duration startRetryDelay;
+
+    /**
+     * Maximum delay (millis) we are willing to introduce in order to perform batching.
+     */
+    @Getter
+    private final int maxBatchingDelayMillis;
+
+    /**
+     * Maximum delay (millis) we are willing to introduce in order to throttle the incoming operations.
+     */
+    @Getter
+    private final int maxDelayMillis;
+
+    /**
+     * Maximum size (in number of operations) of the OperationLog, above which maximum throttling will be applied.
+     */
+    @Getter
+    private final int operationLogMaxSize;
+
+    /**
+     * Desired size (in number of operations) of the OperationLog, above which a gradual throttling will begin.
+     */
+    @Getter
+    private final int operationLogTargetSize;
 
     //endregion
 
@@ -86,6 +115,17 @@ public class DurableLogConfig {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", START_RETRY_DELAY_MILLIS));
         }
         this.startRetryDelay = Duration.ofMillis(startRetryDelayMillis);
+
+        // Throttler configuration.
+        this.maxBatchingDelayMillis = properties.getPositiveInt(MAX_BATCHING_DELAY_MILLIS);
+        this.maxDelayMillis = properties.getPositiveInt(MAX_DELAY_MILLIS);
+        this.operationLogMaxSize = properties.getPositiveInt(OPERATION_LOG_MAX_SIZE);
+        this.operationLogTargetSize = properties.getPositiveInt(OPERATION_LOG_TARGET_SIZE);
+        if (this.operationLogTargetSize >= this.operationLogMaxSize) {
+            throw new ConfigurationException(String.format("Property '%s' ('%d') must be a smaller than Property '%s' ('%d').",
+                    OPERATION_LOG_TARGET_SIZE, this.operationLogTargetSize,
+                    OPERATION_LOG_MAX_SIZE, this.operationLogMaxSize));
+        }
     }
 
     /**

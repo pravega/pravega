@@ -28,11 +28,11 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -44,7 +44,13 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
+import lombok.Cleanup;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.net.URI;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -53,14 +59,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import lombok.Cleanup;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import static io.pravega.shared.NameUtils.getScopedStreamName;
 import static com.google.common.collect.Lists.newArrayList;
+import static io.pravega.shared.NameUtils.getScopedStreamName;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
@@ -288,6 +288,81 @@ public class ScopeTest {
         readerGroupManager.createReaderGroup(groupName2, ReaderGroupConfig.builder()
                 .stream(getScopedStreamName(scope, streamName2)).build());
 
-        assertTrue(streamManager.deleteScope(scope, true));
+        assertTrue(streamManager.deleteScopeRecursive(scope));
+    }
+
+    @Test
+    public void testDeleteScopeRecursive() throws Exception {
+        final String scope = "testDeleteScope";
+        final String testFalseScope = "falseScope";
+        final String streamName1 = "test1";
+        final String streamName2 = "test2";
+        final String streamName3 = "test3";
+        final String streamName4 = "test4";
+        final String kvtName1 = "kvt1";
+        final String kvtName2 = "kvt2";
+        final String kvtName3 = "kvt3";
+        final String groupName1 = "rg1";
+        final String groupName2 = "rg2";
+        final String groupName3 = "rg3";
+
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build();
+        @Cleanup
+        Controller controller = controllerWrapper.getController();
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + controllerPort)).build();
+        @Cleanup
+        ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+
+        // Create scope
+        controllerWrapper.getControllerService().createScope(scope, 0L).get();
+        assertTrue(controller.checkScopeExists(scope).get());
+
+        // Create streams
+        assertTrue(controller.createStream(scope, streamName1, config).get());
+        assertTrue(controller.createStream(scope, streamName2, config).get());
+        assertTrue(controller.createStream(scope, streamName3, config).get());
+
+        @Cleanup
+        StreamManager streamManager = new StreamManagerImpl(controller, cp);
+        @Cleanup
+        KeyValueTableManager keyValueTableManager = new KeyValueTableManagerImpl(clientConfig);
+        @Cleanup
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, clientConfig, connectionFactory);
+
+        // 1. Call deleteScopeRecursive() without creating a scope
+        assertTrue(streamManager.deleteScopeRecursive(testFalseScope));
+
+        // Create KVT under the scope
+        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
+        assertTrue(keyValueTableManager.createKeyValueTable(scope, kvtName1, kvtConfig));
+        assertTrue(keyValueTableManager.createKeyValueTable(scope, kvtName2, kvtConfig));
+
+        // Create RG under the same scope
+        assertTrue(readerGroupManager.createReaderGroup(groupName1, ReaderGroupConfig.builder()
+                .stream(getScopedStreamName(scope, streamName1)).build()));
+        assertTrue(readerGroupManager.createReaderGroup(groupName2, ReaderGroupConfig.builder()
+                .stream(getScopedStreamName(scope, streamName2)).build()));
+
+        // Call deleteScopeRecursive to delete the scope recursively
+        assertTrue(streamManager.deleteScopeRecursive(scope));
+
+        // Validate that the scope is deleted
+        assertFalse(controller.checkScopeExists(scope).get());
+
+        // Validate create operation of Stream/RG/KVT should throw error
+        AssertExtensions.assertThrows("Failed to create Reader Group as Scope does not exits",
+                () -> readerGroupManager.createReaderGroup(groupName3, ReaderGroupConfig.builder()
+                        .stream(getScopedStreamName(scope, streamName2)).build()),
+                e -> e instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("Scope does not exist",
+                () -> controller.createStream(scope, streamName4, config).get(),
+                e -> e instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("Scope does not exist",
+                () -> keyValueTableManager.createKeyValueTable(scope, kvtName3, kvtConfig),
+                e -> e instanceof IllegalArgumentException);
     }
 }

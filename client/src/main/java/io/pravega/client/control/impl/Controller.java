@@ -24,6 +24,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -102,6 +103,16 @@ public interface Controller extends AutoCloseable {
      *         indicate that the scope was removed because it existed.
      */
     CompletableFuture<Boolean> deleteScope(final String scopeName);
+
+    /**
+     * API to delete a scope recursively. This method once invoked will cause failure of
+     * create operation on Stream/RG/KVT within the scope if the scope is in sealed state
+     *
+     * @param scopeName Scope name.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the scope was removed because it existed.
+     */
+    CompletableFuture<Boolean> deleteScopeRecursive(final String scopeName);
 
     /**
      * API to create a stream. The future completes with true in the case the stream did not
@@ -354,6 +365,16 @@ public interface Controller extends AutoCloseable {
      */
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
 
+    /**
+     * Get list of TransactionInfo for the Stream having status COMMITTED/ABORTED from most recent batch.
+     * TransactionInfo contains unique transactionId, status of transaction and stream.
+     * This API can return maximum 500 records.
+     *
+     * @param stream The name of the stream for which to list transactionInfo.
+     * @return List of TransactionInfo.
+     */
+    CompletableFuture<List<TransactionInfo>> listCompletedTransactions(final Stream stream);
+
     // Controller Apis that are called by readers
 
     /**
@@ -525,6 +546,15 @@ public interface Controller extends AutoCloseable {
      * @return Current KeyValueTable segments.
      */
     CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(final String scope, final String kvtName);
+
+    /**
+     * API to force cache refresh in case data is stale.
+     *
+     * @param segmentName   name of the segment
+     * @param errNodeUri Stale {@link PravegaNodeUri} entry in cache, this would be used in comparison
+     * with the existing value to determine if update is needed or not.
+     */
+    void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri);
 
     //endregion
 }

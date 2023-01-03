@@ -41,6 +41,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.Subscribers;
+import io.pravega.controller.util.Config;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
@@ -72,11 +73,32 @@ import static io.pravega.controller.store.PravegaTablesStoreHelper.LONG_TO_BYTES
 import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BYTES_FUNCTION;
 import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
 import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_EMPTY_PREDICATE;
-import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SEPARATOR;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
-import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
-import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
+import static io.pravega.shared.NameUtils.COMMITTING_TRANSACTIONS_RECORD_KEY;
+import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
+import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
+import static io.pravega.shared.NameUtils.CONFIGURATION_KEY;
+import static io.pravega.shared.NameUtils.CREATION_TIME_KEY;
+import static io.pravega.shared.NameUtils.CURRENT_EPOCH_KEY;
+import static io.pravega.shared.NameUtils.EPOCHS_WITH_TRANSACTIONS_TABLE;
+import static io.pravega.shared.NameUtils.EPOCH_RECORD_KEY_FORMAT;
+import static io.pravega.shared.NameUtils.EPOCH_TRANSITION_KEY;
+import static io.pravega.shared.NameUtils.HISTORY_TIMESERIES_CHUNK_FORMAT;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
+import static io.pravega.shared.NameUtils.METADATA_TABLE;
+import static io.pravega.shared.NameUtils.RETENTION_SET_KEY;
+import static io.pravega.shared.NameUtils.RETENTION_STREAM_CUT_RECORD_KEY_FORMAT;
+import static io.pravega.shared.NameUtils.SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT;
+import static io.pravega.shared.NameUtils.SEGMENT_MARKER_PATH_FORMAT;
+import static io.pravega.shared.NameUtils.SEGMENT_SEALED_EPOCH_KEY_FORMAT;
+import static io.pravega.shared.NameUtils.SEPARATOR;
+import static io.pravega.shared.NameUtils.STATE_KEY;
+import static io.pravega.shared.NameUtils.SUBSCRIBER_KEY_PREFIX;
+import static io.pravega.shared.NameUtils.SUBSCRIBER_SET_KEY;
+import static io.pravega.shared.NameUtils.TRANSACTIONS_IN_EPOCH_TABLE_FORMAT;
+import static io.pravega.shared.NameUtils.TRUNCATION_KEY;
+import static io.pravega.shared.NameUtils.WAITING_REQUEST_PROCESSOR_PATH;
+import static io.pravega.shared.NameUtils.WRITERS_POSITIONS_TABLE;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 /**
@@ -90,34 +112,10 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
 class PravegaTablesStream extends PersistentStreamBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaTablesStream.class));
 
-    private static final String METADATA_TABLE = "metadata" + SEPARATOR + "%s";
-    private static final String EPOCHS_WITH_TRANSACTIONS_TABLE = "epochsWithTransactions" + SEPARATOR + "%s";
-    private static final String WRITERS_POSITIONS_TABLE = "writersPositions" + SEPARATOR + "%s";
-    private static final String TRANSACTIONS_IN_EPOCH_TABLE_FORMAT = "transactionsInEpoch-%d" + SEPARATOR + "%s";
-
-    // metadata keys
-    private static final String CREATION_TIME_KEY = "creationTime";
-    private static final String CONFIGURATION_KEY = "configuration";
-    private static final String TRUNCATION_KEY = "truncation";
-    private static final String STATE_KEY = "state";
-    private static final String EPOCH_TRANSITION_KEY = "epochTransition";
-    private static final String RETENTION_SET_KEY = "retention";
-    private static final String RETENTION_STREAM_CUT_RECORD_KEY_FORMAT = "retentionCuts-%s"; // stream cut reference
-    private static final String CURRENT_EPOCH_KEY = "currentEpochRecord";
-    private static final String EPOCH_RECORD_KEY_FORMAT = "epochRecord-%d";
-    private static final String HISTORY_TIMESERIES_CHUNK_FORMAT = "historyTimeSeriesChunk-%d";
-    private static final String SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT = "segmentsSealedSizeMapShard-%d";
-    private static final String SEGMENT_SEALED_EPOCH_KEY_FORMAT = "segmentSealedEpochPath-%d"; // segment id
-    private static final String COMMITTING_TRANSACTIONS_RECORD_KEY = "committingTxns";
-    private static final String SEGMENT_MARKER_PATH_FORMAT = "markers-%d";
-    private static final String WAITING_REQUEST_PROCESSOR_PATH = "waitingRequestProcessor";
-
     // completed transactions key
     private static final String STREAM_KEY_PREFIX = "Key" + SEPARATOR + "%s" + SEPARATOR + "%s" + SEPARATOR; // scoped stream name
     private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_KEY_PREFIX + "/%s";
-    private static final String SUBSCRIBER_KEY_PREFIX = "subscriber_";
-    private static final String SUBSCRIBER_SET_KEY = "subscriberset";
-    
+
     // non existent records
     private static final VersionedMetadata<ActiveTxnRecord> NON_EXISTENT_TXN = 
             new VersionedMetadata<>(ActiveTxnRecord.EMPTY, new Version.LongVersion(Long.MIN_VALUE));
@@ -807,14 +805,35 @@ class PravegaTablesStream extends PersistentStreamBase {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         return getEpochsWithTransactions(context)
-                .thenCompose(epochsWithTransactions -> {
-                    return Futures.allOfWithResults(epochsWithTransactions.stream().map(x -> 
-                            getTxnInEpoch(x, context)).collect(Collectors.toList()));
-                }).thenApply(list -> {
+                .thenCompose(epochsWithTransactions -> Futures.allOfWithResults(epochsWithTransactions.stream().map(x ->
+                        getTxnInEpoch(x, context)).collect(Collectors.toList()))).thenApply(list -> {
             Map<UUID, ActiveTxnRecord> map = new HashMap<>();
             list.forEach(map::putAll);
             return map;
         });
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(final OperationContext context) {
+        Preconditions.checkNotNull(context, "operation context cannot be null");
+        return getTxnInBatch(0, context);
+    }
+
+    private CompletableFuture<Map<UUID, TxnStatus>> getTxnInBatch(final Integer batch, final OperationContext context) {
+        Preconditions.checkNotNull(context, "operation context cannot be null");
+
+        Map<String, VersionedMetadata<CompletedTxnRecord>> result = new ConcurrentHashMap<>();
+        String tableName = getCompletedTransactionsBatchTableName(batch);
+        return storeHelper.expectingDataNotFound(storeHelper.getAllEntries(
+                tableName, CompletedTxnRecord::fromBytes, context.getRequestId()).collectRemaining(completedTxnMetadataMap -> {
+            result.put(completedTxnMetadataMap.getKey().replace(getCompletedTransactionKey(getScope(), getName(), ""), ""),
+                    completedTxnMetadataMap.getValue());
+            return true;
+        }).thenApply(v -> result.entrySet().stream().sorted((r1, r2) -> Long.compare(r2.getValue().getObject().getCompleteTime(),
+                                r1.getValue().getObject().getCompleteTime())).limit( Config.LIST_COMPLETED_TXN_MAX_RECORDS )
+                        .collect(Collectors.toMap(completedTxnMap -> UUID.fromString(completedTxnMap.getKey()),
+                completedTxnMap -> completedTxnMap.getValue().getObject().getCompletionStatus())))
+                .exceptionally(v -> Collections.emptyMap()), Collections.emptyMap());
     }
 
     private CompletableFuture<List<Integer>> getEpochsWithTransactions(OperationContext context) {
@@ -925,10 +944,8 @@ class PravegaTablesStream extends PersistentStreamBase {
                     tableName, ActiveTxnRecord::fromBytes, context.getRequestId()).collectRemaining(x -> {
                         result.put(x.getKey(), x.getValue());
                         return true;
-            }).thenApply(v -> {
-                return result.entrySet().stream().collect(Collectors.toMap(x -> UUID.fromString(x.getKey()), 
-                        x -> x.getValue().getObject()));
-            }), Collections.emptyMap()));
+            }).thenApply(v -> result.entrySet().stream().collect(Collectors.toMap(x -> UUID.fromString(x.getKey()),
+                    x -> x.getValue().getObject()))), Collections.emptyMap()));
     }
 
     @Override
@@ -950,13 +967,9 @@ class PravegaTablesStream extends PersistentStreamBase {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         return getEpochsWithTransactionsTable(context)
-                .thenCompose(epochsWithTxnTable -> {
-                    return storeHelper.addNewEntryIfAbsent(epochsWithTxnTable, Integer.toString(epoch), new byte[0], x -> x, 
-                            context.getRequestId());
-                }).thenCompose(epochTxnEntryCreated -> {
-                    return getTransactionsInEpochTable(epoch, context)
-                            .thenCompose(x -> storeHelper.createTable(x, context.getRequestId()));
-                });
+                .thenCompose(epochsWithTxnTable -> storeHelper.addNewEntryIfAbsent(epochsWithTxnTable, Integer.toString(epoch), new byte[0], x -> x,
+                        context.getRequestId())).thenCompose(epochTxnEntryCreated -> getTransactionsInEpochTable(epoch, context)
+                        .thenCompose(x -> storeHelper.createTable(x, context.getRequestId())));
     }
     
     @Override

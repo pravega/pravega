@@ -186,4 +186,13 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
         assertEquals("List Streams response code", expectedResult, response.getStatus());
     }
+
+    @Override
+    public void testDeleteReaderGroup() {
+        final String resourceURI = getURI() + "v1/scopes/scope1/readergroups/readergroup1";
+        // Test to delete a reader group
+        Response response = addAuthHeaders(client.target(resourceURI).request()).buildDelete().invoke();
+        assertEquals("Delete reader group response code", expectedResult, response.getStatus());
+        response.close();
+    }
 }

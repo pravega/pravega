@@ -250,7 +250,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         cf.provideConnection(uri, connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      retryConfig, DelegationTokenProviderFactory.createWithEmptyToken());
-        try {
             output.reconnect();
             verify.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
             //simulate a processing Failure and ensure SetupAppend is executed.
@@ -263,6 +262,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
             verify.verify(connection).close();
             verify.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
             processor.wrongHost(new WireCommands.WrongHost(output.getRequestId(), SEGMENT, "newHost", "SomeException"));
+            verify.verify(connection).getLocation();
             verify.verify(connection).close();
             verify.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
             verifyNoMoreInteractions(connection);
@@ -271,10 +271,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
             AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(output.getConnection()));
             verify.verify(connection).close();
             verifyNoMoreInteractions(connection);
-        } finally {
             // Verify that a close on the SegmentOutputStream does throw a RetriesExhaustedException.
             AssertExtensions.assertThrows(RetriesExhaustedException.class, output::close);
-        }
     }
 
     @Test(timeout = 10000)

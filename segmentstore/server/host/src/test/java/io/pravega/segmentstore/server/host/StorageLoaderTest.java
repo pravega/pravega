@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import io.jsonwebtoken.lang.Assert;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -23,22 +24,23 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import io.pravega.segmentstore.storage.mocks.SlowStorageFactory;
+import io.pravega.segmentstore.storage.noop.ConditionalNoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
-import io.pravega.storage.extendeds3.ExtendedS3StorageFactory;
 import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
-import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
-import io.pravega.storage.hdfs.HDFSStorageFactory;
-import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Test;
+
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -71,6 +73,15 @@ public class StorageLoaderTest {
         assertTrue(expectedFactory instanceof NoOpStorageFactory);
         builder.close();
 
+        builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
+                        .withStorageFactory(setup -> {
+                           StorageLoader loader = new StorageLoader();
+                           expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.CHUNKED_STORAGE, executor);
+                           return expectedFactory;
+                        });
+        builder.initialize();
+        assertTrue(expectedFactory instanceof ConditionalNoOpStorageFactory);
+
         configBuilder
                 .include(StorageExtraConfig.builder()
                         .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false));
@@ -94,8 +105,7 @@ public class StorageLoaderTest {
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
-        val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.ROLLING_STORAGE);
-        assertTrue(factory instanceof FileSystemStorageFactory);
+        Assert.isNull(getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.ROLLING_STORAGE));
     }
 
     @Test
@@ -119,8 +129,7 @@ public class StorageLoaderTest {
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, HDFSStorageConfig.builder().build());
-        val factory  = getStorageFactory(configSetup, storageType, "HDFS", StorageLayoutType.ROLLING_STORAGE);
-        assertTrue(factory instanceof HDFSStorageFactory);
+        Assert.isNull(getStorageFactory(configSetup, storageType, "HDFS", StorageLayoutType.ROLLING_STORAGE));
     }
 
     @Test
@@ -150,8 +159,7 @@ public class StorageLoaderTest {
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, config);
 
-        val factory = getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.ROLLING_STORAGE);
-        assertTrue(factory instanceof ExtendedS3StorageFactory);
+        Assert.isNull(getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.ROLLING_STORAGE));
     }
 
     @Test
@@ -170,6 +178,73 @@ public class StorageLoaderTest {
 
         val factory = getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.CHUNKED_STORAGE);
         assertTrue(factory instanceof ExtendedS3SimpleStorageFactory);
+    }
+
+    @Test
+    public void testSlowModeWithInMemoryStorage() throws Exception {
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+
+        // Case 1
+        ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
+                .builder()
+                .include(StorageExtraConfig.builder()
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE, true)
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_MEAN, 0)
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_STD_DEV, 0)
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE_INJECT_CHUNK_STORAGE_ONLY, false))
+                .include(ServiceConfig.builder()
+                        .with(ServiceConfig.CONTAINER_COUNT, 1)
+                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY.name()));
+
+        ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
+                .withStorageFactory(setup -> {
+                    StorageLoader loader = new StorageLoader();
+                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.CHUNKED_STORAGE, executor);
+                    return expectedFactory;
+                });
+        builder.initialize();
+        assertTrue(expectedFactory instanceof SlowStorageFactory);
+        assertTrue(((SlowStorageFactory) expectedFactory).getInner() instanceof InMemorySimpleStorageFactory);
+        builder.close();
+
+        // Case 2
+        configBuilder = ServiceBuilderConfig
+                .builder()
+                .include(StorageExtraConfig.builder()
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE, true)
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_MEAN, 0)
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE_LATENCY_STD_DEV, 0)
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE_INJECT_CHUNK_STORAGE_ONLY, true))
+                .include(ServiceConfig.builder()
+                        .with(ServiceConfig.CONTAINER_COUNT, 1)
+                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY.name()));
+
+        builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
+                .withStorageFactory(setup -> {
+                    StorageLoader loader = new StorageLoader();
+                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.CHUNKED_STORAGE, executor);
+                    return expectedFactory;
+                });
+        builder.initialize();
+        assertTrue(expectedFactory instanceof SlowStorageFactory);
+        assertTrue(((SlowStorageFactory) expectedFactory).getInner() instanceof InMemorySimpleStorageFactory);
+        builder.close();
+
+        // Case 3
+        configBuilder
+                .include(StorageExtraConfig.builder()
+                        .with(StorageExtraConfig.STORAGE_SLOW_MODE, false));
+
+        builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
+                .withStorageFactory(setup -> {
+                    StorageLoader loader = new StorageLoader();
+                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.CHUNKED_STORAGE, executor);
+                    return expectedFactory;
+                });
+        builder.initialize();
+        assertTrue(expectedFactory instanceof InMemorySimpleStorageFactory);
+        builder.close();
     }
 
     private StorageFactory getStorageFactory(ConfigSetup setup, ServiceConfig.StorageType storageType, String name, StorageLayoutType storageLayoutType) {

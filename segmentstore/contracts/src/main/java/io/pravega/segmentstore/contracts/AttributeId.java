@@ -18,8 +18,8 @@ package io.pravega.segmentstore.contracts;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.hash.RandomFactory;
-import io.pravega.common.util.AbstractBufferView;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import java.util.Arrays;
@@ -233,7 +233,7 @@ public abstract class AttributeId implements Comparable<AttributeId> {
 
         private Variable(byte[] data) {
             this.data = data;
-            this.hashCode = AbstractBufferView.hashCode(this.data);
+            this.hashCode = (int) BufferView.wrap(this.data).hash();
         }
 
         @Override

@@ -59,6 +59,14 @@ public interface EventRead<T> {
      * @return true if this is a checkpoint.
      */
     boolean isCheckpoint();
+
+    /**
+     * A boolean indicating if all events in the stream read completely.
+     * This is true when the streams are sealed and all events in the streams have already been read.
+     *
+     * @return true if all events in the stream read completely.
+     */
+    boolean isReadCompleted();
     
     /**
      * If a checkpoint has been requested this will return the checkpointName passed to

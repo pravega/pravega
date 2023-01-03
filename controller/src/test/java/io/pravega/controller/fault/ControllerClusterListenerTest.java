@@ -49,10 +49,8 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.ClassRule;
-import org.junit.rules.Timeout;
 import org.junit.Assert;
 
 import static org.junit.Assert.assertEquals;
@@ -74,8 +72,6 @@ public class ControllerClusterListenerTest {
 
     @ClassRule
     public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     private ScheduledExecutorService executor;
     private ClusterZKImpl clusterZK;

@@ -31,6 +31,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * This is data class for storing stream cut with time when the cut was computed.
@@ -82,6 +83,15 @@ public class StreamCutRecord {
     @SneakyThrows(IOException.class)
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "recordingTime", recordingTime) + "\n" +
+                String.format("%s = %s", "recordingSize", recordingSize) + "\n" +
+                String.format("%s = %s", "streamCut", streamCut.keySet().stream()
+                        .map(key -> key + " : " + streamCut.get(key))
+                        .collect(Collectors.joining(", ", "{", "}")));
     }
 
     public static class RetentionStreamCutRecordSerializer

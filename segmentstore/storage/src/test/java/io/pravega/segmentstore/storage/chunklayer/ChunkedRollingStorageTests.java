@@ -54,9 +54,13 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
                 chunkStorage,
                 chunkMetadataStore,
                 executor,
-                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+                getDefaultConfig());
         ret.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         return ret;
+    }
+
+    protected ChunkedSegmentStorageConfig getDefaultConfig() {
+        return ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
     }
 
     /**
@@ -76,14 +80,6 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
      * @throws Exception If any unexpected error occurred.
      */
     protected ChunkMetadataStore getMetadataStore() throws Exception {
-        return new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
-    }
-
-    @Override
-    public void testListSegmentsWithOneSegment() {
-    }
-
-    @Override
-    public void testListSegmentsNextNoSuchElementException() {
+        return new InMemoryMetadataStore(getDefaultConfig(), executorService());
     }
 }

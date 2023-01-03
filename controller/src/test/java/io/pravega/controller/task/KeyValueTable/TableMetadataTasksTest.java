@@ -38,15 +38,18 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableSt
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.task.EventHelper;
+import io.pravega.controller.MetricsTestUtil;
+import io.pravega.shared.MetricsNames;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
+
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.Data;
 import lombok.Getter;
@@ -54,9 +57,7 @@ import org.apache.commons.lang3.NotImplementedException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -66,8 +67,6 @@ import static org.mockito.Mockito.spy;
 public abstract class TableMetadataTasksTest {
 
     protected static final String SCOPE = "taskscope";
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StreamMetadataStore streamStore;
     protected KVTableMetadataStore kvtStore;
     protected TableMetadataTasks kvtMetadataTasks;
@@ -79,6 +78,8 @@ public abstract class TableMetadataTasksTest {
     private RequestTracker requestTracker = new RequestTracker(true);
     private EventStreamWriter<ControllerEvent> requestEventWriter = new WriterMock();
     private TableRequestHandler tableRequestHandler;
+
+    private StatsProvider statsProvider = null;
 
     @Before
     public void setup() throws Exception {
@@ -98,6 +99,9 @@ public abstract class TableMetadataTasksTest {
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
                                                             new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
                                                             this.kvtStore, executor);
+
+        statsProvider = MetricsTestUtil.getInitializedStatsProvider();
+        statsProvider.startWithoutExporting();
     }
 
     public abstract void setupStores() throws Exception;
@@ -111,6 +115,10 @@ public abstract class TableMetadataTasksTest {
         cleanupStores();
         StreamMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
+        if (this.statsProvider != null) {
+            statsProvider.close();
+            statsProvider = null;
+        }
     }
 
     @Test(timeout = 30000)
@@ -123,6 +131,7 @@ public abstract class TableMetadataTasksTest {
 
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
         assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY) > 0);
         List<KVTSegmentRecord> segmentsList = kvtStore.getActiveSegments(SCOPE, kvtable1, null, executor).get();
         assertEquals(segmentsList.size(), kvtConfig.getPartitionCount());
 
@@ -160,6 +169,8 @@ public abstract class TableMetadataTasksTest {
         assertEquals(Controller.DeleteKVTableStatus.Status.SUCCESS, future.get());
         assertTrue(kvtMetadataTasks.isDeleted(SCOPE, kvtable1, null).join());
         assertFalse(kvtStore.checkTableExists(SCOPE, kvtable1, null, executor).join());
+        assertFalse(kvtStore.isScopeSealed("testScope", null, executor).join());
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY) > 0);
     }
 
     private CompletableFuture<Void> processEvent(TableMetadataTasksTest.WriterMock requestEventWriter) throws InterruptedException {

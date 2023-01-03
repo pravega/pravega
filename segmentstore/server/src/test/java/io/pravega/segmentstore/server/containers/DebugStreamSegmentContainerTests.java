@@ -108,6 +108,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
+            .with(ContainerConfig.DATA_INTEGRITY_CHECKS_ENABLED, true)
             .build();
 
     private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = DurableLogConfig
@@ -147,6 +148,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
             .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 200)
+            .with(ContainerConfig.DATA_INTEGRITY_CHECKS_ENABLED, true)
             .build();
 
     @Rule

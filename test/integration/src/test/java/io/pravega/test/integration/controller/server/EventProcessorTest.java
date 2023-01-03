@@ -59,7 +59,7 @@ import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;

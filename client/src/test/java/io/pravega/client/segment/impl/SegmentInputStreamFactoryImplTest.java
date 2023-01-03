@@ -20,10 +20,14 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.EmptyTokenProviderImpl;
+import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
+import io.pravega.client.stream.mock.MockController;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+
+import lombok.Cleanup;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -72,6 +76,18 @@ public class SegmentInputStreamFactoryImplTest {
                         .fromScopedName("scope/stream/0"), new EmptyTokenProviderImpl(), 100);
         assertEquals(100, segmentInputStream.getOffset());
         assertEquals(Segment.fromScopedName("scope/stream/0"), segmentInputStream.getSegmentId());
+
+    }
+
+    @Test
+    public void testCreateInputStreamForSegmentWithOffsetAndBufferSize() {
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController mockController = new MockController("localhost", -1, connectionFactory, false);
+        SegmentInputStreamFactoryImpl streamFactory = new SegmentInputStreamFactoryImpl(mockController, connectionFactory);
+        @Cleanup
+        EventSegmentReader reader = streamFactory.createEventReaderForSegment(Segment.fromScopedName("scope/stream/0"), 100L, 10);
+        assertEquals(100, reader.getOffset());
+        assertEquals(Segment.fromScopedName("scope/stream/0"), reader.getSegmentId());
 
     }
 }

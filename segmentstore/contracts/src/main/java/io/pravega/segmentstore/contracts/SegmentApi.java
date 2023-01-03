@@ -19,6 +19,7 @@ import io.pravega.common.util.BufferView;
 
 import java.time.Duration;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -239,4 +240,14 @@ public interface SegmentApi {
      * failed, the future will be failed with the causing exception.
      */
     CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout);
+
+    /**
+     * Lists all the storage chunks for the given StreamSegment.
+     *
+     * @param streamSegmentName The name of the StreamSegment.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally will give the list of chunks for the given segment as
+     * {@link ExtendedChunkInfo} objects. If the operation failed, the future will fail with the causing exception.
+     */
+    CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout);
 }

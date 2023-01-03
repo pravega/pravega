@@ -47,8 +47,15 @@ import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 public abstract class SimpleStorageTests extends StorageTestBase {
     private static final int CONTAINER_ID = 42;
     private static final int WRITE_COUNT = 5;
+    private static final int THREAD_POOL_SIZE = 3;
+
     ChunkStorage chunkStorage;
     ChunkMetadataStore chunkMetadataStore;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return THREAD_POOL_SIZE;
+    }
 
     /**
      * Creates a new instance of the Storage implementation to be tested. This will be cleaned up (via close()) upon
@@ -63,9 +70,14 @@ public abstract class SimpleStorageTests extends StorageTestBase {
                 chunkStorage = getChunkStorage();
             }
         }
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, chunkMetadataStore, executor, ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID,
+                chunkStorage, chunkMetadataStore, executor, getDefaultConfig());
         chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         return chunkedSegmentStorage;
+    }
+
+    protected ChunkedSegmentStorageConfig getDefaultConfig() {
+        return ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
     }
 
     abstract protected ChunkStorage getChunkStorage() throws Exception;

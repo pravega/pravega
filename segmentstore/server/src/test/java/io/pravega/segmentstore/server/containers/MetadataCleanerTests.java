@@ -22,6 +22,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -34,10 +35,13 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -46,6 +50,9 @@ import lombok.NonNull;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Unit tests for the {@link MetadataCleaner} class.
@@ -56,6 +63,7 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
     private static final int ATTRIBUTES_PER_SEGMENT = 10;
     private static final ContainerConfig CONFIG = ContainerConfig.builder()
             .with(ContainerConfig.MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT, ATTRIBUTES_PER_SEGMENT / 2)
+            .with(ContainerConfig.DATA_INTEGRITY_CHECKS_ENABLED, true)
             .build();
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
@@ -98,7 +106,7 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
             }
 
             val attributeCount = sm.getAttributes((k, v) -> !Attributes.isCoreAttribute(k)).size();
-            Assert.assertEquals("Unexpected number of remaining non-core attributes.", CONFIG.getMaxCachedExtendedAttributeCount(), attributeCount);
+            assertEquals("Unexpected number of remaining non-core attributes.", CONFIG.getMaxCachedExtendedAttributeCount(), attributeCount);
         }
     }
 
@@ -118,12 +126,70 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
                 .filter(sm -> !sm.isDeleted() && !sm.isMerged())
                 .collect(Collectors.toList());
         AssertExtensions.assertGreaterThan("Expected at least one eligible segment.", 0, expectedSegments.size());
-        Assert.assertEquals("Unexpected number of segments persisted.", expectedSegments.size(), context.metadataStore.getSegmentCount());
+        assertEquals("Unexpected number of segments persisted.", expectedSegments.size(), context.metadataStore.getSegmentCount());
 
         for (val sm : expectedSegments) {
             val info = context.metadataStore.getSegmentInfo(sm.getName(), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             Assert.assertNotNull("No persisted info for " + sm.getName(), info);
-            Assert.assertEquals("Unexpected length for " + sm.getName(), sm.getLength(), info.getLength());
+            assertEquals("Unexpected length for " + sm.getName(), sm.getLength(), info.getLength());
+        }
+    }
+
+    /**
+     * Verifies that all in-memory metadata used to support Transient Segments are cleaned up accordingly.
+     */
+    @Test
+    public void testTransientSegmentCleanup() throws ExecutionException, InterruptedException, TimeoutException {
+        @Cleanup
+        val context = new TransientTestContext();
+        Assert.assertNotEquals(0, context.metadata.getActiveSegmentCount());
+
+        // Cleanup #1. We expect half of the deleted segments to be evicted (due to how they're set up).
+        val expected1 = context.metadata.getEvictionCandidates(0, 1000);
+        AssertExtensions.assertGreaterThan("Expected at least one eligible segment.", 0, expected1.size());
+        context.cleaner.runOnce().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        AssertExtensions.assertContainsSameElements("Unexpected evicted segments on the first round.",
+                expected1, context.cleanedUpMetadata, Comparator.comparingLong(SegmentMetadata::getId));
+
+        // Cleanup #2. We expect all the remaining Transient Segments to not have been marked as deleted and therefore
+        // will not be evicted.
+        context.cleanedUpMetadata.clear();
+        val expected2 = context.metadata.getEvictionCandidates(context.metadata.getOperationSequenceNumber(), 1000);
+        assertEquals("Expected no eviction candidates", 0, expected2.size());
+        context.cleaner.runOnce().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        // Make sure that there is no trace of deleted segments and non-deleted segments still exist.
+
+        val expectedSegments = context.metadata.getAllStreamSegmentIds().stream()
+                .map(context.metadata::getStreamSegmentMetadata)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        assertEquals("Unexpected number of remaining Transient Segments.", TransientTestContext.TRANSIENT_COUNT, expectedSegments.size());
+        for (val sm : expectedSegments) {
+            val info = context.metadataStore.getSegmentInfo(sm.getName(), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            Assert.assertNotNull("No persisted info for " + sm.getName(), info);
+            assertTrue("Unexpected Segment ID: " + sm.getId(), sm.getId() < TransientTestContext.TRANSIENT_COUNT);
+            assertTrue("SegmentMetadata unexpectedaly deleted.", !sm.isDeleted());
+        }
+    }
+
+    private void populateMetadataTransient(UpdateableContainerMetadata metadata, int transientCount, int transientDeletedCount) {
+        val truncationSeqNo = 10000L;
+        metadata.removeTruncationMarkers(truncationSeqNo);
+        val segmentId = new AtomicLong(metadata.getAllStreamSegmentIds().stream().max(Long::compareTo).orElse(1L));
+
+        for (int i = 0; i < transientCount + transientDeletedCount; i++) {
+            val id = segmentId.incrementAndGet();
+            val name = String.format("#transient.32%d", id + i);
+            val m = metadata.mapStreamSegmentId(name, i);
+            m.setLength(1000 + i);
+            // Only mark transientDeletedCount segments as deleted.
+            if (i >= transientCount) {
+                m.markDeleted();
+            }
+            // Metadata must have a segment type of TRANSIENT to be handled accordingly.
+            m.updateAttributes(Map.of(Attributes.ATTRIBUTE_SEGMENT_TYPE, SegmentType.TRANSIENT_SEGMENT.getValue()));
+            m.refreshDerivedProperties();
         }
     }
 
@@ -195,10 +261,15 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
                     (s, sp, pin, timeout) -> Futures.failedFuture(new UnsupportedOperationException()),
                     (s, timeout) -> Futures.failedFuture(new UnsupportedOperationException()),
                     (s, timeout) -> Futures.failedFuture(new UnsupportedOperationException()),
-                    () -> Futures.failedFuture(new UnsupportedOperationException()));
+                    () -> Futures.failedFuture(new UnsupportedOperationException()),
+                    (s, sp, pin, timeout) -> Futures.failedFuture(new UnsupportedOperationException()));
 
             this.metadataStore = new TestMetadataStore(connector);
             this.cleaner = new MetadataCleaner(CONFIG, this.metadata, this.metadataStore, this.cleanedUpMetadata::addAll, executorService(), "");
+            this.populate();
+        }
+
+        public void populate() {
             populateMetadata(this.metadata, 10, 20, 30, 40, ATTRIBUTES_PER_SEGMENT);
         }
 
@@ -206,6 +277,17 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
         public void close() {
             this.cleaner.close();
             this.metadataStore.close();
+        }
+    }
+
+    private class TransientTestContext extends TestContext {
+
+        public static final int TRANSIENT_COUNT = 10;
+        public static final int TRANSIENT_DELETED_COUNT = 20;
+
+        @Override
+        public void populate() {
+            populateMetadataTransient(this.metadata, TRANSIENT_COUNT, TRANSIENT_DELETED_COUNT);
         }
     }
 

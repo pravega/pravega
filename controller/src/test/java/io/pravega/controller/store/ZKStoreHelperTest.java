@@ -28,14 +28,11 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -44,9 +41,6 @@ import static org.junit.Assert.assertTrue;
  * Unit tests for ZKStoreHelper.
  */
 public class ZKStoreHelperTest {
-    //Ensure each test completes within 30 seconds.
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     private TestingServer zkServer;
     private CuratorFramework cli;
@@ -68,7 +62,7 @@ public class ZKStoreHelperTest {
         zkServer.close();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testAddNode() throws ExecutionException, InterruptedException, IOException {
         Assert.assertNull(zkStoreHelper.addNode("/test/test1").get());
         AssertExtensions.assertFutureThrows("Should throw NodeExistsException", zkStoreHelper.addNode("/test/test1"),
@@ -78,7 +72,7 @@ public class ZKStoreHelperTest {
                 e -> e instanceof StoreException.StoreConnectionException);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testDeleteNode() throws ExecutionException, InterruptedException, IOException {
         Assert.assertNull(zkStoreHelper.addNode("/test/test1").get());
 
@@ -96,7 +90,7 @@ public class ZKStoreHelperTest {
                 e -> e instanceof StoreException.StoreConnectionException);
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void testDeleteConditionally() {
         String path = "/test/test/deleteConditionally";
         zkStoreHelper.createZNode(path, new byte[0]).join();
@@ -107,7 +101,7 @@ public class ZKStoreHelperTest {
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testEphemeralNode() {
         CuratorFramework cli2 = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryNTimes(0, 0));
         cli2.start();
@@ -123,7 +117,7 @@ public class ZKStoreHelperTest {
                 e -> e instanceof StoreException.DataNotFoundException);
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void testGetChildren() {
         zkStoreHelper.createZNodeIfNotExist("/1").join();
         zkStoreHelper.createZNodeIfNotExist("/1/1").join();
@@ -141,7 +135,7 @@ public class ZKStoreHelperTest {
                 e -> e instanceof StoreException.DataNotFoundException);
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void testSync() {
         String path = "/path";
         byte[] entry = new byte[1];

@@ -47,7 +47,7 @@ import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+
 import java.net.URI;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
@@ -75,6 +75,7 @@ public final class SetupUtils {
     @Getter
     private EventStreamClientFactory clientFactory = null;
     private ControllerWrapper controllerWrapper = null;
+    private ServiceBuilder serviceBuilder = null;
     private PravegaConnectionListener server = null;
     private AdminConnectionListener adminListener = null;
     @Getter
@@ -168,9 +169,9 @@ public final class SetupUtils {
         this.zkTestServer.start();
 
         // Start Pravega Service.
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
 
-        serviceBuilder.initialize();
+        this.serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         this.server = new PravegaConnectionListener(enableTls, false, "localhost",
@@ -217,6 +218,7 @@ public final class SetupUtils {
 
         this.controllerWrapper.close();
         this.server.close();
+        this.serviceBuilder.close();
         this.adminListener.close();
         this.zkTestServer.close();
         this.clientFactory.close();

@@ -17,6 +17,7 @@ package io.pravega.storage.hdfs;
 
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
@@ -46,7 +47,7 @@ public class HDFSSimpleStorageFactory implements SimpleStorageFactory {
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
-                new HDFSChunkStorage(this.config, this.executor),
+                createChunkStorage(),
                 metadataStore,
                 this.executor,
                 this.chunkedSegmentStorageConfig);
@@ -59,5 +60,10 @@ public class HDFSSimpleStorageFactory implements SimpleStorageFactory {
     @Override
     public Storage createStorageAdapter() {
         throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
+    }
+
+    @Override
+    public ChunkStorage createChunkStorage() {
+        return new HDFSChunkStorage(this.config, this.executor);
     }
 }

@@ -27,13 +27,16 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
+import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.StorageWrapper;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
-import io.pravega.segmentstore.storage.metadata.ReadIndexBlockMetadata;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StatusFlags;
 import io.pravega.segmentstore.storage.mocks.AbstractInMemoryChunkStorage;
+import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
@@ -47,7 +50,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Random;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -66,6 +68,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+
 /**
  * Unit tests for {@link ChunkedSegmentStorage}.
  * The focus is on testing the ChunkedSegmentStorage implementation itself very thoroughly.
@@ -73,9 +78,10 @@ import org.junit.rules.Timeout;
  */
 @Slf4j
 public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
     private static final int CONTAINER_ID = 42;
     private static final int OWNER_EPOCH = 100;
+    private static final int THREAD_POOL_SIZE = 3;
     protected final Random rnd = new Random(0);
 
     @Rule
@@ -95,7 +101,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 1;
+        return THREAD_POOL_SIZE;
     }
 
     public ChunkStorage createChunkStorage() throws Exception {
@@ -168,7 +174,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         Assert.assertEquals(metadataStore, chunkedSegmentStorage.getMetadataStore());
         Assert.assertEquals(chunkStorage, chunkedSegmentStorage.getChunkStorage());
         Assert.assertNotNull(chunkedSegmentStorage.getSystemJournal());
-        Assert.assertEquals(chunkedSegmentStorage.getSystemJournal().getConfig().getStorageMetadataRollingPolicy(), chunkedSegmentStorage.getConfig().getStorageMetadataRollingPolicy());
+        Assert.assertEquals(chunkedSegmentStorage.getSystemJournal().getConfig().getStorageMetadataRollingPolicy(),
+                chunkedSegmentStorage.getConfig().getStorageMetadataRollingPolicy());
         Assert.assertEquals(1, chunkedSegmentStorage.getEpoch());
         Assert.assertEquals(CONTAINER_ID, chunkedSegmentStorage.getContainerId());
         Assert.assertEquals(0, chunkedSegmentStorage.getConfig().getMinSizeLimitForConcat());
@@ -1045,7 +1052,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             // Append some data to the last chunk to simulate partial write during failure
             val lastChunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore,
                     TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName).getLastChunk());
-            testContext.chunkStorage.write(ChunkHandle.writeHandle(lastChunkMetadata.getName()), lastChunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1]));
+            testContext.chunkStorage.write(ChunkHandle.writeHandle(lastChunkMetadata.getName()), lastChunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1])).join();
             writeAt += i;
         }
 
@@ -1319,103 +1326,135 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Test failover scenario for segment with only one chunk.
+     * Test failover scenario for segment with default settings.
      *
      * @throws Exception
      */
     @Test
-    public void testOpenWriteAfterFailoverWithSingleChunk() throws Exception {
+    public void testOpenWriteAfterFailoverWithAppend() throws Exception {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
-        long[] chunks = new long[]{10};
-        int lastChunkLengthInStorage = 24;
 
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, true);
+        // Migration from lazy mode before to NO lazy mode after
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 24, true, true);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
+        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
+
+        // Migration from NO lazy mode before to NO lazy mode after
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, true, false);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
+        testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
 
     }
 
     @Test
-    public void testOpenWriteAfterFailoverWithSingleChunkNoAppend() throws Exception {
+    public void testOpenWriteAfterFailoverWithNoAppend() throws Exception {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
-        long[] chunks = new long[]{10};
-        int lastChunkLengthInStorage = 10;
 
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false);
+        for (boolean useLazyCommitsBefore : new boolean[]{ true, false}) {
+            testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, false, useLazyCommitsBefore);
+            testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, false, useLazyCommitsBefore);
+            testOpenWriteAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, false, useLazyCommitsBefore);
 
+        }
     }
+
 
     /**
-     * Test failover scenario for segment with only one chunk.
+     * Test failover scenario for segment with default settings.
      *
      * @throws Exception
      */
     @Test
-    public void testOpenReadAfterFailoverWithSingleChunkNoAppend() throws Exception {
+    public void testOpenReadAfterFailoverWithAppend() throws Exception {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
-        long[] chunks = new long[]{10};
-        int lastChunkLengthInStorage = 10;
 
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false);
+        // Migration from lazy mode before to NO lazy mode after
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 24, true, true);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
+        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 24, true, true);
+
+        // Migration from NO lazy mode before to NO lazy mode after
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, true, false);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
+        testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, true, false);
 
     }
 
     @Test
-    public void testOpenReadAfterFailoverWithSingleChunk() throws Exception {
+    public void testOpenReadAfterFailoverWithNoAppend() throws Exception {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
         int maxRollingLength = OWNER_EPOCH;
-        long[] chunks = new long[]{10};
-        int lastChunkLengthInStorage = 24;
 
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, true);
-
+        for (boolean useLazyCommitsBefore : new boolean[]{ true, false}) {
+            testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{10}, 24, 10, false, useLazyCommitsBefore);
+            testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, false, useLazyCommitsBefore);
+            testOpenReadAfterFailover(NameUtils.getAttributeSegmentName(testSegmentName), ownerEpoch, maxRollingLength, new long[]{7, 8, 9, 10}, 24, 10, false, useLazyCommitsBefore);
+        }
     }
 
-    private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, boolean shouldAppend) throws Exception {
+    private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, int expectedLastChunkLength, boolean shouldAppend, boolean useLazyCommitBefore) throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .appendEnabled(shouldAppend)
                 .build());
         testContext.chunkedSegmentStorage.initialize(ownerEpoch);
-        val inserted = testContext.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1, chunks);
-        // Set bigger offset
-        testContext.addChunk(inserted.getLastChunk(), lastChunkLengthInStorage);
+        val inserted = TestUtils.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1,
+                chunks, chunks,
+                true, true,
+                testContext.metadataStore, testContext.chunkedSegmentStorage,
+                useLazyCommitBefore ? StatusFlags.ACTIVE : StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES);
+        // Set bigger offset for last chunk
+        TestUtils.addChunk(testContext.chunkStorage, inserted.getLastChunk(), lastChunkLengthInStorage);
+
+        // Open with new instance
         val hWrite = testContext.chunkedSegmentStorage.openWrite(testSegmentName).get();
         Assert.assertEquals(hWrite.getSegmentName(), testSegmentName);
         Assert.assertFalse(hWrite.isReadOnly());
 
+        // Check metadata
         val metadataAfter = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
         Assert.assertEquals(ownerEpoch, metadataAfter.getOwnerEpoch());
-        Assert.assertEquals(lastChunkLengthInStorage, metadataAfter.getLength());
-        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, chunks, lastChunkLengthInStorage);
+        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, chunks, expectedLastChunkLength);
         TestUtils.checkReadIndexEntries(testContext.chunkedSegmentStorage, testContext.metadataStore, testSegmentName, 0, Arrays.stream(chunks).sum(), true);
         TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, testSegmentName);
+
+        Assert.assertEquals(metadataAfter.getLength(), testContext.chunkedSegmentStorage.getStreamSegmentInfo(testSegmentName, null).get().getLength());
     }
 
-    private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, boolean shouldAppend) throws Exception {
+    private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, int expectedLastChunkLength, boolean shouldAppend, boolean useLazyCommitBefore) throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .appendEnabled(shouldAppend)
                 .build());
         testContext.chunkedSegmentStorage.initialize(ownerEpoch);
-        val inserted = testContext.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1, chunks);
-        // Set bigger offset
-        testContext.addChunk(inserted.getLastChunk(), lastChunkLengthInStorage);
+        val inserted = TestUtils.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1,
+                chunks, chunks,
+                true, true,
+                testContext.metadataStore, testContext.chunkedSegmentStorage,
+                useLazyCommitBefore ? StatusFlags.ACTIVE : StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES);
+        // Set bigger offset for last chunk
+        TestUtils.addChunk(testContext.chunkStorage, inserted.getLastChunk(), lastChunkLengthInStorage);
+
+        // Open with new instance
         val hRead = testContext.chunkedSegmentStorage.openRead(testSegmentName).get();
         Assert.assertEquals(hRead.getSegmentName(), testSegmentName);
         Assert.assertTrue(hRead.isReadOnly());
 
+        // Check metadata
         val metadataAfter = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
         Assert.assertEquals(ownerEpoch, metadataAfter.getOwnerEpoch());
-        Assert.assertEquals(lastChunkLengthInStorage, metadataAfter.getLength());
-        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, chunks, lastChunkLengthInStorage);
+        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, chunks, expectedLastChunkLength);
         TestUtils.checkReadIndexEntries(testContext.chunkedSegmentStorage, testContext.metadataStore, testSegmentName, 0, Arrays.stream(chunks).sum(), true);
         TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, testSegmentName);
+
+        Assert.assertEquals(metadataAfter.getLength(), testContext.chunkedSegmentStorage.getStreamSegmentInfo(testSegmentName, null).get().getLength());
     }
 
     /**
@@ -1676,49 +1715,144 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testBaseConcatWithDefragWithMinMaxLimits() throws Exception {
         // Set limits.
+        val maxRollingSize = 30;
         ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .maxSizeLimitForConcat(12)
-                .minSizeLimitForConcat(2)
+                .maxSizeLimitForConcat(20)
+                .minSizeLimitForConcat(10)
                 .build();
         @Cleanup
         TestContext testContext = getTestContext(config);
         ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportConcat(true);
 
-        // Populate segments
-        testBaseConcat(testContext, 1024,
+        // no-op.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{1},
+                new long[]{21, 21, 21},
+                new long[]{1, 21, 21, 21});
+
+        // no-op - max rollover size.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{30},
+                new long[]{29, 2},
+                new long[]{30, 29, 2});
+        // no-op - max rollover size.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{30},
+                new long[]{1, 2, 3, 4},
+                new long[]{30, 10});
+
+        // small chunks followed by normal chunks.
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{1, 1, 1, 3, 1, 1, 3, 1, 3},  // small chunks followed by normal chunks.
+                new long[]{1, 1, 1, 3, 1, 1, 3, 1, 3},
                 new long[]{25});
 
-        testBaseConcat(testContext, 1024,
+        // normal chunks followed by small chunks.
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{3, 1, 1, 1, 3, 1, 1, 3, 1}, // normal chunks followed by small chunks.
+                new long[]{3, 1, 1, 1, 3, 1, 1, 3, 1},
                 new long[]{25});
 
-        testBaseConcat(testContext, 1024,
+        // consecutive normal.
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{1, 3, 3, 3, 1, 2, 2}, // consecutive normal.
+                new long[]{1, 3, 3, 3, 1, 2, 2},
                 new long[]{25});
 
-        testBaseConcat(testContext, 1024,
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{5, 5, 5}, // all large chunks.
+                new long[]{5, 5, 5},
                 new long[]{25});
 
-        testBaseConcat(testContext, 1024,
+        // all small chunks.
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{2, 2, 2, 2, 2, 2, 2, 1}, // all small chunks.
+                new long[]{2, 2, 2, 2, 2, 2, 2, 1},
                 new long[]{25});
 
-        testBaseConcat(testContext, 1024,
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{12, 3}, // all concats possible.
+                new long[]{12, 3},
                 new long[]{25});
 
-        testBaseConcat(testContext, 1024,
+        testBaseConcat(testContext, maxRollingSize,
                 new long[]{10},
-                new long[]{13, 2}, // not all concats possible.
-                new long[]{10, 15});
+                new long[]{13, 2},
+                new long[]{25});
+
+        // First chunk is greater than max concat size
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{13},
+                new long[]{11, 1},
+                new long[]{25});
+
+        // First chunk is greater than max concat size
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{13},
+                new long[]{10, 2},
+                new long[]{25});
+    }
+
+    @Test
+    public void testBaseConcatWithDefragWithMinMaxLimitsNoAppends() throws Exception {
+        // Set limits.
+        val maxRollingSize = 30;
+        ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .maxSizeLimitForConcat(20)
+                .minSizeLimitForConcat(10)
+                .appendEnabled(false)
+                .build();
+        @Cleanup
+        TestContext testContext = getTestContext(config);
+        ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportConcat(true);
+
+        // Normal case.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{11},
+                new long[]{12},
+                new long[]{23});
+
+        // Bigger than max allowed.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{10},
+                new long[]{20},
+                new long[]{10, 20});
+
+        // Target is bigger than max allowed after first concat.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{11},
+                new long[]{12, 13},
+                new long[]{23, 13});
+
+        // One of the chunks in the middle is smaller than min size allowed.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{11},
+                new long[]{12, 5, 13},
+                new long[]{23, 5, 13});
+
+        // All chunks are smaller, resultant chunk gets bigger than max size allowed.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{11},
+                new long[]{2, 2, 2, 2, 2, 2},
+                new long[]{21, 2});
+
+        // Chunks are already at max rolling size.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{30},
+                new long[]{2, 30, 2, 30, 2, 30},
+                new long[]{30, 2, 30, 2, 30, 2, 30});
+
+        // Test max rollover size.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{11},
+                new long[]{9, 10},
+                new long[]{30});
+
+        // Test max rollover size.
+        testBaseConcat(testContext, maxRollingSize,
+                new long[]{20},
+                new long[]{10, 10},
+                new long[]{30, 10});
     }
 
     /**
@@ -1800,14 +1934,14 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         // Add some garbage data at the end of last chunk
         val lastChunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore,
                 TestUtils.getSegmentMetadata(testContext.metadataStore, targetSegmentName).getLastChunk());
-        testContext.chunkStorage.write(ChunkHandle.writeHandle(lastChunkMetadata.getName()), lastChunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1]));
+        testContext.chunkStorage.write(ChunkHandle.writeHandle(lastChunkMetadata.getName()), lastChunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1])).join();
 
         // Write some garbage at the end.
         val sourceList = TestUtils.getChunkList(testContext.metadataStore, sourceSegmentName);
         for (int i : chunksWithGarbageIndex) {
             // Append some data to the last chunk to simulate partial write during failure
             val chunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore, sourceList.get(i).getName());
-            testContext.chunkStorage.write(ChunkHandle.writeHandle(chunkMetadata.getName()), chunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1]));
+            testContext.chunkStorage.write(ChunkHandle.writeHandle(chunkMetadata.getName()), chunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1])).join();
         }
         val hTarget = testContext.chunkedSegmentStorage.openWrite(targetSegmentName).get();
         val concatAt = Arrays.stream(targetLayoutBefore).sum();
@@ -1920,23 +2054,35 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testRepeatedTruncates() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().indexBlockSize(4).build();
+        testRepeatedTruncates(config, 1, 3);
+        testRepeatedTruncates(config, 3, 1);
+        testRepeatedTruncates(config, 2, 3);
+        testRepeatedTruncates(config, 3, 2);
+        testRepeatedTruncates(config, 3, 3);
+
+    }
+
+    private void testRepeatedTruncates(ChunkedSegmentStorageConfig config, long maxChunkLength, int numberOfChunks) throws Exception {
         @Cleanup
-        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().indexBlockSize(4).build());
+        TestContext testContext = getTestContext(config);
         String testSegmentName = "testSegmentName";
 
-        // Populate sgement.
-        val h1 = populateSegment(testContext, testSegmentName, 3, 3);
-        byte[] buffer = new byte[10];
+        // Populate segment.
+        val expectedLength = Math.toIntExact(maxChunkLength * numberOfChunks);
+        val h1 = populateSegment(testContext, testSegmentName, maxChunkLength, numberOfChunks);
+        byte[] buffer = new byte[expectedLength];
 
         // Perform series of truncates.
-        for (int truncateAt = 0; truncateAt < 9; truncateAt++) {
+        for (int truncateAt = 0; truncateAt < expectedLength; truncateAt++) {
             HashSet<String> chunksBefore = new HashSet<>();
             chunksBefore.addAll(TestUtils.getChunkNameList(testContext.metadataStore, testSegmentName));
 
             testContext.chunkedSegmentStorage.truncate(h1, truncateAt, null).join();
-            TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, 3, 3 - (truncateAt / 3));
-            TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, truncateAt, 9);
-            TestUtils.checkReadIndexEntries(testContext.chunkedSegmentStorage, testContext.metadataStore, testSegmentName, truncateAt, 9, true);
+            TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, truncateAt, expectedLength);
+            val expectedChunkLengths = calculateExpectedChunkLengths(config, maxChunkLength, truncateAt, expectedLength);
+            TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, expectedChunkLengths);
+            TestUtils.checkReadIndexEntries(testContext.chunkedSegmentStorage, testContext.metadataStore, testSegmentName, truncateAt, expectedLength, true);
             TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, testSegmentName);
             HashSet<String>  chunksAfter = new HashSet<>();
             chunksAfter.addAll(TestUtils.getChunkNameList(testContext.metadataStore, testSegmentName));
@@ -1944,19 +2090,24 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
             val metadata = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
             // length doesn't change.
-            Assert.assertEquals(9, metadata.getLength());
+            Assert.assertEquals(expectedLength, metadata.getLength());
             // start offset should match i.
             Assert.assertEquals(truncateAt, metadata.getStartOffset());
-            // Each time the first offest is multiple of 3
-            Assert.assertEquals(3 * (truncateAt / 3), metadata.getFirstChunkStartOffset());
+            // Check first chunk start offset.
+            if (metadata.getFirstChunkStartOffset() % maxChunkLength == 0) {
+                Assert.assertEquals(maxChunkLength * (numberOfChunks - expectedChunkLengths.length), metadata.getFirstChunkStartOffset());
+            } else {
+                val threshold = config.getMinPercentForTruncateRelocation() * maxChunkLength / 100;
+                Assert.assertEquals(maxChunkLength * (numberOfChunks - expectedChunkLengths.length) + threshold, metadata.getFirstChunkStartOffset());
+            }
 
             // try to read some bytes.
-            val bytesRead = testContext.chunkedSegmentStorage.read(h1, truncateAt, buffer, 0, 9 - truncateAt, null).get().intValue();
-            Assert.assertEquals(9 - truncateAt, bytesRead);
+            val bytesRead = testContext.chunkedSegmentStorage.read(h1, truncateAt, buffer, 0, buffer.length - truncateAt, null).get().intValue();
+            Assert.assertEquals(buffer.length - truncateAt, bytesRead);
             if (truncateAt > 0) {
                 AssertExtensions.assertFutureThrows(
                         "read succeeded on missing segment.",
-                        testContext.chunkedSegmentStorage.read(h1, truncateAt - 1, buffer, 0, 9 - truncateAt, null),
+                        testContext.chunkedSegmentStorage.read(h1, truncateAt - 1, buffer, 0, buffer.length - truncateAt, null),
                         ex -> ex instanceof StreamSegmentTruncatedException);
             }
         }
@@ -2105,27 +2256,148 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         testTruncate(3, 3, 4, 3, 12);
     }
 
-    private void testTruncate(long maxChunkLength, long truncateAt, int chunksCountBefore, int chunksCountAfter, long expectedLength) throws Exception {
-        @Cleanup
-        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().indexBlockSize(3).build());
-        String testSegmentName = "testSegmentName";
+    @Test
+    public void testBaseRelocatingTruncate() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .indexBlockSize(3)
+                .relocateOnTruncateEnabled(true)
+                .minSizeForTruncateRelocationInbytes(10)
+                .minPercentForTruncateRelocation(80)
+                .build();
+        val numberOfChunks = 3;
+        val maxChunkSize = 20;
+        val threshold = 16;
+        testRelocatingTruncate(config, numberOfChunks, maxChunkSize, threshold);
+    }
 
+    @Test
+    public void testRelocatingTruncateHalfEmpty() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .indexBlockSize(3)
+                .relocateOnTruncateEnabled(true)
+                .minSizeForTruncateRelocationInbytes(1)
+                .minPercentForTruncateRelocation(50)
+                .build();
+        for (int threshold = 16; threshold > 2; threshold /= 2) {
+            testRelocatingTruncate(config, 1, threshold, threshold / 2);
+        }
+    }
+
+    @Test
+    public void testMultipleRelocatingTruncate() throws Exception {
+        // Force multiple relocation every time relocating half chunk
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .indexBlockSize(3)
+                .relocateOnTruncateEnabled(true)
+                .minSizeForTruncateRelocationInbytes(1)
+                .minPercentForTruncateRelocation(50)
+                .build();
+
+        @Cleanup
+        TestContext testContext = getTestContext(config);
+        String testSegmentName = "testSegmentName";
+        int maxChunkLength = 32;
+        int truncateAt = 0;
+        // Populate
+        val h1 = populateSegment(testContext, testSegmentName, maxChunkLength, 1);
+
+        for (int threshold = maxChunkLength; threshold > 2; threshold /= 2) {
+            truncateAt += threshold / 2;
+            testTruncate(testContext, testSegmentName, maxChunkLength, truncateAt, 1, maxChunkLength, threshold / 2);
+        }
+    }
+
+    @Test
+    public void testRelocatingTruncateWithMaxSize() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .indexBlockSize(3)
+                .relocateOnTruncateEnabled(true)
+                .minSizeForTruncateRelocationInbytes(1)
+                .maxSizeForTruncateRelocationInbytes(10)
+                .minPercentForTruncateRelocation(1)
+                .build();
+
+        @Cleanup
+        TestContext testContext = getTestContext(config);
+        val h1 = populateSegment(testContext, "test1", 11, 1);
+        val h2 = populateSegment(testContext, "test2", 10, 1);
+        testTruncate(testContext, "test1", 11, 10, 1, 11, 11);
+        testTruncate(testContext, "test2", 10, 9, 1, 10, 1);
+    }
+
+    private void testRelocatingTruncate(ChunkedSegmentStorageConfig config, int numberOfChunks, long maxChunkSize, int threshold) throws Exception {
+        for (int i = 0; i < numberOfChunks; i++) {
+            testTruncate(config, maxChunkSize, i * maxChunkSize, numberOfChunks, numberOfChunks - i, maxChunkSize * numberOfChunks, maxChunkSize);
+            testTruncate(config, maxChunkSize, i * maxChunkSize + threshold - 1, numberOfChunks, numberOfChunks - i, maxChunkSize * numberOfChunks, maxChunkSize);
+            for (int j = threshold; j < maxChunkSize; j++) {
+                testTruncate(config, maxChunkSize, i * maxChunkSize + j, numberOfChunks, numberOfChunks - i, maxChunkSize * numberOfChunks, maxChunkSize - j);
+            }
+        }
+    }
+
+    @Test
+    public void testRepeatedTruncateWithRelocation() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .indexBlockSize(3)
+                .relocateOnTruncateEnabled(true)
+                .minSizeForTruncateRelocationInbytes(5)
+                .minPercentForTruncateRelocation(80)
+                .build();
+        testRepeatedTruncates(config, 10, 1);
+        testRepeatedTruncates(config, 10, 2);
+        testRepeatedTruncates(config, 10, 3);
+    }
+
+    private void testTruncate(long maxChunkLength, long truncateAt, int chunksCountBefore, int chunksCountAfter, long expectedLength) throws Exception {
+        testTruncate(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().indexBlockSize(3).build(), maxChunkLength, truncateAt, chunksCountBefore, chunksCountAfter, expectedLength, maxChunkLength);
+    }
+
+    private void testTruncate(ChunkedSegmentStorageConfig config, long maxChunkLength, long truncateAt, int chunksCountBefore, int chunksCountAfter, long expectedLength, long expectedFirstChunkLength) throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext(config);
+        String testSegmentName = "testSegmentName";
         // Populate
         val h1 = populateSegment(testContext, testSegmentName, maxChunkLength, chunksCountBefore);
+        testTruncate(testContext, testSegmentName, maxChunkLength, truncateAt, chunksCountAfter, expectedLength, expectedFirstChunkLength);
+    }
+
+    private void testTruncate(TestContext testContext, String testSegmentName, long maxChunkLength, long truncateAt, int chunksCountAfter, long expectedLength, long expectedFirstChunkLength) throws Exception {
         HashSet<String> chunksBefore = new HashSet<>();
         chunksBefore.addAll(TestUtils.getChunkNameList(testContext.metadataStore, testSegmentName));
 
         // Perform truncate.
-        testContext.chunkedSegmentStorage.truncate(h1, truncateAt, null).join();
+        testContext.chunkedSegmentStorage.truncate(SegmentStorageHandle.writeHandle(testSegmentName), truncateAt, null).join();
 
         // Check layout.
-        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, maxChunkLength, chunksCountAfter);
+        long[] expectedLengths = calculateExpectedChunkLengths(maxChunkLength, chunksCountAfter, expectedFirstChunkLength);
+        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, expectedLengths);
         TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, truncateAt, expectedLength);
         TestUtils.checkReadIndexEntries(testContext.chunkedSegmentStorage, testContext.metadataStore, testSegmentName, truncateAt, expectedLength, true);
         TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, testSegmentName);
         HashSet<String>  chunksAfter = new HashSet<>();
         chunksAfter.addAll(TestUtils.getChunkNameList(testContext.metadataStore, testSegmentName));
         TestUtils.checkGarbageCollectionQueue(testContext.chunkedSegmentStorage, chunksBefore, chunksAfter);
+    }
+
+    private long[] calculateExpectedChunkLengths(long maxChunkLength, int chunksCountAfter, long expectedFirstChunkLength) {
+        long[] expectedLengths = new long[chunksCountAfter];
+        Arrays.fill(expectedLengths, maxChunkLength);
+        expectedLengths[0] = expectedFirstChunkLength;
+        return expectedLengths;
+    }
+
+    private long[] calculateExpectedChunkLengths(ChunkedSegmentStorageConfig config, long maxChunkLength, long startOffset, long length ) {
+        val chunkCount = Math.toIntExact(length / maxChunkLength - startOffset / maxChunkLength); // Note two independent int divisions.
+        long[] expectedLengths = new long[chunkCount];
+        Arrays.fill(expectedLengths, maxChunkLength);
+        if (config.isRelocateOnTruncateEnabled()
+                && maxChunkLength > config.getMinSizeForTruncateRelocationInbytes()
+                && maxChunkLength <= config.getMaxSizeForTruncateRelocationInbytes()) {
+            val threshold = config.getMinPercentForTruncateRelocation() * maxChunkLength / 100;
+            val offset = startOffset % maxChunkLength;
+            expectedLengths[0] = offset >= threshold ? maxChunkLength - threshold : maxChunkLength;
+        }
+        return expectedLengths;
     }
 
     /**
@@ -2775,13 +3047,52 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     public void testConcatHugeChunks() throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .minSizeLimitForConcat(10L * Integer.MAX_VALUE)
+                .minSizeLimitForConcat(Integer.MAX_VALUE)
                 .maxSizeLimitForConcat(100L * Integer.MAX_VALUE)
+                .indexBlockSize(Integer.MAX_VALUE / 2)
                 .build());
         testBaseConcat(testContext, 10L * Integer.MAX_VALUE,
                 new long[]{Integer.MAX_VALUE + 1L},
                 new long[]{Integer.MAX_VALUE + 1L, Integer.MAX_VALUE + 1L},
                 new long[]{3L * Integer.MAX_VALUE + 3L});
+    }
+
+    // This is a time-consuming test and should be eventually made optional
+    @Test
+    public void testRelocateHugeChunks() throws Exception {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .relocateOnTruncateEnabled(true)
+                .maxBufferSizeForChunkDataTransfer(128 * 1024 * 128)
+                .maxSizeForTruncateRelocationInbytes(10L * Integer.MAX_VALUE)
+                .indexBlockSize(Integer.MAX_VALUE / 2)
+                .build();
+        @Cleanup
+        TestContext testContext = getTestContext(config);
+        String testSegmentName = "testSegmentName";
+
+        testContext.insertMetadata(testSegmentName, 10L * Integer.MAX_VALUE, 1, new long[]{
+                10L * Integer.MAX_VALUE,
+                10L * Integer.MAX_VALUE,
+                10L * Integer.MAX_VALUE
+        });
+
+        // Truncate inside the 1st chunk
+        testTruncate(testContext,
+                testSegmentName,
+                10L * Integer.MAX_VALUE,
+                9L * Integer.MAX_VALUE - 1,
+                3,
+                30L * Integer.MAX_VALUE,
+                1L * Integer.MAX_VALUE + 1);
+
+        // Truncate inside the 3rd chunk
+        testTruncate(testContext,
+                testSegmentName,
+                10L * Integer.MAX_VALUE,
+                29L * Integer.MAX_VALUE - 1,
+                1,
+                30L * Integer.MAX_VALUE,
+                1L * Integer.MAX_VALUE + 1);
     }
 
     @Test
@@ -2798,7 +3109,6 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         String testSegmentName = "foo";
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .lazyCommitEnabled(false)
                 .build());
 
         val invocationCount = new AtomicInteger(0);
@@ -2847,6 +3157,109 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         testMetadataStore.setWriteCallback(null);
 
         checkDataRead(testSegmentName, testContext, 0, data.length, data);
+    }
+
+    @Test
+    public void testFullStorage() throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .maxSafeStorageSize(1000)
+                .build());
+
+        Assert.assertFalse(testContext.chunkedSegmentStorage.isSafeMode());
+        val h = testContext.chunkedSegmentStorage.create("test", TIMEOUT).get();
+        testContext.chunkedSegmentStorage.write(h, 0, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
+
+        testContext.chunkedSegmentStorage.create("segment", TIMEOUT).get();
+        testContext.chunkedSegmentStorage.create("_system/something", TIMEOUT).get();
+
+        // Simulate storage full.
+        ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setUsedSizeToReturn(1000);
+        testContext.chunkedSegmentStorage.updateStorageStats().join();
+
+        Assert.assertTrue(testContext.chunkedSegmentStorage.isSafeMode());
+
+        // These operations should pass
+        Assert.assertEquals(10, testContext.chunkedSegmentStorage.getStreamSegmentInfo("test", TIMEOUT).get().getLength());
+        checkDataRead("test", testContext, 0, 10);
+
+        val h3 = testContext.chunkedSegmentStorage.create("A", TIMEOUT).get();
+        testContext.chunkedSegmentStorage.seal(h3, TIMEOUT).get();
+        testContext.chunkedSegmentStorage.delete(h3, TIMEOUT).get();
+        testContext.chunkedSegmentStorage.write(SegmentStorageHandle.writeHandle("_system/something"),
+                0, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
+
+        // These operations should fail
+        AssertExtensions.assertFutureThrows("write() should throw an exception",
+                testContext.chunkedSegmentStorage.write(h, 10, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT),
+                ex -> ex instanceof StorageFullException);
+
+        AssertExtensions.assertFutureThrows("conact() should throw an exception",
+                testContext.chunkedSegmentStorage.concat(h, 10, "A", TIMEOUT),
+                ex -> ex instanceof StorageFullException);
+
+        // Remove storage full
+        ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setUsedSizeToReturn(50);
+        testContext.chunkedSegmentStorage.updateStorageStats().join();
+        Assert.assertFalse(testContext.chunkedSegmentStorage.isSafeMode());
+
+        testContext.chunkedSegmentStorage.write(SegmentStorageHandle.writeHandle("test"), 10,
+                new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
+        testContext.chunkedSegmentStorage.write(SegmentStorageHandle.writeHandle("segment"), 0,
+                new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
+        testContext.chunkedSegmentStorage.write(SegmentStorageHandle.writeHandle("_system/something"),
+                10, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
+        Assert.assertEquals(20, testContext.chunkedSegmentStorage.getStreamSegmentInfo("test", TIMEOUT).get().getLength());
+        Assert.assertEquals(10, testContext.chunkedSegmentStorage.getStreamSegmentInfo("segment", TIMEOUT).get().getLength());
+        Assert.assertEquals(20, testContext.chunkedSegmentStorage.getStreamSegmentInfo("_system/something", TIMEOUT).get().getLength());
+
+        checkDataRead("test", testContext, 0, 20);
+        checkDataRead("segment", testContext, 0, 10);
+
+        val h4 = testContext.chunkedSegmentStorage.create("B", TIMEOUT).get();
+        testContext.chunkedSegmentStorage.delete(h4, TIMEOUT).get();
+
+        testContext.chunkedSegmentStorage.seal(SegmentStorageHandle.writeHandle("segment"), TIMEOUT).get();
+        testContext.chunkedSegmentStorage.concat(SegmentStorageHandle.writeHandle("test"), 20, "segment", TIMEOUT).get();
+    }
+
+    @Test
+    public void testGetReference() throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext();
+        // Null when not ChunkedSegmentStorage
+        Assert.assertNull(ChunkedSegmentStorage.getReference(mock(Storage.class)));
+
+        // Null when inner is not ChunkedSegmentStorage
+        val wrapper1 = mock(StorageWrapper.class);
+        doReturn(mock(Storage.class)).when(wrapper1).getInner();
+        Assert.assertNull(ChunkedSegmentStorage.getReference(wrapper1));
+
+        // Matches when ChunkedSegmentStorage
+        Assert.assertEquals(testContext.chunkedSegmentStorage, ChunkedSegmentStorage.getReference(testContext.chunkedSegmentStorage));
+
+        // Matches when inner is ChunkedSegmentStorage
+        val wrapper2 = mock(StorageWrapper.class);
+        doReturn(testContext.chunkedSegmentStorage).when(wrapper2).getInner();
+        Assert.assertEquals(testContext.chunkedSegmentStorage, ChunkedSegmentStorage.getReference(wrapper2));
+    }
+
+
+    /**
+     * Test simple scenario.
+     *
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testSimpleScenarioWithSelfCheck() throws Exception {
+        String testSegmentName = "foo";
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 bytes.
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .selfCheckForMetadataEnabled(true)
+                .selfCheckForDataEnabled(true)
+                .build());
+        testSimpleScenario(testSegmentName, policy, testContext);
     }
 
     private void checkDataRead(String testSegmentName, TestContext testContext, long offset, long length) throws InterruptedException, java.util.concurrent.ExecutionException {
@@ -3044,19 +3457,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          * Creates and inserts metadata for a test segment.
          */
         public SegmentMetadata insertMetadata(String testSegmentName, int maxRollingLength, int ownerEpoch) throws Exception {
-            Preconditions.checkArgument(maxRollingLength > 0, "maxRollingLength");
-            Preconditions.checkArgument(ownerEpoch > 0, "ownerEpoch");
-            try (val txn = metadataStore.beginTransaction(false, new String[]{testSegmentName})) {
-                SegmentMetadata segmentMetadata = SegmentMetadata.builder()
-                        .maxRollinglength(maxRollingLength)
-                        .name(testSegmentName)
-                        .ownerEpoch(ownerEpoch)
-                        .build();
-                segmentMetadata.setActive(true);
-                txn.create(segmentMetadata);
-                txn.commit().join();
-                return segmentMetadata;
-            }
+            return TestUtils.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch, metadataStore);
         }
 
         public SegmentMetadata insertMetadata(String testSegmentName, long maxRollingLength, int ownerEpoch, long[] chunkLengths) throws Exception {
@@ -3068,74 +3469,12 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          */
         public SegmentMetadata insertMetadata(String testSegmentName, long maxRollingLength, int ownerEpoch, long[] chunkLengths,
                                               boolean addIndex, boolean addIndexMetadata) throws Exception {
-            Preconditions.checkArgument(maxRollingLength > 0, "maxRollingLength");
-            Preconditions.checkArgument(ownerEpoch > 0, "ownerEpoch");
-            try (val txn = metadataStore.beginTransaction(false, new String[]{testSegmentName})) {
-                String firstChunk = null;
-                String lastChunk = null;
-                TreeMap<Long, String> index = new TreeMap<>();
-                // Add chunks.
-                long length = 0;
-                long startOfLast = 0;
-                long startOffset = 0;
-                int chunkCount = 0;
-                for (int i = 0; i < chunkLengths.length; i++) {
-                    String chunkName = testSegmentName + "_chunk_" + Integer.toString(i);
-                    ChunkMetadata chunkMetadata = ChunkMetadata.builder()
-                            .name(chunkName)
-                            .length(chunkLengths[i])
-                            .nextChunk(i == chunkLengths.length - 1 ? null : testSegmentName + "_chunk_" + Integer.toString(i + 1))
-                            .build();
-                    chunkMetadata.setActive(true);
-                    if (addIndex) {
-                        chunkedSegmentStorage.getReadIndexCache().addIndexEntry(testSegmentName, chunkName, startOffset);
-                    }
-                    index.put(startOffset, chunkName);
-                    startOffset += chunkLengths[i];
-                    length += chunkLengths[i];
-                    txn.create(chunkMetadata);
-
-                    addChunk(chunkName, chunkLengths[i]);
-                    chunkCount++;
-                }
-
-                // Fix the first and last
-                if (chunkLengths.length > 0) {
-                    firstChunk = testSegmentName + "_chunk_0";
-                    lastChunk = testSegmentName + "_chunk_" + Integer.toString(chunkLengths.length - 1);
-                    startOfLast = length - chunkLengths[chunkLengths.length - 1];
-                }
-
-                // Finally save
-                SegmentMetadata segmentMetadata = SegmentMetadata.builder()
-                        .maxRollinglength(maxRollingLength)
-                        .name(testSegmentName)
-                        .ownerEpoch(ownerEpoch)
-                        .firstChunk(firstChunk)
-                        .lastChunk(lastChunk)
-                        .length(length)
-                        .lastChunkStartOffset(startOfLast)
-                        .build();
-                segmentMetadata.setActive(true);
-                segmentMetadata.setChunkCount(chunkCount);
-                segmentMetadata.checkInvariants();
-                txn.create(segmentMetadata);
-
-                if (addIndexMetadata) {
-                    for (long blockStartOffset = 0; blockStartOffset < segmentMetadata.getLength(); blockStartOffset += config.getIndexBlockSize()) {
-                        val floor = index.floorEntry(blockStartOffset);
-                        txn.create(ReadIndexBlockMetadata.builder()
-                                .name(NameUtils.getSegmentReadIndexBlockName(segmentMetadata.getName(), blockStartOffset))
-                                .startOffset(floor.getKey())
-                                .chunkName(floor.getValue())
-                                .status(StatusFlags.ACTIVE)
-                                .build());
-                    }
-                }
-
-                txn.commit().join();
-                return segmentMetadata;
-            }
+            return TestUtils.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch,
+                    chunkLengths, chunkLengths,
+                    addIndex, addIndexMetadata,
+                    metadataStore,
+                    chunkedSegmentStorage,
+                    StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES );
         }
 
         /*
@@ -3155,13 +3494,6 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         }
         */
 
-        /**
-         * Adds chunk of specified length to the underlying {@link ChunkStorage}.
-         */
-        public void addChunk(String chunkName, long length) {
-            ((AbstractInMemoryChunkStorage) chunkStorage).addChunk(chunkName, length);
-        }
-
         @Override
         public void close() throws Exception {
             CleanupHelper.close("chunkedSegmentStorage", chunkedSegmentStorage);
@@ -3172,6 +3504,84 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             this.chunkedSegmentStorage = null;
             this.chunkStorage = null;
             this.metadataStore = null;
+        }
+    }
+
+
+    /**
+     * Runs all {@link ChunkedSegmentStorageTests} with all self checks on. It uses {@InMemoryChunkStorage}.
+     */
+    public static class ChunkedSegmentStorageTestsWithSelfCheck extends ChunkedSegmentStorageTests {
+
+        @Override
+        public ChunkStorage createChunkStorage() {
+            return new InMemoryChunkStorage(executorService());
+        }
+
+        @Override
+        public TestContext getTestContext() throws Exception {
+            return new SelfCheckTestContext(executorService());
+        }
+
+        @Override
+        public TestContext getTestContext(ChunkedSegmentStorageConfig config) throws Exception {
+            return new SelfCheckTestContext(executorService(), config);
+        }
+
+        @Override
+        protected void populate(byte[] data) {
+            rnd.nextBytes(data);
+        }
+
+        @Override
+        protected void checkData(byte[] expected, byte[] output) {
+            Assert.assertArrayEquals(expected, output);
+        }
+
+        @Override
+        protected void checkData(byte[] expected, byte[] output, int expectedStartIndex, int outputStartIndex, int length) {
+            AssertExtensions.assertArrayEquals("Data check failed", expected, expectedStartIndex, output, outputStartIndex, length);
+        }
+
+        @Override
+        public void testReadHugeChunks() {
+            // Do not execute this test because it creates very large chunks (few multiples of Integer.MAX_VALUE).
+            // Allocating such huge byte arrays is not desirable with InMemoryChunkStorage.
+        }
+
+        @Override
+        public void testConcatHugeChunks(){
+            // Do not execute this test because it creates very large chunks (few multiples of Integer.MAX_VALUE).
+            // Allocating such huge byte arrays is not desirable with InMemoryChunkStorage.
+        }
+
+        @Override
+        public void testRelocateHugeChunks(){
+            // Do not execute this test because it creates very large chunks (few multiples of Integer.MAX_VALUE).
+            // Allocating such huge byte arrays is not desirable with InMemoryChunkStorage.
+        }
+
+        public class SelfCheckTestContext extends ChunkedSegmentStorageTests.TestContext {
+            SelfCheckTestContext(ScheduledExecutorService executorService) throws Exception {
+                super(executorService, ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                        .selfCheckEnabled(true)
+                        .selfCheckForMetadataEnabled(true)
+                        .selfCheckForDataEnabled(true)
+                        .build());
+            }
+
+            SelfCheckTestContext(ScheduledExecutorService executorService, ChunkedSegmentStorageConfig config) throws Exception {
+                super(executorService, config.toBuilder()
+                        .selfCheckEnabled(true)
+                        .selfCheckForMetadataEnabled(true)
+                        .selfCheckForDataEnabled(true)
+                        .build());
+            }
+
+            @Override
+            public ChunkStorage createChunkStorage() {
+                return new InMemoryChunkStorage(executorService());
+            }
         }
     }
 }

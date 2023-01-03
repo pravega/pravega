@@ -24,6 +24,7 @@ import lombok.Getter;
 public class SingleNodeConfig {
     //region config names
     public final static String PROPERTY_FILE = "singlenode.configurationFile";
+    public final static String PROPERTY_FILE_DEFAULT_PATH = "./config/standalone-config.properties";
 
     public final static Property<Integer> ZK_PORT = Property.named("zk.port", 4000, "zkPort");
     public final static Property<Integer> SEGMENTSTORE_PORT = Property.named("segmentStore.port", 6000, "segmentstorePort");
@@ -50,6 +51,7 @@ public class SingleNodeConfig {
     // Metrics configurations
     public final static Property<Boolean> ENABLE_METRICS = Property.named("metrics.enable", false);
     public final static Property<Boolean> ENABLE_INFLUX_REPORTER = Property.named("metrics.influx.enable", false);
+    public final static Property<Boolean> ENABLE_PROMETHEUS = Property.named("metrics.prometheus.enable", false);
     public final static Property<Integer> METRICS_REPORT_INTERVAL = Property.named("metrics.reporting.interval", 60);
 
     // Pravega Admin Gateway configuration
@@ -174,6 +176,12 @@ public class SingleNodeConfig {
     private boolean enableInfluxDB;
 
     /**
+     * Flag to enable Prometheus.
+     */
+    @Getter
+    private boolean enablePrometheus;
+
+    /**
      * Flag to control the rate of reporting.
      */
     @Getter
@@ -214,6 +222,7 @@ public class SingleNodeConfig {
         this.enableSegmentStoreTlsReload = properties.getBoolean(ENABLE_TLS_RELOAD);
         this.enableMetrics = properties.getBoolean(ENABLE_METRICS);
         this.enableInfluxDB = properties.getBoolean(ENABLE_INFLUX_REPORTER);
+        this.enablePrometheus = properties.getBoolean(ENABLE_PROMETHEUS);
         this.metricsReportInterval = properties.getInt(METRICS_REPORT_INTERVAL);
         this.enableAdminGateway = properties.getBoolean(ENABLE_ADMIN_GATEWAY);
         this.adminGatewayPort = properties.getInt(ADMIN_GATEWAY_PORT);

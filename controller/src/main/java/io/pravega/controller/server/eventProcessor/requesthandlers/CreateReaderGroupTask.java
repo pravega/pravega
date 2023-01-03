@@ -20,8 +20,10 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -60,28 +62,34 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
 
     @Override
     public CompletableFuture<Void> execute(final CreateReaderGroupEvent request) {
+        Timer timer = new Timer();
         String scope = request.getScope();
         String readerGroup = request.getRgName();
         UUID readerGroupId = request.getReaderGroupId();
         ReaderGroupConfig config = getConfigFromEvent(request);
         long requestId = request.getRequestId();
         OperationContext context = streamMetadataStore.createRGContext(scope, readerGroup, requestId);
-
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
-                          .thenCompose(rgId -> {
-                    if (!rgId.equals(readerGroupId)) {
-                        log.warn(requestId, "Skipping processing of CreateReaderGroupEvent with stale UUID.");
-                        return CompletableFuture.completedFuture(null);
-                    }
-                    return streamMetadataTasks.isRGCreationComplete(scope, readerGroup, context)
-                            .thenCompose(complete -> {
-                                if (!complete) {
-                                    return Futures.toVoid(streamMetadataTasks.createReaderGroupTasks(scope, readerGroup,
-                                            config, request.getCreateTimeStamp(), context));
-                                }
-                                return CompletableFuture.completedFuture(null);
-                            });
-        }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+        return streamMetadataStore.isScopeSealed(scope, context, executor).thenCompose(exists -> {
+            if (exists) {
+                log.warn(requestId, "Scope {} already in sealed state", scope);
+                return CompletableFuture.completedFuture(null);
+            }
+            return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
+                    .thenCompose(rgId -> {
+                        if (!rgId.equals(readerGroupId)) {
+                            log.warn(requestId, "Skipping processing of CreateReaderGroupEvent with stale UUID.");
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return streamMetadataTasks.isRGCreationComplete(scope, readerGroup, context)
+                                .thenCompose(complete -> {
+                                    if (!complete) {
+                                        return Futures.toVoid(streamMetadataTasks.createReaderGroupTasks(scope, readerGroup,
+                                                config, request.getCreateTimeStamp(), context));
+                                    }
+                                    return CompletableFuture.completedFuture(null);
+                                }).thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorCreateReaderGroupEvent(timer.getElapsed()));
+                    }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+        });
     }
 
     private ReaderGroupConfig getConfigFromEvent(CreateReaderGroupEvent request) {

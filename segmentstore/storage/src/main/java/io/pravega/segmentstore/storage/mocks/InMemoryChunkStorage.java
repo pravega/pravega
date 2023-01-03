@@ -62,8 +62,27 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
+    protected ChunkHandle doCreateWithContent(String chunkName, int length, InputStream data) throws ChunkStorageException {
+        Preconditions.checkNotNull(chunkName);
+        if (null != chunks.putIfAbsent(chunkName, new InMemoryChunk(chunkName))) {
+            throw new ChunkAlreadyExistsException(chunkName, "InMemoryChunkStorage::doCreate");
+        }
+        ChunkHandle handle = new ChunkHandle(chunkName, false);
+        int bytesWritten = doWriteInternal(handle, 0, length, data);
+        if (bytesWritten < length) {
+            doDelete(ChunkHandle.writeHandle(chunkName));
+            throw new ChunkStorageException(chunkName, "doCreateWithContent - invalid length returned");
+        }
+        return handle;
+    }
+
+    @Override
     protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         Preconditions.checkNotNull(chunkName);
+        if (!supportsAppend()) {
+            throw new UnsupportedOperationException("Attempt to create empty object when append is not supported.");
+        }
+
         if (null != chunks.putIfAbsent(chunkName, new InMemoryChunk(chunkName))) {
             throw new ChunkAlreadyExistsException(chunkName, "InMemoryChunkStorage::doCreate");
         }
@@ -139,6 +158,14 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
 
     @Override
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
+        if (!supportsAppend()) {
+            throw new UnsupportedOperationException("Attempt to create empty object when append is not supported.");
+        }
+
+        return doWriteInternal(handle, offset, length, data);
+    }
+
+    private int doWriteInternal(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
         InMemoryChunk chunk = getInMemoryChunk(handle);
         long oldLength = chunk.getLength();
         if (chunk.isReadOnly) {
@@ -162,7 +189,7 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
         } catch (IOException e) {
             throw new ChunkStorageException(handle.getChunkName(), "Error while reading", e);
         }
-        Preconditions.checkState(length == totalBytesRead);
+        Preconditions.checkState(length == totalBytesRead, "%s %s", length, totalBytesRead);
 
         byte[] writtenBytes = out.toByteArray();
         Preconditions.checkState(writtenBytes.length == totalBytesRead);

@@ -31,7 +31,7 @@ public final class PriorityCalculator {
      *
      * SegmentType       | OperationType | Priority
      * ------------------+---------------+----------------
-     * System & Critical | (any)         | {@link OperationPriority#SystemCritical}
+     * System &amp; Critical | (any)         | {@link OperationPriority#SystemCritical}
      * Critical          | (any)         | {@link OperationPriority#Critical}
      * (any)             | Deletion      | {@link OperationPriority#Critical}
      * System            | Normal        | {@link OperationPriority#High}

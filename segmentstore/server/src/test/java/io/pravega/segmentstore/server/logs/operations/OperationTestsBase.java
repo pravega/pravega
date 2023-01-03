@@ -69,6 +69,15 @@ public abstract class OperationTestsBase<T extends Operation> {
         Assert.assertEquals(getExpectedOperationType(), op.getType());
     }
 
+    @Test
+    public void testOperationResetSequenceNumber() {
+        Random random = RandomFactory.create();
+        T op = createOperation(random);
+        op.resetSequenceNumber(1234);
+        Assert.assertEquals(1234, op.getSequenceNumber());
+        Assert.assertNotNull(op.toString());
+    }
+
     /**
      * Creates a new operation of a given type.
      */

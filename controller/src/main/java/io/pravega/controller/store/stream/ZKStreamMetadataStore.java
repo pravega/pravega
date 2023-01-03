@@ -43,6 +43,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 /**
@@ -61,6 +62,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
      */
     @VisibleForTesting
     static final String SCOPE_ROOT_PATH = "/store";
+    static final String SCOPE_DELETE_PATH = "_system/deletingScopes";
     static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
@@ -136,6 +138,12 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     }
 
     @Override
+    public CompletableFuture<Boolean> isScopeSealed(String scope, OperationContext context, Executor executor) {
+        String scopePath = ZKPaths.makePath(SCOPE_DELETE_PATH, scope);
+        return storeHelper.checkExists(scopePath);
+    }
+
+    @Override
     Version getEmptyVersion() {
         return Version.IntVersion.EMPTY;
     }
@@ -205,6 +213,11 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
 
     @Override
     public CompletableFuture<UUID> getReaderGroupId(String scopeName, String rgName, OperationContext context, Executor executor) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<Void> sealScope(String scope, OperationContext context, ScheduledExecutorService executor) {
         throw new UnsupportedOperationException();
     }
 

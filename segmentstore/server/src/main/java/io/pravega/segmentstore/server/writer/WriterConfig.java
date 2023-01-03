@@ -19,7 +19,6 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
-import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import java.time.Duration;
 import lombok.Getter;
 
@@ -40,7 +39,7 @@ public class WriterConfig {
     public static final Property<Long> FLUSH_TIMEOUT_MILLIS = Property.named("flush.timeout.milliseconds", 60 * 1000L, "flushTimeoutMillis");
     public static final Property<Long> ACK_TIMEOUT_MILLIS = Property.named("ack.timeout.milliseconds", 15 * 1000L, "ackTimeoutMillis");
     public static final Property<Long> SHUTDOWN_TIMEOUT_MILLIS = Property.named("shutDown.timeout.milliseconds", 10 * 1000L, "shutdownTimeoutMillis");
-    public static final Property<Long> MAX_ROLLOVER_SIZE = Property.named("rollover.size.bytes.max", SegmentRollingPolicy.NO_ROLLING.getMaxLength(), "maxRolloverSizeBytes");
+    public static final Property<Long> MAX_ROLLOVER_SIZE = Property.named("rollover.size.bytes.max", 134217728L, "maxRolloverSizeBytes");
     private static final String COMPONENT_CODE = "writer";
 
     //endregion

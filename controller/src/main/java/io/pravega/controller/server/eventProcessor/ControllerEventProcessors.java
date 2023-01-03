@@ -20,7 +20,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -44,15 +43,16 @@ import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteScopeTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
@@ -68,6 +68,10 @@ import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -84,9 +88,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
-import lombok.Getter;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
@@ -108,7 +109,6 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final ControllerEventProcessorConfig config;
     private final CheckpointStore checkpointStore;
     private final EventProcessorSystem system;
-    private final Controller controller;
     private final ClientFactoryImpl clientFactory;
     private final ScheduledExecutorService executor;
 
@@ -123,12 +123,13 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final long rebalanceIntervalMillis;
     private final AtomicLong truncationInterval;
     private ScheduledExecutorService rebalanceExecutor;
+    private final LocalController controller;
     @Getter
     private final AtomicBoolean bootstrapCompleted = new AtomicBoolean(false);
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
-                                     final Controller controller,
+                                     final LocalController controller,
                                      final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
                                      final BucketStore bucketStore,
@@ -145,7 +146,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     @VisibleForTesting
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
-                                     final Controller controller,
+                                     final LocalController controller,
                                      final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
                                      final BucketStore bucketStore,
@@ -173,6 +174,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new DeleteReaderGroupTask(streamMetadataTasks, streamMetadataStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamMetadataStore, executor),
                 streamMetadataStore,
+                new DeleteScopeTask(streamMetadataTasks, streamMetadataStore, kvtMetadataStore, kvtMetadataTasks, executor),
                 executor);
         this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, 
                 streamTransactionMetadataTasks, bucketStore, executor);
@@ -341,16 +343,16 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 e -> log.warn("Error creating event processor scope {} with exception {}", scopeName, 
                         Exceptions.unwrap(e).toString()))
                                    .runAsync(() -> controller.createScope(scopeName)
-                        .thenAccept(x -> log.info("Created controller scope {}", scopeName)), executor));
+                        .thenAccept(x -> log.info("Created internal scope {}", scopeName)), executor));
     }
 
     private CompletableFuture<Void> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         return Futures.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor stream {} with exception {}", streamName, 
                         Exceptions.unwrap(e).toString()))
-                                   .runAsync(() -> controller.createStream(scope, streamName, streamConfig)
+                                   .runAsync(() -> controller.createInternalStream(scope, streamName, streamConfig)
                                 .thenAccept(x ->
-                                        log.info("Created stream {}/{}", scope, streamName)),
+                                        log.info("Created internal stream {}/{}", scope, streamName)),
                         executor));
     }
 
@@ -413,10 +415,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                               log.warn("Submission for truncation for stream {} failed. Will be retried in next iteration.",
                                       streamName);
                           } else if (r) {
-                              log.debug("truncation for stream {} at streamcut {} submitted.", 
+                              log.debug("Truncation for stream {} at streamcut {} submitted.",
                                       streamName, streamcut);
                           } else {
-                              log.debug("truncation for stream {} at streamcut {} rejected.",
+                              log.debug("Truncation for stream {} at streamcut {} rejected.",
                                       streamName, streamcut);
                           }
                           return null;
@@ -486,9 +488,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     private void initialize() {
-
         // region Create commit event processor
-
         EventProcessorGroupConfig commitReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
                         .streamName(config.getCommitStreamName())

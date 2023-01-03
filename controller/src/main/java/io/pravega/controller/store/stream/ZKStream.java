@@ -40,6 +40,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.Subscribers;
+import io.pravega.controller.util.Config;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -535,6 +536,35 @@ class ZKStream extends PersistentStreamBase {
                                           return map;
                                       });
                     });
+    }
+
+
+    @Override
+    public CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(final OperationContext context) {
+        return store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH)
+                .thenCompose(children -> Futures.allOfWithResults(children.stream().map(batch -> getTxnInBatch(batch, context))
+                                .collect(Collectors.toList()))
+                        .thenApply(list -> {
+                            Map<UUID, CompletedTxnRecord> txnMap = new HashMap<>();
+                            list.forEach(txnMap::putAll);
+                            return txnMap.entrySet().stream().sorted((r1, r2) -> Long.compare(r2.getValue().getCompleteTime(),
+                                            r1.getValue().getCompleteTime())).limit(Config.LIST_COMPLETED_TXN_MAX_RECORDS)
+                                    .collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue().getCompletionStatus()));
+                        }));
+    }
+
+    private CompletableFuture<Map<UUID, CompletedTxnRecord>> getTxnInBatch(final String children, final OperationContext context) {
+        VersionedMetadata<CompletedTxnRecord> empty = getEmptyData();
+        String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, Long.parseLong(children), getScope(), getName());
+        return Futures.exceptionallyExpecting(store.getChildren(root),
+                        e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyList())
+                .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
+                        Collectors.toMap(txId -> txId,
+                                txId -> Futures.exceptionallyExpecting(store.getData(ZKPaths.makePath(root, txId), CompletedTxnRecord::fromBytes),
+                                        e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, empty)))
+                ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(empty))
+                        .collect(Collectors.toMap(x -> UUID.fromString(x.getKey()), x -> x.getValue().getObject()))
+                ));
     }
 
     @Override

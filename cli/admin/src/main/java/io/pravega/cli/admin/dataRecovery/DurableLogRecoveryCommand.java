@@ -108,15 +108,15 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
         @Cleanup
         val dataLogFactory = new BookKeeperLogFactory(bkConfig, zkClient, executorService);
 
-        outputInfo("Container Count = %d", this.containerCount);
+        output("Container Count = %d", this.containerCount);
 
         dataLogFactory.initialize();
-        outputInfo("Started ZK Client at %s.", getServiceConfig().getZkURL());
+        output("Started ZK Client at %s.", getServiceConfig().getZkURL());
 
         storage.initialize(CONTAINER_EPOCH);
-        outputInfo("Loaded %s Storage.", getServiceConfig().getStorageImplementation());
+        output("Loaded %s Storage.", getServiceConfig().getStorageImplementation());
 
-        outputInfo("Starting recovery...");
+        output("Starting recovery...");
         // create back up of metadata segments
         Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage,
                 this.containerCount, executorService, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -127,12 +127,12 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
         // create debug segment container instances using new new dataLog and old storage.
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = startDebugSegmentContainers(context, dataLogFactory);
 
-        outputInfo("Containers started. Recovering all segments...");
+        output("Containers started. Recovering all segments...");
         ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService, TIMEOUT);
-        outputInfo("All segments recovered.");
+        output("All segments recovered.");
 
         // Update core attributes from the backUp Metadata segments
-        outputInfo("Updating core attributes for segments registered.");
+        output("Updating core attributes for segments registered.");
         ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService,
                 TIMEOUT);
 
@@ -142,14 +142,14 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
         // Waits for metadata segments to be flushed to LTS and then stops the debug segment containers
         stopDebugSegmentContainers(debugStreamSegmentContainerMap);
 
-        outputInfo("Segments have been recovered.");
-        outputInfo("Recovery Done!");
+        output("Segments have been recovered.");
+        output("Recovery Done!");
     }
 
     // Flushes data from Durable log to the storage
     private void flushToStorage(Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap) {
         for (val debugSegmentContainer : debugStreamSegmentContainerMap.values()) {
-            outputInfo("Waiting for metadata segment of container %d to be flushed to the Long-Term storage.",
+            output("Waiting for metadata segment of container %d to be flushed to the Long-Term storage.",
                     debugSegmentContainer.getId());
             debugSegmentContainer.flushToStorage(TIMEOUT).join();
         }
@@ -169,7 +169,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
                     context.getReadIndexFactory(), context.getAttributeIndexFactory(), context.getWriterFactory(), this.storageFactory,
                     context.getDefaultExtensions(), executorService);
 
-            outputInfo("Starting debug segment container %d.", containerId);
+            output("Starting debug segment container %d.", containerId);
             Services.startAsync(debugStreamSegmentContainer, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             debugStreamSegmentContainerMap.put(containerId, debugStreamSegmentContainer);
         }
@@ -181,7 +181,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
     private void stopDebugSegmentContainers(Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap)
             throws Exception {
         for (val debugSegmentContainerEntry : debugStreamSegmentContainerMap.entrySet()) {
-            outputInfo("Stopping debug segment container %d.", debugSegmentContainerEntry.getKey());
+            output("Stopping debug segment container %d.", debugSegmentContainerEntry.getKey());
             debugSegmentContainerEntry.getValue().close();
         }
     }

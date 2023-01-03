@@ -35,9 +35,9 @@ The following prerequisites are required for running Pravega in all modes.
 
 The following prerequisites are required for running in production. These are only required for running in distributed mode.
 
-- External HDFS 2.7
-- Zookeeper 3.6.1
-- Bookkeeper 4.11.1
+- AWS S3, Azure Blob Storage, Google Cloud Storage, HDFS or a mounted distributed filesystem
+- Zookeeper 3.6.3
+- Bookkeeper 4.14.1
 
 For more details on the prerequisites and recommended configuration options for bookkeeper see the [Manual Install Guide](manual-install.md).
 
@@ -51,8 +51,6 @@ There are multiple options provided for running Pravega in different environment
     - [Docker Compose (Distributed Mode)](run-local.md#docker-compose-distributed-mode)
 - Production - Multi-node installation suitable for running in production.
     - [Manual Installation](manual-install.md)
-    - [Kubernetes Operators](../admin-guide/operators.md)
+    - [Kubernetes on AWS EKS or GCP GKE](../getting-started/pravega-on-kubernetes-101.md) using [Operators](../admin-guide/operators.md)
     - [Docker Swarm](docker-swarm.md)
-    - [DC/OS](dcos-install.md)
-    - [Cloud (AWS)](aws-install.md)
 - [Configuration and Provisioning Guide](../admin-guide/cluster-dependencies.md) for production clusters.

@@ -22,16 +22,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.retry.RetryOneTime;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.ClassRule;
-import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -45,8 +42,6 @@ public class ZkHostIndexTest {
     private static final RetryPolicy RETRY_POLICY = new RetryOneTime(2000);
     @ClassRule
     public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(RETRY_POLICY);
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
 
     @Before
@@ -59,7 +54,7 @@ public class ZkHostIndexTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void testSync() {
         ZKHostIndex index = spy(new ZKHostIndex(PRAVEGA_ZK_CURATOR_RESOURCE.client, "/hostRequestIndex", executor));
         String hostId = "hostId";

@@ -17,21 +17,23 @@ package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.SegmentRecord;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
@@ -40,34 +42,40 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
-import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.shared.NameUtils;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.LoggerFactory;
+
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -77,13 +85,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
-
 import java.util.stream.Collectors;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-import org.slf4j.LoggerFactory;
 
 /**
  * Stream controller RPC server implementation.
@@ -92,6 +94,8 @@ import org.slf4j.LoggerFactory;
 @AllArgsConstructor
 public class ControllerService {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ControllerService.class));
+    // Generator for new request identifiers
+    private static final SecureRandom REQUEST_ID_GENERATOR = RandomFactory.createSecure();
 
     private final KVTableMetadataStore kvtMetadataStore;
     private final TableMetadataTasks kvtMetadataTasks;
@@ -103,6 +107,10 @@ public class ControllerService {
     private final Executor executor;
     private final Cluster cluster;
     private final RequestTracker requestTracker;
+
+    public static long nextRequestId() {
+        return REQUEST_ID_GENERATOR.nextLong();
+    }
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
         if (cluster == null) {
@@ -336,22 +344,17 @@ public class ControllerService {
     }
 
     /**
-     * Creates stream with specified configuration. 
+     * Creates stream with specified configuration.
      * @param scope scope
      * @param stream stream
      * @param streamConfig stream configuration
      * @param createTimestamp creation time
      * @param requestId request id
-     * @return Create stream status future. 
+     * @return Create stream status future.
      */
-    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
-            final long createTimestamp, long requestId) {
-        Preconditions.checkNotNull(streamConfig, "streamConfig");
-        Preconditions.checkArgument(createTimestamp >= 0);
-        Preconditions.checkArgument(streamConfig.getRolloverSizeBytes() >= 0,
-                String.format("Segment rollover size bytes cannot be less than 0, actual is %s", streamConfig.getRolloverSizeBytes()));
-
-        Timer timer = new Timer();
+    public CompletableFuture<CreateStreamStatus> createInternalStream(String scope, String stream, final StreamConfiguration streamConfig,
+                                                              final long createTimestamp, long requestId) {
+        validate(streamConfig, createTimestamp);
         try {
             NameUtils.validateStreamName(stream);
         } catch (IllegalArgumentException | NullPointerException e) {
@@ -359,25 +362,61 @@ public class ControllerService {
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
+        return callCreateStream(scope, stream, streamConfig, createTimestamp, requestId);
+    }
 
+    /**
+     * Creates stream with specified configuration. 
+     * @param scope scope
+     * @param stream stream name
+     * @param streamConfig stream configuration
+     * @param createTimestamp creation time
+     * @param requestId request id
+     * @return Create stream status future. 
+     */
+    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
+            final long createTimestamp, long requestId) {
+        validate(streamConfig, createTimestamp);
+        try {
+            NameUtils.validateStreamName(stream);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.error(requestId, "Create stream failed due to invalid stream name {}", stream);
+            return CompletableFuture.completedFuture(
+                    CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
+        }
+        return callCreateStream(scope, stream, streamConfig, createTimestamp, requestId);
+    }
+
+    private CompletableFuture<CreateStreamStatus> callCreateStream(final String scope, final String stream,
+                                                                   final StreamConfiguration streamConfig,
+                                                                   final long createTimestamp, long requestId) {
+        Timer timer = new Timer();
         return Futures.exceptionallyExpecting(streamStore.getState(scope, stream, true, null, executor),
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
-                      .thenCompose(state -> {
-                          if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
-                              return streamMetadataTasks.createStreamRetryOnLockFailure(scope,
-                                      stream,
-                                      streamConfig,
-                                      createTimestamp, 10, 
-                                      requestId).thenApplyAsync(status -> {
-                                  reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), 
-                                          status, timer.getElapsed());
-                                  return CreateStreamStatus.newBuilder().setStatus(status).build();
-                              }, executor);
-                          } else {
-                              return CompletableFuture.completedFuture(
-                                      CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
-                          }
-                      });
+                        e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
+                .thenCompose(state -> {
+                    if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                        return streamMetadataTasks.createStreamRetryOnLockFailure(scope,
+                                stream,
+                                streamConfig,
+                                createTimestamp, 10,
+                                requestId).thenApplyAsync(status -> {
+                            reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(),
+                                    status, timer.getElapsed());
+                            return CreateStreamStatus.newBuilder().setStatus(status).build();
+                        }, executor);
+                    } else {
+                        log.info(requestId, "Stream {} already exists ", NameUtils.getScopedStreamName(scope, stream));
+                        return CompletableFuture.completedFuture(
+                                CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
+                    }
+                });
+    }
+
+    private void validate(final StreamConfiguration streamConfig, final long createTimestamp) {
+        Preconditions.checkNotNull(streamConfig, "streamConfig");
+        Preconditions.checkArgument(createTimestamp >= 0);
+        Preconditions.checkArgument(streamConfig.getRolloverSizeBytes() >= 0,
+                String.format("Segment rollover size bytes cannot be less than 0, actual is %s", streamConfig.getRolloverSizeBytes()));
     }
 
     /**
@@ -685,7 +724,7 @@ public class ControllerService {
                                 NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof StoreException.DataNotFoundException || unwrap instanceof StoreException.IllegalStateException) {
-                            TransactionMetrics.getInstance().commitTransactionFailed(scope, stream, txId.toString());
+                            TransactionMetrics.getInstance().commitTransactionFailed(scope, stream);
                             return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                         }
                         throw new CompletionException(unwrap);
@@ -725,7 +764,7 @@ public class ControllerService {
                                 NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof StoreException.DataNotFoundException || unwrap instanceof StoreException.IllegalStateException) {
-                            TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, txId.toString());
+                            TransactionMetrics.getInstance().abortTransactionFailed(scope, stream);
                             return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                         }
                         throw new CompletionException(unwrap);
@@ -777,6 +816,22 @@ public class ControllerService {
     }
 
     /**
+     * List transaction in completed(COMMITTED/ABORTED) state.
+     * @param scope scope name
+     * @param stream stream name
+     * @param requestId request id
+     * @return map having transactionId and transaction status
+     */
+    public CompletableFuture<Map<UUID, io.pravega.controller.store.stream.TxnStatus>> listCompletedTxns(final String scope, final String stream,
+                                                                                                        final long requestId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        OperationContext context = streamStore.createStreamContext(scope, stream, requestId);
+        return streamStore.listCompletedTxns(scope, stream, context, executor);
+    }
+
+
+    /**
      * Controller Service API to create scope.
      *
      * @param scope Name of scope to be created.
@@ -813,6 +868,24 @@ public class ControllerService {
 
         return streamStore.deleteScope(scope, context, executor).thenApply(r -> reportDeleteScopeMetrics(scope, r,
                 timer.getElapsed()));
+    }
+
+    /**
+     * Controller Service API to delete scope recursively.
+     *
+     * @param scope Name of scope to be deleted.
+     * @param requestId request id
+     * @return Status of delete scope.
+     */
+    public CompletableFuture<DeleteScopeStatus> deleteScopeRecursive(final String scope, final long requestId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Timer timer = new Timer();
+
+        return streamMetadataTasks.deleteScopeRecursive(scope, requestId)
+                .thenApplyAsync(status -> {
+                    reportDeleteScopeRecursiveMetrics(scope, status, timer.getElapsed());
+                    return DeleteScopeStatus.newBuilder().setStatus(status).build();
+                }, executor);
     }
 
     /**
@@ -911,7 +984,7 @@ public class ControllerService {
         }
     }
 
-    private void reportDeleteKVTableMetrics(String scope, String kvtName, DeleteKVTableStatus.Status status, Duration latency) {
+    public static void reportDeleteKVTableMetrics(String scope, String kvtName, DeleteKVTableStatus.Status status, Duration latency) {
         if (status.equals(DeleteKVTableStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().deleteKeyValueTable(scope, kvtName, latency);
         } else if (status.equals(DeleteKVTableStatus.Status.FAILURE)) {
@@ -963,7 +1036,7 @@ public class ControllerService {
         }
     }
 
-    private void reportDeleteReaderGroupMetrics(String scope, String streamName, DeleteReaderGroupStatus.Status status, 
+    public static void reportDeleteReaderGroupMetrics(String scope, String streamName, DeleteReaderGroupStatus.Status status,
                                                 Duration latency) {
         if (status.equals(DeleteReaderGroupStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().deleteReaderGroup(scope, streamName, latency);
@@ -990,7 +1063,7 @@ public class ControllerService {
         }
     }
 
-    private void reportSealStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
+    public static void reportSealStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().sealStream(scope, streamName, latency);
         } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
@@ -998,7 +1071,7 @@ public class ControllerService {
         }
     }
 
-    private void reportDeleteStreamMetrics(String scope, String streamName, DeleteStreamStatus.Status status, Duration latency) {
+    public static void reportDeleteStreamMetrics(String scope, String streamName, DeleteStreamStatus.Status status, Duration latency) {
         if (status.equals(DeleteStreamStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().deleteStream(scope, streamName, latency);
         } else if (status.equals(DeleteStreamStatus.Status.FAILURE)) {
@@ -1013,6 +1086,14 @@ public class ControllerService {
             StreamMetrics.getInstance().deleteScopeFailed(scope);
         }
         return status;
+    }
+
+    private void reportDeleteScopeRecursiveMetrics(String scope, DeleteScopeStatus.Status status, Duration latency) {
+        if (status.equals(DeleteScopeStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().deleteScope(latency);
+        } else if (status.equals(DeleteScopeStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().deleteScopeRecursiveFailed(scope);
+        }
     }
 
     public CompletableFuture<Controller.TimestampResponse> noteTimestampFromWriter(String scope, String stream, String writerId, 
@@ -1062,6 +1143,5 @@ public class ControllerService {
                     return response.build();
                 });
     }
-
     // End metrics reporting region
 }

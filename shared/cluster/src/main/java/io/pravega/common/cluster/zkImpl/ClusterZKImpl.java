@@ -55,6 +55,7 @@ import static io.pravega.common.cluster.ClusterListener.EventType.HOST_REMOVED;
  * - Ephemeral Node is valid until a session timeout, default session timeout is 60 seconds.
  * System property "curator-default-session-timeout" can be used to change it.
  */
+@SuppressWarnings("deprecation")
 @Slf4j
 public class ClusterZKImpl implements Cluster {
 

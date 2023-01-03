@@ -82,6 +82,11 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     }
 
     @Override
+    public void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments) {
+        getNextRequestProcessor().mergeSegmentsBatch(mergeSegments);
+    }
+
+    @Override
     public void sealSegment(SealSegment sealSegment) {
         getNextRequestProcessor().sealSegment(sealSegment);
     }
@@ -144,5 +149,15 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     @Override
     public void readTableEntriesDelta(WireCommands.ReadTableEntriesDelta readTableEntriesDelta) {
         getNextRequestProcessor().readTableEntriesDelta(readTableEntriesDelta);
+    }
+
+    @Override
+    public void createTransientSegment(WireCommands.CreateTransientSegment createTransientSegment) {
+        getNextRequestProcessor().createTransientSegment(createTransientSegment);
+    }
+
+    @Override
+    public void connectionDropped() {
+        getNextRequestProcessor().connectionDropped();
     }
 }

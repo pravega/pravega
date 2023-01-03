@@ -21,7 +21,6 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -30,13 +29,10 @@ import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 public class StoreClientFactoryTest extends ThreadPooledTestSuite {
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+
     TestingServer zkServer;
 
     @Override
@@ -60,7 +56,7 @@ public class StoreClientFactoryTest extends ThreadPooledTestSuite {
      * create a new Zookeeper client and, in fact, we close the existing one to force the restart of the Controller.
      * During the Controller restart, a new Zookeeper client will be created with the new parameters.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testZkSessionExpiryWithChangedParameters() throws Exception {
         final String testZNode = "/test";
 
@@ -97,7 +93,7 @@ public class StoreClientFactoryTest extends ThreadPooledTestSuite {
         client.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
         sessionExpiry.join();
 
-        // Check that, once closed by the ZKClientFactory, the client throws an expected exception (SessionExpiredException).
-        AssertExtensions.assertThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath(testZNode));
+        // Check that, once closed by the ZKClientFactory, the client throws an expected exception (ConnectionLossException).
+        AssertExtensions.assertThrows(KeeperException.ConnectionLossException.class, () -> client.getData().forPath(testZNode));
     }
 }

@@ -141,7 +141,7 @@ public class CompositeByteArraySegmentTests extends StructuredBufferTestBase {
     @Test
     public void testCopyToByteBuffer() {
         testProgressiveCopies((expectedData, s, offset, length) -> {
-            val targetData = new byte[s.getLength()];
+            final byte[] targetData = new byte[s.getLength()];
             s.copyTo(ByteBuffer.wrap(targetData));
             Assert.assertArrayEquals("Unexpected data copied for step " + offset, expectedData, targetData);
         });
@@ -157,7 +157,7 @@ public class CompositeByteArraySegmentTests extends StructuredBufferTestBase {
             @Cleanup
             val targetStream = new ByteBufferOutputStream();
             s.copyTo(targetStream);
-            val targetData = targetStream.getData().getCopy();
+            final byte[] targetData = targetStream.getData().getCopy();
             Assert.assertArrayEquals("Unexpected data copied for step " + offset, expectedData, targetData);
         });
     }
@@ -168,8 +168,8 @@ public class CompositeByteArraySegmentTests extends StructuredBufferTestBase {
     @Test
     public void testCollect() {
         testProgressiveCopies((expectedData, s, offset, length) -> {
-            val targetData = new byte[s.getLength()];
-            val targetOffset = new AtomicInteger();
+            final byte[] targetData = new byte[s.getLength()];
+            final AtomicInteger targetOffset = new AtomicInteger();
             val count = new AtomicInteger();
             s.collect(bb -> {
                 int len = bb.remaining();

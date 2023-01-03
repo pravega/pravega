@@ -58,7 +58,7 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         zkServer.close();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void failingTests() {
         final String process1 = UUID.randomUUID().toString();
         final String readerGroup1 = UUID.randomUUID().toString();
@@ -95,7 +95,7 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
                 () -> checkpointStore.removeReaderGroup(process1, readerGroup1), predicate);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testRemoveProcess() throws Exception {
         final String process1 = "process1";
         final String readerGroup1 = "rg1";
@@ -124,20 +124,27 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         resultMap = checkpointStore.getPositions(process1, readerGroup1);
         Assert.assertNotNull(resultMap);
         Assert.assertEquals(2, resultMap.size());
-        
-        Map<String, Position> map = checkpointStore.removeProcessFromGroup(process1, readerGroup1);
-        Assert.assertEquals(map.size(), 2);
-        Assert.assertTrue(map.containsKey(reader1));
-        Assert.assertNull(map.get(reader1));
-        Assert.assertTrue(map.containsKey(reader2));
-        Assert.assertNull(map.get(reader2));
-        
+
+        Map<String, Position> readerPositions = checkpointStore.sealReaderGroup(process1, readerGroup1);
+        Assert.assertEquals(readerPositions.size(), 2);
+        Assert.assertTrue(readerPositions.containsKey(reader1));
+        Assert.assertNull(readerPositions.get(reader1));
+        Assert.assertTrue(readerPositions.containsKey(reader2));
+        Assert.assertNull(readerPositions.get(reader2));
+
+        for (Map.Entry<String, Position> entry : readerPositions.entrySet()) {
+            // 2. Remove reader from Checkpoint Store
+            checkpointStore.removeReader(process1, readerGroup1, entry.getKey());
+        }
+
+        // Finally, remove reader group from the checkpoint store
+        checkpointStore.removeReaderGroup(process1, readerGroup1);
         AssertExtensions.assertThrows(KeeperException.NoNodeException.class, () -> {            
             cli.getData().forPath(String.format("/%s/%s/%s/%s", "eventProcessors", process1, readerGroup1, reader1));
         });
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void readerWithoutCheckpointTest() throws Exception {
         final String process1 = "process1";
         final String readerGroup1 = "rg1";

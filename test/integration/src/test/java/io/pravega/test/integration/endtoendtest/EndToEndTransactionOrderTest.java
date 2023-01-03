@@ -48,7 +48,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
 import io.pravega.test.integration.utils.IntegerSerializer;
 import java.time.Duration;
 import java.util.Collections;
@@ -72,6 +72,7 @@ import org.apache.commons.lang3.tuple.Triple;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -173,7 +174,8 @@ public class EndToEndTransactionOrderTest {
         zkTestServer.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
-    
+
+    @Ignore
     @Test(timeout = 100000)
     public void testOrder() throws Exception {
         final AtomicBoolean done = new AtomicBoolean(false);

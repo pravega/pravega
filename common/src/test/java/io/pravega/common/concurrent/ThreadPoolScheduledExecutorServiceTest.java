@@ -231,26 +231,20 @@ public class ThreadPoolScheduledExecutorServiceTest {
     @Test(timeout = 10000)
     public void testCancelRecurring() throws Exception {
         ThreadPoolScheduledExecutorService pool = createPool(1);
-        ReusableLatch latch = new ReusableLatch(false);
         AtomicInteger count = new AtomicInteger(0);
         AtomicReference<Exception> error = new AtomicReference<>();
         ScheduledFuture<?> future = pool.scheduleAtFixedRate(() -> {
             count.incrementAndGet();
-            try {
-                latch.await();
-            } catch (Exception e) {
-                error.set(e);
-            } 
         }, 0, 20, SECONDS);
         assertFalse(future.isCancelled());
         assertFalse(future.isDone());
         AssertExtensions.assertEventuallyEquals(1, count::get, 5000);
         assertTrue(future.cancel(false));
-        latch.release();
         AssertExtensions.assertThrows(CancellationException.class, () -> future.get());
         assertTrue(future.isCancelled());
         assertTrue(future.isDone());
         assertEquals(1, count.get());
+        assertTrue(pool.getQueue().isEmpty());
         assertTrue(pool.shutdownNow().isEmpty());
         assertTrue(pool.awaitTermination(1, SECONDS));
     }

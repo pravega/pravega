@@ -19,7 +19,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.integration.demo.ClusterWrapper;
+import io.pravega.test.integration.utils.ClusterWrapper;
 import io.pravega.test.integration.utils.TestUtils;
 import lombok.Cleanup;
 import lombok.SneakyThrows;

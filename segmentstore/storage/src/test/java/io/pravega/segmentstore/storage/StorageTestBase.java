@@ -105,10 +105,10 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
-            Iterator<SegmentProperties> iterator = s.listSegments();
+            Iterator<SegmentProperties> iterator = s.listSegments().get();
             Assert.assertFalse(iterator.hasNext());
             createSegment(segmentName, s);
-            iterator = s.listSegments();
+            iterator = s.listSegments().get();
             Assert.assertTrue(iterator.hasNext());
             SegmentProperties prop = iterator.next();
             Assert.assertEquals(prop.getName(), segmentName);
@@ -164,14 +164,14 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testListSegmentsNextNoSuchElementException() throws Exception {
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
-            Iterator<SegmentProperties> iterator = s.listSegments();
+            Iterator<SegmentProperties> iterator = s.listSegments().get();
             Assert.assertFalse(iterator.hasNext());
             int expectedCount = 10; // Create more segments than 1000 which is the maximum number of segments in one batch.
             for (int i = 0; i < expectedCount; i++) {
                 String segmentName = "segment-" + i;
                 createSegment(segmentName, s);
             }
-            iterator = s.listSegments();
+            iterator = s.listSegments().get();
             for (int i = 0; i < expectedCount; i++) {
                 SegmentProperties prop = iterator.next();
             }

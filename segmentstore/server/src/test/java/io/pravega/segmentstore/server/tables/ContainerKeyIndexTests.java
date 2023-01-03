@@ -20,6 +20,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -28,6 +29,8 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMock;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
@@ -35,6 +38,8 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
+
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -567,6 +572,158 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests a situation in which we have written various values for 2 keys, and the most recent ones are the last
+     * writes among them. Then, the IndexWriter processes all of them and immediately after, Table Compactor processes a
+     * subset of these entries, and it writes one compacted (and stale) value to the tail of the Segment. At this point,
+     * there is a Table Segment recovery for which there is only one un-indexed entry: the last compacted one. The test
+     * verifies that we are not tail caching the last compacted entry, because it is stale already and could lead to
+     * serving stale data on gets during a window of time (until IndexWriter processes that compacted entry and evicts
+     * it from the tail cache).
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testRecoveryWithOneNonIndexedUncompactedEntry() throws Exception {
+        val s = new EntrySerializer();
+        @Cleanup
+        val context = new TestContext(TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, Integer.MAX_VALUE)
+                .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                .build());
+
+        // Setup the segment with initial attributes.
+        val iw = new IndexWriter(HASHER, executorService());
+
+        // 1. Add several values for key1 and key2 that can be easily picked by the Table Compactor. Note that the
+        // expected last value in this scenario for key1 is 4.
+        val entries = Arrays.asList(
+                TableEntry.unversioned(new ByteArraySegment("key1".getBytes(StandardCharsets.UTF_8)), new ByteArraySegment("1".getBytes(StandardCharsets.UTF_8))),
+                TableEntry.unversioned(new ByteArraySegment("key1".getBytes(StandardCharsets.UTF_8)), new ByteArraySegment("2".getBytes(StandardCharsets.UTF_8))),
+                TableEntry.unversioned(new ByteArraySegment("key1".getBytes(StandardCharsets.UTF_8)), new ByteArraySegment("3".getBytes(StandardCharsets.UTF_8))),
+                TableEntry.unversioned(new ByteArraySegment("key2".getBytes(StandardCharsets.UTF_8)), new ByteArraySegment("1".getBytes(StandardCharsets.UTF_8))),
+                TableEntry.unversioned(new ByteArraySegment("key2".getBytes(StandardCharsets.UTF_8)), new ByteArraySegment("2".getBytes(StandardCharsets.UTF_8))),
+                TableEntry.unversioned(new ByteArraySegment("key1".getBytes(StandardCharsets.UTF_8)), new ByteArraySegment("4".getBytes(StandardCharsets.UTF_8))),
+                TableEntry.unversioned(new ByteArraySegment("key2".getBytes(StandardCharsets.UTF_8)), new ByteArraySegment("4".getBytes(StandardCharsets.UTF_8))),
+                TableEntry.unversioned(new ByteArraySegment("key2".getBytes(StandardCharsets.UTF_8)), new ByteArraySegment("5".getBytes(StandardCharsets.UTF_8))));
+
+        val offset = new AtomicLong();
+        val hashes = new ArrayList<UUID>();
+        val keysWithOffsets = new HashMap<UUID, KeyWithOffset>();
+        for (val e : entries) {
+            val hash = HASHER.hash(e.getKey().getKey());
+            hashes.add(hash);
+            keysWithOffsets.put(hash, new KeyWithOffset(e.getKey().getKey(), offset.getAndAdd(s.getUpdateLength(e))));
+        }
+
+        // Write all the previous entries to the Segment.
+        val update1 = s.serializeUpdate(entries);
+        Assert.assertEquals(offset.get(), update1.getLength());
+        context.segment.append(update1, null, TIMEOUT).join();
+
+        // 2. Initiate a recovery and verify pre-caching is triggered and requests are auto-unblocked.
+        val get1 = context.index.getBucketOffsets(context.segment, hashes, context.timer);
+        val result1 = get1.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        val expected1 = new HashMap<UUID, Long>();
+        keysWithOffsets.forEach((k, o) -> expected1.put(k, o.offset));
+        AssertExtensions.assertMapEquals("Unexpected result from getBucketOffsets() after auto pre-caching.", expected1, result1);
+
+        // 3. Set LastIdx to Length.
+        val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
+        Collection<BucketUpdate> bucketUpdates = buckets.entrySet().stream()
+                .map(e -> {
+                    val builder = BucketUpdate.forBucket(e.getValue());
+                    val ko = keysWithOffsets.get(e.getKey());
+                    builder.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, ko.offset, false));
+                    return builder.build();
+                })
+                .collect(Collectors.toList());
+        iw.updateBuckets(context.segment, bucketUpdates, 0L, offset.get(), keysWithOffsets.size(), TIMEOUT).join();
+
+        // 4. After indexing, let's write the compacted entry (key1, 3).
+        val compactedEntry = List.of(TableEntry.versioned(new ByteArraySegment("key1".getBytes(StandardCharsets.UTF_8)),
+                new ByteArraySegment("3".getBytes(StandardCharsets.UTF_8)), s.getUpdateLength(entries.get(0)) * 3L));
+        val update2 = s.serializeUpdateWithExplicitVersion(compactedEntry);
+        context.segment.append(update2, null, TIMEOUT).join();
+
+        // 5. Verify that when performing a get on key1, the tail-caching is not caching [key1, v3] (last offset), as it
+        // has scanned a previous value in which key1 is 4 (6th element in entries list) and has been indexed already.
+        // This already stale compacted entry should not be cached and will be removed by the index when it gets processed.
+        context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), -1, 0); // Force-evict it so we start clean.
+        val key1hash = List.of(HASHER.hash(entries.get(0).getKey().getKey()));
+        val getBucketOffsets = context.index.getBucketOffsets(context.segment, key1hash, context.timer).join();
+        Assert.assertArrayEquals(key1hash.toArray(), getBucketOffsets.keySet().toArray()); // Ensure that we get key1 as key.
+        Assert.assertEquals(Long.valueOf(5L * 22L), getBucketOffsets.get(key1hash.get(0))); // (key1, 4) is the 6th element in entries.
+    }
+
+    @Test
+    public void testRecoveryOneBatchWithVersion() throws Exception {
+        testRecoveryWithVersions(TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, Integer.MAX_VALUE)
+                .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                .build(), new int[] {1, 2, 3, 4});
+    }
+
+    @Test
+    public void testRecoveryOneBatchAfterCompactionWithVersion() throws Exception {
+        testRecoveryWithVersions(TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, Integer.MAX_VALUE)
+                .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                .build(), new int[] {4, 3});
+    }
+
+    @Test
+    public void testRecoveryOneBatchAfterCompactionWithVersion2() throws Exception {
+        testRecoveryWithVersions(TableExtensionConfig.builder()
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, Integer.MAX_VALUE)
+                .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS)
+                .build(), new int[] {3, 4, 2});
+    }
+
+    private void testRecoveryWithVersions(TableExtensionConfig config, int[] versions) throws Exception {
+        val s = new EntrySerializer();
+        @Cleanup
+        val context = new TestContext(config);
+
+        // Setup the segment with initial attributes.
+        val iw = new IndexWriter(HASHER, executorService());
+
+        // 1. Generate initial set of keys and serialize them to the segment.
+        val entries1 = new ArrayList<TableEntry>(versions.length);
+        val offset = new AtomicLong();
+        val key = new ByteArraySegment("TEST_KEY".getBytes(StandardCharsets.UTF_8));
+        val expected = new HashMap<UUID, Long>();
+        val hash = HASHER.hash(key);
+        int highestVersion = -1;
+        for (int i : versions) {
+            val k = TableKey.versioned(key, i);
+            byte[] valueData = ("value" + i).getBytes(StandardCharsets.UTF_8);
+            val entry = TableEntry.versioned(k.getKey(), new ByteArraySegment(valueData), i);
+            val off = offset.getAndAdd(s.getUpdateLength(entry));
+            if (highestVersion < i) {
+                highestVersion = i;
+                expected.put(hash, off);
+            }
+
+            entries1.add(entry);
+        }
+
+        // Make sure to serialize versions, as Table Compactor does.
+        val update1 = s.serializeUpdateWithExplicitVersion(entries1);
+        Assert.assertEquals(offset.get(), update1.getLength());
+        context.segment.append(update1, null, TIMEOUT).join();
+
+        // 2. Initiate a recovery and verify pre-caching is triggered and requests are auto-unblocked.
+        val results = context.index.getBucketOffsets(context.segment,
+                Collections.singleton(hash),
+                context.timer).get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        AssertExtensions.assertMapEquals("Unexpected result from getBucketOffsets() after auto pre-caching.", expected, results);
+    }
+
+    /**
      * Checks the ability for the {@link ContainerKeyIndex} class to cancel recovery-bound tasks if recovery took too long.
      */
     @Test
@@ -720,8 +877,11 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val context = new TestContext(maxUnindexedSize);
 
         // Begin with a non-empty Table Segment that also has a backlog of unindexed entries. This should simulate a
-        // recovery and verify that the throttling does account for this scenario.
+        // recovery and verify that the throttling does account for this scenario. Note that the tail-caching starts
+        // scanning the segment (i.e., consuming credits) from the max from start offset or compaction offset to prevent
+        // missing tail-caching last values for keys. This requires us to also update the compaction offset to initialIndexOffset.
         context.segment.updateAttributes(Collections.singletonMap(TableAttributes.INDEX_OFFSET, (long) initialIndexOffset));
+        context.segment.updateAttributes(Collections.singletonMap(TableAttributes.COMPACTION_OFFSET, (long) initialIndexOffset));
         context.segment.append(new ByteArraySegment(new byte[initialIndexOffset]), null, TIMEOUT).join();
         val initialEntry = randomEntry(keySize, keySize, context);
         val initialEntryLength = s.getUpdateLength(initialEntry);
@@ -785,6 +945,94 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         expectedUnindexedBytes = updateBatch4.getLength();
         Assert.assertEquals("Unexpected unindexed bytes after writing update4.",
                 expectedUnindexedBytes, context.index.getUnindexedSizeBytes(context.segment.getSegmentId()));
+    }
+
+    /**
+     * Tests that system-critical Segments get the right amount of credits.
+     */
+    @Test
+    public void testCriticalSegmentThrottling() {
+        @Cleanup
+        val context = new TestContext();
+        @Cleanup
+        ContainerKeyIndex.SegmentTracker segmentTracker = context.index.new SegmentTracker();
+        DirectSegmentAccess mockSegment = Mockito.mock(DirectSegmentAccess.class);
+        SegmentMetadata mockSegmentMetadata = Mockito.mock(SegmentMetadata.class);
+        // System critical segment.
+        SegmentType segmentType = SegmentType.builder().critical().system().build();
+        Mockito.when(mockSegmentMetadata.getType()).thenReturn(segmentType);
+
+        Mockito.when(mockSegment.getInfo()).thenReturn(mockSegmentMetadata);
+        Mockito.when(mockSegment.getSegmentId()).thenReturn(1L);
+        // Update size is 1 byte smaller than the limit, so it should not block.
+        int updateSize = TableExtensionConfig.SYSTEM_CRITICAL_MAX_UNINDEXED_LENGTH.getDefaultValue() - 1;
+        segmentTracker.throttleIfNeeded(mockSegment, () -> CompletableFuture.completedFuture(null), updateSize).join();
+        Assert.assertEquals(segmentTracker.getUnindexedSizeBytes(1L),
+                TableExtensionConfig.SYSTEM_CRITICAL_MAX_UNINDEXED_LENGTH.getDefaultValue() - 1);
+        // Now, we do another update and check that the Segment has no credit.
+        AssertExtensions.assertThrows(TimeoutException.class, () -> segmentTracker.throttleIfNeeded(mockSegment,
+                () -> CompletableFuture.completedFuture(null), updateSize).get(10, TimeUnit.MILLISECONDS));
+    }
+
+    /**
+     * Tests that regular Segments get the right amount of credits.
+     */
+    @Test
+    public void testRegularSegmentThrottling() {
+        @Cleanup
+        val context = new TestContext();
+        @Cleanup
+        ContainerKeyIndex.SegmentTracker segmentTracker = context.index.new SegmentTracker();
+        DirectSegmentAccess mockSegment = Mockito.mock(DirectSegmentAccess.class);
+        SegmentMetadata mockSegmentMetadata = Mockito.mock(SegmentMetadata.class);
+        // Regular segment.
+        SegmentType segmentType = SegmentType.builder().build();
+        Mockito.when(mockSegmentMetadata.getType()).thenReturn(segmentType);
+
+        Mockito.when(mockSegment.getInfo()).thenReturn(mockSegmentMetadata);
+        Mockito.when(mockSegment.getSegmentId()).thenReturn(1L);
+        int updateSize = TableExtensionConfig.MAX_UNINDEXED_LENGTH.getDefaultValue() - 1;
+        segmentTracker.throttleIfNeeded(mockSegment, () -> CompletableFuture.completedFuture(null), updateSize).join();
+        Assert.assertEquals(segmentTracker.getUnindexedSizeBytes(1L), TableExtensionConfig.MAX_UNINDEXED_LENGTH.getDefaultValue() - 1);
+    }
+
+    @Test
+    public void testRecoveryWithBatchesAndPartialEntries() throws Exception {
+        val s = new EntrySerializer();
+
+        // Perform recoveries with multiple batch sizes that entail different number of batches.
+        for (int batchSize = 31; batchSize < 1000; batchSize++) {
+            @Cleanup
+            val context = new TestContext(TableExtensionConfig.builder()
+                    .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_LENGTH, (long) TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                    .with(TableExtensionConfig.MAX_TAIL_CACHE_PREINDEX_BATCH_SIZE, batchSize)
+                    .with(TableExtensionConfig.RECOVERY_TIMEOUT, (int) ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS).build());
+
+            // Generate initial set of values for the same key and serialize them to the segment.
+            val key = new ByteArraySegment("TESTKEY".getBytes(StandardCharsets.UTF_8));
+            val expected = new HashMap<UUID, Long>();
+            val hash = HASHER.hash(key);
+            for (long i = 0; i < 100; i++) {
+                val k = TableKey.versioned(key, i);
+                byte[] valueData = ("value" + i).getBytes(StandardCharsets.UTF_8);
+                val entry = TableEntry.versioned(k.getKey(), new ByteArraySegment(valueData), i);
+                val update = s.serializeUpdateWithExplicitVersion(List.of(entry));
+                Assert.assertTrue(batchSize >= update.getLength());
+                expected.put(hash, context.segment.append(update, null, TIMEOUT).join());
+            }
+
+            // Create multiple parallel GET requests while Table Segment is recovering.
+            List<CompletableFuture<Map<UUID, Long>>> getFutures = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                getFutures.add(context.index.getBucketOffsets(context.segment, Collections.singleton(hash), context.timer));
+            }
+
+            // Make sure that all the requests issues during initialization get the right value.
+            for (int i = 0; i < 10; i++) {
+                AssertExtensions.assertMapEquals("Unexpected result from getBucketOffsets() after auto pre-caching.", expected,
+                        getFutures.get(i).get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS));
+            }
+        }
     }
 
     private void checkKeyOffsets(List<UUID> allHashes, Map<UUID, KeyWithOffset> offsets, Map<UUID, Long> bucketOffsets) {

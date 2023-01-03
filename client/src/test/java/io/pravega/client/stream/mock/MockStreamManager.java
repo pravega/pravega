@@ -26,34 +26,47 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdat
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentReader;
+import io.pravega.client.segment.impl.NoSuchEventException;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.EventSegmentReaderUtility;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
+import lombok.Cleanup;
+import lombok.Getter;
+import org.apache.commons.lang3.NotImplementedException;
+
 import java.net.URI;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
-import lombok.Getter;
-import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
@@ -68,6 +81,10 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     private final MockController controller;
     @Getter
     private final MockClientFactory clientFactory;
+    @Getter
+    private final EventSegmentReaderUtility eventSegmentReaderUtility;
+    @Getter
+    private final MockSegmentStreamFactory inFactory;
 
     public MockStreamManager(String scope, String endpoint, int port) {
         this.scope = scope;
@@ -75,6 +92,8 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         this.connectionPool = new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config));
         this.controller = new MockController(endpoint, port, connectionPool, true);
         this.clientFactory = new MockClientFactory(scope, controller, connectionPool);
+        this.inFactory = new MockSegmentStreamFactory();
+        this.eventSegmentReaderUtility = new EventSegmentReaderUtility(inFactory);
     }
 
     @Override
@@ -119,7 +138,13 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                 RuntimeException::new);
     }
 
+    /**
+     * A new API is created hence this is going to be deprecated.
+     *
+     * @deprecated As of Pravega release 0.11, replaced by {@link #deleteScopeRecursive(String)}.
+     */
     @Override
+    @Deprecated
     public boolean deleteScope(String scopeName, boolean forceDelete) {
         if (forceDelete) {
             List<String> readerGroupList = new ArrayList<>();
@@ -150,8 +175,20 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public StreamInfo getStreamInfo(String scopeName, String streamName) {
-        throw new NotImplementedException("getStreamInfo");
+    public boolean deleteScopeRecursive(String scopeName) {
+        return Boolean.TRUE.equals(Futures.getAndHandleExceptions(controller.deleteScopeRecursive(scope),
+                RuntimeException::new));
+    }
+
+    @Override
+    public List<TransactionInfo> listCompletedTransactions(Stream stream) {
+        return Futures.getAndHandleExceptions(controller.listCompletedTransactions(stream),
+                RuntimeException::new);
+    }
+
+    @Override
+    public CompletableFuture<StreamInfo> fetchStreamInfo(String scopeName, String streamName) {
+        throw new NotImplementedException("fetchStreamInfo");
     }
 
     @Override
@@ -243,6 +280,25 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     public Iterator<String> listScopes() {
         AsyncIterator<String> asyncIterator = controller.listScopes();
         return asyncIterator.asIterator();
+    }
+
+    @Override
+    public <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> serializer) {
+        Preconditions.checkNotNull(pointer);
+        Preconditions.checkNotNull(serializer);
+        CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
+            @Cleanup
+            EventSegmentReader inputStream = eventSegmentReaderUtility.createEventSegmentReader(pointer);
+            try {
+                ByteBuffer buffer = inputStream.read();
+                return  serializer.deserialize(buffer);
+            } catch (EndOfSegmentException e) {
+                throw Exceptions.sneakyThrow(new NoSuchEventException(e.getMessage()));
+            } catch (NoSuchSegmentException | SegmentTruncatedException e) {
+                throw Exceptions.sneakyThrow(new NoSuchEventException("Event no longer exists."));
+            }
+        });
+        return completableFuture;
     }
 
     @Override

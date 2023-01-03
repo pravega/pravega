@@ -68,7 +68,7 @@ import lombok.extern.slf4j.Slf4j;
 import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END_OF_SEGMENT_REACHED;
 
 @Slf4j
-public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
+public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     // Base waiting time for a reader on an idle segment waiting for new data to be read.
     private static final long BASE_READER_WAITING_TIME_MS = ReaderGroupStateManager.TIME_UNIT.toMillis();
@@ -149,8 +149,13 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 // return checkpoint event to user
                 return createEmptyEvent(checkpoint);
             }
+
             EventSegmentReader segmentReader = orderer.nextSegment(readers);
             if (segmentReader == null) {
+                if (groupState.reachedEndOfStream()) {
+                    log.info("Empty event returned for reader {} as it reached end of stream ", groupState.getReaderId());
+                    return createEmptyEventEndOfStream();
+                }
                 blockFor(firstByteTimeoutMillis);
                 segmentsWithData.drainPermits();
                 buffer = null;
@@ -202,6 +207,10 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     
     private EventRead<Type> createEmptyEvent(String checkpoint) {
         return new EventReadImpl<>(null, refreshAndGetPosition(), null, checkpoint);
+    }
+
+    private EventRead<Type> createEmptyEventEndOfStream() {
+        return new EventReadImpl<>(null, refreshAndGetPosition(), null, null, true);
     }
 
     /**
@@ -323,8 +332,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 }
             }
         }
+
     }
-    
+
     /**
      * Releases all sealed segments, unless there is a checkpoint pending for this reader.
      */
@@ -339,7 +349,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             } else {
                 break;
             }
-        }    
+        }
     }
 
     @GuardedBy("readers")

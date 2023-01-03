@@ -430,6 +430,31 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
+    public void deleteScopeRecursiveTests() {
+        CreateScopeStatus createScopeStatus;
+        DeleteScopeStatus deleteScopeStatus;
+
+        // Delete empty scope (containing no streams)
+        ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
+        this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE3), result1);
+        createScopeStatus = result1.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        // Delete Non-existent scope SCOPE3
+        ResultObserver<DeleteScopeStatus> result6 = new ResultObserver<>();
+        this.controllerService.deleteScopeRecursive(ModelHelper.createScopeInfo("SCOPE3"), result6);
+        deleteScopeStatus = result6.get();
+        assertEquals("Delete non existent scope", DeleteScopeStatus.Status.SUCCESS,
+                deleteScopeStatus.getStatus());
+
+        ResultObserver<DeleteScopeStatus> result8 = new ResultObserver<>();
+        AssertExtensions.assertThrows(
+                "Call to delete scope did not throw on empty scope",
+                () ->  this.controllerService.deleteScopeRecursive(ModelHelper.createScopeInfo(""), result8),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
     public void createStreamTests() {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
@@ -1116,6 +1141,29 @@ public abstract class ControllerServiceImplTest {
         AssertExtensions.assertThrows("Lease lower bound violated ",
                 resultObserver::get,
                 e -> checkGRPCException(e, IllegalArgumentException.class));
+    }
+
+    @Test
+    public void testListCompletedTransaction() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(4));
+        StreamInfo streamInfo = ModelHelper.createStreamInfo(SCOPE1, STREAM1);
+
+        // Invalid lease
+        CreateTxnRequest request = CreateTxnRequest.newBuilder()
+                .setStreamInfo(streamInfo)
+                .setLease(1000L)
+                .build();
+        ResultObserver<CreateTxnResponse> resultObserver = new ResultObserver<>();
+        this.controllerService.createTransaction(request, resultObserver);
+
+        Controller.ListCompletedTxnRequest listTxnInOpenStateRequest = Controller.ListCompletedTxnRequest.newBuilder()
+                .setStreamInfo(streamInfo)
+                .build();
+
+        ResultObserver<Controller.ListCompletedTxnResponse> listTxnInStateObserver = new ResultObserver<>();
+
+        this.controllerService.listCompletedTransactions(listTxnInOpenStateRequest, listTxnInStateObserver);
+        assertEquals(0, listTxnInStateObserver.get().getResponseCount());
     }
 
     @Test

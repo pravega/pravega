@@ -16,8 +16,10 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
@@ -64,6 +66,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
     @Override
     public CompletableFuture<Void> execute(final TruncateStreamEvent request) {
 
+        Timer timer = new Timer();
         String scope = request.getScope();
         String stream = request.getStream();
         long requestId = request.getRequestId();
@@ -91,7 +94,8 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                                         return CompletableFuture.completedFuture(null);
                                     }
                                 } else {
-                                    return processTruncate(scope, stream, versionedMetadata, versionedState, context, requestId);
+                                    return processTruncate(scope, stream, versionedMetadata, versionedState, context, requestId)
+                                            .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorTruncateStreamEvent(timer.getElapsed()));
                                 }
                             });
                 });

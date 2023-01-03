@@ -175,7 +175,7 @@ public interface TableStore {
      * <li>{@link ConditionalTableUpdateException} If {@link TableEntry#getKey()} {@link TableKey#hasVersion() hasVersion() } is true and
      * {@link TableEntry#getKey()} {@link TableKey#getVersion()} does not match the Table Entry's Key current Table Version. </li>
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment. </li>
-     * <li>{@link BadOffsetException} If there is a mismatch between the provided {@code tableSegmentOffset} and the actual segment length.<\li>
+     * <li>{@link BadOffsetException} If there is a mismatch between the provided {@code tableSegmentOffset} and the actual segment length.</li>
      * </ul>
      */
     CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, long tableSegmentOffset, Duration timeout);

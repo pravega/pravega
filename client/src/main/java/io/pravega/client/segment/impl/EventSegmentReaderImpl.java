@@ -110,7 +110,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
         if (type != WireCommandType.EVENT.getCode()) {
             throw new InvalidMessageException("Event was of wrong type: " + type);
         }
-        if (length < 0 || length > WireCommands.MAX_WIRECOMMAND_SIZE) {
+        if (length < 0) {
             throw new InvalidMessageException("Event of invalid length: " + length);
         }
         ByteBuffer result = ByteBuffer.allocate(length);

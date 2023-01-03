@@ -91,17 +91,6 @@ public class MetricsTagsTest {
     }
 
     @Test
-    public void testTransactionTags() {
-        String[] tags = transactionTags("scope", "stream", "123");
-        assertEquals(MetricsTags.TAG_SCOPE, tags[0]);
-        assertEquals("scope", tags[1]);
-        assertEquals(MetricsTags.TAG_STREAM, tags[2]);
-        assertEquals("stream", tags[3]);
-        assertEquals(MetricsTags.TAG_TRANSACTION, tags[4]);
-        assertEquals("123", tags[5]);
-    }
-
-    @Test
     public void testSegmentTags() {
         String[] tags = segmentTags("scope/stream/segment.#epoch.1552095534");
         assertEquals(MetricsTags.TAG_SCOPE, tags[0]);
@@ -205,6 +194,13 @@ public class MetricsTagsTest {
         assertEquals("0", tags[1]);
         assertEquals(TAG_EVENT_PROCESSOR, tags[2]);
         assertEquals("myProcessor", tags[3]);
+    }
+
+    @Test
+    public void testSegmentTagDirect() {
+        String[] tags = segmentTagDirect("mySegment");
+        assertEquals(TAG_SEGMENT, tags[0]);
+        assertEquals("mySegment", tags[1]);
     }
 
     private void checkExceptionTags(String[] tags, String expectedClassTag, String expectedExceptionTag) {

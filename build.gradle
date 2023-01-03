@@ -32,7 +32,16 @@ buildscript {
         classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
         classpath "gradle.plugin.com.github.spotbugs.snom:spotbugs-gradle-plugin:${spotbugsPluginVersion}"
         classpath "org.ajoberstar.grgit:grgit-gradle:${gradleGitPluginVersion}"
+        classpath "org.ajoberstar.grgit:grgit-core:${gradleGitPluginVersion}"
         classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
+    }
+
+    // Specifically force the version for GrGit plugin required modules to prevent downloading the most recent release.
+    configurations.all {
+        resolutionStrategy {
+            force "org.ajoberstar.grgit:grgit-gradle:" + gradleGitPluginVersion
+            force "org.ajoberstar.grgit:grgit-core:" + gradleGitPluginVersion
+        }
     }
 }
 
@@ -100,7 +109,8 @@ allprojects {
             //failOnVersionConflict()
             force "com.google.guava:guava:" + guavaVersion
             force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
-            force "io.grpc:grpc-context:" + grpcVersion
+            force "com.google.protobuf:protobuf-java-util:" + protobufProtocVersion
+	    force "io.grpc:grpc-context:" + grpcVersion
             force "commons-beanutils:commons-beanutils:" + commonsBeanutilsVersion
             force "org.apache.commons:commons-compress:" + apacheCommonsCompressVersion
             force "org.apache.commons:commons-lang3:" + commonsLang3Version
@@ -114,13 +124,23 @@ allprojects {
             force "io.netty:netty-transport:" + nettyVersion
             force "io.netty:netty-handler:" + nettyVersion
             force "io.netty:netty-codec:" + nettyVersion
+            force "io.netty:netty-codec-dns:" + nettyVersion
             force "io.netty:netty-codec-http:" + nettyVersion
             force "io.netty:netty-codec-http2:" + nettyVersion
             force "io.netty:netty-codec-socks:" + nettyVersion
             force "io.netty:netty-handler-proxy:" + nettyVersion
+            force "io.netty:netty-resolver-dns:" + nettyVersion
             force "io.netty:netty-transport-native-epoll:" + nettyVersion
             force "io.netty:netty-tcnative-boringssl-static:" + nettyBoringSSLVersion
             force "junit:junit:" + junitVersion
+            force "org.bouncycastle:bcprov-jdk15on:" + bouncyCastleVersion
+	    force "org.bouncycastle:bcpkix-jdk15on:" + bouncyCastleVersion
+	    force "org.apache.avro:avro:" + apacheAvroVersion
+	    force "org.jetbrains.kotlin:kotlin-stdlib-common:" + kotlinVersion
+	    force "org.jetbrains.kotlin:kotlin-stdlib:" + kotlinVersion
+	    force "org.yaml:snakeyaml:" + snakeYamlVersion
+            force "com.fasterxml.woodstox:woodstox-core:" + woodstoxVersion
+	    force "org.jdom:jdom2:" + jdomVersion
             // Netty 4 uber jar
             exclude group: 'io.netty', module: 'netty-all'
             // Netty 3
@@ -273,9 +293,14 @@ project ('shared:metrics') {
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-statsd/<micrometerVersion>
         compile group: 'io.micrometer', name: 'micrometer-registry-influx', version: micrometerVersion
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-influx/<micrometerVersion>
+        compile group: 'io.micrometer', name: 'micrometer-registry-prometheus', version: micrometerVersion
+        // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-prometheus/<micrometerVersion>
         compile project(':common')
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
+        runtime group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
+        testCompile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
     }
 
     javadoc {
@@ -289,8 +314,8 @@ project ('shared:metrics') {
 project('shared:protocol') {
     dependencies {
         compile project(':common')
-        compile group: 'io.netty', name: 'netty-transport', version: nettyVersion
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
@@ -481,6 +506,10 @@ project ('bindings') {
         //For Extended S3
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
 
+        compile group: 'software.amazon.awssdk', name: 's3', version: awsSdkVersion
+        compile group: 'software.amazon.awssdk', name: 'sts', version: awsSdkVersion
+
+        compile group: 'com.azure', name: 'azure-storage-blob', version: azureSdkVersion
         // These were previously brought in as transitive dependencies of HDFS, although they were required for running
         // ExtendedS3SimpleStorageTests. But since the HDFS 3.x upgrade, these transitive dependencies are excluded,
         // so adding explicit dependencies is necessary (as well as desirable).
@@ -488,6 +517,8 @@ project ('bindings') {
         implementation group: 'com.google.inject.extensions', name: 'guice-assistedinject', version: guiceVersion
         implementation group: 'com.google.inject.extensions', name: 'guice-servlet', version: guiceVersion
         implementation group: 'com.google.inject', name: 'guice', version: guiceVersion
+        implementation group: 'com.google.cloud', name: 'google-cloud-storage', version: gcpSdkVersion
+        implementation group: 'com.google.cloud', name: 'google-cloud-nio', version: gcpCloudNioVersion
 
         compile project(':common')
         compile project(':segmentstore:storage')
@@ -567,6 +598,8 @@ project('segmentstore:server:host') {
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
         testCompile project(path:':bindings', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+        testCompile group: 'com.google.cloud', name: 'google-cloud-storage', version: gcpSdkVersion
+        testCompile group: 'com.google.cloud', name: 'google-cloud-nio', version: gcpCloudNioVersion
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
@@ -717,11 +750,7 @@ project('shared:controller-api') {
         compile project(':common')
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
-        compile "io.grpc:grpc-netty:" + grpcVersion
         compile "io.grpc:grpc-auth:" + grpcVersion
-        compile "io.grpc:grpc-protobuf:" + grpcVersion
-        compile "io.grpc:grpc-stub:" + grpcVersion
-        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         // Since Java 10 javax.annotation is no longer bundled with the JRE
         compileOnly group: 'javax.annotation', name: 'javax.annotation-api', version: javaxAnnotationVersion
     }
@@ -858,10 +887,10 @@ project('cli:admin') {
         compile project(':shared:cluster')
         compile project(":shared:security")
         compile project(':test:testcommon')
+        compile project(':test:integration')
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        testCompile project(':test:integration')
         testCompile group: 'junit', name: 'junit', version: '4.12'
         testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion, classifier: 'tests'
         testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, classifier: 'tests'
@@ -918,8 +947,13 @@ project('standalone') {
                                  "-Dsinglenode.configurationFile=PRAVEGA_APP_HOME/conf/standalone-config.properties",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=pravega",
-                                 "-Xdebug",
-                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"]
+                                 "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:+JDWP_DEFAULT_PORT"]
+
+    tasks.withType(CreateStartScripts) {
+        def tplName = 'unixApplicationStartupScript.txt'
+        unixStartScriptGenerator.template = resources.text.fromFile(tplName)
+    }
+
     startScripts {
         classpath += files('$APP_HOME/pluginlib')
         doLast {
@@ -974,7 +1008,19 @@ project('standalone') {
             classpath += files(systemProperties.get("extDirs"))
         }
 
-        jvmArgs "-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"
+        def JDWP_DEFAULT_PORT = 8050
+        def jvmDebugPort = System.getenv("JDWP_PORT")
+        if (jvmDebugPort != null && jvmDebugPort != "") {
+            def matcher = jvmDebugPort =~ /^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$/
+            if (matcher.matches()) {
+                JDWP_DEFAULT_PORT = jvmDebugPort
+            } else {
+                println "Invalid JDWP_PORT number - " +jvmDebugPort+ ", staring Pravega standalone using default port 8050"
+            }
+
+        }
+        jvmArgs "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:" + JDWP_DEFAULT_PORT
+
     }
 }
 
@@ -1154,6 +1200,7 @@ project('test:system') {
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
         // tier2 configuration, specified as comma separated key values k1=v1,k2=v2
         systemProperty "tier2Config", System.getProperty("tier2Config")
+        systemProperty "tier2Env", System.getProperty("tier2Env")
         systemProperty "pravegaOperatorChartVersion", System.getProperty("pravegaOperatorChartVersion", "0.6.1")
         systemProperty "bookkeeperOperatorChartVersion", System.getProperty("bookkeeperOperatorChartVersion", "0.2.1")
         systemProperty "zookeeperOperatorChartVersion", System.getProperty("zookeeperOperatorChartVersion", "0.2.13")
@@ -1312,7 +1359,7 @@ project('test:system') {
 
 def getProjectVersion() {
     String ver = pravegaVersion
-    if (grgit && ver.contains("-SNAPSHOT")) {
+    if (grgit && ver.contains("-SNAPSHOT") && !project.hasProperty("simpleSnapshot")) {
         String versionLabel = ver.substring(0, ver.indexOf("-SNAPSHOT"))
         def count = grgit.log(includes:['HEAD']).size()
         def commitId = "${grgit.head().abbreviatedId}"

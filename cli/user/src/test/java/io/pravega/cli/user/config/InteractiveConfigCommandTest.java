@@ -15,15 +15,21 @@
  */
 package io.pravega.cli.user.config;
 
+import ch.qos.logback.classic.Level;
 import org.junit.Assert;
 import org.junit.Test;
+
+import java.util.Collections;
+import java.util.Map;
+
 
 public class InteractiveConfigCommandTest {
 
     @Test
     public void testSetConfig() {
         final String testString = "test";
-        InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
+        Map<String, String> envProperties = Collections.singletonMap("TestKey", "TestValue");
+        InteractiveConfig interactiveConfig = InteractiveConfig.getDefault(envProperties);
         interactiveConfig.setControllerUri(testString);
         Assert.assertEquals(testString, interactiveConfig.getControllerUri());
         interactiveConfig.setTimeoutMillis(0);
@@ -45,6 +51,27 @@ public class InteractiveConfigCommandTest {
         interactiveConfig.set(InteractiveConfig.TRUSTSTORE_JKS, testString);
         Assert.assertEquals(testString, interactiveConfig.getTruststore());
         Assert.assertNotNull(interactiveConfig.getAll());
+
+        Assert.assertEquals(InteractiveConfig.getDefault(envProperties).getLogLevel(), Level.ERROR);
+        interactiveConfig.set(InteractiveConfig.LOG_LEVEL, "INFO");
+        Assert.assertEquals(interactiveConfig.getLogLevel(), Level.INFO);
+        interactiveConfig.set(InteractiveConfig.LOG_LEVEL, "debug");
+        Assert.assertEquals(interactiveConfig.getLogLevel(), Level.DEBUG);
     }
 
+    @Test
+    public void testGetDefaultsForTlsEnv() {
+        Map<String, String> envProperties = Collections.singletonMap("PRAVEGA_CONTROLLER_URI", "tls://testControllerURI");
+        InteractiveConfig interactiveConfig = InteractiveConfig.getDefault(envProperties);
+        Assert.assertEquals("testControllerURI", interactiveConfig.getControllerUri());
+        Assert.assertEquals(true, interactiveConfig.isTlsEnabled());
+    }
+
+    @Test
+    public void testGetDefaultsForNonTlsEnv() {
+        Map<String, String> envProperties = Collections.singletonMap("PRAVEGA_CONTROLLER_URI", "tcp://testControllerURI");
+        InteractiveConfig interactiveConfig = InteractiveConfig.getDefault(envProperties);
+        Assert.assertEquals("testControllerURI", interactiveConfig.getControllerUri());
+        Assert.assertEquals(false, interactiveConfig.isTlsEnabled());
+    }
 }

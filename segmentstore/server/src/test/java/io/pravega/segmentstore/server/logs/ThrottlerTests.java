@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import io.pravega.common.util.ConfigurationException;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.MetricsTags;
@@ -55,7 +56,7 @@ import org.junit.runner.RunWith;
 @RunWith(SerializedClassRunner.class)
 public class ThrottlerTests extends ThreadPooledTestSuite {
     private static final ThrottlerCalculator.ThrottlerName THROTTLER_NAME = ThrottlerCalculator.ThrottlerName.Cache;
-    private static final int MAX_THROTTLE_MILLIS = ThrottlerCalculator.MAX_DELAY_MILLIS;
+    private static final int MAX_THROTTLE_MILLIS = DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue();
     private static final int NON_MAX_THROTTLE_MILLIS = MAX_THROTTLE_MILLIS - 1;
     private static final int TIMEOUT_MILLIS = 10000;
     private static final int SHORT_TIMEOUT_MILLIS = 50;
@@ -349,12 +350,43 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Test the throttleOnce method to check its behavior when throttler is suspended
+     */
+    @Test
+    public void testThrottleOnceWhenSuspended() {
+        val delays = new ArrayList<>();
+        val calculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Cache);
+        calculator.setDelayMillis(10000);
+        val suspended = new AtomicBoolean(true);
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), suspended::get, executorService(), metrics, delays::add);
+        t.throttleOnce(wrap(calculator).getThrottlingDelay());
+        Assert.assertTrue("Error: Throttler has continued to throttle inspite of there being System-Critical to process", t.lastDelayFuture.get().isCompletedExceptionally());
+    }
+
+    /**
+     * Test the throttleOnce method to check its behavior when throttler is not suspended
+     */
+    @Test
+    public void testThrottleOnceWhenNotSuspended() throws Exception {
+        val delays = new ArrayList<>();
+        val calculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Cache);
+        int delayMillis = 500;
+        calculator.setDelayMillis(delayMillis);
+        val suspended = new AtomicBoolean(false);
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), suspended::get, executorService(), metrics, delays::add);
+        CompletableFuture<Void> throt = t.throttleOnce(wrap(calculator).getThrottlingDelay());
+        TestUtils.await(throt::isDone, 5, TIMEOUT_MILLIS);
+        Assert.assertFalse("Error: Throttler has not throttled accoriding to expected delay.", t.lastDelayFuture.get().isCompletedExceptionally());
+    }
+
+
+    /**
      * Tests the throttler when it is temporarily disabled.
      */
     @Test
     public void testTemporaryDisabled() throws Exception {
         testTemporaryDisabled(10000); // Non-max delay.
-        testTemporaryDisabled(ThrottlerCalculator.MAX_DELAY_MILLIS); // Max delay (different code path).
+        testTemporaryDisabled(DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue()); // Max delay (different code path).
     }
 
     private void testTemporaryDisabled(int delayMillis) throws Exception {
@@ -393,11 +425,41 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     }
 
     private ThrottlerCalculator wrap(ThrottlerCalculator.Throttler calculatorThrottler) {
-        return ThrottlerCalculator.builder().throttler(calculatorThrottler).build();
+        return ThrottlerCalculator.builder().maxDelayMillis(DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue()).throttler(calculatorThrottler).build();
     }
 
     private double getThrottlerMetric(ThrottlerCalculator.ThrottlerName name) {
         return MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, MetricsTags.throttlerTag(containerId, name.toString())).value();
+    }
+
+    @Test
+    public void throttlerConfigTest() {
+        // Check that default values are respected for ThrottlerConfig.
+        DurableLogConfig durableLogConfig = DurableLogConfig.builder().build();
+        ThrottlerPolicy throttlerPolicy = new ThrottlerPolicy(durableLogConfig);
+        Assert.assertEquals((int) DurableLogConfig.MAX_BATCHING_DELAY_MILLIS.getDefaultValue(), throttlerPolicy.getMaxBatchingDelayMillis());
+        Assert.assertEquals((int) DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue(), throttlerPolicy.getMaxDelayMillis());
+        Assert.assertEquals((int) DurableLogConfig.OPERATION_LOG_MAX_SIZE.getDefaultValue(), throttlerPolicy.getOperationLogMaxSize());
+        Assert.assertEquals((int) DurableLogConfig.OPERATION_LOG_TARGET_SIZE.getDefaultValue(), throttlerPolicy.getOperationLogTargetSize());
+
+        // Set non-default values and verify that ThrottlerConfig stores these correctly.
+        durableLogConfig = DurableLogConfig.builder()
+                .with(DurableLogConfig.MAX_BATCHING_DELAY_MILLIS, 10)
+                .with(DurableLogConfig.MAX_DELAY_MILLIS, 10000)
+                .with(DurableLogConfig.OPERATION_LOG_MAX_SIZE, 1234)
+                .with(DurableLogConfig.OPERATION_LOG_TARGET_SIZE, 123)
+                .build();
+        throttlerPolicy = new ThrottlerPolicy(durableLogConfig);
+        Assert.assertEquals(10, throttlerPolicy.getMaxBatchingDelayMillis());
+        Assert.assertEquals(10000, throttlerPolicy.getMaxDelayMillis());
+        Assert.assertEquals(1234, throttlerPolicy.getOperationLogMaxSize());
+        Assert.assertEquals(123, throttlerPolicy.getOperationLogTargetSize());
+
+        // Check that we cannot set an OperationLog target size higher than the max size.
+        AssertExtensions.assertThrows(ConfigurationException.class, () -> DurableLogConfig.builder()
+                .with(DurableLogConfig.OPERATION_LOG_MAX_SIZE, 10)
+                .with(DurableLogConfig.OPERATION_LOG_TARGET_SIZE, 20)
+                .build());
     }
 
     //region Helper Classes

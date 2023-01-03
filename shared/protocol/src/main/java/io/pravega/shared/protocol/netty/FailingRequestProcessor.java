@@ -126,6 +126,11 @@ public class FailingRequestProcessor implements RequestProcessor {
     }
 
     @Override
+    public void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
     public void sealSegment(SealSegment sealSegment) {
         throw new IllegalStateException("Unexpected operation");
     }
@@ -147,6 +152,16 @@ public class FailingRequestProcessor implements RequestProcessor {
 
     @Override
     public void readTableEntriesDelta(WireCommands.ReadTableEntriesDelta readTableEntriesDelta) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
+    public void createTransientSegment(WireCommands.CreateTransientSegment createTransientSegment) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
+    public void connectionDropped() {
         throw new IllegalStateException("Unexpected operation");
     }
 

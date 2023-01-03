@@ -207,6 +207,9 @@ public final class Config {
     public static final Property<Integer> PROPERTY_HEALTH_CHECK_FREQUENCY = Property.named(
             "health.frequency.seconds", 10);
 
+    public static final Property<Integer> PROPERTY_LIST_COMPLETED_TXN_MAX_RECORDS = Property.named(
+            "listCompletedTxn.max.records", 500);
+
     public static final String COMPONENT_CODE = "controller";
 
     //endregion
@@ -298,6 +301,8 @@ public final class Config {
 
     public static final int HEALTH_CHECK_FREQUENCY;
 
+    public static final int LIST_COMPLETED_TXN_MAX_RECORDS;
+
     private static final String METRICS_PATH = "controller.metrics.";
 
     //endregion
@@ -369,6 +374,7 @@ public final class Config {
 
         REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE = p.getInt(PROPERTY_SEGMENT_STORE_REQUEST_TIMEOUT_SECONDS);
         HEALTH_CHECK_FREQUENCY = p.getInt(PROPERTY_HEALTH_CHECK_FREQUENCY);
+        LIST_COMPLETED_TXN_MAX_RECORDS = p.getInt(PROPERTY_LIST_COMPLETED_TXN_MAX_RECORDS);
     }
 
     private static Properties loadConfiguration() {

@@ -37,9 +37,11 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.val;
 
+import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.containerTag;
 import static io.pravega.shared.MetricsTags.eventProcessorTag;
 import static io.pravega.shared.MetricsTags.throttlerTag;
+import static io.pravega.shared.MetricsTags.segmentTagDirect;
 
 /**
  * General Metrics for the SegmentStore.
@@ -52,7 +54,7 @@ public final class SegmentStoreMetrics {
      * Global (not container-specific) end-to-end latency of an operation from when it enters the OperationProcessor
      * until it is completed.
      */
-    private static final OpStatsLogger GLOBAL_OPERATION_LATENCY = STATS_LOGGER.createStats(MetricsNames.OPERATION_LATENCY);
+    private static final OpStatsLogger GLOBAL_OPERATION_LATENCY = STATS_LOGGER.createStats(globalMetricName(MetricsNames.OPERATION_LATENCY));
 
     //region CacheManager
 
@@ -187,7 +189,6 @@ public final class SegmentStoreMetrics {
          */
         private final OpStatsLogger processOperationsLatency;
         private final OpStatsLogger processOperationsBatchSize;
-        private final Counter operationLogSize;
         private final int containerId;
         private final String[] containerTag;
         private final Set<String> throttlers = Collections.synchronizedSet(new HashSet<>());
@@ -204,7 +205,6 @@ public final class SegmentStoreMetrics {
             this.memoryCommitCount = STATS_LOGGER.createStats(MetricsNames.OPERATION_COMMIT_MEMORY_COUNT, this.containerTag);
             this.processOperationsLatency = STATS_LOGGER.createStats(MetricsNames.PROCESS_OPERATIONS_LATENCY, this.containerTag);
             this.processOperationsBatchSize = STATS_LOGGER.createStats(MetricsNames.PROCESS_OPERATIONS_BATCH_SIZE, this.containerTag);
-            this.operationLogSize = STATS_LOGGER.createCounter(MetricsNames.OPERATION_LOG_SIZE, this.containerTag);
         }
 
         @Override
@@ -218,10 +218,10 @@ public final class SegmentStoreMetrics {
             this.memoryCommitCount.close();
             this.processOperationsLatency.close();
             this.processOperationsBatchSize.close();
-            this.operationLogSize.close();
             for (String throttler : throttlers) {
                 DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTag(containerId, throttler));
             }
+            DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.OPERATION_LOG_SIZE, containerTag);
         }
 
         public void currentState(int queueSize, int inFlightCount) {
@@ -247,21 +247,12 @@ public final class SegmentStoreMetrics {
             this.memoryCommitLatency.reportSuccessEvent(elapsed);
         }
 
-        public void operationLogRead(int count) {
-            this.operationLogSize.add(-count);
-        }
-
-        public void operationLogInit() {
-            this.operationLogSize.clear();
-        }
-
         public void processOperations(int batchSize, long millis) {
             this.processOperationsBatchSize.reportSuccessValue(batchSize);
             this.processOperationsLatency.reportSuccessValue(millis);
         }
 
         public void operationsCompleted(int operationCount, Duration commitElapsed) {
-            this.operationLogSize.add(operationCount);
             this.operationCommitLatency.reportSuccessEvent(commitElapsed);
         }
 
@@ -289,6 +280,15 @@ public final class SegmentStoreMetrics {
                 this.operationLatency.reportFailValue(millis);
                 GLOBAL_OPERATION_LATENCY.reportFailValue(millis);
             }
+        }
+
+        /**
+         * Rerpot the operation log size for every SegmentStore Container.
+         * @param logSize           Size of the operationlog to be reported.
+         * @param containerId       Container owning the operationlog.
+         */
+        public void reportOperationLogSize(int logSize, int containerId) {
+            DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.OPERATION_LOG_SIZE, logSize, containerTag(containerId));
         }
     }
 
@@ -525,6 +525,21 @@ public final class SegmentStoreMetrics {
     public static void outstandingEventProcessorBytes(String processorName, int containerId, long outstandingBytes) {
         DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CONTAINER_EVENT_PROCESSOR_OUTSTANDING_BYTES, outstandingBytes,
                 eventProcessorTag(containerId, processorName));
+    }
+    //endregion
+
+    //region ContainerKeyIndex
+
+    /**
+     * Reports the number of credits used for a given Hash-Based Table Segment. Note that these Segments are exclusively
+     * used for internal metadata storage and may have a special name format. For this reason, we report the Segment name
+     * directly via the tag.
+     *
+     * @param segmentName Name of the Table Segment that reports the used credits.
+     * @param credits Used credits for the Table Segment.
+     */
+    public static void tableSegmentUsedCredits(String segmentName, long credits) {
+        DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.TABLE_SEGMENT_USED_CREDITS, credits, segmentTagDirect(segmentName));
     }
 
     //endregion

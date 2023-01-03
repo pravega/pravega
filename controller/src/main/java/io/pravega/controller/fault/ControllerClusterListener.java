@@ -98,7 +98,7 @@ public class ControllerClusterListener extends AbstractIdleService {
     protected void startUp() throws InterruptedException {
         long traceId = LoggerHelpers.traceEnter(log, objectId, "startUp");
         try {
-            log.info("Registering host {} with controller cluster", host);
+            log.info("Starting Controller cluster listener, registering host {} with controller cluster", host);
             cluster.registerHost(host);
 
             // It is important to first register the listener and then perform sweeps so that no notifications of HostRemoved

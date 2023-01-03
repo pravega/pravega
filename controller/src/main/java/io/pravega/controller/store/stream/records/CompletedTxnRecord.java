@@ -51,6 +51,12 @@ public class CompletedTxnRecord {
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
     }
+
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "completeTime", completeTime) + "\n" +
+                String.format("%s = %s", "completionStatus", completionStatus);
+    }
     
     private static class CompletedTxnRecordSerializer
             extends VersionedSerializer.WithBuilder<CompletedTxnRecord, CompletedTxnRecord.CompletedTxnRecordBuilder> {

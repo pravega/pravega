@@ -136,7 +136,12 @@ public class RawClient implements AutoCloseable {
         if (future != null) {
             future.complete(reply);
         } else {
-            log.info("Could not find any matching request for {}. Ignoring.", reply);
+            if (reply.isFailure()) {
+                log.info("Could not find any matching request for error {}. Closing connection.", reply);
+                closeConnection(new ConnectionFailedException("Unexpected reply from server: " + reply));
+            } else {                
+                log.info("Could not find any matching request for {}. Ignoring.", reply);
+            }
         }
     }
 

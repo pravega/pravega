@@ -14,7 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Right-Sizing Long-Term Storage
+# Storage Right-Sizing
+This document provides guidelines to right-sizing the storage capacity of a Pravega cluster (tier-1 and long-term
+storage).
+
+## Right-Sizing Long-Term Storage
 
 Pravega's design enables users to store stream data virtually without bounds. However, in practical terms, we need
 to understand what will be the storage capacity required in Long-Term Storage, either to provision such a system or
@@ -106,4 +110,48 @@ the thread pool size to 2-4 threads.
 - _Maximum size of single chunk in LTS: In production, it may be required to revisit the value of `writer.rollover.size.bytes.max`.
 Limiting the size of chunks in LTS poses a trade-off: if the value is low, the system will achieve fine retention granularity 
 (good) but extra metadata overhead (not so good). On the contrary, a high value in this parameter induces coarse retention 
-granularity with less metadata overhead. Limiting chunk sizes between 1GB-16GB seems reasonable in many scenarios. 
+granularity with less metadata overhead. Limiting chunk sizes between 1GB-16GB seems reasonable in many scenarios.
+
+## Right-Sizing Tier-1 Storage (Bookkeeper)
+
+Pravega uses tier-1 storage for durable, low-latency persistence until data can be moved to long-term storage.
+Thus, we need guidelines to right-sizing the storage capacity required in tier-1 (i.e., Bookkeeper).
+
+To this end, there are three variables that we need to take into account:
+- _Max ledger size (`bookkeeper.ledger.size.max`)_: Maximum Ledger size (bytes) in BookKeeper. Once a Ledger reaches this size, 
+it will be closed and another one opened. _Type_: `Long`. _Default_: `1073741824` (1 GB). _Update-mode_: `per-server`.
+
+- _Number of Segment Containers (`pravegaservice.container.count`, `controller.container.count`)_: Number of Segment Containers in the system. 
+This value must be the same across all Segment Store instances in this cluster. This value cannot be changed dynamically. 
+See [documentation for details](https://cncf.pravega.io/docs/nightly/segment-store-service/#segment-containers).
+_Type_: `Integer`. _Default_: `4`. _Update-mode_: `read-only`.
+
+- _Replication degree (`bookkeeper.write.quorum.size`)_: Write Quorum size for BookKeeper ledgers.
+_Type_: `Integer`. _Default_: `3`. _Update-mode_: `per-server`.
+
+Each Segment Container has a Durable Log (default implementation is `BookkeeperLog`). For context, a Segment
+Container multiplexes and writes all the operations of active Segments to its Durable Log. In the Bookkeeper implementation
+of the Durable Log, Segment operations are grouped into `DataFrames` and written as individual entries into a Ledger.
+If the Ledger reaches the maximum size specified in `bookkeeper.ledger.size.max`, then the current Ledger is closed and
+a new one is created (i.e., Ledger rollover). In parallel, as soon as data for a Segment Container is correctly persisted
+in long-term storage, the Durable Log can be truncated. When working with Bookkeeper, truncating a Durable Log means
+deleting the Ledgers whose last entry is lower than the last truncation point. Once these Ledgers are marked as deleted,
+Bookkeeper can delete them when running garbage collection, thus freeing up space to continue writing data.
+
+With the above context, the question to answer is what is the minimum amount of storage space that is needed
+for preventing Pravega from exhausting storage space in Bookkeeper during normal operation? We suggest provisioning storage 
+space for at least 2 full-length ledgers per container (so one Ledger can be garbage collected by Bookkeeper while the Segment
+Container continues to write to the new one). Therefore, we could estimate the storage space in Bookkeeper as follows:
+
+_Bookie journal/ledger volume_: 2 * `bookkeeper.ledger.size.max` * `pravegaservice.container.count` * (`bookkeeper.write.quorum.size` / `#bookies`)
+
+That is, we need a storage space on Bookies that can allocate 2 max size ledgers per container. Nonetheless, we have also to take
+into account the replication factor of Pravega writing to Bookkeeper, as well as the number of Bookies. For example, assuming the
+default values, we would need `2 * 4 Segment Containers * 1GB = 8GB` of storage space in Bookkeeper. This is in the
+case of having 3 Bookies (as `bookkeeper.write.quorum.size = 3`). If we had 6 Bookies instead, the minimum storage space
+to be allocated in Bookie volumes would be 4GB. 
+
+As an important point, note that this is the storage space to be allocated _individually to each journal and ledger volumes of Bookies_.
+Also, this is a _lower bound estimation_: there might be situations in which Pravega could still hit Bookies getting rid of
+storage space (e.g., if long-term storage is unavailable for very long while Pravega keeps ingesting data). For this reason,
+we recommend using this calculation as a bare minimum estimation and always provision Bookie volumes with higher storage capacity.

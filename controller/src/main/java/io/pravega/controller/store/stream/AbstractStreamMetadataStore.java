@@ -16,38 +16,39 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.store.Version;
-import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.Scope;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.ImmutableMap;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.lang.Int96;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
+import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.store.Scope;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.store.stream.records.StreamSubscriber;
-import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -66,7 +67,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -96,7 +96,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Getter
     private final HostIndex hostTaskIndex;
     private final ControllerEventSerializer controllerEventSerializer = new ControllerEventSerializer();
-    private final Random requestIdGenerator = new Random();
 
     protected AbstractStreamMetadataStore(HostIndex hostTxnIndex, HostIndex hostTaskIndex) {
         cache = CacheBuilder.newBuilder()
@@ -188,7 +187,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         Futures.completeOn(checkScopeExists(scope, context, executor)
                                 .thenCompose(exists -> {
                                     if (exists) {
-                                        // Create stream may fail if scope is deleted as we attempt to create the stream under scope. 
+                                        // Create stream may fail if scope is deleted as we attempt to create the stream under scope.
                                         return getStream(scope, name, context)
                                                 .create(configuration, createTimestamp, startingSegmentNumber, context);
                                     } else {
@@ -275,16 +274,22 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         OperationContext context = getOperationContext(ctx);
 
         Scope scope = getScope(scopeName, context);
-        return Futures.completeOn(scope.createScope(context).handle((result, ex) -> {
-            if (ex == null) {
-                return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
+        return Futures.completeOn(scope.isScopeSealed(scopeName, context).thenCompose(isScopeSealed -> {
+            if (isScopeSealed) {
+                return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().
+                        setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build());
             }
-            if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
-                return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
-            } else {
-                log.error(context.getRequestId(), "Create scope failed for scope {} due to ", scopeName, ex);
-                return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.FAILURE).build();
-            }
+                return scope.createScope(context).handle((result, ex) -> {
+                    if (ex == null) {
+                        return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
+                    }
+                    if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
+                        return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
+                    } else {
+                        log.error(context.getRequestId(), "Create scope failed for scope {} due to ", scopeName, ex);
+                        return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.FAILURE).build();
+                    }
+                });
         }), executor);
     }
 
@@ -301,17 +306,40 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         return Futures.completeOn(getScope(scopeName, context).deleteScope(context).handle((result, e) -> {
             Throwable ex = Exceptions.unwrap(e);
-            if (ex == null) {
-                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
-            }
-            if (ex instanceof StoreException.DataNotFoundException) {
-                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build();
-            } else if (ex instanceof StoreException.DataNotEmptyException) {
-                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
-            } else {
-                log.error(context.getRequestId(), "DeleteScope failed for scope {} due to {} ", scopeName, ex);
-                return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
-            }
+            final String message = "DeleteScope failed for scope";
+            return getDeleteScopeStatus(scopeName, context, ex, message);
+        }), executor);
+    }
+
+    private DeleteScopeStatus getDeleteScopeStatus(String scopeName, OperationContext context,
+                                                   Throwable ex, String message) {
+        if (ex == null) {
+            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
+        }
+        if (ex instanceof StoreException.DataNotFoundException) {
+            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build();
+        } else if (ex instanceof StoreException.DataNotEmptyException) {
+            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
+        } else {
+            log.error(context.getRequestId(), message + " {} due to {} ", scopeName, ex);
+            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
+        }
+    }
+
+    /**
+     * Delete a scope recursively with given name.
+     *
+     * @param scopeName Name of scope to be deleted
+     * @return DeleteScopeRecursiveStatus future.
+     */
+    @Override
+    public CompletableFuture<DeleteScopeStatus> deleteScopeRecursive(final String scopeName, final OperationContext ctx,
+                                                            Executor executor) {
+        OperationContext context = getOperationContext(ctx);
+        return Futures.completeOn(getScope(scopeName, context).deleteScopeRecursive(context).handle((result, e) -> {
+            Throwable ex = Exceptions.unwrap(e);
+            final String message = "DeleteScopeRecursive failed for scope";
+            return getDeleteScopeStatus(scopeName, context, ex, message);
         }), executor);
     }
 
@@ -922,6 +950,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(String scope, String stream,
+                                                                     OperationContext context, Executor executor) {
+        OperationContext operationContext = getOperationContext(context);
+        return  Futures.completeOn(getStream(scope, stream, operationContext).listCompletedTxns(operationContext), executor);
+    }
+
+    @Override
     public CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name, final long from, 
                                                                    final long to, final OperationContext ctx,
                                                                    final Executor executor) {
@@ -1109,6 +1144,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return scope;
     }
 
+    @Override
+    public CompletableFuture<UUID> getScopeId(final String scopeName, OperationContext ctx, Executor executor) {
+        OperationContext context = getOperationContext(ctx);
+        return Futures.completeOn(getScope(scopeName, context).getScopeId(scopeName, context), executor);
+    }
+
     // region ReaderGroup
     @Override
     public CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName, 
@@ -1225,7 +1266,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     OperationContext getOperationContext(OperationContext context) {
         // if null context is supplied make sure we create a context with a new request id.
         return context != null ? context : new OperationContext() {
-            private final long requestId = requestIdGenerator.nextLong();
+            private final long requestId = ControllerService.nextRequestId();
             private final long operationStartTime = System.currentTimeMillis();
             @Override
             public long getOperationStartTime() {

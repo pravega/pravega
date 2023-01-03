@@ -21,11 +21,13 @@ import io.pravega.common.util.ImmutableDate;
 import java.util.Collections;
 import java.util.Map;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 /**
  * General Stream Segment Information.
  */
+@EqualsAndHashCode
 public class StreamSegmentInformation implements SegmentProperties {
     //region Members
 

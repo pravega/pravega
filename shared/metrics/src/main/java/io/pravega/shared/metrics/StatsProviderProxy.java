@@ -15,6 +15,7 @@
  */
 package io.pravega.shared.metrics;
 
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -68,5 +69,11 @@ public class StatsProviderProxy implements StatsProvider {
     @Override
     public DynamicLogger createDynamicLogger() {
         return instance.get().createDynamicLogger();
+    }
+
+
+    @Override
+    public Optional<Object> prometheusResource() {
+       return instance.get().prometheusResource();
     }
 }

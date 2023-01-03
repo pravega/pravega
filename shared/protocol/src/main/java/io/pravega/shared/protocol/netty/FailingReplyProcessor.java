@@ -122,6 +122,11 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
+    public void storageChunksListed(WireCommands.StorageChunksListed storageChunksListed) {
+        throw new IllegalStateException("Unexpected operation: " + storageChunksListed);
+    }
+
+    @Override
     public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
         throw new IllegalStateException("Unexpected operation: " + segmentAttribute);
     }
@@ -138,6 +143,11 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void segmentsMerged(SegmentsMerged segmentsMerged) {
+        throw new IllegalStateException("Unexpected operation: " + segmentsMerged);
+    }
+
+    @Override
+    public void segmentsBatchMerged(WireCommands.SegmentsBatchMerged segmentsMerged) {
         throw new IllegalStateException("Unexpected operation: " + segmentsMerged);
     }
 

@@ -72,7 +72,10 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
             @Cleanup
             val rr = new ReadResultMock(e.serialization, e.serialization.length, 1);
             AsyncReadResultProcessor.process(rr, keyReader, executorService());
-            Assert.assertEquals(Math.min(rr.getMaxResultLength(), keyReader.getMaxReadAtOnce()), rr.getMaxReadAtOnce());
+            AssertExtensions.assertEventuallyEquals(true, () -> {
+                int readerMaxReadAtOnce = keyReader.getMaxReadAtOnce();
+                return Math.min(rr.getMaxResultLength(), readerMaxReadAtOnce != 0 ? readerMaxReadAtOnce : Integer.MAX_VALUE) == rr.getMaxReadAtOnce();
+            }, 30 * 1000);
 
             // Get the result and compare it with the original key.
             val result = keyReader.getResult().get(BASE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);

@@ -18,6 +18,7 @@ package io.pravega.client.segment.impl;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.Serializer;
 import java.util.concurrent.Semaphore;
 
 /**
@@ -106,4 +107,23 @@ public interface SegmentInputStreamFactory {
      * @return A segment event reader.
      */
     EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize);
+
+    /**
+     * Opens an existing segment for reading a fixed length. This operation will fail if the
+     * segment does not exist.
+     * This operation may be called multiple times on the same segment from the
+     * same client (i.e., there can be concurrent Event Readers in the same
+     * process space).
+     * This operation additionally takes a length parameter. This is
+     * used to allocate buffer space for the bytes this reader reads from the
+     * segment, as well as the size of the read request. 
+     * It is important to control the buffer size and startOffset e.g., when randomly
+     * reading events with {@link io.pravega.client.admin.StreamManager#fetchEvent(EventPointer, Serializer)}
+     *
+     * @param segment  The segment to create an input for.
+     * @param startOffset the start offset of the segment.
+     * @param lengthToRead Size of the read buffer.
+     * @return A segment event reader.
+     */
+    EventSegmentReader createEventReaderForSegment(Segment segment, long startOffset, int lengthToRead);
 }

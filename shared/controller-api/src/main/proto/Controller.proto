@@ -46,12 +46,14 @@ service ControllerService {
     rpc abortTransaction(TxnRequest) returns (TxnStatus);
     rpc pingTransaction(PingTxnRequest) returns (PingTxnStatus);
     rpc checkTransactionState(TxnRequest) returns (TxnState);
+    rpc listCompletedTransactions(ListCompletedTxnRequest) returns (ListCompletedTxnResponse);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
     rpc listScopes(ScopesRequest) returns (ScopesResponse);
     rpc checkScopeExists(ScopeInfo) returns (ExistsResponse);
     rpc checkStreamExists(StreamInfo) returns (ExistsResponse);
     rpc listStreamsInScope(StreamsInScopeRequest) returns (StreamsInScopeResponse);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
+    rpc deleteScopeRecursive(ScopeInfo) returns (DeleteScopeStatus);
     rpc getDelegationToken(StreamInfo) returns (DelegationToken);
     rpc removeWriter(RemoveWriterRequest) returns (RemoveWriterResponse);
     rpc noteTimestampFromWriter(TimestampFromWriter) returns (TimestampResponse);
@@ -326,6 +328,23 @@ message TxnState {
         ABORTED = 5;
     }
     State state = 1;
+}
+
+message ListCompletedTxnRequest {
+    StreamInfo streamInfo = 1;
+}
+
+message ListCompletedTxnResponse{
+    repeated TxnResponse response = 2;
+}
+
+message TxnResponse{
+    TxnId txnId = 1;
+    enum Status {
+        COMMITTED = 0;
+        ABORTED = 1;
+    }
+    Status status = 2;
 }
 
  message ScopeInfo {

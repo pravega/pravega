@@ -26,7 +26,7 @@ public class ConfigCommandTest {
 
     @Test
     public void testConfigCommand() {
-        InteractiveConfig config = InteractiveConfig.getDefault();
+        InteractiveConfig config = InteractiveConfig.getDefault(Collections.singletonMap("TestKey", "TestValue"));
         CommandArgs commandArgs = new CommandArgs(Arrays.asList("controller-uri=0",
                 "default-segment-count=1", "timeout-millis=2", "max-list-items=3", "pretty-print=true"), config);
         ConfigCommand.Set set = new ConfigCommand.Set(commandArgs);

@@ -168,29 +168,6 @@ public class ZKCheckpointStore implements CheckpointStore {
         }
         removeEmptyNode(path);
     }
-    
-    @Override
-    public Map<String, Position> removeProcessFromGroup(String process, String readerGroup) throws CheckpointStoreException {
-        String path = getReaderGroupPath(process, readerGroup);
-
-        try {
-            updateReaderGroupData(path, groupData ->
-                    new ReaderGroupData(ReaderGroupData.State.Sealed, groupData.getReaderIds()));
-            Map<String, Position> result = getPositions(process, readerGroup);
-            for (String readerId : result.keySet()) {
-                removeReader(process, readerGroup, readerId);
-            }
-            removeReaderGroup(process, readerGroup);
-            return result;
-        } catch (KeeperException.NoNodeException e) {
-            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
-        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException
-                | KeeperException.SessionExpiredException e) {
-            throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
-        } catch (Exception e) {
-            throw new CheckpointStoreException(e);
-        }
-    }
 
     @Override
     public List<String> getReaderGroups(String process) throws CheckpointStoreException {
@@ -250,7 +227,7 @@ public class ZKCheckpointStore implements CheckpointStore {
             });
 
         } catch (KeeperException.NoNodeException e) {
-            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+            log.debug("ZNode for reader {} in Reader Group {} for Controller {} not found.", readerId, readerGroup, process);
         } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException
                 | KeeperException.SessionExpiredException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
@@ -302,7 +279,6 @@ public class ZKCheckpointStore implements CheckpointStore {
                 .retryingOn(KeeperException.BadVersionException.class)
                 .throwingOn(Exception.class)
                 .run(() -> {
-
                     byte[] data = client.getData().storingStatIn(stat).forPath(path);
                     ReaderGroupData groupData = groupDataSerializer.deserialize(ByteBuffer.wrap(data));
                     groupData = updater.apply(groupData);

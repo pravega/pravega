@@ -1667,15 +1667,13 @@ public abstract class PersistentStreamBase implements Stream {
             // update record
             if (!previous.getTxnStatus().equals(TxnStatus.COMMITTING)) {
                 future = addTxnToCommitOrder(txId, context)
-                        .thenApply(position -> {
-                            return new ActiveTxnRecord(previous.getTxCreationTimestamp(),
-                                    previous.getLeaseExpiryTime(),
-                                    previous.getMaxExecutionExpiryTime(),
-                                    TxnStatus.COMMITTING,
-                                    writerId,
-                                    timestamp,
-                                    position);
-                        });
+                        .thenApply(position -> new ActiveTxnRecord(previous.getTxCreationTimestamp(),
+                                previous.getLeaseExpiryTime(),
+                                previous.getMaxExecutionExpiryTime(),
+                                TxnStatus.COMMITTING,
+                                writerId,
+                                timestamp,
+                                position));
             } else {
                 future = CompletableFuture.completedFuture(previous);
             }
@@ -1689,36 +1687,6 @@ public abstract class PersistentStreamBase implements Stream {
             final VersionedMetadata<ActiveTxnRecord> data = new VersionedMetadata<>(updated, version);
             return updateActiveTx(epoch, txId, data, context);
         });
-    }
-
-    @Override
-    public CompletableFuture<Void> recordCommitOffsets(final UUID txnId, final Map<Long, Long> commitOffsets,
-                                                       OperationContext context) {
-        Preconditions.checkNotNull(context, "Operation context cannot be null");
-        // The transaction may already have been committed and its record removed and this could be an idempotent run. 
-        // So this method will ignore any data not found exceptions that are thrown while trying to retrieve active 
-        // transaction record. 
-        // This method updates the commit offsets if they are empty. Otherwise it ignores them. 
-        int epoch = RecordHelper.getTransactionEpoch(txnId);
-        return Futures.exceptionallyExpecting(getActiveTx(epoch, txnId, context)
-                .thenCompose(txnRecord -> {
-                    ActiveTxnRecord activeTxnRecord = txnRecord.getObject();
-                    Preconditions.checkArgument(activeTxnRecord.getTxnStatus().equals(TxnStatus.COMMITTING));
-                    if (activeTxnRecord.getCommitOffsets().isEmpty()) {
-                        ActiveTxnRecord updated = new ActiveTxnRecord(activeTxnRecord.getTxCreationTimestamp(),
-                                activeTxnRecord.getLeaseExpiryTime(),
-                                activeTxnRecord.getMaxExecutionExpiryTime(),
-                                TxnStatus.COMMITTING,
-                                activeTxnRecord.getWriterId(),
-                                activeTxnRecord.getCommitTime(),
-                                activeTxnRecord.getCommitOrder(),
-                                ImmutableMap.copyOf(commitOffsets));
-                        return Futures.toVoid(updateActiveTx(epoch, txnId, new VersionedMetadata<>(updated, txnRecord.getVersion()),
-                                context));
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                }), DATA_NOT_FOUND_PREDICATE, null);
     }
 
     /**

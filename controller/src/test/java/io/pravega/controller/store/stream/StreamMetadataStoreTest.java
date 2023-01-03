@@ -67,15 +67,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
@@ -94,9 +91,6 @@ import static org.mockito.Mockito.spy;
  */
 public abstract class StreamMetadataStoreTest {
 
-    //Ensure each test completes within 30 seconds.
-    @Rule 
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected TestStore store;
     protected BucketStore bucketStore;
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
@@ -119,7 +113,7 @@ public abstract class StreamMetadataStoreTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
 
         // region createStream
@@ -229,7 +223,7 @@ public abstract class StreamMetadataStoreTest {
         // endregion
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void listScopesPaginated() throws Exception {
         // list stream in scope
         String scope = "scopeList";
@@ -250,7 +244,7 @@ public abstract class StreamMetadataStoreTest {
         assertFalse(Strings.isNullOrEmpty(scopes.getValue()));
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void listStreamsInScope() throws Exception {
         // list stream in scope
         store.createScope("Scope", null, executor).get();
@@ -275,7 +269,7 @@ public abstract class StreamMetadataStoreTest {
         }
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void listStreamsInScopePaginated() throws Exception {
         // list stream in scope
         String scope = "scopeList";
@@ -314,7 +308,7 @@ public abstract class StreamMetadataStoreTest {
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void partialStreamsInScope() throws Exception {
         // list stream in scope
         store.createScope("Scope", null, executor).get();
@@ -354,7 +348,7 @@ public abstract class StreamMetadataStoreTest {
         assertFalse("List streams in scope", streamInScope.containsKey(partial));
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void listScopes() throws Exception {
         // list scopes test
         List<String> list = store.listScopes(executor, 0L).get();
@@ -378,7 +372,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals("List Scopes size", 2, list.size());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void getScopeTest() throws Exception {
         final String scope1 = "Scope1";
         final String scope2 = "Scope2";
@@ -395,7 +389,7 @@ public abstract class StreamMetadataStoreTest {
                 (Throwable t) -> t instanceof StoreException.DataNotFoundException);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void txnHostIndexTest() {
         String host1 = "host1";
         String host2 = "host2";
@@ -453,7 +447,7 @@ public abstract class StreamMetadataStoreTest {
         Assert.assertEquals(version, store.getTxnVersionFromIndex(host, txnResource).join());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void scaleTest() throws Exception {
         final String scope = "ScopeScale";
         final String stream = "StreamScale";
@@ -611,7 +605,7 @@ public abstract class StreamMetadataStoreTest {
         // endregion
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void concurrentStartScaleTest() throws Exception {
         final String scope = "ScopeScale";
         final String stream = "StreamScale1";
@@ -712,7 +706,7 @@ public abstract class StreamMetadataStoreTest {
         // endregion
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void updateTest() throws Exception {
         final String scope = "ScopeUpdate";
         final String stream = "StreamUpdate";
@@ -752,7 +746,7 @@ public abstract class StreamMetadataStoreTest {
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void deleteTest() throws Exception {
         final String scope = "ScopeDelete";
         final String stream = "StreamDelete";
@@ -772,7 +766,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(status.getStatus(), DeleteScopeStatus.Status.SUCCESS);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void scaleWithTxTest() throws Exception {
         final String scope = "ScopeScaleWithTx";
         final String stream = "StreamScaleWithTx";
@@ -918,7 +912,46 @@ public abstract class StreamMetadataStoreTest {
         // endregion
     }
 
+
     @Test
+    public void testListCompletedTransactions() throws Exception {
+        final String scope = "ScopeListTxn";
+        final String stream = "StreamListTxn";
+        final ScalingPolicy policy = ScalingPolicy.fixed(4);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope, null, executor).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        Map<UUID, TxnStatus> listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
+        assertEquals(0, listTxn.size());
+
+        UUID txnId1 = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId1,
+                100, 100, null, executor).get();
+
+        UUID txnId2 = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx2 = store.createTransaction(scope, stream, txnId2,
+                100, 100, null, executor).get();
+
+        store.sealTransaction(scope, stream, txnId1, true, Optional.of(tx1.getVersion()), "", Long.MIN_VALUE, null, executor).join();
+        store.sealTransaction(scope, stream, txnId2, true, Optional.of(tx2.getVersion()), "", Long.MIN_VALUE, null, executor).join();
+
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 2, null, executor).join().getKey();
+        store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
+        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap()).join();
+
+        listTxn = store.listCompletedTxns(scope, stream, null, executor).join();
+        assertEquals(2, listTxn.size());
+
+        store.setState(scope, stream, State.ACTIVE, null, executor).join();
+    }
+
+
+    @Test(timeout = 30000)
     public void scaleWithTxnForInconsistentScanerios() throws Exception {
         final String scope = "ScopeScaleWithTx";
         final String stream = "StreamScaleWithTx1";
@@ -984,7 +1017,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(State.ACTIVE, stateVal);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void txnOrderTest() throws Exception {
         final String scope = "txnOrder";
         final String stream = "txnOrder";
@@ -1157,7 +1190,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(positions.get(3L), tx02);
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void txnCommitBatchLimitTest() throws Exception {
         final String scope = "txnCommitBatch";
         final String stream = "txnCommitBatch";
@@ -1213,7 +1246,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(tx02, orderedRecords.get(0).getId());
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void txnCommitBatchLimitMaxLimitExceedingTest() throws Exception {
         final String scope = "txnCommitBatchMax";
         final String stream = "txnCommitBatchMax";
@@ -1258,7 +1291,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(tx01, ordered.get(1).getId());
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void txnCommitBatchLimitOrderTest() throws Exception {
         final String scope = "txnCommitBatch2";
         final String stream = "txnCommitBatch2";
@@ -1341,7 +1374,7 @@ public abstract class StreamMetadataStoreTest {
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void truncationTest() throws Exception {
         final String scope = "ScopeTruncate";
         final String stream = "ScopeTruncate";
@@ -1385,7 +1418,7 @@ public abstract class StreamMetadataStoreTest {
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void streamCutTest() throws Exception {
         final String scope = "ScopeStreamCut";
         final String stream = "StreamCut";
@@ -1418,7 +1451,7 @@ public abstract class StreamMetadataStoreTest {
         assertFalse(store.isStreamCutValid(scope, stream, invalid, null, executor).join());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void retentionSetTest() throws Exception {
         final String scope = "ScopeRetain";
         final String stream = "StreamRetain";
@@ -1482,7 +1515,7 @@ public abstract class StreamMetadataStoreTest {
         assertTrue(!streams.contains(String.format("%s/%s", scope, stream)));
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void strictlyGreaterThanTest() throws Exception {
         final String scope = "ScopeRetain3";
         final String stream = "StreamRetain";
@@ -1526,7 +1559,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.EqualOrAfter);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void streamCutReferenceRecordBeforeTest() throws Exception {
         final String scope = "ScopeRetain2";
         final String stream = "StreamRetain";
@@ -1690,7 +1723,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(beforeRef.getRecordingTime(), streamCut4.getRecordingTime());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void sizeTest() throws Exception {
         final String scope = "ScopeSize";
         final String stream = "StreamSize";
@@ -1781,7 +1814,7 @@ public abstract class StreamMetadataStoreTest {
         // endregion
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void getSafeStartingSegmentNumberForTest() {
         final String scope = "RecreationScope";
         final String stream = "RecreatedStream";
@@ -1802,7 +1835,7 @@ public abstract class StreamMetadataStoreTest {
         }
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void recordLastStreamSegmentTest() {
         final String scope = "RecreationScope2";
         final String stream = "RecreatedStream2";
@@ -1814,7 +1847,7 @@ public abstract class StreamMetadataStoreTest {
         }
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void deletePartiallyCreatedStreamTest() {
         final String scopeName = "RecreationScopePartial";
         final String streamName = "RecreatedStreamPartial";
@@ -1860,7 +1893,7 @@ public abstract class StreamMetadataStoreTest {
         // endregion
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void testWriterMark() {
         String stream = "mark";
         store.createScope(scope, null, executor).join();
@@ -1919,7 +1952,7 @@ public abstract class StreamMetadataStoreTest {
         assertTrue(marks.containsKey(writer4));
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testMarkOnTransactionCommit() {
         // create txn
         // seal txn with committing
@@ -1954,7 +1987,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(mark.getPosition().get(0L).longValue(), 1L);
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void testHistoryTimeSeriesChunk() throws Exception {
         String scope = "history";
         String stream = "history";
@@ -1963,7 +1996,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(chunk.getLatestRecord().getEpoch(), 2);
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void testSealedSegmentSizeMapShard() throws Exception {
         String scope = "sealedMap";
         String stream = "sealedMap";
@@ -1974,7 +2007,7 @@ public abstract class StreamMetadataStoreTest {
         assertNull(shard.getSize(NameUtils.computeSegmentId(2, 2)));
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void testSegmentSealedEpoch() throws Exception {
         String scope = "sealedMap";
         String stream = "sealedMap";
@@ -1990,7 +2023,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(epoch, -1);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testReaderGroups() throws Exception {
         final String scopeRGTest = "scopeRGTest";
         final String streamRGTest = "streamRGTest";

@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -45,7 +46,19 @@ public class ClientConfig implements Serializable {
 
     static final int DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE = 10;
     private static final long serialVersionUID = 1L;
+    // Use this scheme when client want to connect to a static set of controller servers.
+    // Eg: tcp://ip1:port1,ip2:port2
+    private final static String SCHEME_DIRECT = "tcp";
+    // Secure versions of the direct scheme.
+    private final static String SCHEME_DIRECT_TLS = "tls";
+    private final static String SCHEME_DIRECT_SSL = "ssl";
 
+    // Use this scheme when client only knows a subset of controllers and wants other controller instances
+    // To be auto discovered.
+    // Eg: pravega://ip1:port1,ip2:port2
+    private final static String SCHEME_DISCOVER = "pravega";
+    // Secure version of discover scheme.
+    private final static String SCHEME_DISCOVER_TLS = "pravegas";
 
     /** controllerURI The controller rpc URI. This can be of 2 types
      * 1. tcp://ip1:port1,ip2:port2,...
@@ -85,11 +98,15 @@ public class ClientConfig implements Serializable {
 
     /**
      * Maximum number of connections per Segment store to be used by connection pooling.
+     *
+     * @return Maximum number of connections per Segment store to be used by connection pooling.
      */
     private final int maxConnectionsPerSegmentStore;
 
     /**
      * An internal property that determines if the client config.
+     *
+     * @param isDefaultMaxConnections determines if the client config
      */
     @Getter(AccessLevel.PACKAGE)
     private final boolean isDefaultMaxConnections;
@@ -230,6 +247,19 @@ public class ClientConfig implements Serializable {
             if (controllerURI == null) {
                 controllerURI = URI.create("tcp://localhost:9090");
             }
+            String scheme = controllerURI.getScheme();
+            // If Scheme name is missing in the controllerURI then will add tcp as default scheme.
+            // Otherwise if Scheme is not one of the valid scheme then will throw IllegalArgumentException
+            if (!isValidScheme(scheme)) {
+                if (controllerURI.getScheme() != null && controllerURI.getHost() == null) {
+                    controllerURI = URI.create(SCHEME_DIRECT + "://" + controllerURI.toString());
+                    log.info("Scheme name is missing in the ControllerURI, therefore adding the default scheme {} to it", SCHEME_DIRECT);
+                } else {
+                    log.warn("ControllerURI is having unsupported scheme {}.", scheme);
+                    throw new IllegalArgumentException(
+                            "Expected Schemes:  [" + SCHEME_DIRECT + ", " + SCHEME_DIRECT_SSL + ", " + SCHEME_DIRECT_TLS + ", " + SCHEME_DISCOVER + ", " + SCHEME_DISCOVER_TLS + "] but was: " + scheme);
+                }
+            }
             extractCredentials();
             if (maxConnectionsPerSegmentStore <= 0) {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
@@ -237,6 +267,11 @@ public class ClientConfig implements Serializable {
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
                     isDefaultMaxConnections, deriveTlsEnabledFromControllerURI, enableTlsToController,
                     enableTlsToSegmentStore, metricListener);
+        }
+
+        private boolean isValidScheme(String scheme) {
+            return Stream.of(SCHEME_DISCOVER, SCHEME_DISCOVER_TLS, SCHEME_DIRECT, SCHEME_DIRECT_SSL, SCHEME_DIRECT_TLS)
+                .anyMatch(x -> x.equals(scheme));
         }
 
         /**

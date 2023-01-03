@@ -38,8 +38,10 @@ public class ContainerConfig {
     public static final Property<Integer> MAX_ACTIVE_SEGMENT_COUNT = Property.named("segment.active.count.max", 25000, "maxActiveSegmentCount");
     public static final Property<Integer> MAX_CONCURRENT_SEGMENT_EVICTION_COUNT = Property.named("segment.eviction.concurrent.count.max", 2500, "maxConcurrentSegmentEvictionCount");
     public static final Property<Integer> MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT = Property.named("extended.attribute.cached.count.max", 4096, "maxCachedExtendedAttributeCount");
-    public static final Property<Integer> EVENT_PROCESSOR_ITERATION_DELAY_MS = Property.named("eventprocessor.iteration.delay.ms", 100);
+    public static final Property<Integer> EVENT_PROCESSOR_ITERATION_DELAY_MS = Property.named("eventprocessor.iteration.delay.ms", 1000);
     public static final Property<Integer> EVENT_PROCESSOR_OPERATION_TIMEOUT_MS = Property.named("eventprocessor.operation.timeout.ms", 5000);
+    public static final Property<Integer> TRANSIENT_SEGMENT_DELETE_TIMEOUT_MS = Property.named("segment.transient.delete.timeout.ms", 30000);
+    public static final Property<Boolean> DATA_INTEGRITY_CHECKS_ENABLED = Property.named("data.integrity.checks.enabled", false);
     private static final String COMPONENT_CODE = "containers";
 
     /**
@@ -90,6 +92,20 @@ public class ContainerConfig {
     @Getter
     private final Duration eventProcessorOperationTimeout;
 
+    /**
+     * Default timeout for the deletion of Transient Segments from Metadata.
+     */
+    @Getter
+    private final Duration transientSegmentDeleteTimeout;
+
+    /**
+     * Whether to enable data integrity checks in the ingestion pipeline (i.e., hash data to validate integrity).
+     * Note that this feature is mainly devised for testing or development environments, as it may induce additional
+     * computation cost that may be detrimental to performance.
+     */
+    @Getter
+    private final boolean dataIntegrityChecksEnabled;
+
     //endregion
 
     //region Constructor
@@ -113,6 +129,8 @@ public class ContainerConfig {
         this.maxCachedExtendedAttributeCount = properties.getPositiveInt(MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT);
         this.eventProcessorIterationDelay = properties.getDuration(EVENT_PROCESSOR_ITERATION_DELAY_MS, ChronoUnit.MILLIS);
         this.eventProcessorOperationTimeout = properties.getDuration(EVENT_PROCESSOR_OPERATION_TIMEOUT_MS, ChronoUnit.MILLIS);
+        this.transientSegmentDeleteTimeout = properties.getDuration(TRANSIENT_SEGMENT_DELETE_TIMEOUT_MS, ChronoUnit.MILLIS);
+        this.dataIntegrityChecksEnabled = properties.getBoolean(DATA_INTEGRITY_CHECKS_ENABLED);
     }
 
     /**

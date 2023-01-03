@@ -200,7 +200,12 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
 
         val innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(operation).release();
-            Exceptions.handleInterrupted(() -> waitOn.get(operation).await());
+            try {
+                waitOn.get(operation).await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                Exceptions.sneakyThrow(e);
+            }
             return null;
         });
 
@@ -249,7 +254,12 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
 
         val innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(segment).release();
-            Exceptions.handleInterrupted(() -> waitOn.get(segment).await());
+            try {
+                waitOn.get(segment).await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                Exceptions.sneakyThrow(e);
+            }
             return null;
         });
 
@@ -308,7 +318,12 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
 
         val innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(joiner.apply(operation, segment)).release();
-            Exceptions.handleInterrupted(() -> waitOn.get(joiner.apply(operation, segment)).await());
+            try {
+                waitOn.get(joiner.apply(operation, segment)).await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                Exceptions.sneakyThrow(e);
+            }
             return null;
         });
 

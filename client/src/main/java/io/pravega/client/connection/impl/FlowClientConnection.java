@@ -16,8 +16,11 @@
 package io.pravega.client.connection.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -68,6 +71,16 @@ public class FlowClientConnection implements ClientConnection {
         if (closed.compareAndSet(false, true)) {
             handler.closeFlow(this);
         }
+    }
+
+    /**
+     * Get the endpoint details of a segment.
+     */
+    @Override
+    public PravegaNodeUri getLocation() {
+        String[] locationInfoToken =  NameUtils.getConnectionDetails(connectionName);
+        Preconditions.checkArgument(locationInfoToken.length == 2);
+        return new PravegaNodeUri(locationInfoToken[0].trim(), Integer.parseInt(locationInfoToken[1].trim()));
     }
 
 }

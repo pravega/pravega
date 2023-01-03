@@ -28,26 +28,41 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentReader;
+import io.pravega.client.segment.impl.NoSuchEventException;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.DeleteScopeFailedException;
+import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroupNotFoundException;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TransactionInfo;
+import io.pravega.client.stream.impl.EventSegmentReaderUtility;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
+import lombok.extern.slf4j.Slf4j;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import lombok.extern.slf4j.Slf4j;
+
+import lombok.Getter;
+import lombok.AccessLevel;
+import lombok.Cleanup;
 
 import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 
@@ -58,10 +73,12 @@ import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 public class StreamManagerImpl implements StreamManager {
 
     private final Controller controller;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final ConnectionPool connectionPool;
-    private final ScheduledExecutorService executor;
     private final StreamCutHelper streamCutHelper;
-
+    private final SegmentInputStreamFactory inputStreamFactory;
+    private final  EventSegmentReaderUtility eventSegmentReaderUtility;
 
     public StreamManagerImpl(ClientConfig clientConfig) {
         this(clientConfig, ControllerImplConfig.builder().clientConfig(clientConfig).build());
@@ -69,18 +86,25 @@ public class StreamManagerImpl implements StreamManager {
 
     @VisibleForTesting
     public StreamManagerImpl(ClientConfig clientConfig, ControllerImplConfig controllerConfig) {
-        this.connectionPool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
-        this.executor = connectionPool.getInternalExecutor();
-        this.controller = new ControllerImpl(controllerConfig, executor);
-        this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
+        this(controllerConfig, new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig)));
+    }
+
+    private StreamManagerImpl(ControllerImplConfig controllerConfig, ConnectionPool connectionPool) {
+        this(new ControllerImpl(controllerConfig, connectionPool.getInternalExecutor()), connectionPool);
     }
 
     @VisibleForTesting
     public StreamManagerImpl(Controller controller, ConnectionPool connectionPool) {
-        this.controller = controller;
+      this(controller, connectionPool, new SegmentInputStreamFactoryImpl(controller, connectionPool));
+    }
+
+    @VisibleForTesting
+    public StreamManagerImpl(Controller controller, ConnectionPool connectionPool, SegmentInputStreamFactory inputStreamFactory) {
         this.connectionPool = connectionPool;
-        this.executor = connectionPool.getInternalExecutor();
+        this.controller = controller;
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
+        this.inputStreamFactory = inputStreamFactory;
+        this.eventSegmentReaderUtility = new EventSegmentReaderUtility(inputStreamFactory);
     }
 
     @Override
@@ -154,6 +178,12 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    public List<TransactionInfo> listCompletedTransactions(Stream stream) {
+        log.info("Listing completed transactions for stream : {}", stream.getStreamName());
+        return Futures.getThrowingException(controller.listCompletedTransactions(stream));
+    }
+
+    @Override
     public Iterator<Stream> listStreams(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Listing streams in scope: {}", scopeName);
@@ -185,17 +215,30 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    public boolean deleteScopeRecursive(String scopeName) {
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Deleting scope recursively: {}", scopeName);
+        return Futures.getThrowingException(controller.deleteScopeRecursive(scopeName));
+    }
+
+    @Override
     public boolean deleteScope(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Deleting scope: {}", scopeName);
         return Futures.getThrowingException(controller.deleteScope(scopeName));
     }
 
+    /**
+     * A new API is created hence this is going to be deprecated.
+     *
+     * @deprecated As of Pravega release 0.11.0, replaced by {@link #deleteScopeRecursive(String)}.
+     */
     @Override
+    @Deprecated
     public boolean deleteScope(String scopeName, boolean forceDelete) throws DeleteScopeFailedException {
         NameUtils.validateUserScopeName(scopeName);
-        log.info("Deleting scope: {}", scopeName);
         if (forceDelete) {
+            log.info("Deleting scope recursively: {}", scopeName);
             List<String> readerGroupList = new ArrayList<>();
             Iterator<Stream> iterator = listStreams(scopeName);
             while (iterator.hasNext()) {
@@ -208,8 +251,8 @@ public class StreamManagerImpl implements StreamManager {
                     Futures.getThrowingException(Futures.exceptionallyExpecting(controller.sealStream(stream.getScope(), stream.getStreamName()),
                             e -> {
                                 Throwable unwrap = Exceptions.unwrap(e);
-                                // If the stream was removed by another request while we attempted to seal it, we could get InvalidStreamException. 
-                                // ignore failures if the stream doesnt exist or we are unable to seal it. 
+                                // If the stream was removed by another request while we attempted to seal it, we could get InvalidStreamException.
+                                // ignore failures if the stream doesn't exist or we are unable to seal it.
                                 return unwrap instanceof InvalidStreamException || unwrap instanceof ControllerFailureException;
                             }, false).thenCompose(sealed -> controller.deleteStream(stream.getScope(), stream.getStreamName())));
                 } catch (Exception e) {
@@ -245,13 +288,13 @@ public class StreamManagerImpl implements StreamManager {
         }
         return Futures.getThrowingException(controller.deleteScope(scopeName));
     }
-    
+
     @Override
-    public StreamInfo getStreamInfo(String scopeName, String streamName) {
+    public CompletableFuture<StreamInfo> fetchStreamInfo(String scopeName, String streamName) {
         NameUtils.validateUserStreamName(streamName);
         NameUtils.validateUserScopeName(scopeName);
         log.info("Fetching StreamInfo for scope/stream: {}/{}", scopeName, streamName);
-        return Futures.getThrowingException(getStreamInfo(Stream.of(scopeName, streamName)));
+        return fetchStreamInfo(Stream.of(scopeName, streamName));
     }
 
     /**
@@ -260,7 +303,7 @@ public class StreamManagerImpl implements StreamManager {
      * @param stream The Stream.
      * @return A future representing {@link StreamInfo}.
      */
-    private CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
+    private CompletableFuture<StreamInfo> fetchStreamInfo(final Stream stream) {
         // Fetch the stream configuration which includes the tags associated with the stream.
         CompletableFuture<StreamConfiguration> streamConfiguration = controller.getStreamConfiguration(stream.getScope(), stream.getStreamName());
         // Fetch the stream cut representing the current TAIL and current HEAD of the stream.
@@ -272,6 +315,25 @@ public class StreamManagerImpl implements StreamManager {
                                     return new StreamInfo(stream.getScope(), stream.getStreamName(), streamConfiguration.join(),
                                                           currentTailStreamCut.join(), currentHeadStreamCut.join(), isSealed);
                                 });
+    }
+
+    @Override
+    public <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> serializer) {
+        Preconditions.checkNotNull(pointer);
+        Preconditions.checkNotNull(serializer);
+        CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
+            @Cleanup
+            EventSegmentReader inputStream = eventSegmentReaderUtility.createEventSegmentReader(pointer);
+            try {
+                ByteBuffer buffer = inputStream.read();
+                return  serializer.deserialize(buffer);
+            } catch (EndOfSegmentException e) {
+                throw Exceptions.sneakyThrow(new NoSuchEventException(e.getMessage()));
+            } catch (NoSuchSegmentException | SegmentTruncatedException e) {
+                throw Exceptions.sneakyThrow(new NoSuchEventException("Event no longer exists."));
+            }
+        });
+        return completableFuture;
     }
 
     @Override

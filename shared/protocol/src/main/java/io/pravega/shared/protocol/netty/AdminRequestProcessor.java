@@ -20,5 +20,17 @@ package io.pravega.shared.protocol.netty;
  */
 public interface AdminRequestProcessor extends RequestProcessor {
 
+    /**
+     * Call to flush a particular container to storage.
+     *
+     * @param flushToStorage {@link WireCommand} call for flush a container to storage.
+     */
     void flushToStorage(WireCommands.FlushToStorage flushToStorage);
+
+    /**
+     * Call to list the storage chunks for the given segment name.
+     *
+     * @param listStorageChunks {@link WireCommand} call to list storage chunks for the given segment.
+     */
+    void listStorageChunks(WireCommands.ListStorageChunks listStorageChunks);
 }

@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -47,7 +48,9 @@ public class GetSegmentInfoCommand extends SegmentStoreCommand {
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
+        ConnectionPool pool = createConnectionPool();
+        @Cleanup
+        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient, pool);
         CompletableFuture<WireCommands.StreamSegmentInfo> reply = segmentHelper.getSegmentInfo(fullyQualifiedSegmentName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken(), 0L);
         output("StreamSegmentInfo: %s", reply.join().toString());

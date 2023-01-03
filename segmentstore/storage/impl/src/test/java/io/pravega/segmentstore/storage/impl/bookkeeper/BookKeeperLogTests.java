@@ -19,7 +19,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -521,7 +520,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     /**
-     * Tests {@link DebugLogWrapper#reconcileLedgers}.
+     * Tests {@link DebugBookKeeperLogWrapper#reconcileLedgers}.
      */
     @Test
     public void testReconcileLedgers() throws Exception {
@@ -606,7 +605,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     /**
-     * Tests {@link DebugLogWrapper#reconcileLedgers} with an empty log metadata and various types of candidate ledgers
+     * Tests {@link DebugBookKeeperLogWrapper#reconcileLedgers} with an empty log metadata and various types of candidate ledgers
      * that may or may not belong to it.
      */
     @Test
@@ -656,7 +655,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     /**
-     * Tests {@link DebugLogWrapper#reconcileLedgers} by providing it with a few bad candidates, which should be excluded.
+     * Tests {@link DebugBookKeeperLogWrapper#reconcileLedgers} by providing it with a few bad candidates, which should be excluded.
      */
     @Test
     public void testReconcileLedgersBadCandidates() throws Exception {
@@ -758,7 +757,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
         // Perform reconciliation.
         BookKeeperLog reconcileLog = (BookKeeperLog) createDurableDataLog();
-        DebugLogWrapper reconcileWrapper = this.factory.get().createDebugLogWrapper(reconcileLog.getLogId());
+        DebugBookKeeperLogWrapper reconcileWrapper = this.factory.get().createDebugLogWrapper(reconcileLog.getLogId());
         reconcileWrapper.disable();
         val allLedgers = new ArrayList<ReadHandle>();
         for (LedgerMetadata lm : reconcileWrapper.fetchMetadata().getLedgers()) {
@@ -770,34 +769,6 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
         // There should only be two ledgers that survived: the one where we wrote to the original log and ledgerGoodLogId.
         checkLogReadAfterReconciliation(2);
-    }
-
-    @Test
-    public void testBookkeeperClientReCreation() {
-        // Set a timer with a longer period than the inspection period to allow client re-creation.
-        factory.get().setLastBookkeeperClientReset(new OldTimer());
-        BookKeeper oldBookkeeperClient = factory.get().getBookKeeperClient();
-        // Create a log the first time.
-        Assert.assertNull(factory.get().getLogInitializationTracker().get(0));
-        factory.get().createDebugLogWrapper(0);
-        // The first time we create the log the Bookkeeper client should be the same and the record for this log should
-        // be initialized.
-        Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
-        Assert.assertNotNull(factory.get().getLogInitializationTracker().get(0));
-        // From this point onwards, the second attempt to create the same log within the inspection period should lead
-        // to a Bookkeeper client recreation.
-        factory.get().createDebugLogWrapper(0);
-        Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
-        factory.get().createDebugLogWrapper(0);
-        Assert.assertNotEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
-        // Get a reference to the new Bookkeeper client.
-        oldBookkeeperClient = factory.get().getBookKeeperClient();
-        // The timer for this log should have been updated, so even if there are more initialization attempts, they should
-        // not lead to a new Bookkeeper client re-creation until the inspection period expires.
-        factory.get().createDebugLogWrapper(0);
-        Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
-        factory.get().createDebugLogWrapper(0);
-        Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
     }
 
     private void checkLogReadAfterReconciliation(int expectedLedgerCount) throws Exception {
@@ -814,6 +785,46 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         }
 
         Assert.assertEquals("Unexpected number of entries/ledgers read.", expectedLedgerCount, readCount);
+    }
+
+    @Test
+    public void testDebugLogWrapperFactoryMethods() throws DurableDataLogException {
+        Assert.assertEquals(this.factory.get().getBackupLogId(), Ledgers.BACKUP_LOG_ID);
+        Assert.assertEquals(this.factory.get().getRepairLogId(), Ledgers.REPAIR_LOG_ID);
+        @Cleanup
+        DebugBookKeeperLogWrapper wrapper = this.factory.get().createDebugLogWrapper(0);
+        AssertExtensions.assertThrows(DurableDataLogException.class, () -> wrapper.forceMetadataOverWrite(new LogMetadata(1)));
+        @Cleanup
+        val bkLog = this.factory.get().createDurableDataLog(0);
+        bkLog.initialize(TIMEOUT);
+        wrapper.forceMetadataOverWrite(new LogMetadata(1));
+        Assert.assertNotNull(wrapper.fetchMetadata());
+        wrapper.deleteDurableLogMetadata();
+        Assert.assertNull(wrapper.fetchMetadata());
+    }
+
+
+    @Test
+    public void testDeleteLedgersStartingWithId() throws Exception {
+        final int initialLedgerCount = 5;
+        for (int i = 0; i < initialLedgerCount; i++) {
+            try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
+                log.initialize(TIMEOUT);
+                log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            }
+        }
+        BookKeeperLog log = (BookKeeperLog) createDurableDataLog();
+        val wrapper = this.factory.get().createDebugLogWrapper(log.getLogId());
+        Assert.assertTrue(wrapper.fetchMetadata().isEnabled());
+        wrapper.markAsDisabled();
+        Assert.assertFalse(wrapper.fetchMetadata().isEnabled());
+        wrapper.deleteLedgersStartingWithId(3);
+        Assert.assertNotNull(wrapper.fetchMetadata().getLedgers().size());
+
+        AssertExtensions.assertThrows(
+                "No such ledger exist",
+                () -> wrapper.deleteLedgersStartingWithId(6),
+                ex -> ex instanceof DurableDataLogException);
     }
 
     @Override
@@ -943,13 +954,6 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 throw new KeeperException.BadVersionException();
             }
             return result;
-        }
-    }
-
-    static class OldTimer extends Timer {
-        @Override
-        public long getElapsedNanos() {
-            return Long.MAX_VALUE;
         }
     }
 

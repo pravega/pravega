@@ -49,6 +49,8 @@ import io.pravega.shared.protocol.netty.WireCommands.TableSegmentNotEmpty;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import org.junit.Test;
 
+import java.util.ArrayList;
+
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 public class FailingReplyProcessorTest {
@@ -69,7 +71,7 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.authTokenCheckFailed(new AuthTokenCheckFailed(0, "")));
         assertThrows(IllegalStateException.class, () -> rp.conditionalCheckFailed(new ConditionalCheckFailed(null, 1, 2)));
         assertThrows(IllegalStateException.class, () -> rp.dataAppended(new DataAppended(1, null, 0, -1, 2)));
-        assertThrows(IllegalStateException.class, () -> rp.invalidEventNumber(new InvalidEventNumber(null, 0, "")));
+        assertThrows(IllegalStateException.class, () -> rp.invalidEventNumber(new InvalidEventNumber(null, 0, "", 0)));
         assertThrows(IllegalStateException.class, () -> rp.noSuchSegment(new NoSuchSegment(0, "", "", 2)));
         assertThrows(UnsupportedOperationException.class, () -> rp.operationUnsupported(new OperationUnsupported(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.segmentAlreadyExists(new SegmentAlreadyExists(1, "", "")));
@@ -98,6 +100,7 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.wrongHost(new WrongHost(0, "", "", "")));
         assertThrows(IllegalStateException.class, () -> rp.errorMessage(new ErrorMessage(0, "", "", ErrorMessage.ErrorCode.UNSPECIFIED)));
         assertThrows(IllegalStateException.class, () -> rp.storageFlushed(new StorageFlushed(0)));
+        assertThrows(IllegalStateException.class, () -> rp.storageChunksListed(new WireCommands.StorageChunksListed(0, new ArrayList<>())));
     }
 
 }

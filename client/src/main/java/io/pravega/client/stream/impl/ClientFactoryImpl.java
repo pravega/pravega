@@ -74,7 +74,7 @@ import lombok.extern.slf4j.Slf4j;
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 
 @Slf4j
-public class ClientFactoryImpl extends AbstractClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory {
+public final class ClientFactoryImpl extends AbstractClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory {
 
 
     private final SegmentInputStreamFactory inFactory;
@@ -173,7 +173,7 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
         ExecutorService retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100,
                 "ScalingRetransmission-" + stream.getScopedName());
         try {
-            return new EventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, retransmitPool, connectionPool.getInternalExecutor());
+            return new EventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, retransmitPool, connectionPool.getInternalExecutor(), connectionPool);
         } catch (Throwable ex) {
             // Make sure we shut down the pool if we can't use it.
             ExecutorServiceHelpers.shutdown(retransmitPool);

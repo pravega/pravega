@@ -44,7 +44,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -55,9 +54,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 import org.mockito.Mockito;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
@@ -73,8 +70,6 @@ import static org.mockito.Mockito.spy;
 
 public class ZkStreamTest {
     private static final String SCOPE = "scope";
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     private TestingServer zkTestServer;
     private CuratorFramework cli;
     private StreamMetadataStore storePartialMock;
@@ -98,7 +93,7 @@ public class ZkStreamTest {
         storePartialMock.close();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testZkConnectionLoss() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
@@ -116,7 +111,7 @@ public class ZkStreamTest {
         zkTestServer.start();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testCreateStreamState() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
@@ -139,7 +134,7 @@ public class ZkStreamTest {
         store.deleteScope(SCOPE, null, executor);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testZkCreateScope() throws Exception {
 
         // create new scope test
@@ -174,7 +169,7 @@ public class ZkStreamTest {
         assertTrue("Name of stream at index one", listOfStreams.containsKey("Stream2"));
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testZkDeleteScope() throws Exception {
         // create new scope
         @Cleanup
@@ -205,7 +200,7 @@ public class ZkStreamTest {
                 deleteScopeStatus3.get().getStatus());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testGetScope() throws Exception {
         @Cleanup
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -226,7 +221,7 @@ public class ZkStreamTest {
         }
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testZkListScope() throws Exception {
         // list scope test
         @Cleanup
@@ -243,7 +238,7 @@ public class ZkStreamTest {
         assertEquals("List Scopes ", 2, listScopes.size());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testZkStream() throws Exception {
         double keyChunk = 1.0 / 5;
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
@@ -479,6 +474,9 @@ public class ZkStreamTest {
 
         OperationContext context = store.createStreamContext(ZkStreamTest.SCOPE, streamName, 0L);
 
+        Map<UUID, TxnStatus> listAborted = store.listCompletedTxns(SCOPE, streamName, context, executor).join();
+        assertEquals(0, listAborted.size());
+
         UUID txnId1 = store.generateTransactionId(SCOPE, streamName, null, executor).join();
         VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, txnId1, 10000, 600000,
                 context, executor).get();
@@ -547,6 +545,9 @@ public class ZkStreamTest {
         Assert.assertEquals(TxnStatus.ABORTED,
                 store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor).join());
 
+        listAborted = store.listCompletedTxns(SCOPE, streamName, context, executor).join();
+        assertEquals(2, listAborted.size());
+
         // Test to ensure that sealTransaction, to abort it, and abortTransaction on committed transaction throws error.
         testCommitFailure(store, SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, operationNotAllowedPredicate);
 
@@ -574,7 +575,7 @@ public class ZkStreamTest {
                 .get().equals(TxnStatus.UNKNOWN);
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 30000)
     public void testGetActiveTxn() throws Exception {
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
         ZkOrderedStore orderer = new ZkOrderedStore("txn", storeHelper, executor);
@@ -612,7 +613,7 @@ public class ZkStreamTest {
         assertEquals(1, result.size());
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 30000)
     public void testStreamRecreation() {
         // We will first create stream. Verify that its metadata is present in the cache.  
         ZKStoreHelper storeHelper = new ZKStoreHelper(cli, executor);

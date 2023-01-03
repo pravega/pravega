@@ -15,8 +15,17 @@
  */
 package io.pravega.cli.user;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import io.pravega.cli.user.config.InteractiveConfig;
+import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
+
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.util.Collections;
+import java.util.Map;
 
 public class UserCLIRunnerTest {
 
@@ -31,12 +40,28 @@ public class UserCLIRunnerTest {
 
     @Test
     public void testDoMain() {
-        UserCLIRunner.doMain(new String[]{"scope", "wrongCommand"});
+        UserCLIRunner.doMain(new String[]{"scope", "wrongCommand"}, System.in);
+    }
+
+    @Test
+    public void testDoMainInteractive() {
+        LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+        Level previousLevel =  loggerContext.getLoggerList().get(0).getLevel();
+
+        try {
+            InputStream in = new ByteArrayInputStream("config set log-level=info\nexit\n".getBytes());
+            UserCLIRunner.doMain(new String[]{}, in);
+            Assert.assertEquals(loggerContext.getLoggerList().get(0).getLevel(), Level.INFO);
+        } finally {
+            loggerContext.getLoggerList().get(0).setLevel(previousLevel);
+        }
     }
 
     @Test
     public void testCommandDetails() {
-        UserCLIRunner.printCommandDetails(Parser.parse("kvt create test", InteractiveConfig.getDefault()));
-        UserCLIRunner.printCommandDetails(Parser.parse("wrong command", InteractiveConfig.getDefault()));
+        Map<String, String> environment = Collections.singletonMap("TestKey", "TestValue");
+        UserCLIRunner.printCommandDetails(Parser.parse("kvt create test", InteractiveConfig.getDefault(environment)));
+        UserCLIRunner.printCommandDetails(Parser.parse("wrong command", InteractiveConfig.getDefault(environment)));
     }
+
 }

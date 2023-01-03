@@ -29,6 +29,7 @@ import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_SCOPE;
 import static io.pravega.shared.MetricsNames.DELETE_SCOPE_FAILED;
 import static io.pravega.shared.MetricsNames.DELETE_SCOPE_LATENCY;
+import static io.pravega.shared.MetricsNames.DELETE_SCOPE_RECURSIVE_FAILED;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM_FAILED;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
@@ -65,6 +66,18 @@ import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER_LATENCY;
 import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP_LATENCY;
 import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP;
 import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP_FAILED;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_SEAL_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_AUTO_SCALE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY;
 
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
@@ -91,6 +104,19 @@ public final class StreamMetrics extends AbstractControllerMetrics {
 
     private final OpStatsLogger createScopeLatency;
     private final OpStatsLogger deleteScopeLatency;
+    // Controller EventProcessor events latency
+    private final OpStatsLogger controllerEventProcessorDeleteStreamLatency;
+    private final OpStatsLogger controllerEventProcessorUpdateStreamLatency;
+    private final OpStatsLogger controllerEventProcessorSealStreamLatency;
+    private final OpStatsLogger controllerEventProcessorTruncateStreamLatency;
+    private final OpStatsLogger controllerEventProcessorScaleStreamLatency;
+    private final OpStatsLogger controllerEventProcessorAutoScaleStreamLatency;
+    private final OpStatsLogger controllerEventProcessorDeleteScopeLatency;
+    private final OpStatsLogger controllerEventProcessorCreateReaderGroupLatency;
+    private final OpStatsLogger controllerEventProcessorDeleteReaderGroupLatency;
+    private final OpStatsLogger controllerEventProcessorUpdateReaderGroupLatency;
+    private final OpStatsLogger controllerEventProcessorCreateTableLatency;
+    private final OpStatsLogger controllerEventProcessorDeleteTableLatency;
 
     private StreamMetrics() {
         createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
@@ -106,6 +132,19 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         deleteKeyValueTableLatency = STATS_LOGGER.createStats(DELETE_KVTABLE_LATENCY);
         updateSubscriberLatency = STATS_LOGGER.createStats(UPDATE_SUBSCRIBER_LATENCY);
         updateReaderGroupLatency = STATS_LOGGER.createStats(UPDATE_READER_GROUP_LATENCY);
+
+        controllerEventProcessorDeleteStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_DELETE_STREAM_LATENCY);
+        controllerEventProcessorUpdateStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_UPDATE_STREAM_LATENCY);
+        controllerEventProcessorSealStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_SEAL_STREAM_LATENCY);
+        controllerEventProcessorTruncateStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_TRUNCATE_STREAM_LATENCY);
+        controllerEventProcessorScaleStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY);
+        controllerEventProcessorAutoScaleStreamLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_AUTO_SCALE_STREAM_LATENCY);
+        controllerEventProcessorDeleteScopeLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY);
+        controllerEventProcessorCreateReaderGroupLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY);
+        controllerEventProcessorDeleteReaderGroupLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY);
+        controllerEventProcessorUpdateReaderGroupLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY);
+        controllerEventProcessorCreateTableLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_CREATE_TABLE_LATENCY);
+        controllerEventProcessorDeleteTableLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_DELETE_TABLE_LATENCY);
     }
 
     /**
@@ -243,6 +282,114 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
+     * This method reports the latency of ControllerEventProcessor delete Stream event processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorDeleteStreamEvent operation.
+     */
+    public void controllerEventProcessorDeleteStreamEvent(Duration latency) {
+        controllerEventProcessorDeleteStreamLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of ControllerEventProcessor update Stream event processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorUpdateStreamEvent operation.
+     */
+    public void controllerEventProcessorUpdateStreamEvent(Duration latency) {
+        controllerEventProcessorUpdateStreamLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of ControllerEventProcessor seal Stream event processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorSealStreamEvent operation.
+     */
+    public void controllerEventProcessorSealStreamEvent(Duration latency) {
+        controllerEventProcessorSealStreamLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of ControllerEventProcessor truncate Stream event processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorTruncateStreamEvent operation.
+     */
+    public void controllerEventProcessorTruncateStreamEvent(Duration latency) {
+        controllerEventProcessorTruncateStreamLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of ControllerEventProcessor autoScale Stream event processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorAutoScaleStreamLatency operation.
+     */
+    public void controllerEventProcessorAutoScaleStreamEvent(Duration latency) {
+        controllerEventProcessorAutoScaleStreamLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of ControllerEventProcessor createReaderGroup processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorCreateReaderGroupEvent operation.
+     */
+    public void controllerEventProcessorCreateReaderGroupEvent(Duration latency) {
+        controllerEventProcessorCreateReaderGroupLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of ControllerEventProcessor deleteReaderGroup event processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorDeleteReaderGroupEvent operation.
+     */
+    public void controllerEventProcessorDeleteReaderGroupEvent(Duration latency) {
+        controllerEventProcessorDeleteReaderGroupLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of ControllerEventProcessor updateReaderGroup event processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorUpdateReaderGroupEvent operation.
+     */
+    public void controllerEventProcessorUpdateReaderGroupEvent(Duration latency) {
+        controllerEventProcessorUpdateReaderGroupLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of ControllerEventProcessor deleteScope event processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorDeleteScopeEvent operation.
+     */
+    public void controllerEventProcessorDeleteScopeEvent(Duration latency) {
+        controllerEventProcessorDeleteScopeLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of ControllerEventProcessor scale Stream event processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorScaleStreamLatency operation.
+     */
+    public void controllerEventProcessorScaleStreamEvent(Duration latency) {
+        controllerEventProcessorScaleStreamLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of createTable  Stream event processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorCreateTableLatency operation.
+     */
+    public void controllerEventProcessorCreateTableEvent(Duration latency) {
+        controllerEventProcessorCreateTableLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of deleteTable Stream event processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorDeleteTableLatency operation.
+     */
+    public void controllerEventProcessorDeleteTableEvent(Duration latency) {
+        controllerEventProcessorDeleteTableLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
      * This method increments the global counter of Scope deletions and reports the latency of the operation.
      *
      * @param latency       Latency of the deleteStream operation.
@@ -273,6 +420,17 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     public void deleteScopeFailed(String scope) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_SCOPE_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(DELETE_SCOPE_FAILED, 1, streamTags(scope, ""));
+    }
+
+    /**
+     * This method increments the counter of failed Stream deletions in the system as well as the failed deletion
+     * attempts for this specific Stream.
+     *
+     * @param scope         Scope.
+     */
+    public void deleteScopeRecursiveFailed(String scope) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_SCOPE_RECURSIVE_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(DELETE_SCOPE_RECURSIVE_FAILED, 1, streamTags(scope, ""));
     }
 
     /**
@@ -506,6 +664,18 @@ public final class StreamMetrics extends AbstractControllerMetrics {
             old.updateSubscriberLatency.close();
             old.createScopeLatency.close();
             old.deleteScopeLatency.close();
+            old.controllerEventProcessorDeleteStreamLatency.close();
+            old.controllerEventProcessorSealStreamLatency.close();
+            old.controllerEventProcessorTruncateStreamLatency.close();
+            old.controllerEventProcessorUpdateStreamLatency.close();
+            old.controllerEventProcessorAutoScaleStreamLatency.close();
+            old.controllerEventProcessorCreateReaderGroupLatency.close();
+            old.controllerEventProcessorDeleteReaderGroupLatency.close();
+            old.controllerEventProcessorUpdateReaderGroupLatency.close();
+            old.controllerEventProcessorDeleteScopeLatency.close();
+            old.controllerEventProcessorScaleStreamLatency.close();
+            old.controllerEventProcessorCreateTableLatency.close();
+            old.controllerEventProcessorDeleteTableLatency.close();
         }
         INSTANCE.set(new StreamMetrics());
     }

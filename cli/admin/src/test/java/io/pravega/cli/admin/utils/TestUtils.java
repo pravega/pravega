@@ -22,7 +22,9 @@ import io.pravega.cli.admin.Parser;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
@@ -40,8 +42,10 @@ import io.pravega.common.cluster.Host;
 import io.pravega.controller.store.host.ZKHostStore;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.integration.demo.ClusterWrapper;
+import io.pravega.test.integration.utils.ClusterWrapper;
+import io.pravega.test.integration.utils.LocalServiceStarter;
 import lombok.Cleanup;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -54,12 +58,12 @@ import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Properties;
-import java.util.Set;
-import java.util.Map;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Arrays;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 
 /**
  * Class to contain convenient utilities for writing test cases.
@@ -223,6 +227,29 @@ public final class TestUtils {
     }
 
     /**
+     * Deletes the given scope and stream using the given controller instance.
+     *
+     * @param controller    Controller instance to use to create the Scope and Stream.
+     * @param scopeName     Name of the Scope.
+     * @param streamName    Name of the Stream.
+     */
+    public static void deleteScopeStream(Controller controller, String scopeName, String streamName) {
+        ClientConfig clientConfig = ClientConfig.builder().build();
+        @Cleanup
+        ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        @SuppressWarnings("resource") //Don't close the controller.
+        StreamManager streamManager = new StreamManagerImpl(controller, cp);
+        //delete stream
+        Boolean sealStreamStatus = streamManager.sealStream(scopeName, streamName);
+        log.info("Seal stream status {}", sealStreamStatus);
+        Boolean deleteStreamStatus = streamManager.deleteStream(scopeName, streamName);
+        log.info("Delete stream status {}", deleteStreamStatus);
+        //create scope
+        Boolean deleteScopeStatus = streamManager.deleteScope(scopeName);
+        log.info("Delete scope status {}", deleteScopeStatus);
+    }
+
+    /**
      * Write events to the given stream.
      *
      * @param streamName     Name of the Stream.
@@ -265,6 +292,31 @@ public final class TestUtils {
         for (int q = 0; q < NUM_EVENTS; q++) {
             String eventRead = reader.readNextEvent(READ_TIMEOUT.toMillis()).getEvent();
             Assert.assertEquals("Event written and read back don't match", EVENT, eventRead);
+        }
+    }
+
+    /**
+     * Creates a client to read and write events.
+     */
+    public static class ClientRunner implements AutoCloseable {
+        private final ConnectionFactory connectionFactory;
+        @Getter
+        private final ClientFactoryImpl clientFactory;
+        @Getter
+        private final ReaderGroupManager readerGroupManager;
+
+        public ClientRunner(LocalServiceStarter.ControllerRunner controllerRunner, String scope) {
+            this.connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                    .controllerURI(controllerRunner.getControllerURI()).build());
+            this.clientFactory = new ClientFactoryImpl(scope, controllerRunner.getController(), connectionFactory);
+            this.readerGroupManager = new ReaderGroupManagerImpl(scope, controllerRunner.getController(), clientFactory);
+        }
+
+        @Override
+        public void close() {
+            this.readerGroupManager.close();
+            this.clientFactory.close();
+            this.connectionFactory.close();
         }
     }
 }

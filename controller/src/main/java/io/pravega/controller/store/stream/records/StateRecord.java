@@ -54,6 +54,11 @@ public class StateRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
+    @Override
+    public String toString() {
+        return String.format("%s = %s", "state", state);
+    }
+
     private static class StateRecordSerializer extends VersionedSerializer.WithBuilder<StateRecord, StateRecord.StateRecordBuilder> {
         @Override
         protected byte getWriteVersion() {

@@ -44,7 +44,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.utils.ControllerWrapper;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -175,8 +175,8 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertTrue("truncate stream", controllerWrapper.getController().truncateStream(SCOPE, STREAM, streamCut60L).join());
         // 3a. Fetch Segments using StreamCut.UNBOUNDED>
         ArrayList<SegmentRange> segmentsPostTruncation1 = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
-        // 3b. Fetch Segments using getStreamInfo() api.
-        StreamInfo streamInfo = streamManager.getStreamInfo(SCOPE, STREAM);
+        // 3b. Fetch Segments using fetchStreamInfo() api.
+        StreamInfo streamInfo = streamManager.fetchStreamInfo(SCOPE, STREAM).get();
         ArrayList<SegmentRange> segmentsPostTruncation2 = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), streamInfo.getHeadStreamCut(), streamInfo.getTailStreamCut()).getIterator());
         // Validate results.
         validateSegmentCountAndEventCount(batchClient, segmentsPostTruncation1);

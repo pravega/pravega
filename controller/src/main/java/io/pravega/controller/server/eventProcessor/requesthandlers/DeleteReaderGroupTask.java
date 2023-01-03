@@ -19,8 +19,10 @@ import com.google.common.base.Preconditions;
 
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -56,6 +58,7 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
 
     @Override
     public CompletableFuture<Void> execute(final DeleteReaderGroupEvent request) {
+      Timer timer = new Timer();
       String scope = request.getScope();
       String readerGroup = request.getRgName();
       long requestId = request.getRequestId();
@@ -98,7 +101,8 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
                               return streamMetadataTasks.sealStream(scope, rgStreamContext, streamContext)
                                                         .thenCompose(z -> streamMetadataTasks.deleteStream(scope,
                                                                 rgStreamContext, streamContext));
-                          }).thenCompose(v1 -> streamMetadataStore.deleteReaderGroup(scope, readerGroup, context, executor));
+                          }).thenCompose(v1 -> streamMetadataStore.deleteReaderGroup(scope, readerGroup, context, executor))
+                          .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorDeleteReaderGroupEvent(timer.getElapsed()));
               });
 
     }

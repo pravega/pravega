@@ -21,23 +21,23 @@ import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.netty.GrpcSslContexts;
-import io.grpc.netty.NettyChannelBuilder;
-import io.grpc.netty.NettyServerBuilder;
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.NoSuchScopeException;
 import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.TxnFailedException;
-import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -49,19 +49,32 @@ import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.common.util.SimpleCache;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
@@ -74,33 +87,36 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime.SegmentLocation;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
-import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.apache.commons.lang3.tuple.Pair;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.Assert;
+import org.junit.rules.Timeout;
+import org.mockito.InOrder;
+
+import javax.net.ssl.SSLException;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -118,20 +134,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
-
-import lombok.Cleanup;
-import lombok.val;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static io.pravega.client.control.impl.ModelHelper.decode;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -147,6 +154,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
 
 /**
  * Unit tests for ControllerImpl.
@@ -1047,6 +1056,23 @@ public class ControllerImplTest {
             }
 
             @Override
+            public void listCompletedTransactions(Controller.ListCompletedTxnRequest request, StreamObserver<Controller.ListCompletedTxnResponse> responseObserver) {
+                UUID uuid = UUID.randomUUID();
+                if (request.getStreamInfo().getStream().equals("stream1")) {
+                    responseObserver.onNext(Controller.ListCompletedTxnResponse.newBuilder()
+                            .addResponse(Controller.TxnResponse.newBuilder()
+                                    .setTxnId(decode(uuid))
+                                    .setStatus(Controller.TxnResponse.Status.ABORTED)
+                                    .build())
+                            .build());
+                } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                    responseObserver.onNext(Controller.ListCompletedTxnResponse.newBuilder()
+                            .build());
+                }
+                responseObserver.onCompleted();
+            }
+
+            @Override
             public void createScope(ScopeInfo request, StreamObserver<CreateScopeStatus> responseObserver) {
                 if (request.getScope().equals("scope1")) {
                     responseObserver.onNext(CreateScopeStatus.newBuilder().setStatus(
@@ -1105,7 +1131,26 @@ public class ControllerImplTest {
                                                     .build());
                     responseObserver.onCompleted();
                 } else if (request.getScope().equals("deadline")) {
-                    // dont send any response
+                    // don't send any response
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
+            public void deleteScopeRecursive(ScopeInfo request, StreamObserver<Controller.DeleteScopeStatus> responseObserver) {
+                if (request.getScope().equals("scope1")) {
+                    responseObserver.onNext(Controller.DeleteScopeStatus.newBuilder().setStatus(
+                            Controller.DeleteScopeStatus.Status.SUCCESS).build());
+                    responseObserver.onCompleted();
+                } else if (request.getScope().equals("scope2")) {
+                    responseObserver.onNext(Controller.DeleteScopeStatus.newBuilder().setStatus(
+                            Controller.DeleteScopeStatus.Status.FAILURE).build());
+                    responseObserver.onCompleted();
+                } else if (request.getScope().equals("scope3")) {
+                    responseObserver.onNext(Controller.DeleteScopeStatus.newBuilder().setStatus(
+                            Controller.DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build());
+                    responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -2074,6 +2119,20 @@ public class ControllerImplTest {
     }
 
     @Test
+    public void testListCompletedTransaction() throws Exception {
+        List<TransactionInfo> listUUID;
+        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream1")).join();
+        assertEquals(listUUID.size(), 1);
+        assertEquals(listUUID.get(0).getTransactionStatus(), Transaction.Status.ABORTED);
+        assertEquals(listUUID.get(0).getStream().getScope(), "scope1");
+        assertEquals(listUUID.get(0).getStream().getStreamName(), "stream1");
+        assertNotNull(listUUID.get(0).getTransactionId());
+
+        listUUID = controllerClient.listCompletedTransactions(new StreamImpl("scope1", "stream2")).join();
+        assertEquals(listUUID.size(), 0);
+    }
+
+    @Test
     public void testCreateScope() throws Exception {
         CompletableFuture<Boolean> scopeStatus;
         scopeStatus = controllerClient.createScope("scope1");
@@ -2173,6 +2232,23 @@ public class ControllerImplTest {
 
         deleteStatus = controllerClient.deleteScope(scope5);
         AssertExtensions.assertFutureThrows("Server should throw exception", deleteStatus, Throwable -> true);
+    }
+
+    @Test
+    public void testDeleteScopeRecursive() {
+        CompletableFuture<Boolean> deleteStatus;
+        String scope1 = "scope1";
+        String scope2 = "scope2";
+        String scope3 = "scope3";
+
+        deleteStatus = controllerClient.deleteScopeRecursive(scope1);
+        assertTrue(deleteStatus.join());
+
+        deleteStatus = controllerClient.deleteScopeRecursive(scope2);
+        AssertExtensions.assertFutureThrows("Server should throw exception", deleteStatus, Throwable -> true);
+
+        deleteStatus = controllerClient.deleteScopeRecursive(scope3);
+        assertFalse(deleteStatus.join());
     }
 
     @Test
@@ -2473,5 +2549,69 @@ public class ControllerImplTest {
         assertFalse(deleteKVTableStatus.join());
     }
 
+    @Test
+    public void testGetEndPointForSegment() throws Exception {
+        CompletableFuture<PravegaNodeUri> endpointForSegment;
+        // reads from network and store in cache
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
+
+        // picks from cache
+        endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream1/0");
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
+    }
+
+    @Test
+    public void updateStaleValueInCacheTest() throws Exception {
+        ControllerImpl controllerImpl = spy(controllerClient);
+        CompletableFuture<PravegaNodeUri> endpointForSegment;
+        endpointForSegment = controllerImpl.getEndpointForSegment("scope1/stream1/0");
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
+        PravegaNodeUri errorNodeInfo = new PravegaNodeUri("localhost", 12345);
+        controllerImpl.updateStaleValueInCache("scope1/stream1/0", errorNodeInfo);
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), controllerImpl.getEndpointForSegment("scope1/stream1/0").get());
+        
+        CachedPravegaNodeUri cpNode = mock(CachedPravegaNodeUri.class);
+        CompletableFuture<PravegaNodeUri> failedFuture = new CompletableFuture<>();
+        failedFuture.completeExceptionally(new RuntimeException("Error"));
+        doReturn(failedFuture).when(cpNode).getPravegaNodeUri();
+        doReturn(cpNode).when(controllerImpl).getSegmentEndpointFromCache(any());
+        controllerImpl.updateStaleValueInCache("scope1/stream1/0", errorNodeInfo);
+    }
+
+    @Test
+    public void testCacheReadInCaseOfTimerExpiration() throws SSLException, ExecutionException, InterruptedException {
+        NettyChannelBuilder builder = NettyChannelBuilder.forAddress("localhost", serverPort)
+                .keepAliveTime(5, TimeUnit.SECONDS);
+        if (testSecure) {
+            builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(
+                    new File(SecurityConfigDefaults.TLS_CA_CERT_PATH)).build());
+        } else {
+            builder = builder.usePlaintext();
+        }
+        CachedPravegaNodeUri cpURI = mock(CachedPravegaNodeUri.class);
+        Timer timer = mock(Timer.class);
+        doReturn(Long.valueOf(25000)).when(timer).getElapsedMillis();
+        doReturn(timer).when(cpURI).getTimer();
+        when(cpURI.getPravegaNodeUri()).thenReturn(CompletableFuture.completedFuture(new PravegaNodeUri("localhost", 12345)));
+        SimpleCache<Segment, CachedPravegaNodeUri> simpleCache = mock(SimpleCache.class);
+        when(simpleCache.get(any())).thenReturn(cpURI);
+
+        @Cleanup
+        final ControllerImpl controller = new ControllerImpl(builder,
+                ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
+                                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                                .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
+                                .build())
+                        .retryAttempts(1)
+                        .initialBackoffMillis(1)
+                        .timeoutMillis(500)
+                        .build(),
+                this.executor, simpleCache);
+        Assert.assertEquals("localhost", controller.getEndpointForSegment("scope1/stream1/0").get().getEndpoint());
+        InOrder verify = inOrder(cpURI);
+        verify.verify(cpURI, times(1)).getPravegaNodeUri();
+        verify.verifyNoMoreInteractions();
+    }
 
 }

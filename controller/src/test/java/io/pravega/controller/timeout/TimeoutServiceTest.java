@@ -65,10 +65,8 @@ import org.apache.curator.retry.RetryOneTime;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.ClassRule;
-import org.junit.rules.Timeout;
 import org.mockito.Mock;
 
 /**
@@ -85,8 +83,6 @@ public abstract class TimeoutServiceTest {
 
     private final static long LEASE = 2000;
     private final static int RETRY_DELAY = 1000;
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     protected ScheduledExecutorService executor;
     protected CuratorFramework client;

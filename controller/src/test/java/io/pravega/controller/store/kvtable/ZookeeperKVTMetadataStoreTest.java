@@ -54,7 +54,7 @@ public class ZookeeperKVTMetadataStoreTest extends KVTableMetadataStoreTest {
         return streamStore.createScope(scopeName, null, executor).get();
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void testInvalidOperation() throws Exception {
         // Test operation when stream is not in active state
         streamStore.createScope(scope, null, executor).get();

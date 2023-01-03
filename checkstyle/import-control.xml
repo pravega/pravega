@@ -43,6 +43,13 @@
     <allow pkg="io.jsonwebtoken" />
     <allow pkg="io.kubernetes" />
     <allow pkg="edu.umd.cs.findbugs.annotations" />
+    <allow pkg="com.azure.storage.blob" />
+    <allow pkg="com.azure.storage.common" />
+    <allow pkg="com.azure.core.http" />
+    <allow pkg="reactor.core.publisher" />
+    <subpackage name="storage.s3">
+        <allow pkg="software.amazon.awssdk"/>
+    </subpackage>
     <subpackage name="segmentstore.server.host">
       <allow pkg="com.sun"/>
     </subpackage>

@@ -26,7 +26,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.integration.demo.ClusterWrapper;
+import io.pravega.test.integration.utils.ClusterWrapper;
 import io.pravega.test.integration.utils.TestUtils;
 import lombok.Cleanup;
 import lombok.SneakyThrows;

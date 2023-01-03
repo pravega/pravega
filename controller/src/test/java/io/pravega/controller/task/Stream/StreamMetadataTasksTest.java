@@ -25,14 +25,14 @@ import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.AbstractClientFactoryImpl;
 import io.pravega.client.stream.impl.StreamCutImpl;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -46,21 +46,23 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteScopeTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
@@ -79,29 +81,33 @@ import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.controller.MetricsTestUtil;
+import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.CreateReaderGroupEvent;
+import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
+import io.pravega.shared.controller.event.DeleteScopeEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
+import io.pravega.shared.controller.event.RGStreamCutRecord;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
-import io.pravega.shared.controller.event.UpdateStreamEvent;
-import io.pravega.shared.controller.event.CreateReaderGroupEvent;
 import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
-import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
-import io.pravega.shared.controller.event.RGStreamCutRecord;
+import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
@@ -120,7 +126,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -136,25 +141,32 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 import org.mockito.Mock;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 
 public abstract class StreamMetadataTasksTest {
 
     private static final String SCOPE = "scope";
-    @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected boolean authEnabled = false;
     protected CuratorFramework zkClient;
@@ -171,13 +183,15 @@ public abstract class StreamMetadataTasksTest {
     private StreamRequestHandler streamRequestHandler;
     private ConnectionFactory connectionFactory;
 
-    private RequestTracker requestTracker = new RequestTracker(true);
+    private final RequestTracker requestTracker = new RequestTracker(true);
     private EventStreamWriterMock<CommitEvent> commitWriter;
     private EventStreamWriterMock<AbortEvent> abortWriter;
     @Mock
     private KVTableMetadataStore kvtStore;
     @Mock
     private TableMetadataTasks kvtMetadataTasks;
+
+    private StatsProvider statsProvider = null;
 
     @Before
     public void setup() throws Exception {
@@ -195,7 +209,7 @@ public abstract class StreamMetadataTasksTest {
                 BucketStore.ServiceType.WatermarkingService, 1);
 
         bucketStore = StreamStoreFactory.createInMemoryBucketStore(map);
-        
+        kvtStore = spy(getKvtStore());
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -203,7 +217,9 @@ public abstract class StreamMetadataTasksTest {
                 ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, bucketStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", new GrpcAuthHelper(authEnabled, "key", 300), helper));
-
+        EventHelper helperMock = EventHelperMock.getEventHelperMock(executor, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
+        kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock));
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, segmentHelperMock, executor, "host", 
                 new GrpcAuthHelper(authEnabled, "key", 300));
@@ -218,6 +234,7 @@ public abstract class StreamMetadataTasksTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStorePartialMock,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, kvtMetadataTasks, executor),
                 executor);
         consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStorePartialMock, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null, requestTracker);
@@ -254,9 +271,14 @@ public abstract class StreamMetadataTasksTest {
 
         streamStorePartialMock.createStream(SCOPE, stream3, configuration1, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+
+        statsProvider = MetricsTestUtil.getInitializedStatsProvider();
+        statsProvider.startWithoutExporting();
     }
 
     abstract StreamMetadataStore getStore();
+
+    abstract KVTableMetadataStore getKvtStore();
 
     @After
     public void tearDown() throws Exception {
@@ -264,12 +286,17 @@ public abstract class StreamMetadataTasksTest {
         streamTransactionMetadataTasks.close();
         streamStorePartialMock.close();
         streamStorePartialMock.close();
+        kvtStore.close();
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
+        if (this.statsProvider != null) {
+            statsProvider.close();
+            statsProvider = null;
+        }
     }
 
     @Test(timeout = 30000)
@@ -295,7 +322,7 @@ public abstract class StreamMetadataTasksTest {
         CompletableFuture<ScaleResponse> scaleResponse = streamMetadataTasks.manualScale(SCOPE, "hellow", 
                 Collections.singletonList(1L), newRanges, 30, 0L);
         if (!scaleResponse.isDone()) {
-            ClientFactoryImpl clientFactory = mock(ClientFactoryImpl.class);
+            AbstractClientFactoryImpl clientFactory = mock(AbstractClientFactoryImpl.class);
             streamMetadataTasks.initializeStreamWriters(clientFactory, "_requestStream");
         }
         assertEquals(ScaleResponse.ScaleStreamStatus.FAILURE, scaleResponse.join().getStatus());
@@ -321,7 +348,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture.join());
 
         configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor).join().getObject();
-        assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration));
+        assertEquals(configProp.getStreamConfiguration(), streamConfiguration);
 
         streamConfiguration = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(6)).build();
@@ -512,7 +539,7 @@ public abstract class StreamMetadataTasksTest {
                 .stream(stream1ScopedName).stream(stream3ScopedName)
                 .build();
 
-        assertTrue(ReaderGroupConfig.DEFAULT_UUID.equals(rgConfigNonSubscriber.getReaderGroupId()));
+        assertEquals(ReaderGroupConfig.DEFAULT_UUID, rgConfigNonSubscriber.getReaderGroupId());
         assertEquals(ReaderGroupConfig.StreamDataRetention.NONE, rgConfigNonSubscriber.getRetentionType());
 
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
@@ -551,14 +578,14 @@ public abstract class StreamMetadataTasksTest {
                 System.currentTimeMillis(), 0L).join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse.getStatus());
         assertEquals(0L, createResponse.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse.getConfig().getReaderGroupId());
 
         // Create ReaderGroup 4
         createResponse = streamMetadataTasks.createReaderGroupInternal(SCOPE, "rg4", rgConfigNonSubscriber, 
                 System.currentTimeMillis(), 0L).join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse.getStatus());
         assertEquals(0L, createResponse.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse.getConfig().getReaderGroupId());
 
         // List all subscriber ReaderGroup, there should be 3
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, 0L).get();
@@ -665,7 +692,7 @@ public abstract class StreamMetadataTasksTest {
         updateResponse = streamMetadataTasks.updateReaderGroup(SCOPE, "rg3", subscriberToNonSubscriberConfig, 0L);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         Controller.UpdateReaderGroupResponse updateRGResponse = updateResponse.join();
-        assertTrue(Controller.UpdateReaderGroupResponse.Status.SUCCESS.equals(updateRGResponse.getStatus()));
+        assertEquals(Controller.UpdateReaderGroupResponse.Status.SUCCESS, updateRGResponse.getStatus());
         assertEquals(1L, updateRGResponse.getGeneration());
 
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream3, 0L).get();
@@ -688,6 +715,9 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(subscriberToNonSubscriberConfig.getAutomaticCheckpointIntervalMillis(), responseRG3.getConfig().getAutomaticCheckpointIntervalMillis());
         assertEquals(subscriberToNonSubscriberConfig.getStartingStreamCuts().size(), responseRG3.getConfig().getStartingStreamCutsCount());
         assertEquals(subscriberToNonSubscriberConfig.getEndingStreamCuts().size(), responseRG3.getConfig().getEndingStreamCutsCount());
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_CREATE_READER_GROUP_LATENCY) >= 0);
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_READER_GROUP_LATENCY) >= 0);
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_READER_GROUP_LATENCY) >= 0);
     }
 
     @Test(timeout = 30000)
@@ -711,6 +741,31 @@ public abstract class StreamMetadataTasksTest {
         DeleteReaderGroupEvent badDeleteEvent = new DeleteReaderGroupEvent(SCOPE, "rg3", 1L, UUID.randomUUID());
         requestEventWriter.writeEvent(badDeleteEvent);
         AssertExtensions.assertFutureThrows("DataNotFoundException", processFailingEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+    }
+
+    @Test
+    public void deleteScopeRecursiveTest() {
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        StreamMetadataStore storeSpy = spy(getStore());
+        final String testDeleteScope = "testDelete";
+        // Call deleteScopeRecursive() without creating a scope
+        Controller.DeleteScopeStatus.Status status = streamMetadataTasks.deleteScopeRecursive(testDeleteScope, 123L).join();
+        assertEquals(status, Controller.DeleteScopeStatus.Status.SUCCESS);
+        streamStorePartialMock.createScope(testDeleteScope, null, executor).join();
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent(SCOPE, 2L, UUID.randomUUID());
+        requestEventWriter.writeEvent(deleteScopeEvent);
+        doAnswer(x -> {
+            CompletableFuture<Boolean> future = new CompletableFuture<>();
+            future.complete(true);
+            return future;
+        }).when(spy(storeSpy)).isScopeSealed(testDeleteScope, null, executor);
+        doAnswer(x -> {
+            CompletableFuture<UUID> future = new CompletableFuture<>();
+            future.complete(UUID.randomUUID());
+            return future;
+        }).when(spy(storeSpy)).getScopeId(testDeleteScope, null, executor);
+        consumer.deleteScopeRecursive(SCOPE, 123L).join();
     }
 
     private CreateReaderGroupEvent buildCreateRGEvent(String scope, String rgName, ReaderGroupConfig config,
@@ -816,7 +871,7 @@ public abstract class StreamMetadataTasksTest {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.75, 1.0));
         ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(1L),
                 newRanges, 30, 0L).get();
-        assertTrue(scaleOpResult.getStatus().equals(ScaleStreamStatus.STARTED));
+        assertEquals(scaleOpResult.getStatus(), ScaleStreamStatus.STARTED);
 
         ScaleOperationTask scaleTask = new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor);
         assertTrue(Futures.await(scaleTask.execute((ScaleOpEvent) requestEventWriter.eventQueue.take())));
@@ -836,8 +891,8 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateFuture.join());
 
         truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor).join().getObject();
-        assertTrue(truncProp.getStreamCut().equals(streamCut));
-        assertTrue(truncProp.getStreamCut().equals(streamCut));
+        assertEquals(truncProp.getStreamCut(), streamCut);
+        assertEquals(truncProp.getStreamCut(), streamCut);
 
         // 2. change state to scaling
         streamStorePartialMock.setState(SCOPE, "test", State.SCALING, null, executor).get();
@@ -914,6 +969,14 @@ public abstract class StreamMetadataTasksTest {
         truncateStreamTask.execute(event).join();
 
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, "test", true, null, executor).join());
+        doReturn(CompletableFuture.completedFuture(true)).when(streamStorePartialMock).isScopeSealed(
+                anyString(), any(), any());
+        CompletableFuture<CreateStreamResponse> streamResponse = streamStorePartialMock
+                .createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor);
+        CreateStreamResponse.CreateStatus s = streamResponse.get().getStatus();
+        assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, streamResponse.get().getStatus());
+
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_SCALE_STREAM_LATENCY) > 0);
     }
 
     @Test(timeout = 30000)
@@ -981,8 +1044,8 @@ public abstract class StreamMetadataTasksTest {
         // verify that only one stream cut is in retention set. streamCut2 is not added
         // verify that truncation did not happen
         assertTrue(list.contains(streamCut1));
-        assertTrue(!list.contains(streamCut2));
-        assertTrue(!truncProp.isUpdating());
+        assertFalse(list.contains(streamCut2));
+        assertFalse(truncProp.isUpdating());
 
         Map<Long, Long> map3 = new HashMap<>();
         map3.put(0L, 20L);
@@ -1005,9 +1068,9 @@ public abstract class StreamMetadataTasksTest {
         truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor).get().getObject();
 
         assertTrue(list.contains(streamCut1));
-        assertTrue(!list.contains(streamCut2));
+        assertFalse(list.contains(streamCut2));
         assertTrue(list.contains(streamCut3));
-        assertTrue(!truncProp.isUpdating());
+        assertFalse(truncProp.isUpdating());
 
         Map<Long, Long> map4 = new HashMap<>();
         map4.put(0L, 20L);
@@ -1029,8 +1092,8 @@ public abstract class StreamMetadataTasksTest {
                                      }).join();
         truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor).get().getObject();
 
-        assertTrue(!list.contains(streamCut1));
-        assertTrue(!list.contains(streamCut2));
+        assertFalse(list.contains(streamCut1));
+        assertFalse(list.contains(streamCut2));
         assertTrue(list.contains(streamCut3));
         assertTrue(list.contains(streamCut4));
         assertTrue(truncProp.isUpdating());
@@ -1109,7 +1172,7 @@ public abstract class StreamMetadataTasksTest {
         // verify that truncation did not happen
         assertTrue(list.contains(streamCut1));
         assertTrue(list.contains(streamCut2));
-        assertTrue(!truncProp.isUpdating());
+        assertFalse(truncProp.isUpdating());
         // endregion
 
         // region latest - previous > retention.size
@@ -1138,7 +1201,7 @@ public abstract class StreamMetadataTasksTest {
                                       }).join();
         truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, null, executor).get().getObject();
 
-        assertTrue(!list.contains(streamCut1));
+        assertFalse(list.contains(streamCut1));
         assertTrue(list.contains(streamCut2));
         assertTrue(list.contains(streamCut3));
         assertTrue(truncProp.isUpdating());
@@ -1575,7 +1638,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         Controller.CreateReaderGroupResponse createResponse1 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse1.getStatus());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse1.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse1.getConfig().getReaderGroupId());
         assertEquals(0L, createResponse1.getConfig().getGeneration());
 
         String subscriber2 = "subscriber2";
@@ -1583,7 +1646,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         Controller.CreateReaderGroupResponse createResponse2 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse2.getStatus());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse2.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse2.getConfig().getReaderGroupId());
         assertEquals(0L, createResponse2.getConfig().getGeneration());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
@@ -2027,7 +2090,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.CreateReaderGroupResponse createResponse1 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse1.getStatus());
         assertEquals(0L, createResponse1.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse1.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse1.getConfig().getReaderGroupId());
 
         String subscriber2 = "subscriber2";
         createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, consumpRGConfig, System.currentTimeMillis(), 0L);
@@ -2035,7 +2098,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.CreateReaderGroupResponse createResponse2 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse2.getStatus());
         assertEquals(0L, createResponse2.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse2.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse2.getConfig().getReaderGroupId());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
@@ -2256,7 +2319,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.CreateReaderGroupResponse createResponse1 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse1.getStatus());
         assertEquals(0L, createResponse1.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse1.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse1.getConfig().getReaderGroupId());
 
         String subscriber2 = "subscriber2";
         createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, consumpRGConfig, System.currentTimeMillis(), 0L);
@@ -2264,7 +2327,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.CreateReaderGroupResponse createResponse2 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse2.getStatus());
         assertEquals(0L, createResponse2.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse2.getConfig().getReaderGroupId()));
+        assertNotEquals(ReaderGroupConfig.DEFAULT_UUID.toString(), createResponse2.getConfig().getReaderGroupId());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
@@ -2368,7 +2431,7 @@ public abstract class StreamMetadataTasksTest {
         String scopedStreamName = String.format("%s/%s", SCOPE, stream);
 
         // verify that stream is not added to bucket
-        assertTrue(!bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
+        assertFalse(bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
 
         UpdateStreamTask task = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor);
 
@@ -2393,7 +2456,7 @@ public abstract class StreamMetadataTasksTest {
         task.execute(update).join();
 
         // verify that the stream is no longer present in the bucket
-        assertTrue(!bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
+        assertFalse(bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
     }
 
     @Test(timeout = 30000)
@@ -2582,7 +2645,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(UpdateStreamStatus.Status.SUCCESS, sealOperationResult.get());
 
         // delete after seal
-        CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(SCOPE, stream, 
+        CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(SCOPE, stream,
                 0L);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
 
@@ -2591,7 +2654,7 @@ public abstract class StreamMetadataTasksTest {
         assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream, null, executor).join());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void deletePartiallyCreatedStreamTest() throws InterruptedException {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
@@ -2978,6 +3041,15 @@ public abstract class StreamMetadataTasksTest {
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         // no event should be posted for any other failure
         assertTrue(requestEventWriter.eventQueue.isEmpty());
+
+        DeleteScopeEvent deleteScopeEvent = new DeleteScopeEvent("testScope", 123L, UUID.randomUUID());
+        assertEquals("testScope", deleteScopeEvent.getKey());
+        AssertExtensions.assertFutureThrows("throw write conflict", streamMetadataTasks.addIndexAndSubmitTask(deleteScopeEvent,
+                        () -> Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "write conflict"))),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+        // verify that the event is posted
+        assertFalse(requestEventWriter.eventQueue.isEmpty());
+        assertEquals(requestEventWriter.eventQueue.poll(), deleteScopeEvent);
     }
     
     @Test(timeout = 30000)
@@ -3118,7 +3190,7 @@ public abstract class StreamMetadataTasksTest {
         event = requestEventWriter.eventQueue.poll();
         assertTrue(event instanceof DeleteStreamEvent);
     }
-    
+
     private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {
         ControllerEvent event;
         try {

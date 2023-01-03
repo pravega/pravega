@@ -22,10 +22,12 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 @Data
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
+@ToString
 public class RetentionPolicy implements Serializable {
     private static final long serialVersionUID = 1L;
 

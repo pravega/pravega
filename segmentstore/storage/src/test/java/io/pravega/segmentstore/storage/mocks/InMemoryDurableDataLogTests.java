@@ -23,6 +23,8 @@ import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+
+import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.After;
@@ -131,5 +133,12 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
             // Verify it contains the same entries.
             verifyReads(log, writeData);
         }
+    }
+
+    @Test(timeout = 5000)
+    public void testDebugRelatedFactoryMethods() {
+        Assert.assertEquals(this.factory.getRepairLogId(), Integer.MAX_VALUE);
+        Assert.assertEquals(this.factory.getBackupLogId(), Integer.MAX_VALUE - 1);
+        AssertExtensions.assertThrows(UnsupportedOperationException.class, () -> this.factory.createDebugLogWrapper(0));
     }
 }

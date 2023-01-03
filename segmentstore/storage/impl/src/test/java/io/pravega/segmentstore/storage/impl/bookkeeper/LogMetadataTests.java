@@ -227,7 +227,7 @@ public class LogMetadataTests {
     }
 
     /**
-     * Tests {@link ReadOnlyLogMetadata#equals}.
+     * Tests {@link ReadOnlyBookkeeperLogMetadata#equals}.
      */
     @Test
     public void testEquals() {

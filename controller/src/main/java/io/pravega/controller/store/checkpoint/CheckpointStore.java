@@ -92,20 +92,6 @@ public interface CheckpointStore {
             throws CheckpointStoreException;
 
     /**
-     * Removes the specified process.
-     * This is equivalent to calling {@link #sealReaderGroup(String, String)}, 
-     * then {@link #removeReader(String, String, String)} for all of the readers for that process.
-     * then {@link #removeReaderGroup(String, String)}.
-     * NOTE: this operation is not atomic, but it is idempotent.
-     * 
-     * @param process Process identifier.
-     * @param readerGroup Reader group name.
-     * @return Map of readers to their respective positions in the specified readerGroup.
-     * @throws CheckpointStoreException on error accessing or updating checkpoint store.
-     */
-    Map<String, Position> removeProcessFromGroup(final String process, final String readerGroup) throws CheckpointStoreException;
-    
-    /**
      * List all the reader groups added to a specified process.
      * @param process Process identifier.
      * @return List of reader groups added to the specified process.

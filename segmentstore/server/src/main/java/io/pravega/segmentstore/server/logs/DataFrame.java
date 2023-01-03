@@ -47,8 +47,8 @@ public class DataFrame {
     private static final CompositeByteArraySegment.BufferLayout BUFFER_LAYOUT = new CompositeByteArraySegment.BufferLayout(17); // 128KB
     private static final byte CURRENT_VERSION = 0;
     private final CompositeArrayView data;
-    private WriteFrameHeader header;
-    private CompositeArrayView contents;
+    private final WriteFrameHeader header;
+    private final CompositeArrayView contents;
 
     /**
      * The Frame Address within its serialization chain.

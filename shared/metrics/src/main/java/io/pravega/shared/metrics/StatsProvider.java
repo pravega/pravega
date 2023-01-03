@@ -15,6 +15,8 @@
  */
 package io.pravega.shared.metrics;
 
+import java.util.Optional;
+
 /**
  * Provider of StatsLogger instances depending on scope.
  * An implementation of this interface possibly returns a separate instance per Pravega scope.
@@ -51,4 +53,10 @@ public interface StatsProvider extends AutoCloseable {
      * Create a dynamic logger.
      */
     DynamicLogger createDynamicLogger();
+
+    /**
+     * Returns server resource that handles Prometheus metric scrapes, if Prometheus support is enabled.
+     * @return Optional of REST resource object.
+     */
+    Optional<Object> prometheusResource();
 }

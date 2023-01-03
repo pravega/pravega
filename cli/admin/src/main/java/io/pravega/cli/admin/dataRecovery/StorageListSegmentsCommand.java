@@ -91,7 +91,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
         for (int containerId = 0; containerId < this.containerCount; containerId++) {
             File f = new File(this.filePath + Path.SEPARATOR + "Container_" + containerId + ".csv");
             if (f.exists()) {
-                outputInfo("File '%s' already exists.", f.getAbsolutePath());
+                output("File '%s' already exists.", f.getAbsolutePath());
                 if (!f.delete()) {
                     outputError("Failed to delete the file '%s'.", f.getAbsolutePath());
                     throw new Exception("Failed to delete the file " + f.getAbsolutePath());
@@ -102,7 +102,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
                 throw new Exception("Failed to create file " + f.getAbsolutePath());
             }
             this.csvWriters[containerId] = new FileWriter(f.getAbsolutePath());
-            outputInfo("Created file '%s'", f.getAbsolutePath());
+            output("Created file '%s'", f.getAbsolutePath());
             this.csvWriters[containerId].append(String.join(",", HEADER));
             this.csvWriters[containerId].append("\n");
         }
@@ -112,11 +112,11 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
     public void execute() throws Exception {
         @Cleanup
         Storage storage = this.storageFactory.createStorageAdapter();
-        outputInfo("Container Count = %d", this.containerCount);
+        output("Container Count = %d", this.containerCount);
 
         // Get the storage using the config.
         storage.initialize(CONTAINER_EPOCH);
-        outputInfo("Loaded %s Storage.", getServiceConfig().getStorageImplementation());
+        output("Loaded %s Storage.", getServiceConfig().getStorageImplementation());
 
         // Gets total number of segments listed.
         int segmentsCount = 0;
@@ -124,8 +124,8 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
         // create CSV files for listing the segments and their details
         createCSVFiles();
 
-        outputInfo("Writing segments' details to the csv files...");
-        Iterator<SegmentProperties> segmentIterator = storage.listSegments();
+        output("Writing segments' details to the csv files...");
+        Iterator<SegmentProperties> segmentIterator = storage.listSegments().get();
         while (segmentIterator.hasNext()) {
             SegmentProperties currentSegment = segmentIterator.next();
 
@@ -136,22 +136,22 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
 
             segmentsCount++;
             int containerId = this.segToConMapper.getContainerId(currentSegment.getName());
-            outputInfo(containerId + "\t" + currentSegment.isSealed() + "\t" + currentSegment.getLength() + "\t" +
+            output(containerId + "\t" + currentSegment.isSealed() + "\t" + currentSegment.getLength() + "\t" +
                     currentSegment.getName());
             this.csvWriters[containerId].append(currentSegment.isSealed() + "," + currentSegment.getLength() + "," +
                     currentSegment.getName() + "\n");
         }
 
-        outputInfo("Closing all csv files...");
+        output("Closing all csv files...");
         for (FileWriter fileWriter : this.csvWriters) {
             fileWriter.flush();
             fileWriter.close();
         }
 
-        outputInfo("All non-shadow segments' details have been written to the csv files.");
-        outputInfo("Path to the csv files: '%s'", this.filePath);
-        outputInfo("Total number of segments found = %d", segmentsCount);
-        outputInfo("Done listing the segments!");
+        output("All non-shadow segments' details have been written to the csv files.");
+        output("Path to the csv files: '%s'", this.filePath);
+        output("Total number of segments found = %d", segmentsCount);
+        output("Done listing the segments!");
     }
 
     public static CommandDescriptor descriptor() {

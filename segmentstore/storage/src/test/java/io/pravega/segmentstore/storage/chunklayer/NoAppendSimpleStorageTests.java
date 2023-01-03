@@ -16,11 +16,9 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
-import io.pravega.test.common.AssertExtensions;
 import lombok.val;
 import org.junit.Test;
 
-import java.io.ByteArrayInputStream;
 import java.util.concurrent.Executor;
 
 import static org.junit.Assert.assertEquals;
@@ -69,35 +67,6 @@ public class NoAppendSimpleStorageTests extends SimpleStorageTests {
             assertEquals(false, chunkStorage.supportsAppend());
             assertEquals(true, chunkStorage.supportsTruncation());
             assertEquals(false, chunkStorage.supportsConcat());
-        }
-
-        /**
-         * Test simple reads and writes for exceptions.
-         */
-        @Test
-        @Override
-        public void testSimpleWriteExceptions() throws Exception {
-            String chunkName = "testchunk";
-
-            byte[] writeBuffer = new byte[10];
-            populate(writeBuffer);
-            int length = writeBuffer.length;
-            val chunkHandle = chunkStorage.createWithContent(chunkName, 10, new ByteArrayInputStream(writeBuffer)).get();
-            int bytesWritten = Math.toIntExact(chunkStorage.getInfo(chunkName).get().getLength());
-            assertEquals(length, bytesWritten);
-            assertEquals(chunkName, chunkHandle.getChunkName());
-            assertEquals(false, chunkHandle.isReadOnly());
-
-            // Write exceptions.
-            AssertExtensions.assertThrows(
-                    " write should throw exception.",
-                    () -> chunkStorage.write(chunkHandle, 10, 1, new ByteArrayInputStream(writeBuffer)).get(),
-                    ex -> ex instanceof IllegalArgumentException);
-        }
-
-        @Test
-        @Override
-        public void testReadonly() throws Exception {
         }
     }
 }

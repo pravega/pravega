@@ -63,7 +63,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 14;
+    public static final int WIRE_VERSION = 16;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -361,8 +361,9 @@ public final class WireCommands {
     public static final class InvalidEventNumber implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.INVALID_EVENT_NUMBER;
         final UUID writerId;
-        final long eventNumber;
+        final long requestId;
         final String serverStackTrace;
+        final long eventNumber;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -373,15 +374,17 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
-            out.writeLong(eventNumber);
+            out.writeLong(requestId);
             out.writeUTF(serverStackTrace);
+            out.writeLong(eventNumber);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
-            long eventNumber = in.readLong();
+            long requestId = in.readLong();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
-            return new InvalidEventNumber(writerId, eventNumber, serverStackTrace);
+            long eventNumber = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
+            return new InvalidEventNumber(writerId, requestId, serverStackTrace, eventNumber);
         }
 
         @Override
@@ -396,7 +399,7 @@ public final class WireCommands {
 
         @Override
         public long getRequestId() {
-            return eventNumber;
+            return requestId;
         }
     }
 
@@ -832,6 +835,91 @@ public final class WireCommands {
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             return new StorageFlushed(requestId);
+        }
+    }
+
+    @Data
+    public static final class ListStorageChunks implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.LIST_STORAGE_CHUNKS;
+        final String segment;
+        @ToString.Exclude
+        final String delegationToken;
+        final long requestId;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            ((AdminRequestProcessor) cp).listStorageChunks(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            long requestId = in.readLong();
+            return new ListStorageChunks(segment, delegationToken, requestId);
+        }
+    }
+
+    @Data
+    public static final class StorageChunksListed implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.STORAGE_CHUNKS_LISTED;
+        final long requestId;
+        final List<ChunkInfo> chunks;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.storageChunksListed(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeInt(chunks.size());
+            for (ChunkInfo chunk : chunks) {
+                chunk.writeFields(out);
+            }
+        }
+
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            int numberOfChunks = in.readInt();
+            List<ChunkInfo> chunks = new ArrayList<>(numberOfChunks);
+            for (int i = 0; i < numberOfChunks; i++) {
+                chunks.add(ChunkInfo.readFrom(in, in.available()));
+            }
+            return new StorageChunksListed(requestId, chunks);
+        }
+    }
+
+    @Data
+    public static final class ChunkInfo {
+        final long lengthInMetadata;
+        final long lengthInStorage;
+        final long startOffset;
+        final String chunkName;
+        final boolean existsInStorage;
+
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(lengthInMetadata);
+            out.writeLong(lengthInStorage);
+            out.writeLong(startOffset);
+            out.writeUTF(chunkName);
+            out.writeBoolean(existsInStorage);
+        }
+
+        public static ChunkInfo readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            long lengthInMetadata = in.readLong();
+            long lengthInStorage = in.readLong();
+            long startOffset = in.readLong();
+            String chunkName = in.readUTF();
+            boolean existsInStorage = in.readBoolean();
+            return new ChunkInfo(lengthInMetadata, lengthInStorage, startOffset, chunkName, existsInStorage);
         }
     }
 
@@ -1306,6 +1394,40 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class CreateTransientSegment implements Request, WireCommand {
+
+        final WireCommandType type = WireCommandType.CREATE_TRANSIENT_SEGMENT;
+        final long requestId;
+        final UUID writerId;
+        final String parentSegment;
+        @ToString.Exclude
+        final String delegationToken;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.createTransientSegment(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeUTF(parentSegment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            UUID writerId = new UUID(in.readLong(), in.readLong());
+            String parentSegment = in.readUTF();
+            String delegationToken = in.readUTF();
+
+            return new CreateTransientSegment(requestId, writerId, parentSegment, delegationToken);
+        }
+    }
+
+    @Data
     public static final class UpdateSegmentPolicy implements Request, WireCommand {
 
         final WireCommandType type = WireCommandType.UPDATE_SEGMENT_POLICY;
@@ -1447,6 +1569,84 @@ public final class WireCommands {
             String source = in.readUTF();
             long newTargetWriteOffset = in.available() > 0 ? in.readLong() : -1;
             return new SegmentsMerged(requestId, target, source, newTargetWriteOffset);
+        }
+    }
+
+    @Data
+    public static final class MergeSegmentsBatch implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.MERGE_SEGMENTS_BATCH;
+        final long requestId;
+        final String targetSegmentId;
+        final List<String> sourceSegmentIds;
+        @ToString.Exclude
+        final String delegationToken;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.mergeSegmentsBatch(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(targetSegmentId);
+            out.writeInt(sourceSegmentIds.size());
+            for (int i = 0; i < sourceSegmentIds.size(); i++) {
+                out.writeUTF(sourceSegmentIds.get(i));
+            }
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String target = in.readUTF();
+            int sourceCount = in.readInt();
+            List<String> sources = new ArrayList<>(sourceCount);
+            for (int i = 0; i < sourceCount; i++) {
+                sources.add(in.readUTF());
+            }
+            String delegationToken = in.readUTF();
+            return new MergeSegmentsBatch(requestId, target, sources, delegationToken);
+        }
+    }
+
+    @Data
+    public static final class SegmentsBatchMerged implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENTS_BATCH_MERGED;
+        final long requestId;
+        final String target;
+        final List<String> sources;
+        /** newTargetWriteOffset may not be the exact offset on the Segment post merge but just some offset following the merge.**/
+        final List<Long> newTargetWriteOffset;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.segmentsBatchMerged(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(target);
+            out.writeInt(sources.size());
+            for (int i = 0; i < sources.size(); i++) {
+                out.writeUTF(sources.get(i));
+                out.writeLong(newTargetWriteOffset.get(i));
+            }
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String target = in.readUTF();
+            int count = in.readInt();
+            List<String> sources = new ArrayList<>(count);
+            List<Long> offsets = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                sources.add(in.readUTF());
+                offsets.add(in.readLong());
+            }
+
+            return new SegmentsBatchMerged(requestId, target, sources, offsets);
         }
     }
 

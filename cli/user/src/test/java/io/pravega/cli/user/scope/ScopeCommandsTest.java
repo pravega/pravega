@@ -18,7 +18,7 @@ package io.pravega.cli.user.scope;
 import io.pravega.cli.user.CommandArgs;
 import io.pravega.cli.user.TestUtils;
 import io.pravega.cli.user.config.InteractiveConfig;
-import io.pravega.test.integration.demo.ClusterWrapper;
+import io.pravega.test.integration.utils.ClusterWrapper;
 import lombok.SneakyThrows;
 import org.junit.AfterClass;
 import org.junit.Assert;

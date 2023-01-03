@@ -23,36 +23,37 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.auth.MoreCallCredentials;
-import io.grpc.netty.GrpcSslContexts;
-import io.grpc.netty.NegotiationType;
-import io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.shaded.io.grpc.netty.NegotiationType;
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
 import io.grpc.stub.StreamObserver;
-import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.NoSuchScopeException;
 import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionInfo;
 import io.pravega.client.stream.TxnFailedException;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.TransactionInfoImpl;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
-import io.pravega.shared.NameUtils;
-import io.pravega.shared.security.auth.Credentials;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.hash.RandomFactory;
@@ -62,14 +63,17 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
+import io.pravega.common.util.SimpleCache;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ContinuationToken;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
@@ -81,6 +85,9 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigRe
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveWriterRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveWriterResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
@@ -88,6 +95,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
@@ -96,29 +104,33 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCutRangeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeWithTagRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeWithTagRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampFromWriter;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ListCompletedTxnRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ListCompletedTxnResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
+import io.pravega.shared.security.auth.Credentials;
+import lombok.AccessLevel;
+import lombok.Getter;
+import org.slf4j.LoggerFactory;
+
+import javax.net.ssl.SSLException;
 import java.io.File;
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
@@ -133,11 +145,10 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import javax.net.ssl.SSLException;
-import org.slf4j.LoggerFactory;
 
 import static io.pravega.client.control.impl.ModelHelper.encode;
 import static io.pravega.controller.stream.api.grpc.v1.Controller.ExistsResponse;
@@ -159,6 +170,7 @@ import static io.pravega.shared.controller.tracing.RPCTracingTags.CREATE_TRANSAC
 import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_KEY_VALUE_TABLE;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_READER_GROUP;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_SCOPE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_SCOPE_RECURSIVE;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_STREAM;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_CURRENT_SEGMENTS;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_CURRENT_SEGMENTS_KEY_VALUE_TABLE;
@@ -178,16 +190,17 @@ import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_SCOPES;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_STREAMS_IN_SCOPE;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_STREAMS_IN_SCOPE_FOR_TAG;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_SUBSCRIBERS;
-import static io.pravega.shared.controller.tracing.RPCTracingTags.SCALE_STREAM;
-import static io.pravega.shared.controller.tracing.RPCTracingTags.SEAL_STREAM;
-import static io.pravega.shared.controller.tracing.RPCTracingTags.START_SCALE_STREAM;
-import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_READER_GROUP;
-import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_STREAM;
-import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_TRUNCATION_STREAM_CUT;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.NOTE_TIMESTAMP_FROM_WRITER;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.PING_TRANSACTION;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.REMOVE_WRITER;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.SCALE_STREAM;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.SEAL_STREAM;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.START_SCALE_STREAM;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.TRUNCATE_STREAM;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_READER_GROUP;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_STREAM;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_TRUNCATION_STREAM_CUT;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_COMPLETED_TRANSACTIONS;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -219,7 +232,20 @@ public class ControllerImpl implements Controller {
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
     private final long timeoutMillis;
-    
+
+    /**
+     * Maximum time that segment endpoint details are held in the cache.
+     */
+    private final Duration segmentEntryExpirationTime = Duration.ofMinutes(5);
+    /**
+     * Maximum number of segment endpoint entries in the cache.
+     */
+    private final int maxCacheSize = 1000;
+
+    @Getter(value = AccessLevel.PACKAGE)
+    private SimpleCache<Segment, CachedPravegaNodeUri> endPointCacheMap;
+
+
     /**
      * Creates a new instance of the Controller client class.
      *
@@ -234,7 +260,7 @@ public class ControllerImpl implements Controller {
                                 .defaultLoadBalancingPolicy("round_robin")
                                 .directExecutor()
                                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
-                config, executor);
+                config, executor, null);
         log.info("Controller client connecting to server at {}", config.getClientConfig().getControllerURI().getAuthority());
     }
 
@@ -250,7 +276,6 @@ public class ControllerImpl implements Controller {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
         this.executor = executor;
         this.retryConfig = createRetryConfig(config);
-
         if (config.getClientConfig().isEnableTlsToController()) {
             log.debug("Setting up a SSL/TLS channel builder");
             SslContextBuilder sslContextBuilder;
@@ -277,6 +302,14 @@ public class ControllerImpl implements Controller {
         this.channel = channelBuilder.build();
         this.client = getClientWithCredentials(config);
         this.timeoutMillis = config.getTimeoutMillis();
+    }
+
+    @VisibleForTesting
+    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
+                          final ScheduledExecutorService executor, final SimpleCache<Segment, CachedPravegaNodeUri> simpleCache) {
+        this(channelBuilder, config, executor);
+        this.endPointCacheMap = (simpleCache == null) ? new SimpleCache<>(maxCacheSize, segmentEntryExpirationTime,
+                (segment, cachedEndPointUri) -> log.info("Evicting segment : {} from cache", segment.getSegmentId())) : simpleCache;
     }
 
     private ControllerServiceStub getClientWithCredentials(ControllerImplConfig config) {
@@ -543,6 +576,42 @@ public class ControllerImpl implements Controller {
                 }
                 LoggerHelpers.traceLeave(log, "deleteScope", traceId, scopeName, requestId);
             });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteScopeRecursive(String scopeName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, DELETE_SCOPE_RECURSIVE, scopeName, requestId);
+
+        final CompletableFuture<DeleteScopeStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<DeleteScopeStatus> callback = new RPCAsyncCallback<>(requestId, DELETE_SCOPE_RECURSIVE, scopeName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, DELETE_SCOPE_RECURSIVE, scopeName)
+                    .deleteScopeRecursive(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApplyAsync(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to delete scope recursively: {}", scopeName);
+                    throw new ControllerFailureException("Failed to delete scope recursive: " + scopeName);
+                case SCOPE_NOT_FOUND:
+                    log.warn(requestId, "Scope not found: {}", scopeName);
+                    return false;
+                case SUCCESS:
+                    log.info(requestId, "Recursive Scope deleted successfully: {}", scopeName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status deleting scope recursively " + scopeName
+                            + " " + x.getStatus());
+            }
+        }, this.executor).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "deleteScopeRecursive {} failed: ", scopeName, e);
+            }
+            LoggerHelpers.traceLeave(log, DELETE_SCOPE_RECURSIVE, traceId, scopeName, requestId);
+        });
     }
 
     @Override
@@ -1239,28 +1308,78 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(qualifiedSegmentName, "qualifiedSegmentName");
-        final long requestId = requestIdGenerator.get();
-        long traceId = LoggerHelpers.traceEnter(log, "getEndpointForSegment", qualifiedSegmentName, requestId);
+        Segment segment = Segment.fromScopedName(qualifiedSegmentName);
+        CachedPravegaNodeUri nodeUri = getSegmentEndpointFromCache(segment);
+        //Read from cache if the segment endpoint already exists and the refresh interval is not expired.
+        if (nodeUri != null && nodeUri.getTimer().getElapsedMillis() <= CachedPravegaNodeUri.MAX_BACKOFF_MILLIS) {
+            log.info("Fetching the endpoint details of segment {} from cache", segment.getSegmentId());
+            return nodeUri.getPravegaNodeUri();
+        } else if (nodeUri != null && nodeUri.getTimer().getElapsedMillis() > CachedPravegaNodeUri.MAX_BACKOFF_MILLIS) {
+            // Trigger a background call and refresh the cache.
+            endPointCacheMap.put(segment, new CachedPravegaNodeUri(new Timer(), getPravegaNodeUri(segment)));
+            return nodeUri.getPravegaNodeUri();
+        } else {
+            CompletableFuture<PravegaNodeUri> nodeInfo = getPravegaNodeUri(segment);
+            endPointCacheMap.put(segment, new CachedPravegaNodeUri(new Timer(), nodeInfo));
+            return nodeInfo;
+        }
+    }
 
+    @Override
+    public void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri) {
+        Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
+        Segment segment = Segment.fromScopedName(segmentName);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "updateStaleValueInCache", segmentName, errNodeUri, requestId);
+        CachedPravegaNodeUri cachedNode = getSegmentEndpointFromCache(segment);
+        if (cachedNode != null) {
+            if (cachedNode.getPravegaNodeUri().isDone()) {
+                PravegaNodeUri cachedNodeUri;
+                try {
+                    cachedNodeUri = cachedNode.getPravegaNodeUri().get();
+                    if (cachedNodeUri.getEndpoint().equals(errNodeUri.getEndpoint()) && cachedNodeUri.getPort() == errNodeUri.getPort()) {
+                        // enforce cache refresh in case of stale value
+                        log.debug(requestId, "Refreshing stale value in cache for segment {}", segment.getSegmentId());
+                        endPointCacheMap.put(segment, new CachedPravegaNodeUri(new Timer(), getPravegaNodeUri(segment)));
+                    }
+                } catch (InterruptedException | ExecutionException e) {
+                    log.warn("updateStaleValueInCache failed for segment {}: ", segmentName, e);
+                    endPointCacheMap.remove(segment);
+                }
+                LoggerHelpers.traceLeave(log, "updateStaleValueInCache", traceId, requestId);
+            }
+        }
+    }
+
+    //Avoid invoking getPravegaNodeUri directly.Invoke getEndpointForSegment API instead, to get the endpoint details of a segment.
+    // It is fast comparatively as it cache the endpoint details.
+    @VisibleForTesting
+    public CompletableFuture<PravegaNodeUri> getPravegaNodeUri(Segment segment) {
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "getPravegaNodeUri", segment.getScopedName(), requestId);
         final CompletableFuture<NodeUri> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<NodeUri> callback = new RPCAsyncCallback<>(requestId, "getEndpointForSegment",
-                    qualifiedSegmentName);
-            Segment segment = Segment.fromScopedName(qualifiedSegmentName);
+            RPCAsyncCallback<NodeUri> callback = new RPCAsyncCallback<>(requestId, "getPravegaNodeUri",
+                    segment);
             // Ensure only the scoped name of the segment is passed, this ensures tracking for transactionsegments.
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, GET_URI, segment.getScopedName())
                     .getURI(ModelHelper.createSegmentId(segment.getScope(),
-                            segment.getStreamName(),
-                            segment.getSegmentId()),
+                                    segment.getStreamName(),
+                                    segment.getSegmentId()),
                             callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApplyAsync(ModelHelper::encode, this.executor)
                 .whenComplete((x, e) -> {
                     if (e != null) {
-                        log.warn(requestId, "getEndpointForSegment {} failed: ", qualifiedSegmentName, e);
+                        log.warn(requestId, "getPravegaNodeUri {} failed: ", segment.getScopedName(), e);
                     }
-                    LoggerHelpers.traceLeave(log, "getEndpointForSegment", traceId, requestId);
+                    LoggerHelpers.traceLeave(log, "getPravegaNodeUri", traceId, requestId);
                 });
+    }
+
+    @VisibleForTesting
+    CachedPravegaNodeUri getSegmentEndpointFromCache(Segment segment) {
+        return endPointCacheMap.get(segment);
     }
 
     @Override
@@ -1468,6 +1587,31 @@ public class ControllerImpl implements Controller {
                     }
                     LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId, txId, requestId);
                 });
+    }
+
+    @Override
+    public CompletableFuture<List<TransactionInfo>> listCompletedTransactions(final Stream stream) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(stream, "stream");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, LIST_COMPLETED_TRANSACTIONS, stream, requestId);
+
+        try {
+            final CompletableFuture<ListCompletedTxnResponse> listCompletedTxnResponse = this.retryConfig.runAsync(() -> {
+                RPCAsyncCallback<ListCompletedTxnResponse> callback = new RPCAsyncCallback<>(traceId, LIST_COMPLETED_TRANSACTIONS, stream);
+
+                new ControllerClientTagger(client, timeoutMillis).withTag(requestId, LIST_COMPLETED_TRANSACTIONS, stream.getScope(), stream.getStreamName())
+                        .listCompletedTransactions(ListCompletedTxnRequest.newBuilder()
+                                .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                .build(), callback);
+                return callback.getFuture();
+            }, this.executor);
+            return listCompletedTxnResponse.thenApplyAsync(txnResponse -> txnResponse.getResponseList().stream().map(transactionResponse ->
+                            new TransactionInfoImpl(stream, encode(transactionResponse.getTxnId()),
+                                    Transaction.Status.valueOf(transactionResponse.getStatus().name()))).collect(Collectors.toList()));
+        } finally {
+            LoggerHelpers.traceLeave(log, LIST_COMPLETED_TRANSACTIONS, traceId);
+        }
     }
 
     @Override
@@ -2067,6 +2211,11 @@ public class ControllerImpl implements Controller {
                       .deleteScope(scopeInfo, callback);
         }
 
+        public void deleteScopeRecursive(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .deleteScopeRecursive(scopeInfo, callback);
+        }
+
         public void createStream(StreamConfig streamConfig, RPCAsyncCallback<CreateStreamStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                       .createStream(streamConfig, callback);
@@ -2182,6 +2331,10 @@ public class ControllerImpl implements Controller {
 
         public void checkTransactionState(TxnRequest request, RPCAsyncCallback<TxnState> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).checkTransactionState(request, callback);
+        }
+
+        public void listCompletedTransactions(ListCompletedTxnRequest request, RPCAsyncCallback<ListCompletedTxnResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).listCompletedTransactions(request, callback);
         }
 
         public void noteTimestampFromWriter(TimestampFromWriter request, RPCAsyncCallback<TimestampResponse> callback) {

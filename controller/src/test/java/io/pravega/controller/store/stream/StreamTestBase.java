@@ -55,6 +55,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -1705,5 +1706,36 @@ public abstract class StreamTestBase {
         assertEquals(transactions.get(1).getTxnStatus(), TxnStatus.COMMITTING);
         assertEquals(transactions.get(2), ActiveTxnRecord.EMPTY);
         assertEquals(transactions.get(3).getTxnStatus(), TxnStatus.ABORTING);
+    }
+
+    @Test
+    public void testListCompletedTnxns() {
+        OperationContext context = getContext();
+        createScope("listCompletedScope", context);
+        PersistentStreamBase stream = createStream("listCompletedScope", "listCompletedStream", System.currentTimeMillis(), 5, new Random().nextInt(2000), 2, 2);
+        UUID txnId1 = null;
+        for (int i = 0; i < 600; i++) {
+            txnId1 = createAndCommitTransaction(stream, 0, Long.valueOf(i));
+        }
+
+        Map<UUID, TxnStatus> list = stream.listCompletedTxns(context).join();
+        assertEquals(0, list.size());
+
+        // start commit transactions
+        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(600, context).join().getKey();
+        stream.getVersionedState(context).thenCompose(s -> stream.updateVersionedState(s, State.COMMITTING_TXN, context)).join();
+
+        // start rolling transaction
+        ctr = stream.startRollingTxn(1, ctr, context).join();
+
+        stream.completeRollingTxn(Collections.emptyMap(), ctr, context).join();
+        stream.completeCommittingTransactions(ctr, context, Collections.emptyMap()).join();
+
+        list = stream.listCompletedTxns(context).join();
+        //verify no of record returned by api
+        assertEquals(500, list.size());
+
+        //verify api contains recent record
+        assertTrue(list.keySet().contains(txnId1));
     }
 }

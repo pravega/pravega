@@ -15,6 +15,8 @@
  */
 package io.pravega.controller.task.Stream;
 
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import org.junit.Before;
@@ -30,5 +32,10 @@ public class SecureStreamMetadataTasksTest extends StreamMetadataTasksTest {
     @Override
     StreamMetadataStore getStore() {
         return StreamStoreFactory.createInMemoryStore();
+    }
+
+    @Override
+    KVTableMetadataStore getKvtStore() {
+        return KVTableStoreFactory.createInMemoryStore(getStore(), executor);
     }
 }

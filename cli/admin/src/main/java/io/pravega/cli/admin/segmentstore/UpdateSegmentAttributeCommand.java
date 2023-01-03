@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -48,7 +49,9 @@ public class UpdateSegmentAttributeCommand extends SegmentStoreCommand {
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
+        ConnectionPool pool = createConnectionPool();
+        @Cleanup
+        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient, pool);
         CompletableFuture<WireCommands.SegmentAttributeUpdated> reply = segmentHelper.updateSegmentAttribute(fullyQualifiedSegmentName,
                 attributeId, newValue, existingValue, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
         output("UpdateSegmentAttribute: %s", reply.join().toString());

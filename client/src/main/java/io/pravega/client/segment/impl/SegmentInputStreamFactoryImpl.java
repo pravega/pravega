@@ -17,14 +17,12 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.common.MathHelpers;
-import io.pravega.common.concurrent.Futures;
-import java.util.concurrent.Semaphore;
-
 import io.pravega.shared.security.auth.AccessOperation;
+import java.util.concurrent.Semaphore;
 import lombok.RequiredArgsConstructor;
 
 @VisibleForTesting
@@ -54,11 +52,15 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
         return getEventSegmentReader(segment, hasData, 0, endOffset, bufferSize);
     }
 
+    @Override
+    public EventSegmentReader createEventReaderForSegment(Segment segment, long startOffset, int lengthToRead) {
+        return getEventSegmentReader(segment, null, startOffset, startOffset + lengthToRead, lengthToRead);
+    }
+
     private EventSegmentReader getEventSegmentReader(Segment segment, Semaphore hasData, long startOffset, long endOffset, int bufferSize) {
-        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-                segment.getStream().getStreamName(), AccessOperation.READ), RuntimeException::new);
-        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cp, segment,
-                DelegationTokenProviderFactory.create(delegationToken, controller, segment, AccessOperation.READ), hasData);
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controller, segment, AccessOperation.READ);
+        tokenProvider.retrieveToken();
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cp, segment, tokenProvider, hasData);
         async.getConnection();                      //Sanity enforcement
         bufferSize = MathHelpers.minMax(bufferSize, SegmentInputStreamImpl.MIN_BUFFER_SIZE, SegmentInputStreamImpl.MAX_BUFFER_SIZE);
         return getEventSegmentReader(async, startOffset, endOffset, bufferSize);

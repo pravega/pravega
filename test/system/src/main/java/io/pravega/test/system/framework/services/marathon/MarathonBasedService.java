@@ -41,8 +41,8 @@ import mesosphere.marathon.client.model.v2.PortDefinition;
 import mesosphere.marathon.client.model.v2.Result;
 import mesosphere.marathon.client.model.v2.Volume;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static javax.ws.rs.core.Response.Status.CONFLICT;
+import static javax.ws.rs.core.Response.Status.NOT_FOUND;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 
@@ -88,7 +88,7 @@ public abstract class MarathonBasedService implements Service {
                 return false;
             }
         } catch (MarathonException ex) {
-            if (ex.getStatus() == NOT_FOUND.code()) {
+            if (ex.getStatus() == NOT_FOUND.getStatusCode()) {
                 log.info("App is not running : {}", this.id);
                 return false;
             }
@@ -119,7 +119,7 @@ public abstract class MarathonBasedService implements Service {
               return waitUntilServiceRunning(); // wait until scale operation is complete.
 
         } catch (MarathonException ex) {
-            if (ex.getStatus() == CONFLICT.code()) {
+            if (ex.getStatus() == CONFLICT.getStatusCode()) {
                 log.error("Scaling operation failed as the application is locked by an ongoing deployment", ex);
                 throw new TestFrameworkException(RequestFailed, "Scaling operation failed", ex);
             }
@@ -129,7 +129,7 @@ public abstract class MarathonBasedService implements Service {
     }
 
     void handleMarathonException(MarathonException e) {
-        if (e.getStatus() == NOT_FOUND.code()) {
+        if (e.getStatus() == NOT_FOUND.getStatusCode()) {
             log.info("App is not running : {}", this.id);
         }
         throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching details of service", e);
@@ -187,7 +187,7 @@ public abstract class MarathonBasedService implements Service {
             log.info("App: {} deleted, Deployment id is: {}", appID, result.getDeploymentId());
             waitUntilDeploymentPresent(result.getDeploymentId()).get();
         } catch (MarathonException e) {
-            if (e.getStatus() == NOT_FOUND.code()) {
+            if (e.getStatus() == NOT_FOUND.getStatusCode()) {
                 log.debug("Application does not exist");
             } else {
                 throw new TestFrameworkException(RequestFailed, "Marathon Exception while deleting service", e);

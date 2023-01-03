@@ -16,7 +16,6 @@
 package io.pravega.segmentstore.storage;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
@@ -192,10 +191,10 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
     /**
      * Lists all the segments stored on the storage device.
      *
-     * @return Iterator that can be used to enumerate and retrieve properties of all the segments.
-     * @throws IOException if exception occurred while listing segments.
+     * @return A CompletableFuture that, when completed, will contain an {@link Iterator} that can be used to enumerate and retrieve properties of all the segments.
+     * If the operation failed, it will contain the cause of the failure.
      */
-    Iterator<SegmentProperties> listSegments() throws IOException;
+    CompletableFuture<Iterator<SegmentProperties>> listSegments();
 
     @Override
     void close();

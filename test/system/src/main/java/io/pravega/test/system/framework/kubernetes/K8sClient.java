@@ -24,15 +24,18 @@ import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.Configuration;
 import io.kubernetes.client.PodLogs;
-import io.kubernetes.client.openapi.apis.ApiextensionsV1beta1Api;
+import io.kubernetes.client.openapi.apis.ApiextensionsV1Api;
 import io.kubernetes.client.openapi.apis.AppsV1Api;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
-import io.kubernetes.client.openapi.apis.RbacAuthorizationV1beta1Api;
+import io.kubernetes.client.openapi.apis.RbacAuthorizationV1Api;
+import io.kubernetes.client.openapi.models.V1ClusterRole;
+import io.kubernetes.client.openapi.models.V1ClusterRoleBinding;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ContainerState;
 import io.kubernetes.client.openapi.models.V1ContainerStateTerminated;
 import io.kubernetes.client.openapi.models.V1ContainerStatus;
+import io.kubernetes.client.openapi.models.V1CustomResourceDefinition;
 import io.kubernetes.client.openapi.models.V1DeleteOptions;
 import io.kubernetes.client.openapi.models.V1Deployment;
 import io.kubernetes.client.openapi.models.V1Namespace;
@@ -40,14 +43,11 @@ import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Pod;
 import io.kubernetes.client.openapi.models.V1PodList;
 import io.kubernetes.client.openapi.models.V1PodStatus;
+import io.kubernetes.client.openapi.models.V1Role;
+import io.kubernetes.client.openapi.models.V1RoleBinding;
 import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1ServiceAccount;
 import io.kubernetes.client.openapi.models.V1Status;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRole;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBinding;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinition;
-import io.kubernetes.client.openapi.models.V1beta1Role;
-import io.kubernetes.client.openapi.models.V1beta1RoleBinding;
 import io.kubernetes.client.util.Config;
 import io.kubernetes.client.util.PatchUtils;
 import io.kubernetes.client.util.Watch;
@@ -146,7 +146,7 @@ public class K8sClient {
     public V1Namespace createNamespace(final String namespace) {
         CoreV1Api api = new CoreV1Api();
         try {
-            V1Namespace existing = api.readNamespace(namespace, PRETTY_PRINT, Boolean.FALSE, Boolean.FALSE);
+            V1Namespace existing = api.readNamespace(namespace, PRETTY_PRINT);
             if (existing != null) {
                 log.info("Namespace {} already exists, ignoring namespace create operation.", namespace);
                 return existing;
@@ -165,7 +165,7 @@ public class K8sClient {
         meta.setName(namespace);
         body.setMetadata(meta);
 
-        return api.createNamespace(body, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER);
+        return api.createNamespace(body, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, null);
     }
 
     /**
@@ -178,7 +178,7 @@ public class K8sClient {
     public CompletableFuture<V1Pod> deployPod(final String namespace, final V1Pod pod) {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1Pod> callback = new K8AsyncCallback<>("createPod-" + pod.getMetadata().getName());
-        api.createNamespacedPodAsync(namespace, pod, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
+        api.createNamespacedPodAsync(namespace, pod, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -193,13 +193,13 @@ public class K8sClient {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
         api.listNamespacedPodAsync(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, "POD_NAME=" + podName, null,
-                                   null, null, false, callback);
+                                  null, null, null, false, callback);
         return callback.getFuture()
-               .thenApply(v1PodList -> {
-                   Optional<V1Pod> vpod = v1PodList.getItems().stream().filter(v1Pod -> v1Pod.getMetadata().getName().equals(podName) &&
-                           v1Pod.getMetadata().getNamespace().equals(namespace)).findFirst();
-                   return vpod.map(V1Pod::getStatus).orElseThrow(() -> new RuntimeException("pod not found" + podName));
-               });
+                .thenApply(v1PodList -> {
+                    Optional<V1Pod> vpod = v1PodList.getItems().stream().filter(v1Pod -> v1Pod.getMetadata().getName().equals(podName) &&
+                            v1Pod.getMetadata().getNamespace().equals(namespace)).findFirst();
+                    return vpod.map(V1Pod::getStatus).orElseThrow(() -> new RuntimeException("pod not found" + podName));
+                });
     }
 
     /**
@@ -244,7 +244,7 @@ public class K8sClient {
         String labelSelector = labels.entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).collect(Collectors.joining());
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods-" + labels);
         api.listNamespacedPodAsync(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, labelSelector, null,
-                                   null, null, false, callback);
+                null, null, null, false, callback);
         return callback.getFuture();
     }
 
@@ -275,7 +275,7 @@ public class K8sClient {
     public CompletableFuture<V1Deployment> createDeployment(final String namespace, final V1Deployment deploy) {
         AppsV1Api api = new AppsV1Api();
         K8AsyncCallback<V1Deployment> callback = new K8AsyncCallback<>("deployment-" + deploy.getMetadata().getName());
-        api.createNamespacedDeploymentAsync(namespace, deploy, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
+        api.createNamespacedDeploymentAsync(namespace, deploy, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -308,7 +308,7 @@ public class K8sClient {
                                                         String plural, Map<String, Object> request) {
         CustomObjectsApi api = new CustomObjectsApi();
         K8AsyncCallback<Object> callback = new K8AsyncCallback<>("createCustomObject-" + customResourceGroup);
-        api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, callback);
+        api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, null,  null, callback);
         return callback.getFuture();
     }
 
@@ -342,6 +342,9 @@ public class K8sClient {
                                         plural,
                                         name,
                                         request,
+                                        null,
+                                        null,
+                                        null,
                                         cb1),
                                 V1Patch.PATCH_FORMAT_JSON_MERGE_PATCH);
                         return cb1.getFuture();
@@ -354,7 +357,7 @@ public class K8sClient {
                     try {
                         //create object
                         K8AsyncCallback<Object> cb = new K8AsyncCallback<>("createCustomObject");
-                        api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, cb);
+                        api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, null, null, cb);
                         return cb.getFuture();
                     } catch (ApiException e) {
                         throw Exceptions.sneakyThrow(e);
@@ -398,7 +401,7 @@ public class K8sClient {
         options.setOrphanDependents(false);
         K8AsyncCallback<Object> callback = new K8AsyncCallback<>("getCustomObject-" + customResourceGroup);
         api.deleteNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, name,
-                0, false, null, options, callback);
+                0, false, null, null, options, callback);
 
         return callback.getFuture();
     }
@@ -432,10 +435,10 @@ public class K8sClient {
      * @return A future indicating the status of this operation.
      */
     @SneakyThrows(ApiException.class)
-    public CompletableFuture<V1beta1CustomResourceDefinition> createCRD(final V1beta1CustomResourceDefinition crd) {
-        ApiextensionsV1beta1Api api = new ApiextensionsV1beta1Api();
-        K8AsyncCallback<V1beta1CustomResourceDefinition> callback = new K8AsyncCallback<>("create CRD-" + crd.getMetadata().getName());
-        api.createCustomResourceDefinitionAsync(crd, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
+    public CompletableFuture<V1CustomResourceDefinition> createCRD(final V1CustomResourceDefinition crd) {
+        ApiextensionsV1Api api = new ApiextensionsV1Api();
+        K8AsyncCallback<V1CustomResourceDefinition> callback = new K8AsyncCallback<>("create CRD-" + crd.getMetadata().getName());
+        api.createCustomResourceDefinitionAsync(crd, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -445,10 +448,10 @@ public class K8sClient {
      * @return A future indicating the status of this operation.
      */
     @SneakyThrows(ApiException.class)
-    public CompletableFuture<V1beta1ClusterRole> createClusterRole(V1beta1ClusterRole role) {
-        RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
-        K8AsyncCallback<V1beta1ClusterRole> callback = new K8AsyncCallback<>("createClusterRole-" + role.getMetadata().getName());
-        api.createClusterRoleAsync(role, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
+    public CompletableFuture<V1ClusterRole> createClusterRole(V1ClusterRole role) {
+        RbacAuthorizationV1Api api = new RbacAuthorizationV1Api();
+        K8AsyncCallback<V1ClusterRole> callback = new K8AsyncCallback<>("createClusterRole-" + role.getMetadata().getName());
+        api.createClusterRoleAsync(role, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -459,10 +462,10 @@ public class K8sClient {
      * @return A future indicating the status of this operation.
      */
     @SneakyThrows(ApiException.class)
-    public CompletableFuture<V1beta1Role> createRole(String namespace, V1beta1Role role) {
-        RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
-        K8AsyncCallback<V1beta1Role> callback = new K8AsyncCallback<>("createRole-" + role.getMetadata().getName());
-        api.createNamespacedRoleAsync(namespace, role, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
+    public CompletableFuture<V1Role> createRole(String namespace, V1Role role) {
+        RbacAuthorizationV1Api api = new RbacAuthorizationV1Api();
+        K8AsyncCallback<V1Role> callback = new K8AsyncCallback<>("createRole-" + role.getMetadata().getName());
+        api.createNamespacedRoleAsync(namespace, role, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -472,10 +475,10 @@ public class K8sClient {
      * @return A future indicating the status of the create role binding operation.
      */
     @SneakyThrows(ApiException.class)
-    public CompletableFuture<V1beta1ClusterRoleBinding> createClusterRoleBinding(V1beta1ClusterRoleBinding binding) {
-        RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
-        K8AsyncCallback<V1beta1ClusterRoleBinding> callback = new K8AsyncCallback<>("createClusterRoleBinding-" + binding.getMetadata().getName());
-        api.createClusterRoleBindingAsync(binding, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
+    public CompletableFuture<V1ClusterRoleBinding> createClusterRoleBinding(V1ClusterRoleBinding binding) {
+        RbacAuthorizationV1Api api = new RbacAuthorizationV1Api();
+        K8AsyncCallback<V1ClusterRoleBinding> callback = new K8AsyncCallback<>("createClusterRoleBinding");
+        api.createClusterRoleBindingAsync(binding, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -486,10 +489,10 @@ public class K8sClient {
      * @return A future indicating the status of the create role binding operation.
      */
     @SneakyThrows(ApiException.class)
-    public CompletableFuture<V1beta1RoleBinding> createRoleBinding(String namespace, V1beta1RoleBinding binding) {
-        RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
-        K8AsyncCallback<V1beta1RoleBinding> callback = new K8AsyncCallback<>("createRoleBinding-" + binding.getMetadata().getName());
-        api.createNamespacedRoleBindingAsync(namespace, binding, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
+    public CompletableFuture<V1RoleBinding> createRoleBinding(String namespace, V1RoleBinding binding) {
+        RbacAuthorizationV1Api api = new RbacAuthorizationV1Api();
+        K8AsyncCallback<V1RoleBinding> callback = new K8AsyncCallback<>("createRoleBinding-" + binding.getMetadata().getName());
+        api.createNamespacedRoleBindingAsync(namespace, binding, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -503,7 +506,7 @@ public class K8sClient {
     public CompletableFuture<V1ServiceAccount> createServiceAccount(String namespace, V1ServiceAccount account) {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1ServiceAccount> callback = new K8AsyncCallback<>("createServiceAccount-" + account.getMetadata().getName());
-        api.createNamespacedServiceAccountAsync(namespace, account, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
+        api.createNamespacedServiceAccountAsync(namespace, account, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -550,7 +553,7 @@ public class K8sClient {
         Watch<V1Pod> watch = Watch.createWatch(
                 client,
                 api.listNamespacedPodCall(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, "POD_NAME=" + podName, null,
-                        null, null, Boolean.TRUE, callback),
+                        null, null, null, Boolean.TRUE, callback),
                 new TypeToken<Watch.Response<V1Pod>>() {
                 }.getType());
 
@@ -583,7 +586,7 @@ public class K8sClient {
     public CompletableFuture<V1ConfigMap> getConfigMap(String name, String namespace) {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1ConfigMap> callback = new K8AsyncCallback<>("readNamespacedConfigMap-" + name);
-        api.readNamespacedConfigMapAsync(name, namespace, PRETTY_PRINT, false, false, callback);
+        api.readNamespacedConfigMapAsync(name, namespace, PRETTY_PRINT,  callback);
         return callback.getFuture();
     }
 
@@ -597,7 +600,7 @@ public class K8sClient {
     public CompletableFuture<V1ConfigMap> createConfigMap(String namespace, V1ConfigMap binding) {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1ConfigMap> callback = new K8AsyncCallback<>("createConfigMap-" + binding.getMetadata().getName());
-        api.createNamespacedConfigMapAsync(namespace, binding, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
+        api.createNamespacedConfigMapAsync(namespace, binding, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -625,7 +628,7 @@ public class K8sClient {
     public CompletableFuture<V1Secret> createSecret(String namespace, V1Secret secret) {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1Secret> callback = new K8AsyncCallback<>("createNamespacedSecret-" + secret.getMetadata().getName());
-        api.createNamespacedSecretAsync(namespace, secret, PRETTY_PRINT, null, null, callback);
+        api.createNamespacedSecretAsync(namespace, secret, PRETTY_PRINT, null, null, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -639,7 +642,7 @@ public class K8sClient {
     public CompletableFuture<V1Secret> getSecret(String name, String namespace) {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1Secret> callback = new K8AsyncCallback<>("readNamespacedSecret-" + name);
-        api.readNamespacedSecretAsync(name, namespace, PRETTY_PRINT, false, false, callback);
+        api.readNamespacedSecretAsync(name, namespace, PRETTY_PRINT, callback);
         return callback.getFuture();
     }
 

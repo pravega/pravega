@@ -38,7 +38,7 @@ import lombok.val;
  * Metadata for a Ledger-based log.
  */
 @NotThreadSafe
-class LogMetadata implements ReadOnlyLogMetadata {
+class LogMetadata implements ReadOnlyBookkeeperLogMetadata {
     //region Members
 
     static final VersionedSerializer.WithBuilder<LogMetadata, LogMetadataBuilder> SERIALIZER = new Serializer();
@@ -161,7 +161,7 @@ class LogMetadata implements ReadOnlyLogMetadata {
         Preconditions.checkState(this.enabled, "Log is not enabled. Cannot perform any modifications on it.");
 
         // Exclude all those Ledgers that have a LedgerId less than the one we are given. An optimization to this would
-        // involve trimming out the ledger which has a matching ledger id and the entry is is the last one, but that would
+        // involve trimming out the ledger which has a matching ledger id and the entry is the last one, but that would
         // involve opening the Ledger in BookKeeper and inspecting it, which would take too long.
         val newLedgers = this.ledgers.stream().filter(lm -> lm.getLedgerId() >= upToAddress.getLedgerId()).collect(Collectors.toList());
         return new LogMetadata(this.epoch, this.enabled, Collections.unmodifiableList(newLedgers), upToAddress, this.updateVersion.get());

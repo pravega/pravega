@@ -1663,6 +1663,49 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof DataCorruptionException);
     }
 
+    @Test
+    public void testMismatchOperationAndStorageOffsets() throws Exception {
+        final WriterConfig config = DEFAULT_CONFIG;
+
+        @Cleanup
+        TestContext context = new TestContext(config);
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        // Add one operation big enough to trigger a Flush.
+        byte[] appendData = new byte[config.getFlushThresholdBytes() + 1];
+        UpdateableSegmentMetadata segmentMetadata = context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID);
+        long offset = segmentMetadata.getLength();
+        segmentMetadata.setLength(offset + appendData.length);
+
+        // Normal Append so far.
+        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(appendData), null);
+        op.setStreamSegmentOffset(offset);
+        op.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
+
+        context.dataSource.recordAppend(op);
+        context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(op));
+        Assert.assertTrue("Unexpected value returned by mustFlush() (size threshold).", context.segmentAggregator.mustFlush());
+
+        // Call flush() and verify it throws DataCorruptionException.
+        context.segmentAggregator.flush(TIMEOUT);
+
+        // Add one operation big enough to trigger a Flush.
+        segmentMetadata = context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID);
+        offset += segmentMetadata.getLength();
+        segmentMetadata.setLength(offset + appendData.length);
+
+        StreamSegmentAppendOperation op2 = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(appendData), null);
+        op2.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
+
+        // By some reason, assume that there is a discrepancy between the offset in Storage we know about this Segment
+        // and the offset of the Append that is supposed to have.
+        op2.setStreamSegmentOffset(offset - 1);
+        context.dataSource.recordAppend(op2);
+
+        // This should be detected upon adding the Operation to the Aggregator.
+        AssertExtensions.assertThrows(DataCorruptionException.class, () -> context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(op2)));
+    }
+
     /**
      * Tests a scenario where the Segment has been deleted (in the metadata) while it was actively flushing. This verifies
      * that an ongoing flush operation will abort (i.e., eventually complete) so that the next iteration of the StorageWriter

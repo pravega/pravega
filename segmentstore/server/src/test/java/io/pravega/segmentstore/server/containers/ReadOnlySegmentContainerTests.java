@@ -134,6 +134,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         assertUnsupported("deleteStreamSegment", () -> context.container.deleteStreamSegment(SEGMENT_NAME, TIMEOUT));
         assertUnsupported("mergeTransaction", () -> context.container.mergeStreamSegment(SEGMENT_NAME, SEGMENT_NAME, TIMEOUT));
         assertUnsupported("mergeTransaction", () -> context.container.mergeStreamSegment(SEGMENT_NAME, SEGMENT_NAME, new AttributeUpdateCollection(), TIMEOUT));
+        assertUnsupported("getExtendedChunkInfo", () -> context.container.getExtendedChunkInfo(SEGMENT_NAME, TIMEOUT));
     }
 
     private byte[] populate(int length, int truncationOffset, TestContext context) {

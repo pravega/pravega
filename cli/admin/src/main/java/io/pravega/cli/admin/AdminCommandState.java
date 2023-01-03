@@ -19,10 +19,14 @@ import io.pravega.cli.admin.serializers.AbstractSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
+import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Getter;
 import lombok.Setter;
+
+import static io.pravega.cli.admin.utils.ConfigUtils.getIfEnv;
 
 /**
  * Keeps state between commands.
@@ -31,7 +35,7 @@ public class AdminCommandState implements AutoCloseable {
     @Getter
     private final ServiceBuilderConfig.Builder configBuilder;
     @Getter
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "password-tools");
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "admin-tools");
     @Getter
     @Setter
     private AbstractSerializer keySerializer = null;
@@ -47,7 +51,14 @@ public class AdminCommandState implements AutoCloseable {
     public AdminCommandState() throws IOException {
         this.configBuilder = ServiceBuilderConfig.builder();
         try {
-            this.configBuilder.include(System.getProperty(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, "conf/admin-cli.properties"));
+            Properties properties = new Properties();
+            try (FileReader reader = new FileReader(System.getProperty(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, "conf/admin-cli.properties"))) {
+                properties.load(reader);
+                for (String propertyName: properties.stringPropertyNames()) {
+                    properties.setProperty(propertyName, getIfEnv(properties.getProperty(propertyName)));
+                }
+            }
+            this.configBuilder.include(properties);
         } catch (FileNotFoundException ex) {
             // Nothing to do here.
         }

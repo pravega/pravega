@@ -20,32 +20,40 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteScopeTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -57,21 +65,39 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.controller.MetricsTestUtil;
+import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.controller.event.DeleteScopeEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -84,13 +110,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -100,6 +119,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -113,11 +133,13 @@ public abstract class RequestHandlersTest {
 
     private final String scope = "scope";
     private RequestTracker requestTracker = new RequestTracker(true);
-
+    private PravegaZkCuratorResource pravegaZkCuratorResource = new PravegaZkCuratorResource();
     private StreamMetadataStore streamStore;
     private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
     private StreamMetadataTasks streamMetadataTasks;
+    private KVTableMetadataStore kvtStore;
+    private TableMetadataTasks kvtTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
     private TestingServer zkServer;
@@ -125,6 +147,7 @@ public abstract class RequestHandlersTest {
     private EventStreamClientFactory clientFactory;
     private ConnectionFactory connectionFactory;
     private SegmentHelper segmentHelper;
+    private StatsProvider statsProvider;
     @Before
     public void setup() throws Exception {
         StreamMetrics.initialize();
@@ -163,16 +186,23 @@ public abstract class RequestHandlersTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-
+        kvtStore = spy(getKvtStore());
+        kvtTasks = mock(TableMetadataTasks.class);
         long createTimestamp = System.currentTimeMillis();
 
         // add a host in zk
         // mock pravega
         // create a stream
         streamStore.createScope(scope, null, executor).get();
+
+        statsProvider = MetricsTestUtil.getInitializedStatsProvider();
+        statsProvider.startWithoutExporting();
+
     }
 
     abstract StreamMetadataStore getStore();
+
+    abstract KVTableMetadataStore getKvtStore();
 
     @After
     public void tearDown() throws Exception {
@@ -186,6 +216,10 @@ public abstract class RequestHandlersTest {
         StreamMetrics.reset();
         TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
+        if (this.statsProvider != null) {
+            statsProvider.close();
+            statsProvider = null;
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -743,9 +777,9 @@ public abstract class RequestHandlersTest {
     @Test
     public void testDeleteAssociatedStream() {
         String stream = "deleteAssociated";
-        createStreamInStore(stream);
+        createStreamInStore(stream, scope);
         String markStream = NameUtils.getMarkStreamForStream(stream);
-        createStreamInStore(markStream);
+        createStreamInStore(markStream, scope);
 
         SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
         DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor);
@@ -772,9 +806,155 @@ public abstract class RequestHandlersTest {
     }
 
     @Test
+    public void testDeleteScopeRecursive() {
+        StreamMetadataStore streamStoreSpied = spy(getStore());
+        KVTableMetadataStore kvtStoreSpied = spy(getKvtStore());
+        OperationContext ctx = new OperationContext() {
+            @Override
+            public long getOperationStartTime() {
+                return 0;
+            }
+
+            @Override
+            public long getRequestId() {
+                return 0;
+            }
+        };
+        UUID scopeId = streamStoreSpied.getScopeId(scope, ctx, executor).join();
+        doAnswer(x -> {
+            CompletableFuture<UUID> cf = new CompletableFuture<>();
+            cf.complete(scopeId);
+            return cf;
+        }).when(streamStoreSpied).getScopeId(eq(scope), eq(ctx), eq(executor));
+
+        doAnswer(invocation -> {
+            CompletableFuture<Boolean> cf = new CompletableFuture<>();
+            cf.complete(false);
+            return cf;
+        }).when(streamStoreSpied).isScopeSealed(eq(scope), any(), any());
+
+        DeleteScopeTask requestHandler = new DeleteScopeTask(streamMetadataTasks, streamStoreSpied, kvtStoreSpied, kvtTasks, executor);
+        DeleteScopeEvent event = new DeleteScopeEvent(scope, System.currentTimeMillis(), scopeId);
+        CompletableFuture<Void> future = CompletableFuture.completedFuture(null)
+                .thenComposeAsync(v -> requestHandler.execute(event), executor);
+        future.join();
+    }
+
+    @Test
+    public void scopeDeleteTest() {
+        final String testScope = "testScope";
+        final String testStream = "testStream";
+        final String testRG = "_RGTestRG";
+        final String testKVT = "testKVT";
+        StreamMetadataStore streamStoreSpied = spy(getStore());
+        KVTableMetadataStore kvtStoreSpied = spy(getKvtStore());
+        StreamMetadataTasks streamMetadataTasks1 = mock(StreamMetadataTasks.class);
+        TableMetadataTasks kvtTasksMocked = mock(TableMetadataTasks.class);
+        streamStoreSpied.createScope(testScope, null, executor).join();
+        OperationContext ctx = new OperationContext() {
+            @Override
+            public long getOperationStartTime() {
+                return 0;
+            }
+
+            @Override
+            public long getRequestId() {
+                return 0;
+            }
+        };
+        UUID scopeId = streamStoreSpied.getScopeId(testScope, ctx, executor).join();
+        doAnswer(x -> {
+            CompletableFuture<UUID> cf = new CompletableFuture<>();
+            cf.complete(scopeId);
+            return cf;
+        }).when(streamStoreSpied).getScopeId(eq(testScope), eq(ctx), eq(executor));
+
+        doAnswer(invocation -> {
+            CompletableFuture<Boolean> cf = new CompletableFuture<>();
+            cf.complete(true);
+            return cf;
+        }).when(streamStoreSpied).isScopeSealed(eq(testScope), any(), any());
+
+        createStreamInStore(testStream, testScope);
+        createStreamInStore(testRG, testScope);
+        assertTrue(streamStore.checkStreamExists(testScope, testStream, ctx, executor).join());
+
+        doAnswer(invocation -> {
+            CompletableFuture<Controller.UpdateStreamStatus.Status> future = new CompletableFuture<>();
+            future.complete(Controller.UpdateStreamStatus.Status.SUCCESS);
+            return future;
+        }).when(streamMetadataTasks1).sealStream(anyString(), anyString(), anyLong());
+
+        doAnswer(invocation -> {
+            CompletableFuture<Controller.DeleteStreamStatus.Status> future = new CompletableFuture<>();
+            future.complete(Controller.DeleteStreamStatus.Status.SUCCESS);
+            return future;
+        }).when(streamMetadataTasks1).deleteStream(anyString(), anyString(), anyLong());
+
+        // Create Reader Group
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                .stream(NameUtils.getScopedStreamName(testScope, testStream))
+                .build();
+        final ReaderGroupConfig config = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 123L);
+
+        Controller.ReaderGroupConfiguration expectedConfig = ModelHelper.decode(testScope, testRG, config);
+
+        doAnswer(invocationOnMock -> {
+            CompletableFuture<Controller.CreateReaderGroupResponse.Status> createRG = new CompletableFuture<>();
+            createRG.complete(Controller.CreateReaderGroupResponse.Status.SUCCESS);
+            return createRG;
+        }).when(streamMetadataTasks1).createReaderGroup(anyString(), any(), any(), anyLong(), anyLong());
+
+        doAnswer(invocation -> CompletableFuture.completedFuture(Controller.ReaderGroupConfigResponse.newBuilder()
+                .setStatus(Controller.ReaderGroupConfigResponse.Status.SUCCESS)
+                .setConfig(expectedConfig)
+                .build()))
+                .when(streamMetadataTasks1).getReaderGroupConfig(eq(testScope), anyString(), anyLong());
+
+        doAnswer(invocationOnMock -> {
+            CompletableFuture<Controller.DeleteReaderGroupStatus.Status> future = new CompletableFuture<>();
+            future.complete(Controller.DeleteReaderGroupStatus.Status.SUCCESS);
+            return future;
+        }).when(streamMetadataTasks1).deleteReaderGroup(anyString(), anyString(), anyString(), anyLong());
+
+        // Create KVT
+        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(1).secondaryKeyLength(1).build();
+        doAnswer(invocationOnMock -> {
+            CompletableFuture<Controller.CreateKeyValueTableStatus.Status> fut = new CompletableFuture<>();
+            fut.complete(Controller.CreateKeyValueTableStatus.Status.SUCCESS);
+            return fut;
+        }).when(kvtTasksMocked).createKeyValueTable(anyString(), anyString(), any(), anyLong(), anyLong());
+        List<String> tableList = new ArrayList<>();
+        tableList.add(testKVT);
+        Pair<List<String>, String> listOfKVTables = new ImmutablePair<>(tableList, "");
+
+        doAnswer(invocationOnMock -> CompletableFuture.completedFuture(listOfKVTables))
+                .doAnswer(invocationOnMock ->
+                        CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyList(),
+                                invocationOnMock.getArgument(0))))
+                .when(kvtStoreSpied).listKeyValueTables(anyString(), any(), anyInt(), any(), any());
+
+        doAnswer(invocationOnMock -> {
+            CompletableFuture<Controller.DeleteKVTableStatus.Status> future = new CompletableFuture<>();
+            future.complete(Controller.DeleteKVTableStatus.Status.SUCCESS);
+            return future;
+        }).when(kvtTasksMocked).deleteKeyValueTable(anyString(), anyString(), anyLong());
+
+        Controller.CreateKeyValueTableStatus.Status status = kvtTasksMocked.createKeyValueTable(testScope,
+                testKVT, kvtConfig, System.currentTimeMillis(), 123L).join();
+        assertEquals(status, Controller.CreateKeyValueTableStatus.Status.SUCCESS);
+
+        DeleteScopeTask requestHandler = new DeleteScopeTask(streamMetadataTasks1, streamStoreSpied, kvtStoreSpied, kvtTasksMocked, executor);
+        DeleteScopeEvent event = new DeleteScopeEvent(testScope, 123L, scopeId);
+        CompletableFuture<Void> future = requestHandler.execute(event);
+        future.join();
+        assertTrue(MetricsTestUtil.getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_SCOPE_LATENCY) > 0);
+    }
+
+    @Test
     public void testDeleteBucketReferences() {
         String stream = "deleteReferences";
-        createStreamInStore(stream);
+        createStreamInStore(stream, scope);
         String scopedStreamName = NameUtils.getScopedStreamName(scope, stream);
         int watermarkingBuckets = bucketStore.getBucketCount(BucketStore.ServiceType.WatermarkingService);
         int retentionBuckets = bucketStore.getBucketCount(BucketStore.ServiceType.RetentionService);
@@ -816,7 +996,7 @@ public abstract class RequestHandlersTest {
     @Test
     public void testDeleteStreamReplay() {
         String stream = "delete";
-        createStreamInStore(stream);
+        createStreamInStore(stream, scope);
 
         SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
         DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor);
@@ -834,7 +1014,7 @@ public abstract class RequestHandlersTest {
         deleteStreamTask.execute(firstDeleteEvent).join();
 
         // recreate stream with same name in the store
-        createStreamInStore(stream);
+        createStreamInStore(stream, scope);
 
         long newCreationTime = streamStore.getCreationTime(scope, stream, null, executor).join();
 
@@ -855,12 +1035,12 @@ public abstract class RequestHandlersTest {
         deleteStreamTask.execute(secondDeleteEvent).join();
     }
 
-    private void createStreamInStore(String stream) {
+    private void createStreamInStore(String stream, String scopeName) {
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
 
-        streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
-        streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
+        streamStore.createStream(scopeName, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore.setState(scopeName, stream, State.ACTIVE, null, executor).join();
     }
 
     @Test
@@ -875,6 +1055,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, kvtTasks, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -928,6 +1109,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, kvtTasks, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -980,6 +1162,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, kvtTasks, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -1018,11 +1201,40 @@ public abstract class RequestHandlersTest {
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
     }
-    
+
+    @Test(timeout = 10000)
+    public void testCommitFailureOnNoSuchSegment() {
+        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        String noSuchSegment = "noSuchSegment";
+        streamStore.createScope(noSuchSegment, null, executor).join();
+        streamMetadataTasks.createStream(noSuchSegment, noSuchSegment, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                System.currentTimeMillis(), 0L).join();
+
+        UUID txn = streamTransactionMetadataTasks.createTxn(noSuchSegment, noSuchSegment, 30000, 0L, 1024 * 1024L).join().getKey().getId();
+        streamStore.sealTransaction(noSuchSegment, noSuchSegment, txn, true, Optional.empty(), "", Long.MIN_VALUE,
+                null, executor).join();
+
+        // 1. set segment helper mock to throw exception
+        doAnswer(x -> Futures.failedFuture(new WireCommandFailedException(WireCommandType.NO_SUCH_SEGMENT, WireCommandFailedException.Reason.SegmentDoesNotExist)))
+                .when(segmentHelper).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
+                        anyString(), anyLong());
+
+        streamStore.startCommitTransactions(noSuchSegment, noSuchSegment, 100, null, executor).join();
+        streamStore.setState(noSuchSegment, noSuchSegment, State.COMMITTING_TXN, null, executor).join();
+
+        assertEquals(State.COMMITTING_TXN, streamStore.getState(noSuchSegment, noSuchSegment, true, null, executor).join());
+
+        CommitEvent event = new CommitEvent(noSuchSegment, noSuchSegment, 0);
+        AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false),
+                e -> Exceptions.unwrap(e) instanceof IllegalStateException);
+
+        verify(segmentHelper, atLeastOnce()).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
+                anyString(), anyLong());
+    }
+
     @Test
     public void testCommitTxnIgnoreFairness() {
-        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, 
-                streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
@@ -1034,7 +1246,7 @@ public abstract class RequestHandlersTest {
         
         // 1. set segment helper mock to throw exception
         doAnswer(x -> Futures.failedFuture(new RuntimeException()))
-                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+                .when(segmentHelper).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         
         streamStore.startCommitTransactions(fairness, fairness, 100, null, executor).join();
@@ -1045,10 +1257,9 @@ public abstract class RequestHandlersTest {
         assertEquals(State.COMMITTING_TXN, streamStore.getState(fairness, fairness, true, null, executor).join());
         
         CommitEvent event = new CommitEvent(fairness, fairness, 0);
-        AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false), e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
-        verify(segmentHelper, atLeastOnce()).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+        verify(segmentHelper, atLeastOnce()).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         
         // 3. set waiting processor to "random name"
@@ -1056,7 +1267,7 @@ public abstract class RequestHandlersTest {
         
         // 4. reset segment helper to return success
         doAnswer(x -> CompletableFuture.completedFuture(0L))
-                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+                .when(segmentHelper).mergeTxnSegments(anyString(), anyString(), anyLong(), anyLong(), any(),
                 anyString(), anyLong());
         
         // 5. process again. it should succeed while ignoring waiting processor
@@ -1082,6 +1293,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, kvtTasks, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();
@@ -1133,6 +1345,7 @@ public abstract class RequestHandlersTest {
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
+                new DeleteScopeTask(streamMetadataTasks, streamStore, kvtStore, kvtTasks, executor),
                 executor);
         String fairness = "fairness";
         streamStore.createScope(fairness, null, executor).join();

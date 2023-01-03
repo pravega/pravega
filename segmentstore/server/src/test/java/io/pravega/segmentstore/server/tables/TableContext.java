@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -44,6 +45,7 @@ import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -216,6 +218,11 @@ public class TableContext implements AutoCloseable {
 
         @Override
         public CompletableFuture<Void> flushToStorage(Duration timeout) {
+            throw new UnsupportedOperationException("Not Expected");
+        }
+
+        @Override
+        public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 

@@ -20,7 +20,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -38,8 +37,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class RequestTracker {
 
+    @VisibleForTesting
+    static final int MAX_PARALLEL_REQUESTS = 10;
     private static final String INTER_FIELD_DELIMITER = "-";
-    private static final int MAX_CACHE_SIZE = 1000000;
+    private static final int MAX_CACHE_SIZE = 100000;
     private static final int EVICTION_PERIOD_MINUTES = 10;
 
     private final Object lock = new Object();
@@ -107,6 +108,8 @@ public final class RequestTracker {
         List<Long> descriptorIds;
         synchronized (lock) {
             descriptorIds = ongoingRequests.getIfPresent(requestDescriptor);
+            // If there are multiple parallel requests for the same descriptor, the first one will be the primary (i.e., the one
+            // used to log the lifecycle of the request).
             requestId = (descriptorIds == null || descriptorIds.size() == 0) ? RequestTag.NON_EXISTENT_ID : descriptorIds.get(0);
             if (descriptorIds == null) {
                 log.debug("Attempting to get a non-existing tag: {}.", requestDescriptor);
@@ -166,11 +169,15 @@ public final class RequestTracker {
         synchronized (lock) {
             List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
             if (requestIds == null) {
-                requestIds = Collections.synchronizedList(new ArrayList<>());
+                requestIds = new ArrayList<>();
+                ongoingRequests.put(requestDescriptor, requestIds);
             }
 
             requestIds.add(requestId);
-            ongoingRequests.put(requestDescriptor, requestIds);
+            if (requestIds.size() > MAX_PARALLEL_REQUESTS) {
+                // Delete the oldest parallel that is not the primary (first) one request id to bound the size of this list.
+                requestIds.remove(1);
+            }
         }
 
         log.debug("Tracking request {} with id {}.", requestDescriptor, requestId);
@@ -255,6 +262,8 @@ public final class RequestTracker {
      */
     @VisibleForTesting
     public long getNumDescriptors() {
-        return ongoingRequests.size();
+        synchronized (lock) {
+            return ongoingRequests.size();
+        }
     }
 }

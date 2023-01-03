@@ -35,7 +35,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.test.integration.demo.ClusterWrapper;
+import io.pravega.test.integration.utils.ClusterWrapper;
 
 import java.net.URI;
 import java.util.List;

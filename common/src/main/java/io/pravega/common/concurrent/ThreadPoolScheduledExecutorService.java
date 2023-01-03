@@ -16,6 +16,7 @@
 
 package io.pravega.common.concurrent;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
@@ -35,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.Data;
 import lombok.Getter;
 import lombok.EqualsAndHashCode;
@@ -65,6 +67,8 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
     private static final AtomicLong COUNTER = new AtomicLong(0);
     @Getter(AccessLevel.PACKAGE)
     private final ThreadPoolExecutor runner;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final ScheduledQueue<ScheduledRunnable<?>> queue;
 
     /**
@@ -273,7 +277,8 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
     private abstract class ScheduleLoop implements Callable<Void>, ScheduledFuture<Void> {
         final Runnable command;
         final AtomicBoolean canceled = new AtomicBoolean(false);
-        final CompletableFuture<Void> shutdownFuture = new CompletableFuture<>(); 
+        final CompletableFuture<Void> shutdownFuture = new CompletableFuture<>();
+        final AtomicReference<ScheduledFuture<Void>> scheduledFuture = new AtomicReference<ScheduledFuture<Void>>();
 
         @Override
         public Void call() {
@@ -288,7 +293,7 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
                 }
                 if (!canceled.get()) {
                     try {
-                        schedule();
+                        scheduledFuture.set(schedule());
                     } catch (RejectedExecutionException e) {
                         //Pool has shutdown
                         log.debug("Shutting down task {} because pool {} has shutdown.", command, runner);
@@ -299,7 +304,7 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
             return null;
         }
 
-        abstract void schedule();
+        abstract ScheduledFuture<Void> schedule();
 
         @Override
         public int compareTo(Delayed other) {
@@ -314,6 +319,10 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
         public boolean cancel(boolean mayInterruptIfRunning) {
             if (canceled.getAndSet(true)) {
                 return false;
+            }
+            ScheduledFuture<Void> future = scheduledFuture.get();
+            if (future != null) {
+                future.cancel(mayInterruptIfRunning);
             }
             shutdownFuture.completeExceptionally(new CancellationException());
             return true;
@@ -356,8 +365,8 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
         }
 
         @Override
-        void schedule() {
-            ThreadPoolScheduledExecutorService.this.schedule(this, delay, unit);
+        ScheduledFuture<Void> schedule() {
+            return ThreadPoolScheduledExecutorService.this.schedule(this, delay, unit);
         }
     }
     
@@ -384,8 +393,10 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
         }
         
         @Override
-        void schedule() {
-            runner.execute(new ScheduledRunnable<>(this, startTimeNanos.get() + periodNanos));
+        ScheduledFuture<Void> schedule() {
+            ScheduledRunnable<Void> task = new ScheduledRunnable<>(this, startTimeNanos.get() + periodNanos);
+            runner.execute(task);
+            return new CancelableFuture<>(task);
         }
     }
 

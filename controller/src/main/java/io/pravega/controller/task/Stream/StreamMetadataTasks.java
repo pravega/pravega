@@ -20,14 +20,14 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
@@ -36,48 +36,50 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
+import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.ReaderGroupState;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.ReaderGroupState;
-import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
-import io.pravega.shared.controller.event.RGStreamCutRecord;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
@@ -85,32 +87,36 @@ import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.CreateReaderGroupEvent;
+import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
+import io.pravega.shared.controller.event.DeleteScopeEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
+import io.pravega.shared.controller.event.RGStreamCutRecord;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
-import io.pravega.shared.controller.event.UpdateStreamEvent;
-import io.pravega.shared.controller.event.CreateReaderGroupEvent;
-import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
 import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
+import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
+import org.slf4j.LoggerFactory;
+
+import javax.annotation.concurrent.GuardedBy;
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.Iterator;
 import java.util.UUID;
-import java.util.concurrent.Executor;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -121,11 +127,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-
-import org.slf4j.LoggerFactory;
-
-import javax.annotation.concurrent.GuardedBy;
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
+import static io.pravega.shared.NameUtils.getQualifiedStreamSegmentName;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -138,6 +141,7 @@ public class StreamMetadataTasks extends TaskBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final int SUBSCRIBER_OPERATION_RETRIES = 10;
     private static final int READER_GROUP_OPERATION_MAX_RETRIES = 10;
+    private static final int SCOPE_DELETION_MAX_RETRIES = 10;
     private static final long READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES = 4 * 1024 * 1024; // 4MB
     private final AtomicLong retentionFrequencyMillis;
 
@@ -149,7 +153,6 @@ public class StreamMetadataTasks extends TaskBase {
     private final ScheduledExecutorService eventExecutor;
     private final CompletableFuture<EventHelper> eventHelperFuture;
     private final AtomicReference<Supplier<Long>> retentionClock;
-    private final Random requestIdGenerator = new Random();
 
     @GuardedBy("lock")
     private EventHelper eventHelper = null;
@@ -377,6 +380,7 @@ public class StreamMetadataTasks extends TaskBase {
                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, context))
                                          .thenCompose(done -> buildCreateSuccessResponse(scope, rgName, context)))));
                      }
+                     log.info(requestId, "Reader Group {} already exists", NameUtils.getScopedReaderGroupName(scope, rgName));
                      return buildCreateSuccessResponse(scope, rgName, context);
                  });
          });
@@ -723,6 +727,40 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     /**
+     * Delete Scope Recursively.
+     *
+     * @param scope           scope to be deleted.
+     * @param requestId       request id.
+     * @return deletion status.
+     */
+    public CompletableFuture<DeleteScopeStatus.Status> deleteScopeRecursive(final String scope,
+                                                                              final long requestId) {
+        final OperationContext context = streamMetadataStore.createScopeContext(scope, requestId);
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.isScopeSealed(scope, context, executor)
+                .thenCompose(sealed -> {
+                    if (sealed) {
+                        log.debug(requestId, "Another Scope deletion API call for {} is already in progress", scope);
+                        return CompletableFuture.completedFuture(DeleteScopeStatus.Status.SUCCESS);
+                    } else {
+                        return streamMetadataStore.checkScopeExists(scope, context, executor).thenCompose(scopeExist -> {
+                            if (!scopeExist) {
+                                log.info(requestId, "Requested Scope {} doesn't exist", scope);
+                                return CompletableFuture.completedFuture(DeleteScopeStatus.Status.SUCCESS);
+                            }
+                            return streamMetadataStore.getScopeId(scope, context, executor).thenCompose(scopeId -> {
+                                DeleteScopeEvent deleteEvent = new DeleteScopeEvent(scope, requestId, scopeId);
+                                return eventHelper.addIndexAndSubmitTask(deleteEvent,
+                                                () -> streamMetadataStore.sealScope(scope, context, executor))
+                                        .thenCompose(x -> eventHelper.checkDone(() -> isScopeDeletionComplete(scope, context)))
+                                        .thenApply(y -> DeleteScopeStatus.Status.SUCCESS);
+                            });
+                        });
+                    }
+                }), e -> Exceptions.unwrap(e) instanceof RetryableException, SCOPE_DELETION_MAX_RETRIES, executor
+        ).exceptionally(ex -> handleDeleteScopeError(ex, requestId, scope));
+    }
+
+    /**
      * Create stream.
      *
      * @param scope           scope.
@@ -738,10 +776,10 @@ public class StreamMetadataTasks extends TaskBase {
         log.debug(requestId, "createStream with resource called.");
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
-        return execute(
-                new Resource(scope, stream),
-                new Serializable[]{scope, stream, config, createTimestamp, requestId},
-                () -> createStreamBody(scope, stream, config, createTimestamp, context));
+            return execute(
+                    new Resource(scope, stream),
+                    new Serializable[]{scope, stream, config, createTimestamp, requestId},
+                    () -> createStreamBody(scope, stream, config, createTimestamp, context));
     }
 
     /**
@@ -850,7 +888,6 @@ public class StreamMetadataTasks extends TaskBase {
                                 }
                             });
                 });
-
     }
 
     /**
@@ -932,7 +969,7 @@ public class StreamMetadataTasks extends TaskBase {
                                              final String delegationToken) {
         Preconditions.checkNotNull(policy);
         final OperationContext context = contextOpt != null ? contextOpt :
-                streamMetadataStore.createStreamContext(scope, stream, requestIdGenerator.nextLong());
+                streamMetadataStore.createStreamContext(scope, stream, ControllerService.nextRequestId());
 
         return streamMetadataStore.getRetentionSet(scope, stream, context, executor)
                 .thenCompose(retentionSet -> {
@@ -1384,7 +1421,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                                 final StreamCutRecord previous,
                                                                 final OperationContext contextOpt, String delegationToken) {
         final OperationContext context = contextOpt != null ? contextOpt :
-                streamMetadataStore.createStreamContext(scope, stream, requestIdGenerator.nextLong());
+                streamMetadataStore.createStreamContext(scope, stream, ControllerService.nextRequestId());
 
         return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
                 .thenCompose(activeSegments -> Futures.allOfWithResults(activeSegments
@@ -1445,7 +1482,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Long, Long> streamCut,
                                                        OperationContext contextOpt) {
         final OperationContext context = contextOpt != null ? contextOpt :
-                streamMetadataStore.createStreamContext(scope, stream, requestIdGenerator.nextLong());
+                streamMetadataStore.createStreamContext(scope, stream, ControllerService.nextRequestId());
         long requestId = context.getRequestId();
         return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
                 .thenCompose(property -> {
@@ -1613,6 +1650,14 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenApply(x -> !x);
     }
 
+    private CompletableFuture<Boolean> isScopeDeletionComplete(String scope, OperationContext context) {
+        // The last step of Recursive Delete Scope is to remove entry of scope from Deleting_Scopes_Table
+        // Method will return true if the entry is removed from Scopes Table
+        return streamMetadataStore.isScopeSealed(scope, context, executor)
+                .thenApply(x -> !x);
+    }
+
+
     /**
      * Helper method to perform scale operation against an scale request.
      * This method posts a request in the request stream and then starts the scale operation while
@@ -1738,63 +1783,68 @@ public class StreamMetadataTasks extends TaskBase {
     CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config,
                                                                   long timestamp, OperationContext context) {
         long requestId = getRequestId(context);
-
-        return this.streamMetadataStore.createStream(scope, stream, config, timestamp, context, executor)
-                .thenComposeAsync(response -> {
-                    log.debug(requestId, "{}/{} created in metadata store", scope, stream);
-                    CreateStreamStatus.Status status = translate(response.getStatus());
-                    // only if its a new stream or an already existing non-active stream then we will create
-                    // segments and change the state of the stream to active.
-                    if (response.getStatus().equals(CreateStreamResponse.CreateStatus.NEW) ||
-                            response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
-                        final int startingSegmentNumber = response.getStartingSegmentNumber();
-                        final int minNumSegments = response.getConfiguration().getScalingPolicy().getMinNumSegments();
-                        List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
-                                                           .boxed()
-                                                           .map(x -> NameUtils.computeSegmentId(x, 0))
-                                                           .collect(Collectors.toList());
-                        return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments,
-                                this.retrieveDelegationToken(), requestId)
-                                .thenCompose(v -> createMarkStream(scope, stream, timestamp, requestId))
-                                .thenCompose(y -> {
-                                    return withRetries(() -> {
-                                        CompletableFuture<Void> future;
-                                        if (config.getRetentionPolicy() != null) {
-                                            future = bucketStore.addStreamToBucketStore(
-                                                    BucketStore.ServiceType.RetentionService, scope, stream, executor);
-                                        } else {
-                                            future = CompletableFuture.completedFuture(null);
-                                        }
-                                        return future.thenCompose(v -> streamMetadataStore.addStreamTagsToIndex(scope, stream, config, context, executor) )
-                                                .thenCompose(v -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
-                                                .thenCompose(state -> {
-                                                    if (state.getObject().equals(State.CREATING)) {
-                                                        return streamMetadataStore.updateVersionedState(
-                                                                scope, stream, State.ACTIVE, state, context, executor);
-                                                    } else {
-                                                        return CompletableFuture.completedFuture(state);
-                                                    }
-                                                }));
-                                    }, executor)
-                                            .thenApply(z -> status);
-                                });
-                    } else {
-                        return CompletableFuture.completedFuture(status);
-                    }
-                }, executor)
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        Throwable cause = Exceptions.unwrap(ex);
-                        log.warn(requestId, "Create stream failed due to ", ex);
-                        if (cause instanceof StoreException.DataNotFoundException) {
-                            return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
+        return this.streamMetadataStore.isScopeSealed(scope, context, executor).thenCompose(scopeSealed -> {
+           if (scopeSealed) {
+               log.warn(requestId, "Create stream failed due to scope in sealed state");
+               return CompletableFuture.completedFuture(CreateStreamStatus.Status.SCOPE_NOT_FOUND);
+           }
+            return this.streamMetadataStore.createStream(scope, stream, config, timestamp, context, executor)
+                    .thenComposeAsync(response -> {
+                        log.debug(requestId, "{}/{} created in metadata store", scope, stream);
+                        CreateStreamStatus.Status status = translate(response.getStatus());
+                        // only if it's a new stream or an already existing non-active stream then we will create
+                        // segments and change the state of the stream to active.
+                        if (response.getStatus().equals(CreateStreamResponse.CreateStatus.NEW) ||
+                                response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
+                            final int startingSegmentNumber = response.getStartingSegmentNumber();
+                            final int minNumSegments = response.getConfiguration().getScalingPolicy().getMinNumSegments();
+                            List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
+                                    .boxed()
+                                    .map(x -> NameUtils.computeSegmentId(x, 0))
+                                    .collect(Collectors.toList());
+                            return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments,
+                                    this.retrieveDelegationToken(), requestId)
+                                    .thenCompose(v -> createMarkStream(scope, stream, timestamp, requestId))
+                                    .thenCompose(y -> {
+                                        return withRetries(() -> {
+                                            CompletableFuture<Void> future;
+                                            if (config.getRetentionPolicy() != null) {
+                                                future = bucketStore.addStreamToBucketStore(
+                                                        BucketStore.ServiceType.RetentionService, scope, stream, executor);
+                                            } else {
+                                                future = CompletableFuture.completedFuture(null);
+                                            }
+                                            return future.thenCompose(v -> streamMetadataStore.addStreamTagsToIndex(scope, stream, config, context, executor) )
+                                                    .thenCompose(v -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
+                                                            .thenCompose(state -> {
+                                                                if (state.getObject().equals(State.CREATING)) {
+                                                                    return streamMetadataStore.updateVersionedState(
+                                                                            scope, stream, State.ACTIVE, state, context, executor);
+                                                                } else {
+                                                                    return CompletableFuture.completedFuture(state);
+                                                                }
+                                                            }));
+                                        }, executor)
+                                                .thenApply(z -> status);
+                                    });
                         } else {
-                            return CreateStreamStatus.Status.FAILURE;
+                            return CompletableFuture.completedFuture(status);
                         }
-                    } else {
-                        return result;
-                    }
-                });
+                    }, executor)
+                    .handle((result, ex) -> {
+                        if (ex != null) {
+                            Throwable cause = Exceptions.unwrap(ex);
+                            log.warn(requestId, "Create stream failed due to ", ex);
+                            if (cause instanceof StoreException.DataNotFoundException) {
+                                return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
+                            } else {
+                                return CreateStreamStatus.Status.FAILURE;
+                            }
+                        } else {
+                            return result;
+                        }
+                    });
+        });
     }
 
     /**
@@ -1975,22 +2025,42 @@ public class StreamMetadataTasks extends TaskBase {
         }
     }
 
-    public CompletableFuture<Map<Long, Long>> notifyTxnCommit(final String scope, final String stream,
-                                                   final List<Long> segments, final UUID txnId, long requestId) {
-        Timer timer = new Timer();
-        return Futures.allOfWithResults(segments.stream()
-                .collect(Collectors.toMap(x -> x, x -> notifyTxnCommit(scope, stream, x, txnId, requestId))))
-                .whenComplete((r, e) -> TransactionMetrics.getInstance().commitTransactionSegments(timer.getElapsed()));
+    private DeleteScopeStatus.Status handleDeleteScopeError(Throwable ex, long requestId, String scopeName) {
+        Throwable cause = Exceptions.unwrap(ex);
+        log.error(requestId, "Exception deleting scope {}. Cause: {}", scopeName, ex);
+        if (cause instanceof StoreException.DataNotFoundException) {
+            return DeleteScopeStatus.Status.SCOPE_NOT_FOUND;
+        } else if (cause instanceof TimeoutException) {
+            throw new CompletionException(cause);
+        } else {
+            return DeleteScopeStatus.Status.FAILURE;
+        }
     }
 
-    private CompletableFuture<Long> notifyTxnCommit(final String scope, final String stream,
-                                                    final long segmentNumber, final UUID txnId, long requestId) {
-        return TaskStepsRetryHelper.withRetries(() -> segmentHelper.commitTransaction(scope,
+    public CompletableFuture<Map<Long, List<Long>>> mergeTxnSegmentsIntoStreamSegments(final String scope, final String stream,
+                                                                                       final List<Long> segments, final List<UUID> txnIds, long requestId) {
+        return Futures.allOfWithResults(segments.stream()
+                        .collect(Collectors.toMap(segId -> segId, segId -> mergeTxnSegments(scope, stream, segId, txnIds, requestId))));
+    }
+
+    private CompletableFuture<List<Long>> mergeTxnSegments(final String scope, final String stream,
+                                                                             final long segmentNumber, final List<UUID> txnIds, long requestId) {
+        return TaskStepsRetryHelper.withRetries(() -> segmentHelper.mergeTxnSegments(scope,
                 stream,
                 segmentNumber,
                 segmentNumber,
-                txnId,
-                this.retrieveDelegationToken(), requestId), executor);
+                txnIds,
+                this.retrieveDelegationToken(), requestId).exceptionally(ex -> {
+                    if (ex instanceof WireCommandFailedException) {
+                        WireCommandFailedException wcfe = (WireCommandFailedException) ex;
+                        if (WireCommandFailedException.Reason.SegmentDoesNotExist.equals(wcfe.getReason())) {
+                            final String qualifiedSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentNumber);
+                            String message = String.format("Segment Merge failed as target segment [%s] was not found.", qualifiedSegmentName);
+                            throw new IllegalStateException(message);
+                        }
+                    }
+                    throw new CompletionException(ex);
+        }), executor);
     }
 
     public CompletableFuture<Void> notifyTxnAbort(final String scope, final String stream,
@@ -2076,6 +2146,6 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     public long getRequestId(OperationContext context) {
-        return context != null ? context.getRequestId() : requestIdGenerator.nextLong();
+        return context != null ? context.getRequestId() : ControllerService.nextRequestId();
     }
 }

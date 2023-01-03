@@ -31,6 +31,7 @@ import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_FAILED;
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_LATENCY;
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_SEGMENTS_LATENCY;
+import static io.pravega.shared.MetricsNames.CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_LATENCY;
 import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION;
 import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_FAILED;
 import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_LATENCY;
@@ -38,7 +39,6 @@ import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_SEGMENTS_LATENCY
 import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
-import static io.pravega.shared.MetricsTags.transactionTags;
 
 /**
  * Class to encapsulate the logic to report Controller service metrics for Transactions.
@@ -55,6 +55,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger abortTransactionLatency;
     private final OpStatsLogger abortTransactionSegmentsLatency;
     private final OpStatsLogger abortingTransactionLatency;
+    private final OpStatsLogger controllerEventProcessorCommitTransactionLatency;
 
     private TransactionMetrics() {
         createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
@@ -65,6 +66,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
         abortTransactionSegmentsLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_SEGMENTS_LATENCY);
         abortingTransactionLatency = STATS_LOGGER.createStats(ABORTING_TRANSACTION_LATENCY);
+        controllerEventProcessorCommitTransactionLatency = STATS_LOGGER.createStats(CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_LATENCY);
     }
 
     /**
@@ -153,19 +155,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the global, Stream-related and Transaction-related counters of failed commit operations.
-     *
-     * @param scope      Scope.
-     * @param streamName Name of the Stream.
-     * @param txnId      Transaction id.
-     */
-    public void commitTransactionFailed(String scope, String streamName, String txnId) {
-        commitTransactionFailed(scope, streamName);
-        DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION_FAILED, 1, transactionTags(scope, streamName, txnId));
-    }
-
-    /**
-     * This method increments the global, Stream-related counters of failed commit operations.
+     * This method increments the global and Stream-related counters of failed commit operations.
      *
      * @param scope      Scope.
      * @param streamName Name of the Stream.
@@ -208,16 +198,23 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the global, Stream-related and Transaction-related counters of failed abort operations.
+     * This method increments the global and Stream-related counters of failed abort operations.
      *
      * @param scope      Scope.
      * @param streamName Name of the Stream.
-     * @param txnId      Transaction id.
      */
-    public void abortTransactionFailed(String scope, String streamName, String txnId) {
+    public void abortTransactionFailed(String scope, String streamName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(ABORT_TRANSACTION_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED, 1, streamTags(scope, streamName));
-        DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED, 1, transactionTags(scope, streamName, txnId));
+    }
+
+    /**
+     * This method reports the latency of ControllerEventProcessor commitTransaction event processing.
+     *
+     * @param latency       Latency of the controllerEventProcessorCommitTransactionLatency event operation.
+     */
+    public void controllerEventProcessorCommitTransactionLatency(Duration latency) {
+        controllerEventProcessorCommitTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
@@ -242,6 +239,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
             old.abortTransactionLatency.close();
             old.abortTransactionSegmentsLatency.close();
             old.abortingTransactionLatency.close();
+            old.controllerEventProcessorCommitTransactionLatency.close();
         }
         INSTANCE.set(new TransactionMetrics());
     }

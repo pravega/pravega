@@ -44,6 +44,7 @@ public abstract class AbstractAdminCommandTest {
         pravegaProperties.setProperty("pravegaservice.zk.connect.uri", SETUP_UTILS.getZkTestServer().getConnectString());
         pravegaProperties.setProperty("pravegaservice.container.count", "4");
         pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(SETUP_UTILS.getAdminPort()));
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega/pravega-cluster");
         STATE.get().getConfigBuilder().include(pravegaProperties);
     }
 

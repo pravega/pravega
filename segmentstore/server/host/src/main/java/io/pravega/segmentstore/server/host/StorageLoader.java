@@ -15,17 +15,20 @@
  */
 package io.pravega.segmentstore.server.host;
 
-import java.util.ServiceLoader;
-import java.util.concurrent.ScheduledExecutorService;
-
 import io.pravega.segmentstore.storage.ConfigSetup;
+import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageLayoutType;
-import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
+import io.pravega.segmentstore.storage.mocks.SlowStorageFactory;
+import io.pravega.segmentstore.storage.noop.ConditionalNoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
+import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+
+import java.util.ServiceLoader;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * This class loads a specific storage implementation dynamically. It uses the `ServiceLoader` (https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html)
@@ -41,7 +44,7 @@ public class StorageLoader {
                                StorageLayoutType storageLayoutType,
                                ScheduledExecutorService executor) {
         ServiceLoader<StorageFactoryCreator> loader = ServiceLoader.load(StorageFactoryCreator.class);
-        StorageExtraConfig noOpConfig = setup.getConfig(StorageExtraConfig::builder);
+        StorageExtraConfig storageExtraConfig = setup.getConfig(StorageExtraConfig::builder);
         for (StorageFactoryCreator factoryCreator : loader) {
             val factories = factoryCreator.getStorageFactories();
             for (val factoryInfo : factories) {
@@ -49,12 +52,22 @@ public class StorageLoader {
                 if (factoryInfo.getName().equals(storageImplementation)
                         && factoryInfo.getStorageLayoutType() == storageLayoutType) {
                     StorageFactory factory = factoryCreator.createFactory(factoryInfo, setup, executor);
-                    if (!noOpConfig.isStorageNoOpMode()) {
-                        return factory;
-                    } else { //The specified storage implementation is in No-Op mode.
+                    if (storageExtraConfig.isStorageNoOpMode()) {
+                        //The specified storage implementation is in No-Op mode.
                         log.warn("{} IS IN NO-OP MODE: DATA LOSS WILL HAPPEN! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);
-                        return new NoOpStorageFactory(noOpConfig, executor, factory, null);
+                        StorageFactory storageFactory;
+                        if (factory instanceof SimpleStorageFactory) {
+                            storageFactory = new ConditionalNoOpStorageFactory(executor, (SimpleStorageFactory) factory, storageExtraConfig);
+                        } else {
+                            storageFactory = new NoOpStorageFactory(storageExtraConfig, executor, factory, null);
+                        }
+                        return storageFactory;
                     }
+                    if (storageExtraConfig.isSlowModeEnabled()) {
+                        log.warn("{} IS IN SLOW MODE: PERF DEGRADATION EXPECTED! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);
+                        return new SlowStorageFactory(executor, factory, storageExtraConfig);
+                    }
+                    return factory;
                 }
             }
         }

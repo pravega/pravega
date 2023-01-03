@@ -16,22 +16,18 @@
 package io.pravega.segmentstore.server.host;
 
 import com.emc.object.s3.S3Config;
-import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
-import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.storage.extendeds3.ExtendedS3ChunkStorage;
-import io.pravega.storage.extendeds3.ExtendedS3Storage;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.storage.extendeds3.S3ClientMock;
 import io.pravega.storage.extendeds3.S3Mock;
@@ -83,40 +79,9 @@ public class NonAppendExtendedS3IntegrationTest extends BookKeeperIntegrationTes
         ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withStorageFactory(setup -> useChunkedSegmentStorage ?
-                        new LocalExtendedS3SimpleStorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), setup.getStorageExecutor())
-                        : new LocalExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), setup.getStorageExecutor()))
+                .withStorageFactory(setup -> new LocalExtendedS3SimpleStorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
                         getBookkeeper().getZkClient(), setup.getCoreExecutor()));
-    }
-
-    private class LocalExtendedS3StorageFactory implements StorageFactory {
-
-        private final ExtendedS3StorageConfig config;
-        private final ScheduledExecutorService storageExecutor;
-
-        LocalExtendedS3StorageFactory(ExtendedS3StorageConfig config, ScheduledExecutorService executor) {
-            this.config = Preconditions.checkNotNull(config, "config");
-            this.storageExecutor = Preconditions.checkNotNull(executor, "executor");
-        }
-
-        @Override
-        public Storage createStorageAdapter() {
-            URI uri = URI.create(s3ConfigUri);
-            S3Config s3Config = new S3Config(uri);
-
-            s3Config = s3Config
-                    .withRetryEnabled(false)
-                    .withInitialRetryDelay(1)
-                    .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
-
-            S3ClientMock client = new S3ClientMock(s3Config, s3Mock);
-            return getStorage(client);
-        }
-
-        protected Storage getStorage(S3JerseyClient client) {
-            return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config, false)), this.storageExecutor);
-        }
     }
 
     private class LocalExtendedS3SimpleStorageFactory implements SimpleStorageFactory {
@@ -142,19 +107,8 @@ public class NonAppendExtendedS3IntegrationTest extends BookKeeperIntegrationTes
 
         @Override
         public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
-            URI uri = URI.create(s3ConfigUri);
-            S3Config s3Config = new S3Config(uri);
-
-            s3Config = s3Config
-                    .withRetryEnabled(false)
-                    .withInitialRetryDelay(1)
-                    .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
-
-            S3ClientMock client = new S3ClientMock(s3Config, s3Mock);
-            val chunkStorage = new ExtendedS3ChunkStorage(client, this.config, executorService(), false, false);
-
             val storage = new ChunkedSegmentStorage(containerId,
-                    chunkStorage,
+                    createChunkStorage(),
                     metadataStore,
                     this.executor,
                     this.chunkedSegmentStorageConfig);
@@ -168,6 +122,21 @@ public class NonAppendExtendedS3IntegrationTest extends BookKeeperIntegrationTes
         public Storage createStorageAdapter() {
             throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
         }
+
+        @Override
+        public ChunkStorage createChunkStorage() {
+            URI uri = URI.create(s3ConfigUri);
+            S3Config s3Config = new S3Config(uri);
+
+            s3Config = s3Config
+                    .withRetryEnabled(false)
+                    .withInitialRetryDelay(1)
+                    .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
+
+            S3ClientMock client = new S3ClientMock(s3Config, s3Mock);
+            return new ExtendedS3ChunkStorage(client, this.config, executorService(), false, false);
+        }
+
     }
     //endregion
 }

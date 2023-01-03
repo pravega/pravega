@@ -16,7 +16,7 @@
 package io.pravega.cli.admin.bookkeeper;
 
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.segmentstore.storage.impl.bookkeeper.DebugLogWrapper;
+import io.pravega.segmentstore.storage.impl.bookkeeper.DebugBookKeeperLogWrapper;
 import lombok.Cleanup;
 import lombok.val;
 
@@ -41,7 +41,7 @@ public class BookKeeperListCommand extends BookKeeperCommand {
         val context = createContext();
         for (int logId = 0; logId < context.serviceConfig.getContainerCount(); logId++) {
             @Cleanup
-            DebugLogWrapper log = context.logFactory.createDebugLogWrapper(logId);
+            DebugBookKeeperLogWrapper log = context.logFactory.createDebugLogWrapper(logId);
             val m = log.fetchMetadata();
             outputLogSummary(logId, m);
         }

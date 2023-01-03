@@ -21,6 +21,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.local.SingleNodeConfig.PROPERTY_FILE_DEFAULT_PATH;
+
 /**
  * Main entry point for Integration tests that need an in-process Pravega cluster.
  * This class is intended to be used both by internal test suites
@@ -50,6 +52,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private String keyPasswordFile;
     private boolean enableMetrics;
     private boolean enableInfluxDB;
+    private boolean enablePrometheus;
     private int metricsReportInterval;
     private boolean enabledAdminGateway;
     private int adminGatewayPort;
@@ -88,6 +91,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .passwd(passwd)
                     .enableMetrics(enableMetrics)
                     .enableInfluxDB(enableInfluxDB)
+                    .enablePrometheus(enablePrometheus)
                     .metricsReportInterval(metricsReportInterval)
                     .enableAdminGateway(enabledAdminGateway)
                     .adminGatewayPort(adminGatewayPort)
@@ -97,8 +101,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
             this.inProcPravegaCluster.setSegmentStorePorts(new int[]{segmentStorePort});
             return new LocalPravegaEmulator(zkPort, controllerPort, segmentStorePort, restServerPort, enableRestServer,
                     enableAuth, enableTls, tlsProtocolVersion, certFile, passwd, userName, passwdFile, keyFile, enableTlsReload,
-                    jksKeyFile, jksTrustFile, keyPasswordFile, enableMetrics, enableInfluxDB, metricsReportInterval,
-                    enabledAdminGateway, adminGatewayPort, inProcPravegaCluster);
+                    jksKeyFile, jksTrustFile, keyPasswordFile, enableMetrics, enableInfluxDB, enablePrometheus,
+                    metricsReportInterval, enabledAdminGateway, adminGatewayPort, inProcPravegaCluster);
         }
     }
 
@@ -106,7 +110,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         try {
             ServiceBuilderConfig config = ServiceBuilderConfig
                     .builder()
-                    .include(System.getProperty(SingleNodeConfig.PROPERTY_FILE, "./config/standalone-config.properties"))
+                    .include(System.getProperty(SingleNodeConfig.PROPERTY_FILE, PROPERTY_FILE_DEFAULT_PATH))
                     .include(System.getProperties())
                     .build();
             SingleNodeConfig conf = config.getConfig(SingleNodeConfig::builder);
@@ -122,6 +126,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .tlsProtocolVersion(conf.getTlsProtocolVersion())
                     .enableMetrics(conf.isEnableMetrics())
                     .enableInfluxDB(conf.isEnableInfluxDB())
+                    .enablePrometheus(conf.isEnablePrometheus())
                     .metricsReportInterval(conf.getMetricsReportInterval())
                     .certFile(conf.getCertFile())
                     .keyFile(conf.getKeyFile())
@@ -154,7 +159,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
             localPravega.start();
             log.info("");
             log.info("Pravega Sandbox is running locally now. You could access it at {}:{}.", "127.0.0.1", conf.getControllerPort());
-            log.info("For more detailed logs, see: {}/{}", System.getProperty("user.dir"), "standalone/standalone.log");
+            log.info("For more detailed logs, see: {}/{}", System.getProperty("user.dir"), "standalone.log");
             log.info("");
         } catch (Exception ex) {
             log.error("Exception occurred running emulator", ex);

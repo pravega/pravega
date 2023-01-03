@@ -90,6 +90,19 @@ public interface ChunkStorage extends AutoCloseable, StatsReporter {
     boolean supportsConcat();
 
     /**
+     * Gets a value indicating whether this Storage implementation actually stores data durably and supports reading it back during data validation.
+     * Generally almost always storage will support durable and stable data writes and subsequent retrieval and therefore should return true.
+     * However, In certain special cases like mock storages used for test/performance, implementation may ignore or throw away data
+     * and in such cases should return false.
+     *
+     * @return True if data integrity checks are supported. False otherwise.
+     */
+    default boolean supportsDataIntegrityCheck() {
+        return true;
+    }
+
+
+    /**
      * Determines whether named file/object exists in underlying storage.
      *
      * @param chunkName Name of the storage object to check.
@@ -244,4 +257,15 @@ public interface ChunkStorage extends AutoCloseable, StatsReporter {
      *                                       {@link ChunkStorageException} In case of I/O related exceptions.
      */
     CompletableFuture<Void> setReadOnly(ChunkHandle handle, boolean isReadonly);
+
+    /**
+     * Get used space in bytes.
+     *
+     * @return A CompletableFuture that, when completed, will return the total size of storage used in bytes.
+     * If the operation failed, it will contain the cause of the failure.
+     * @throws UnsupportedOperationException If this operation is not supported by this provider.
+     * @throws CompletionException           If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                       {@link ChunkStorageException} In case of I/O related exceptions.
+     */
+    CompletableFuture<Long> getUsedSpace();
 }

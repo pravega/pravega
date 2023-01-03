@@ -25,16 +25,16 @@ import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
-import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
+import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.store.stream.records.StreamSubscriber;
-import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -120,6 +120,15 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return true if stream exists, false otherwise
      */
     CompletableFuture<Boolean> checkScopeExists(final String scopeName, OperationContext context, Executor executor);
+
+    /**
+     * Api to check if a scope exists in the deleting scope table or not.
+     * @param scopeName scope name
+     * @param context operation context
+     * @param executor executor
+     * @return true if scope exists, false otherwise
+     */
+    CompletableFuture<Boolean> isScopeSealed(final String scopeName, OperationContext context, Executor executor);
 
     /**
      * Api to get creation time for the stream. 
@@ -224,6 +233,17 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return null on success and exception on failure.
      */
     CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName, final OperationContext context, Executor executor);
+
+    /**
+     * Deletes a Scope if contains no streams.
+     *
+     * @param scopeName Name of scope to be deleted
+     * @param context operation context
+     * @param executor executor
+     * @return null on success and exception on failure.
+     */
+    CompletableFuture<DeleteScopeStatus> deleteScopeRecursive(final String scopeName, final OperationContext context,
+                                                                                  final Executor executor);
 
     /**
      * Retrieve configuration of scope.
@@ -1106,6 +1126,18 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                 final OperationContext context, final Executor executor);
 
     /**
+     * Method to retrieve List of transaction in completed(COMMITTED/ABORTED) state
+     * from most recent batch.
+     *
+     * @param scope Scope of stream.
+     * @param stream Name of stream.
+     * @param context Operation context.
+     * @param executor Caller executor.
+     * @return Map having transactionId and transaction status.
+     */
+    CompletableFuture<Map<UUID, TxnStatus>> listCompletedTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
+
+    /**
      * Adds specified resource as a child of current host's hostId node.
      * This is idempotent operation.
      *
@@ -1595,4 +1627,14 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName, OperationContext context,
                                              Executor executor);
 
+    /**
+     * Api to retrieve UUID of scope from the metadata.
+     * @param scopeName scope name
+     * @param context operation context
+     * @param executor executor
+     * @return UUID of scope
+     */
+    CompletableFuture<UUID> getScopeId(final String scopeName, OperationContext context, Executor executor);
+
+    CompletableFuture<Void> sealScope(String scope, OperationContext context, ScheduledExecutorService executor);
 }

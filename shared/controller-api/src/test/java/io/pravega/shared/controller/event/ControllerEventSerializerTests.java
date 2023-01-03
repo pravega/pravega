@@ -15,6 +15,7 @@
  */
 package io.pravega.shared.controller.event;
 
+import java.io.IOException;
 import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,10 +23,20 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import com.google.common.collect.ImmutableSet;
+
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
+import lombok.Builder;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -39,10 +50,84 @@ public class ControllerEventSerializerTests {
     private static final String KVTABLE = "kvtable";
     private static final String READER_GROUP = "readergroup";
 
+    @Builder
+    @Data
+    @AllArgsConstructor
+    static class AbortEventV0 implements ControllerEvent {
+        @SuppressWarnings("unused")
+        private static final long serialVersionUID = 1L;
+        private static final AbortEventV0.Serializer SERIALIZER = new AbortEventV0.Serializer();
+        private final String scope;
+        private final String stream;
+        private final int epoch;
+        private final UUID txid;
+
+        @Override
+        public String getKey() {
+            return String.format("%s/%s", scope, stream);
+        }
+
+        @Override
+        public CompletableFuture<Void> process(RequestProcessor processor) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @SneakyThrows(IOException.class)
+        public byte[] toBytes() {
+            return SERIALIZER.serialize(this).getCopy();
+        }
+
+        //region Serialization
+        private static class AbortEventV0Builder implements ObjectBuilder<AbortEventV0> {
+        }
+
+        public static class Serializer extends VersionedSerializer.WithBuilder<AbortEventV0, AbortEventV0Builder> {
+            @Override
+            protected AbortEventV0Builder newBuilder() {
+                return AbortEventV0.builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void write00(AbortEventV0 e, RevisionDataOutput target) throws IOException {
+                target.writeUTF(e.scope);
+                target.writeUTF(e.stream);
+                target.writeCompactInt(e.epoch);
+                target.writeUUID(e.txid);
+            }
+
+            private void read00(RevisionDataInput source, AbortEventV0Builder b) throws IOException {
+                b.scope(source.readUTF());
+                b.stream(source.readUTF());
+                b.epoch(source.readCompactInt());
+                b.txid(source.readUUID());
+            }
+        }
+    }
+
     @Test
     public void testAbortEvent() {
-        testClass(() -> new AbortEvent(SCOPE, STREAM, 123, UUID.randomUUID()));
+        testClass(() -> new AbortEvent(SCOPE, STREAM, 123, UUID.randomUUID(), 21L));
+
+        // Test that we are able to decode a message with a previous version
+        AbortEventV0 oldEvent = new AbortEventV0(SCOPE, STREAM, 2, UUID.randomUUID());
+        byte[] serializedEvent = oldEvent.toBytes();
+        AbortEvent deserializedEvent = AbortEvent.fromBytes(serializedEvent);
+        Assert.assertEquals(deserializedEvent.getScope(), oldEvent.scope);
+        Assert.assertEquals(deserializedEvent.getStream(), oldEvent.stream);
+        Assert.assertEquals(deserializedEvent.getEpoch(), oldEvent.getEpoch());
+        Assert.assertEquals(deserializedEvent.getTxid(), oldEvent.txid);
+        Assert.assertEquals(0L, deserializedEvent.getRequestId());
     }
+
 
     @Test
     public void testAutoScaleEvent() {
@@ -57,6 +142,11 @@ public class ControllerEventSerializerTests {
     @Test
     public void testDeleteStreamEvent() {
         testClass(() -> new DeleteStreamEvent(SCOPE, STREAM, 123L, 345L));
+    }
+
+    @Test
+    public void testDeleteScopeEvent() {
+        testClass(() -> new DeleteScopeEvent(SCOPE, 117L, UUID.randomUUID()));
     }
 
     @Test

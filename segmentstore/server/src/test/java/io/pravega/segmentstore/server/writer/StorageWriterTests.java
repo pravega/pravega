@@ -719,7 +719,6 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                 .with(WriterConfig.MAX_ITEMS_TO_READ_AT_ONCE, 100)
                 .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 100L)
                 .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
-
                 .build();
         @Cleanup
         TestContext context = new TestContext(config);

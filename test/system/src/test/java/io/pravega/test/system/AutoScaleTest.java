@@ -19,6 +19,7 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -221,6 +222,8 @@ public class AutoScaleTest extends AbstractScaleTests {
                                 log.info("txn test scale up done successfully");
                                 exit.set(true);
                             }
-                        }), scaleExecutorService);
+                        }).thenRun(() -> controller.listCompletedTransactions(Stream.of(SCOPE, SCALE_UP_TXN_STREAM_NAME))
+                                        .thenAccept(txnList -> log.info("No of completed txn {}", txnList.size()))),
+                        scaleExecutorService);
     }
 }

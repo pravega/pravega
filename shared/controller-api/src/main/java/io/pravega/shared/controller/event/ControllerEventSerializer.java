@@ -44,7 +44,8 @@ public class ControllerEventSerializer extends VersionedSerializer.MultiType<Con
                .serializer(DeleteTableEvent.class, 10, new DeleteTableEvent.Serializer())
                .serializer(CreateReaderGroupEvent.class, 11, new CreateReaderGroupEvent.Serializer())
                .serializer(DeleteReaderGroupEvent.class, 12, new DeleteReaderGroupEvent.Serializer())
-               .serializer(UpdateReaderGroupEvent.class, 13, new UpdateReaderGroupEvent.Serializer());
+               .serializer(UpdateReaderGroupEvent.class, 13, new UpdateReaderGroupEvent.Serializer())
+               .serializer(DeleteScopeEvent.class, 14, new DeleteScopeEvent.Serializer());
     }
 
     /**

@@ -54,6 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.COMMIT_LATENCY;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.GET_LATENCY;
@@ -554,7 +555,10 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 if (0 == activeKeys.count(key)) {
                     // Synchronization prevents error when key becomes active between the check and remove.
                     // Move the key to cache
-                    cache.put(key, bufferedTxnData.get(key));
+                    val v = bufferedTxnData.get(key);
+                    if (null != v) {
+                        cache.put(key, v);
+                    }
                     // Remove from buffer.
                     bufferedTxnData.remove(key);
                     count++;
@@ -771,6 +775,25 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
      */
     abstract protected CompletableFuture<Void> writeAll(Collection<TransactionData> dataList);
+
+
+    /**
+     * Retrieve all key-value pairs stored in this instance of {@link ChunkMetadataStore}.
+     * There is no order guarantee provided.
+     *
+     * @return A CompletableFuture that, when completed, will contain {@link Stream} of {@link StorageMetadata} entries.
+     * If the operation failed, it will be completed with the appropriate exception.
+     */
+    abstract public CompletableFuture<Stream<StorageMetadata>> getAllEntries();
+
+    /**
+     * Retrieve all keys stored in this instance of {@link ChunkMetadataStore}.
+     * There is no order guarantee provided.
+     *
+     * @return A CompletableFuture that, when completed, will contain {@link Stream} of  {@link String} keys.
+     * If the operation failed, it will be completed with the appropriate exception.
+     */
+    abstract public CompletableFuture<Stream<String>> getAllKeys();
 
     /**
      * Updates existing metadata.

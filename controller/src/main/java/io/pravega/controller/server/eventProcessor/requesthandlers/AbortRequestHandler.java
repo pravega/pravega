@@ -21,6 +21,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.metrics.TransactionMetrics;
+import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -77,8 +78,11 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
         String stream = event.getStream();
         int epoch = event.getEpoch();
         UUID txId = event.getTxid();
+        long requestId = event.getRequestId();
+        if (requestId == 0L) {
+            requestId = ControllerService.nextRequestId();
+        }
         Timer timer = new Timer();
-        long requestId = streamMetadataTasks.getRequestId(null);
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
         log.info(requestId, "Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(),
                 event.getStream());
@@ -87,15 +91,15 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                 executor)
                                                  .thenApply(segments -> segments.stream().map(StreamSegmentRecord::segmentId)
                                                                         .collect(Collectors.toList()))
-                .thenCompose(segments -> streamMetadataTasks.notifyTxnAbort(scope, stream, segments, txId, requestId))
+                .thenCompose(segments -> streamMetadataTasks.notifyTxnAbort(scope, stream, segments, txId, context.getRequestId()))
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor))
                 .whenComplete((result, error) -> {
                     if (error != null) {
-                        log.warn(requestId, "Failed aborting transaction {} on stream {}/{}", event.getTxid(),
+                        log.warn(context.getRequestId(), "Failed aborting transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
-                        TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, event.getTxid().toString());
+                        TransactionMetrics.getInstance().abortTransactionFailed(scope, stream);
                     } else {
-                        log.info(requestId, "Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
+                        log.info(context.getRequestId(), "Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
                         if (processedEvents != null) {
                             processedEvents.offer(event);

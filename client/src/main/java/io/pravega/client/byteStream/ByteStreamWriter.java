@@ -20,6 +20,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Allows for writing raw bytes directly to a segment. This is intended as low level building block
@@ -86,6 +87,18 @@ public abstract class ByteStreamWriter extends OutputStream {
      */
     @Override
     public abstract void flush() throws IOException;
+
+    /**
+     * The future will complete successfully when all data which was passed to
+     * the write prior to calling this method has been persisted, and will complete exceptionally if that
+     * is not possible such as for example if the segment is sealed.
+     *
+     * @see java.io.OutputStream#flush()
+     * @return The future related to last write
+     * @throws IOException If for any reason the flush fails including if the stream is sealed.
+     */
+    public abstract CompletableFuture<Void> flushAsync() throws IOException;
+
 
     /**
      * Closes the writer similar to {@link #close()} but also seals it so that no future writes can

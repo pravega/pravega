@@ -46,7 +46,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 @RequiredArgsConstructor
@@ -103,9 +102,9 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                             }
                         }
                         long requestId = client.getFlow().getNextSequenceNumber();
-                        val request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
+                        final ConditionalAppend request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
                                                             new Event(Unpooled.wrappedBuffer(data)), requestId);
-                        val reply = client.sendRequest(requestId, request);
+                        final CompletableFuture<Reply> reply = client.sendRequest(requestId, request);
                         return transformDataAppended(reply.join());
                     });
         } 
@@ -149,7 +148,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
         } else if (reply instanceof InvalidEventNumber) {
             InvalidEventNumber ien = (InvalidEventNumber) reply;
             throw Exceptions.sneakyThrow(new ConnectionFailedException(ien.getWriterId() + 
-                    " Got stale data from setupAppend on segment " + segmentId + " for ConditionalOutputStream. Event number was " + ien.getEventNumber()));
+                    " Got stale data from setupAppend on segment " + segmentId + " for ConditionalOutputStream. Flow number was " + ien.getRequestId() + "Event number was " + ien.getEventNumber()));
         } else if (reply instanceof AuthTokenCheckFailed) {
             AuthTokenCheckFailed authTokenCheckFailed = (WireCommands.AuthTokenCheckFailed) reply;
             if (authTokenCheckFailed.isTokenExpired()) {

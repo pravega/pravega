@@ -20,8 +20,10 @@ import com.google.common.collect.ImmutableSet;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -64,6 +66,7 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
 
     @Override
     public CompletableFuture<Void> execute(final UpdateReaderGroupEvent request) {
+        Timer timer = new Timer();
         String scope = request.getScope();
         String readerGroup = request.getRgName();
         long requestId = request.getRequestId();
@@ -114,10 +117,12 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
                                        }
                                        return CompletableFuture.completedFuture(null);
                                    })
-                                   .thenCompose(v -> streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor));
+                                   .thenCompose(v -> streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor))
+                                           .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorUpdateReaderGroupEvent(timer.getElapsed()));
                                }
                                // We get here for non-transition updates
-                               return streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor);
+                               return streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor)
+                                       .thenAccept(v -> StreamMetrics.getInstance().controllerEventProcessorUpdateReaderGroupEvent(timer.getElapsed()));
                            }
                            return CompletableFuture.completedFuture(null);
                        });
