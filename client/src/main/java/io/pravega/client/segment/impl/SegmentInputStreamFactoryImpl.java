@@ -74,8 +74,8 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     }
 
     @Override
-    public EventSegmentReader createEventReaderForSegment(Segment segment, long startOffset, int bufferSize) {
-        return getEventSegmentReader(segment, null, startOffset, Long.MAX_VALUE, bufferSize);
+    public EventSegmentReader createEventReaderForSegment(Segment segment, long startOffset, int lengthToRead) {
+        return getEventSegmentReader(segment, null, startOffset, startOffset + lengthToRead, lengthToRead);
     }
 
     private EventSegmentReader getEventSegmentReader(Segment segment, Semaphore hasData, long startOffset, long endOffset, int bufferSize) {
