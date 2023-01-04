@@ -36,7 +36,7 @@ class ClientUtils {
      * @return A StreamCut object from given Watermark
      */
     public static StreamCut getStreamCutFromWaterMark(Watermark watermark) {
-        if (watermark != null && !watermark.getScope().isEmpty() && watermark.getStream().isEmpty()) {
+        if (watermark != null && !watermark.getScope().isEmpty() && !watermark.getStream().isEmpty()) {
             Stream stream = Stream.of(watermark.getScope(), watermark.getStream());
             Map<Segment, Long> position = new LinkedHashMap<>();
             for (Map.Entry<SegmentWithRange, Long> entry : watermark.getStreamCut().entrySet()) {
