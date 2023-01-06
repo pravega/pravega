@@ -139,6 +139,7 @@ allprojects {
 	    force "org.jetbrains.kotlin:kotlin-stdlib-common:" + kotlinVersion
 	    force "org.jetbrains.kotlin:kotlin-stdlib:" + kotlinVersion
 	    force "org.yaml:snakeyaml:" + snakeYamlVersion
+            force "com.fasterxml.woodstox:woodstox-core:" + woodstoxVersion
 	    force "org.jdom:jdom2:" + jdomVersion
             // Netty 4 uber jar
             exclude group: 'io.netty', module: 'netty-all'
