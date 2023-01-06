@@ -145,6 +145,7 @@ public class RecoverFromStorage3Command extends DataRecoveryCommand {
         return debugStreamSegmentContainer;
     }
 
+    @Override
     public void execute() throws Exception {
         ensureArgCount(2);
         String tableSegmentDataChunksPath = getArg(0);
@@ -170,12 +171,12 @@ public class RecoverFromStorage3Command extends DataRecoveryCommand {
             // table segment raw bytes
             List<ByteArraySegment> segmentRawBytesList = readSegmentBytes(NameUtils.getMetadataSegmentName(debugStreamSegmentContainer.getId()), debugStreamSegmentContainer).get();
             List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations = TableSegmentUtils.getOperationsFromBytes(segmentRawBytesList);
-            writeEntriesToNewTableSegment(debugStreamSegmentContainer, NameUtils.getMetadataSegmentName(containerId), tableSegmentOperations);
+            writeEntriesToContainerMetadata(debugStreamSegmentContainer, NameUtils.getMetadataSegmentName(containerId), tableSegmentOperations);
 
             // storage table segment raw bytes
             List<ByteArraySegment> storageSegmentBytes = readSegmentBytes(NameUtils.getStorageMetadataSegmentName(debugStreamSegmentContainer.getId()), debugStreamSegmentContainer).get();
             List<TableSegmentUtils.TableSegmentOperation> storageTableSegmentOperations = TableSegmentUtils.getOperationsFromBytes(storageSegmentBytes);
-            writeStorageEntriesToNewTableSegment(debugStreamSegmentContainer, NameUtils.getMetadataSegmentName(containerId), storageTableSegmentOperations);
+            writeEntriesToStorageMetadata(debugStreamSegmentContainer, NameUtils.getMetadataSegmentName(containerId), storageTableSegmentOperations);
 
 
             flushToStorage(debugStreamSegmentContainer);
@@ -244,28 +245,22 @@ public class RecoverFromStorage3Command extends DataRecoveryCommand {
         }
     }
 
-    private void writeEntriesToNewTableSegment(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
-        output("Writing entries to container_meta");
+    private void writeEntriesToContainerMetadata(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
+        output("Writing entries to container metadata");
         ContainerTableExtension tableExtension = container.getExtension(ContainerTableExtension.class);
-        HashSet<String> deletedKeys = new HashSet<>();
         for (TableSegmentUtils.TableSegmentOperation operation : tableSegmentOperations) {
             TableSegmentEntry entry = operation.getContents();
             TableEntry unversionedEntry = TableEntry.unversioned(new ByteBufWrapper(entry.getKey().getKey()), new ByteBufWrapper(entry.getValue()));
             String seg = new String(unversionedEntry.getKey().getKey().getCopy());
 
-            if (seg.contains(EVENT_PROCESSEOR_SEGMENT)) continue;
-            if(!deletedKeys.contains(seg)) { // delete the keys only once
-                System.out.println("deleting segment "+seg);
-                tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
-                deletedKeys.add(seg);
-            }
+            if(!allowSegment(seg)) continue;
+
             if (operation instanceof TableSegmentUtils.PutOperation) {
                 MetadataStore.SegmentInfo segmentInfo = SERIALIZER.deserialize(new ByteArraySegment(unversionedEntry.getValue().getCopy()).getReader());
-                System.out.println("Printing container metadata for segment " + segmentInfo.getProperties().toString());
-                output("ContainerMeta: Writing segment " + segmentInfo.getProperties().getName());
+                //output("ContainerMeta: Writing segment " + segmentInfo.getProperties().getName());
                 tableExtension.put(tableSegment, Collections.singletonList(unversionedEntry), TIMEOUT).join();
                 if (!container.isSegmentExists(segmentInfo.getProperties().getName()) && segmentInfo.getSegmentId() != NO_STREAM_SEGMENT_ID) {
-                    output("ContainerMeta: Segemnt does not  Exists " + segmentInfo.getProperties().getName());
+                    //output("ContainerMeta: Segemnt does not  Exists " + segmentInfo.getProperties().getName());
                     container.queueMapOperation(segmentInfo.getProperties(), segmentInfo.getSegmentId());
                 }
             } else {
@@ -274,7 +269,8 @@ public class RecoverFromStorage3Command extends DataRecoveryCommand {
         }
     }
 
-    private void writeStorageEntriesToNewTableSegment(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
+    private void writeEntriesToStorageMetadata(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
+        output("Writing entries to storage metadata");
         ContainerTableExtension tableExtension = container.getExtension(ContainerTableExtension.class);
         HashSet<String> deletedKeys = new HashSet<>();
         for (TableSegmentUtils.TableSegmentOperation operation : tableSegmentOperations) {
@@ -283,29 +279,89 @@ public class RecoverFromStorage3Command extends DataRecoveryCommand {
             TableEntry unversionedEntry = TableEntry.unversioned(new ByteBufWrapper(entry.getKey().getKey()), new ByteBufWrapper(entry.getValue()));
             String segment = new String(unversionedEntry.getKey().getKey().getCopy());
 
-            if (segment.contains(EVENT_PROCESSEOR_SEGMENT)) continue;  //_system/containers/event_processor_GC.queue.3_3
+            if(!allowSegment(segment)) continue;
             if (operation instanceof TableSegmentUtils.PutOperation) {
                 try {
                     StorageMetadata storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().array()).getValue();
-                    if (storageMetadata != null) {
-                        System.out.println("Printing storage metadata segment: " + SLTS_SERIALIZER.deserialize(entry.getValue().array()).getValue().toString());
-                        System.out.println();
-                    }
                 }catch(Exception npe){
                     System.out.println("nullpointer "+npe);
                 }
-                if(!deletedKeys.contains(segment)) {
-                    System.out.println("deleting segment "+segment);
-                    tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
-                    deletedKeys.add(segment);
-                }
-                output("Storage Metadata: writing segment " + segment);
                 tableExtension.put(tableSegment, Collections.singletonList(unversionedEntry), TIMEOUT).join();
             } else {
                 tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
             }
         }
     }
+
+    private boolean allowSegment(String segmentName) {
+        if(segmentName.contains("scaleGroup") || segmentName.contains(EVENT_PROCESSEOR_SEGMENT)) {
+            return false;
+        }
+        return true;
+    }
+
+//    private void writeEntriesToNewTableSegment(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
+//        output("Writing entries to container_meta");
+//        ContainerTableExtension tableExtension = container.getExtension(ContainerTableExtension.class);
+//        HashSet<String> deletedKeys = new HashSet<>();
+//        for (TableSegmentUtils.TableSegmentOperation operation : tableSegmentOperations) {
+//            TableSegmentEntry entry = operation.getContents();
+//            TableEntry unversionedEntry = TableEntry.unversioned(new ByteBufWrapper(entry.getKey().getKey()), new ByteBufWrapper(entry.getValue()));
+//            String seg = new String(unversionedEntry.getKey().getKey().getCopy());
+//
+//            if (seg.contains(EVENT_PROCESSEOR_SEGMENT)) continue;
+//            if(!deletedKeys.contains(seg)) { // delete the keys only once
+//                System.out.println("deleting segment "+seg);
+//                tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
+//                deletedKeys.add(seg);
+//            }
+//            if (operation instanceof TableSegmentUtils.PutOperation) {
+//                MetadataStore.SegmentInfo segmentInfo = SERIALIZER.deserialize(new ByteArraySegment(unversionedEntry.getValue().getCopy()).getReader());
+//                System.out.println("Printing container metadata for segment " + segmentInfo.getProperties().toString());
+//                output("ContainerMeta: Writing segment " + segmentInfo.getProperties().getName());
+//                tableExtension.put(tableSegment, Collections.singletonList(unversionedEntry), TIMEOUT).join();
+//                if (!container.isSegmentExists(segmentInfo.getProperties().getName()) && segmentInfo.getSegmentId() != NO_STREAM_SEGMENT_ID) {
+//                    output("ContainerMeta: Segemnt does not  Exists " + segmentInfo.getProperties().getName());
+//                    container.queueMapOperation(segmentInfo.getProperties(), segmentInfo.getSegmentId());
+//                }
+//            } else {
+//                tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
+//            }
+//        }
+//    }
+//
+//    private void writeStorageEntriesToNewTableSegment(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
+//        ContainerTableExtension tableExtension = container.getExtension(ContainerTableExtension.class);
+//        HashSet<String> deletedKeys = new HashSet<>();
+//        for (TableSegmentUtils.TableSegmentOperation operation : tableSegmentOperations) {
+//            TableSegmentEntry entry = operation.getContents();
+//
+//            TableEntry unversionedEntry = TableEntry.unversioned(new ByteBufWrapper(entry.getKey().getKey()), new ByteBufWrapper(entry.getValue()));
+//            String segment = new String(unversionedEntry.getKey().getKey().getCopy());
+//
+//            if (segment.contains(EVENT_PROCESSEOR_SEGMENT)) continue;  //_system/containers/event_processor_GC.queue.3_3
+//            if (operation instanceof TableSegmentUtils.PutOperation) {
+//                try {
+//                    StorageMetadata storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().array()).getValue();
+//                    if (storageMetadata != null) {
+//                        System.out.println("Printing storage metadata segment: " + SLTS_SERIALIZER.deserialize(entry.getValue().array()).getValue().toString());
+//                        System.out.println();
+//                    }
+//                }catch(Exception npe){
+//                    System.out.println("nullpointer "+npe);
+//                }
+//                if(!deletedKeys.contains(segment)) {
+//                    System.out.println("deleting segment "+segment);
+//                    tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
+//                    deletedKeys.add(segment);
+//                }
+//                output("Storage Metadata: writing segment " + segment);
+//                tableExtension.put(tableSegment, Collections.singletonList(unversionedEntry), TIMEOUT).join();
+//            } else {
+//                tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
+//            }
+//        }
+//    }
 
 
     private CompletableFuture<List<ByteArraySegment>> readSegmentBytes(String segment, DebugStreamSegmentContainer container) throws ExecutionException, InterruptedException {
@@ -328,8 +384,8 @@ public class RecoverFromStorage3Command extends DataRecoveryCommand {
                     },
                     executorService);
         });
-        output("total bytes read for segment %s is %d",segment, totalBytesRead.get());
         return sg.handle((v, ex) -> {
+            output("total bytes read for segment %s is %d",segment, totalBytesRead.get());
             return byteArraySegments;
         });
     }

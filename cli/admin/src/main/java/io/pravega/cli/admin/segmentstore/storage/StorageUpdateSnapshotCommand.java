@@ -170,9 +170,9 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
             SystemJournal.SegmentSnapshotRecord record = segmentIterator.next();
             if (isSegmentBeingEdited(record.getSegmentMetadata().getName(), chunkFiles.get(0).getName())) {
                 output("Updating SystemSnapshot with relevant data.");
-                record.getSegmentMetadata().setLength(segmentLength.get());
+                record.getSegmentMetadata().setLength(deriveStartOffset(chunks.get(chunks.size() - 1).getName()) + chunks.get(chunks.size()-1).getLength());
                 record.getSegmentMetadata().setChunkCount(chunkCount.get());
-                record.getSegmentMetadata().setStartOffset(0);
+                record.getSegmentMetadata().setStartOffset(deriveStartOffset(chunks.get(0).getName()));
                 record.getSegmentMetadata().setFirstChunk(chunks.get(0).getName());
                 record.getSegmentMetadata().setFirstChunkStartOffset(deriveStartOffset(chunks.get(0).getName()));
                 record.getSegmentMetadata().setLastChunk(chunks.get(chunks.size() - 1).getName());

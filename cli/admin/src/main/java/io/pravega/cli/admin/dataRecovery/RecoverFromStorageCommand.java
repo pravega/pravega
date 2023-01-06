@@ -17,7 +17,6 @@ package io.pravega.cli.admin.dataRecovery;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Table;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TableSegmentUtils;
 import io.pravega.client.tables.impl.TableSegmentEntry;
@@ -26,9 +25,9 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeId;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -70,7 +69,6 @@ import lombok.Getter;
 import lombok.val;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -95,6 +93,12 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private static final String ATTRIBUTE_SUFFIX = "$attributes.index";
 
     private static final String EVENT_PROCESSEOR_SEGMENT = "event_processor_GC"; // _system/containers/event_processor_GC.queue.3_3
+
+    private static final String RG_SEGMENT = "_RG"; // _system/containers/event_processor_GC.queue.3_3
+
+    private static final String SYSTEM_SEGMENT = "_system"; // _system/containers/event_processor_GC.queue.3_3
+
+    private static final String READER_GROUP_SEGMENT = "reader"; // _system/containers/event_processor_GC.queue.3_3
 
     private static final String EPOCH_SPLITTER = ".E-";
     private static final String OFFSET_SPLITTER = "O-";
@@ -155,6 +159,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         }
     }
 
+    @Override
     public void execute() throws Exception {
         ensureArgCount(2);
         String tableSegmentDataChunksPath = getArg(0);
@@ -199,11 +204,11 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                     continue;
                 }
                 List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations = TableSegmentUtils.getOperationsFromChunks(chunks);
-                writeEntriesToNewTableSegment(debugStreamSegmentContainer, NameUtils.getMetadataSegmentName(containerId), tableSegmentOperations);
+                writeEntriesToContainerMetadata(debugStreamSegmentContainer, NameUtils.getMetadataSegmentName(containerId), tableSegmentOperations);
             }
             //write storage entries in the end after container entries (to avoid length mismatch).
             if (storageChunks != null) {
-                writeStorageEntriesToNewTableSegment(debugStreamSegmentContainer, NameUtils.getStorageMetadataSegmentName(containerId), TableSegmentUtils.getOperationsFromChunks(storageChunks));
+                writeEntriesToStorageMetadata(debugStreamSegmentContainer, NameUtils.getStorageMetadataSegmentName(containerId), TableSegmentUtils.getOperationsFromChunks(storageChunks));
             }
 
             //flush to storage
@@ -217,7 +222,6 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         Thread.sleep(5000);
 //        listKeysinStorage(debugStreamSegmentContainer);
 
-//        Thread.sleep(5000);
         output("Stopping DebugSegmentContainer");
         debugStreamSegmentContainer.close();
     }
@@ -230,7 +234,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         ContainerTableExtension extension = container.getExtension(ContainerTableExtension.class);
 
         for(String segment: segments) {
-            output("Retrieving segment %s from storage ",segment);
+//            output("Retrieving segment %s from storage ",segment);
             List<TableEntry> entries = extension.get(NameUtils.getStorageMetadataSegmentName(container.getId()), Collections.singletonList(BufferView.wrap(segment.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
             TableEntry entry = entries.get(0);
             StorageMetadata storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().getCopy()).getValue();
@@ -248,6 +252,15 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                     continue;
                 }
                 MetadataStore.SegmentInfo segmentInfo = SERIALIZER.deserialize(segmentEntry.get(0).getValue().getCopy());
+                String segName = segmentInfo.getProperties().getName();
+                Map<AttributeId, Long> attribs = new HashMap<>(segmentInfo.getProperties().getAttributes());
+
+                if(NameUtils.isTableSegment(segName)) {
+                    if(attribs.getOrDefault(TableAttributes.INDEX_OFFSET, 0L) == 0L){
+                        output("Segment %s has TABLE_INDEXED_OFFSET set to 0. Setting it to %d ", segName, storageSegment.getLength());
+                        attribs.put(TableAttributes.INDEX_OFFSET, storageSegment.getLength());
+                    }
+                }
                 // use the data from storage for this segment and "put" it in container Metadata
                 StreamSegmentInformation segmentProperties = StreamSegmentInformation.builder()
                         .name(segmentInfo.getProperties().getName())
@@ -256,34 +269,39 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                         .sealed(storageSegment.isSealed())
                         .deleted(storageSegment.isActive())
                         .lastModified(new ImmutableDate(storageSegment.getLastModified()))
-                        .attributes(segmentInfo.getProperties().getAttributes())
+                        .attributes(attribs)
                         .build();
+
                 StringBuilder builder = new StringBuilder();
-                if(segmentInfo.getProperties().getName().contains("readerGroupsInScope")){
-                    for( Map.Entry<AttributeId, Long> e : segmentInfo.getProperties().getAttributes().entrySet()) {
-                        builder.append( "Key %s  : Value %s  ||||||".format(e.getKey().toString(), e.getValue().toString()));
+
+                if(segName.contains("streamsInScope") || segName.contains("readerGroupsInScope")) {
+                    for( Map.Entry<AttributeId, Long> e : segmentProperties.getAttributes().entrySet()) {
+                        output( "Segment %s  Key %s  : Value %s  ||||||", segName, e.getKey().toString(), e.getValue().toString());
                     }
                 }
+
                 MetadataStore.SegmentInfo sereializedContainerSegment = MetadataStore.SegmentInfo.builder()
                         .segmentId(segmentInfo.getSegmentId())
                         .properties(segmentProperties)
                         .build();
                 TableEntry unversionedEntry = TableEntry.unversioned(segmentEntry.get(0).getKey().getKey(), SERIALIZER.serialize(sereializedContainerSegment));
-                output("Storing segment %s in container metadata post syncing with storage segment",segmentInfo.getProperties().getName());
+//                output("Storing segment %s in container metadata post syncing with storage segment",segmentInfo.getProperties().getName());
                 extension.put(NameUtils.getMetadataSegmentName(container.getId()), Collections.singletonList(unversionedEntry), TIMEOUT).join();
             }
         }
     }
 
+    /**
+     * Utility method to list keys in container metadata.
+     * @param container container whose storage_metadata keys need to be listed
+     */
     private void listKeysinStorage(DebugStreamSegmentContainer container) {
         try {
             Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), executorService, TIMEOUT, NameUtils.getStorageMetadataSegmentName(container.getId()));
-            System.out.println("----------------------------");
             output("segments retrieved from storage");
             for(Set<String> segs : segmentsByContainer.values()){
-                segs.forEach((seg) -> System.out.println(seg));
+                segs.forEach((seg) -> output(seg));
             }
-            System.out.println("----------------------------");
         }catch(Exception e){
             output("exception while fetching all segments in storage "+e);
         }
@@ -302,24 +320,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         return metadataSegments;
     }
 
-    private void clearSegmentEntries(DebugStreamSegmentContainer debugStreamSegmentContainer) throws Exception {
-        Map<Integer, Set<String>> segmentsMap = ContainerRecoveryUtils.getExistingSegments(ImmutableMap.of(debugStreamSegmentContainer.getMetadata().getContainerId(), debugStreamSegmentContainer), this.executorService, TIMEOUT, NameUtils.getMetadataSegmentName(debugStreamSegmentContainer.getId()));
-        assert segmentsMap.entrySet().size() == 1;
-        Set<String> segments = segmentsMap.entrySet().iterator().next().getValue();
-        segments.forEach(segment -> {
-            try {
-                System.out.println("Deleting entry for " + segment);
-                debugStreamSegmentContainer.deleteStreamSegment(segment, TIMEOUT);
-            } catch (Exception e) {
-                if (!(e instanceof StreamSegmentNotExistsException)) {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
-    }
-
-    private void writeEntriesToNewTableSegment(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
-        output("Writing entries to container_meta");
+    private void writeEntriesToContainerMetadata(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
+        output("Writing entries to container metadata");
         ContainerTableExtension tableExtension = container.getExtension(ContainerTableExtension.class);
         HashSet<String> deletedKeys = new HashSet<>();
         for (TableSegmentUtils.TableSegmentOperation operation : tableSegmentOperations) {
@@ -327,19 +329,14 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             TableEntry unversionedEntry = TableEntry.unversioned(new ByteBufWrapper(entry.getKey().getKey()), new ByteBufWrapper(entry.getValue()));
             String seg = new String(unversionedEntry.getKey().getKey().getCopy());
 
-            if (seg.contains(EVENT_PROCESSEOR_SEGMENT)) continue;
-            if(!deletedKeys.contains(seg)) { // delete the keys only once
-                System.out.println("deleting segment "+seg);
-                tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
-                deletedKeys.add(seg);
-            }
+            if(!allowSegment(seg)) continue;
+
             if (operation instanceof TableSegmentUtils.PutOperation) {
                 MetadataStore.SegmentInfo segmentInfo = SERIALIZER.deserialize(new ByteArraySegment(unversionedEntry.getValue().getCopy()).getReader());
-                System.out.println("Printing container metadata for segment " + segmentInfo.getProperties().toString());
-                output("ContainerMeta: Writing segment " + segmentInfo.getProperties().getName());
+                //output("ContainerMeta: Writing segment " + segmentInfo.getProperties().getName());
                 tableExtension.put(tableSegment, Collections.singletonList(unversionedEntry), TIMEOUT).join();
                 if (!container.isSegmentExists(segmentInfo.getProperties().getName()) && segmentInfo.getSegmentId() != NO_STREAM_SEGMENT_ID) {
-                    output("ContainerMeta: Segemnt does not  Exists " + segmentInfo.getProperties().getName());
+                    //output("ContainerMeta: Segemnt does not  Exists " + segmentInfo.getProperties().getName());
                     container.queueMapOperation(segmentInfo.getProperties(), segmentInfo.getSegmentId());
                 }
             } else {
@@ -348,7 +345,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         }
     }
 
-    private void writeStorageEntriesToNewTableSegment(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
+    private void writeEntriesToStorageMetadata(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
+        output("Writing entries to storage metadata");
         ContainerTableExtension tableExtension = container.getExtension(ContainerTableExtension.class);
         HashSet<String> deletedKeys = new HashSet<>();
         for (TableSegmentUtils.TableSegmentOperation operation : tableSegmentOperations) {
@@ -357,23 +355,13 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             TableEntry unversionedEntry = TableEntry.unversioned(new ByteBufWrapper(entry.getKey().getKey()), new ByteBufWrapper(entry.getValue()));
             String segment = new String(unversionedEntry.getKey().getKey().getCopy());
 
-            if (segment.contains(EVENT_PROCESSEOR_SEGMENT)) continue;  //_system/containers/event_processor_GC.queue.3_3
+            if(!allowSegment(segment)) continue;
             if (operation instanceof TableSegmentUtils.PutOperation) {
                 try {
                     StorageMetadata storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().array()).getValue();
-                    if (storageMetadata != null) {
-                        System.out.println("Printing storage metadata segment: " + SLTS_SERIALIZER.deserialize(entry.getValue().array()).getValue().toString());
-                        System.out.println();
-                    }
                 }catch(Exception npe){
                     System.out.println("nullpointer "+npe);
                 }
-                if(!deletedKeys.contains(segment)) {
-                    System.out.println("deleting segment "+segment);
-                    tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
-                    deletedKeys.add(segment);
-                }
-                output("Storage Metadata: writing segment " + segment);
                 tableExtension.put(tableSegment, Collections.singletonList(unversionedEntry), TIMEOUT).join();
             } else {
                 tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
@@ -381,37 +369,13 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         }
     }
 
-    private TableEntry reconcileEntry(TableEntry entry) throws IOException {
-        BufferView value = entry.getValue();
-        BaseMetadataStore.TransactionData transactionData = new BaseMetadataStore.TransactionData.TransactionDataSerializer().deserialize(value);
-        StorageMetadata storageMetadata = transactionData.getValue();
-        if (storageMetadata instanceof SegmentMetadata) {
-            SegmentMetadata segmentMetadata = (SegmentMetadata) storageMetadata;
-            String lastChunk = segmentMetadata.getLastChunk();
-            File chunkFile = new File(lastChunk);
-            if (chunkFile.exists()) {
-                long expectedChunkLength = ((SegmentMetadata) storageMetadata).getLength() - ((SegmentMetadata) storageMetadata).getLastChunkStartOffset();
-                if (expectedChunkLength != chunkFile.length()) {
-                    ((SegmentMetadata) storageMetadata).setLength(chunkFile.length());
-                    ByteArraySegment transactionBytes = new BaseMetadataStore.TransactionData.TransactionDataSerializer().serialize(transactionData);
-                    return TableEntry.unversioned(entry.getKey().getKey(), transactionBytes);
-                }
-            } else {
-                output("Did not find the last chunk for segment " + segmentMetadata.getName());
-            }
-        } else if (storageMetadata instanceof ChunkMetadata) {
-            ChunkMetadata chunkMetadata = (ChunkMetadata) storageMetadata;
-            File chunkFile = new File(chunkMetadata.getName());
-            if (null == chunkMetadata.getNextChunk() && chunkFile.exists()) {
-                if (chunkMetadata.getLength() != chunkFile.length()) {
-                    chunkMetadata.setLength(chunkFile.length());
-                    ByteArraySegment transactionBytes = new BaseMetadataStore.TransactionData.TransactionDataSerializer().serialize(transactionData);
-                    return TableEntry.unversioned(entry.getKey().getKey(), transactionBytes);
-                }
-            }
+    private boolean allowSegment(String segmentName) {
+        if(segmentName.contains("scaleGroup") || segmentName.contains(EVENT_PROCESSEOR_SEGMENT)) {
+            return false;
         }
-        return null;
+        return true;
     }
+
 
     private void flushToStorage(DebugStreamSegmentContainer debugSegmentContainer) {
         debugSegmentContainer.flushToStorage(TIMEOUT).join();
@@ -461,7 +425,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             ContainerTableExtension extension = this.container.getExtension(ContainerTableExtension.class);
 
             try {
-                output("running validation for " + seg);
+//                output("running validation for " + seg);
                 List<TableEntry> entries = extension.get(NameUtils.getStorageMetadataSegmentName(this.container.getId()), Collections.singletonList(BufferView.wrap(seg.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
                 TableEntry entry = entries.get(0);
                 StorageMetadata storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().getCopy()).getValue();
@@ -469,19 +433,16 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 if (storageMetadata instanceof ChunkMetadata) {
                     ChunkMetadata chunkMetdata = (ChunkMetadata) storageMetadata;
                     if (chunkMetdata.getNextChunk() != null && !chunkMetdata.getNextChunk().equalsIgnoreCase("null")) {
-                        output("next chunk for "+seg+ " is "+chunkMetdata.getNextChunk());
                         return validateSegment(chunkMetdata.getNextChunk());
                     } else {
-                        System.out.println("----------");
-                        System.out.println("----------");
                         return true;
                     }
                 }
                 if (storageMetadata instanceof SegmentMetadata) {
                     SegmentMetadata segmentMetadata = (SegmentMetadata) storageMetadata;
-                    output("is segmentmetadata. first chunk is  "+segmentMetadata.getFirstChunk() + " segment metadata is "+segmentMetadata.toString());
+//                    output("is segmentmetadata. first chunk is  "+segmentMetadata.getFirstChunk() + " segment metadata is "+segmentMetadata.toString());
                     if (segmentMetadata.getFirstChunk() != null && !segmentMetadata.getFirstChunk().equalsIgnoreCase("null")) {
-                        output("first chunk of "+seg + " is "+segmentMetadata.getFirstChunk());
+//                        output("first chunk of "+seg + " is "+segmentMetadata.getFirstChunk());
                         return validateSegment(segmentMetadata.getFirstChunk());
                     }
                 }
