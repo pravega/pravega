@@ -891,12 +891,8 @@ public class StreamManagerImplTest {
                 endStreamCut)).thenReturn(CompletableFuture.completedFuture(new StreamSegmentSuccessors(r, "")));
         CompletableFuture<Long> cf = streamManagerImpl.getDistanceBetweenTwoStreamCuts(stream1, startStreamCut,
                 endStreamCut);
-        try {
-            Long distance = cf.join();
-            assertEquals(Long.valueOf(40), distance);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        Long distance = cf.join();
+        assertEquals(Long.valueOf(40), distance);
     }
 
     @Test
@@ -943,12 +939,8 @@ public class StreamManagerImplTest {
 
         CompletableFuture<Long> cf = streamManager.getDistanceBetweenTwoStreamCuts(stream, startStreamCut,
                 endStreamCut);
-        try {
-            Long distance = cf.join();
-            assertEquals(Long.valueOf(20), distance);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        Long distance = cf.join();
+        assertEquals(Long.valueOf(20), distance);
     }
 
     private StreamCut getStreamCut(String scope, String streamName, long offset, int... segmentNumbers) {

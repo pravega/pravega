@@ -27,7 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Slf4j
-class ClientUtils {
+final class ClientUtils {
 
     /**
      * Utility method to generate streamCut from given watermark.

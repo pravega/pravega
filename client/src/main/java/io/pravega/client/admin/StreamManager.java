@@ -251,7 +251,7 @@ public interface StreamManager extends AutoCloseable {
     void close();
 
     /**
-     * Fetch the distance between two streamCuts.
+     * Fetch the distance between two streamCuts in bytes.
      *
      * @param stream The stream with streamCuts.
      * @param fromStreamCut start streamCut.

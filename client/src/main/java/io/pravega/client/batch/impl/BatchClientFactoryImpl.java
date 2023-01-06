@@ -78,7 +78,6 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     }
 
     @Override
-
     public <T> SegmentIterator<T> readSegment(final SegmentRange segment, final Serializer<T> deserializer) {
         return new SegmentIteratorImpl<>(inputStreamFactory, segment.asImpl().getSegment(), deserializer,
                 segment.asImpl().getStartOffset(), segment.asImpl().getEndOffset());

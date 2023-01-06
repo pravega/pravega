@@ -67,6 +67,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -359,14 +360,19 @@ public class StreamManagerImpl implements StreamManager {
         }
     }
 
+    @Override
     public CompletableFuture<Long> getDistanceBetweenTwoStreamCuts(Stream stream, StreamCut fromStreamCut, StreamCut toStreamCut) {
+        Preconditions.checkArgument(fromStreamCut.asImpl().getStream().equals(toStreamCut.asImpl().getStream()),
+                "Ensure streamCuts for the same stream is passed");
         final CompletableFuture<StreamSegmentSuccessors> unread;
         final Map<Segment, Long> endPositions;
         if (toStreamCut.equals(StreamCut.UNBOUNDED)) {
-            CompletableFuture<StreamInfo> streamInfo = fetchStreamInfo(stream.getScope(), stream.getStreamName());
+            /*CompletableFuture<StreamInfo> streamInfo = fetchStreamInfo(stream.getScope(), stream.getStreamName());
             StreamCut endSC = streamInfo.join().getTailStreamCut();
             unread = controller.getSegments(fromStreamCut, endSC);
-            endPositions = endSC.asImpl().getPositions();
+            endPositions = endSC.asImpl().getPositions();*/
+            unread = controller.getSuccessors(fromStreamCut);
+            endPositions = Collections.emptyMap();
         } else {
             unread = controller.getSegments(fromStreamCut, toStreamCut);
             endPositions = toStreamCut.asImpl().getPositions();
