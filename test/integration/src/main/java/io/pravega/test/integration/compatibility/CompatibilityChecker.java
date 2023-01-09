@@ -50,7 +50,7 @@ public class CompatibilityChecker {
     private static final int READER_TIMEOUT_MS = 2000;
     public StreamConfiguration streamConfig;
 
-    public  void setUp(){
+    public  void setUp() {
         controllerURI = URI.create("tcp://localhost:9090");
         streamManager = StreamManager.create(controllerURI);
         streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
@@ -61,15 +61,15 @@ public class CompatibilityChecker {
     * Here we are trying to create a stream and a scope, and then we are writing a couple of events.
     * And then reading those written event from the stream.
     */
-    public void CheckWriteAndReadEvent(){
+    public void CheckWriteAndReadEvent() {
         String scopeName = "write-and-read-test-scope";
         String streamName = "write-and-read-test-stream";
         streamManager.createScope(scopeName);
         streamManager.createStream(scopeName, streamName, streamConfig);
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName,ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,new UTF8StringSerializer(), EventWriterConfig.builder().build());
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
         String readerGroupId = UUID.randomUUID().toString().replace("-", "");
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
@@ -107,7 +107,7 @@ public class CompatibilityChecker {
         streamManager.createScope(scopeName);
         streamManager.createStream(scopeName, streamName, streamConfig);
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName,ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
 
         String readerGroupId = UUID.randomUUID().toString().replace("-", "");
 
@@ -144,21 +144,21 @@ public class CompatibilityChecker {
     * Here we are creating a stream and writing some event to it.
     * And then sealing that stream by using stream manager and validating the stream whether sealing worked properly.
     */
-    public  void checkSealStream(){
+    public  void checkSealStream() {
         String scopeName = "stream-seal-test-scope";
         String streamName = "stream-seal-test-stream";
         streamManager.createScope(scopeName);
         streamManager.createStream(scopeName, streamName, streamConfig);
         assertTrue(streamManager.checkStreamExists(scopeName, streamName));
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName,ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
         // Before sealing of the stream it must write to the existing stream.
-        writer.writeEvent(String.valueOf("0")).join();
+        writer.writeEvent("0").join();
         assertTrue(streamManager.sealStream(scopeName, streamName));
         // It must complete Exceptionally because stream is sealed already.
-        assertTrue(writer.writeEvent(String.valueOf("1")).completeExceptionally(new IllegalStateException()));
+        assertTrue(writer.writeEvent("1").completeExceptionally(new IllegalStateException()));
     }
 
     /**
@@ -183,7 +183,7 @@ public class CompatibilityChecker {
      * This method is trying to create a stream and writing a couple of events.
      * Then deleting the newly created stream and validating it.
      */
-    public void checkStreamDelete(){
+    public void checkStreamDelete() {
         String scopeName = "stream-delete-test-scope";
         String streamName = "stream-delete-test-stream";
         streamManager.createScope(scopeName);
@@ -194,12 +194,12 @@ public class CompatibilityChecker {
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
         // Before sealing of the stream it must write to the existing stream.
-        writer.writeEvent(String.valueOf("0")).join();
+        writer.writeEvent("0").join();
         assertTrue(streamManager.sealStream(scopeName, streamName));
 
         assertTrue(streamManager.deleteStream(scopeName, streamName));
         // It must complete Exceptionally because stream is sealed already.
-        assertTrue(writer.writeEvent(String.valueOf("1")).completeExceptionally(new IllegalStateException()));
+        assertTrue(writer.writeEvent("1").completeExceptionally(new IllegalStateException()));
 
     }
 
