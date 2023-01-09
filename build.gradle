@@ -141,6 +141,7 @@ allprojects {
 	    force "org.yaml:snakeyaml:" + snakeYamlVersion
             force "com.fasterxml.woodstox:woodstox-core:" + woodstoxVersion
 	    force "org.jdom:jdom2:" + jdomVersion
+	    force "commons-net:commons-net:" + commonsNetVersion
             // Netty 4 uber jar
             exclude group: 'io.netty', module: 'netty-all'
             // Netty 3
