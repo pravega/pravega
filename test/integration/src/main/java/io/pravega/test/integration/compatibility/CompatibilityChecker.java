@@ -41,16 +41,21 @@ import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * CompatibilityChecker class is exercising all APIs we have in Pravega Samples.
+ * This class can be used for compatibility check against a server endpoint passed by parameter.
+ */
 @Slf4j
 public class CompatibilityChecker {
     private static final int READER_TIMEOUT_MS = 2000;
-    public  URI controllerURI;
-    public  StreamManager streamManager;
+    public URI controllerURI;
+    public StreamManager streamManager;
     public StreamConfiguration streamConfig;
 
-    public  void setUp() {
+    public void setUp() {
         controllerURI = URI.create("tcp://localhost:9090");
         streamManager = StreamManager.create(controllerURI);
         streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
@@ -72,6 +77,7 @@ public class CompatibilityChecker {
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
         String readerGroupId = UUID.randomUUID().toString().replace("-", "");
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
+        @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
         readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
         @Cleanup
@@ -95,6 +101,7 @@ public class CompatibilityChecker {
             }
         } while (event.getEvent() != null);
         log.info("No more events from {}, {}", scopeName, streamName);
+        assertNull(event.getEvent());
     }
 
     /**
@@ -106,15 +113,17 @@ public class CompatibilityChecker {
         String scopeName = "truncate-test-scope";
         String streamName = "truncate-test-stream";
         streamManager.createScope(scopeName);
-            streamManager.createStream(scopeName, streamName, streamConfig);
+        streamManager.createStream(scopeName, streamName, streamConfig);
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
 
         String readerGroupId = UUID.randomUUID().toString().replace("-", "");
 
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
+        @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
         readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
+        @Cleanup
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupId);
 
         @Cleanup
@@ -122,6 +131,7 @@ public class CompatibilityChecker {
         for (int event = 0; event < 2; event++) {
             writer.writeEvent(String.valueOf(event)).join();
         }
+
         EventStreamReader<String> reader = clientFactory.createReader(readerGroupId + "1", readerGroupId,
                 new UTF8StringSerializer(), ReaderConfig.builder().build());
         assertEquals(reader.readNextEvent(5000).getEvent(), "0");
@@ -146,7 +156,7 @@ public class CompatibilityChecker {
     * Here we are creating a stream and writing some event to it.
     * And then sealing that stream by using stream manager and validating the stream whether sealing worked properly.
     */
-    public  void checkSealStream() {
+    public void checkSealStream() {
         String scopeName = "stream-seal-test-scope";
         String streamName = "stream-seal-test-stream";
         streamManager.createScope(scopeName);
@@ -159,6 +169,7 @@ public class CompatibilityChecker {
         String readerGroupId = UUID.randomUUID().toString().replace("-", "");
 
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
+        @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
         readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
         @Cleanup
@@ -178,7 +189,7 @@ public class CompatibilityChecker {
      * And also validating it.
      * @throws DeleteScopeFailedException is thrown if this method is unable to seal and delete a stream.
      */
-    public  void checkDeleteScope() throws DeleteScopeFailedException {
+    public void checkDeleteScope() throws DeleteScopeFailedException {
         String scopeName = "scope-delete-test-scope";
         String streamName = "scope-delete-test-stream";
         streamManager.createScope(scopeName);
