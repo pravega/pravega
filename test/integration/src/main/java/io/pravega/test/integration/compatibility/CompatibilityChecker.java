@@ -53,7 +53,7 @@ public class CompatibilityChecker {
     private static final int READER_TIMEOUT_MS = 2000;
     private URI controllerURI;
     private StreamManager streamManager;
-    public StreamConfiguration streamConfig;
+    private StreamConfiguration streamConfig;
 
     public void setUp() {
         controllerURI = URI.create("tcp://localhost:9090");
