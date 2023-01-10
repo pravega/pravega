@@ -51,8 +51,8 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class CompatibilityChecker {
     private static final int READER_TIMEOUT_MS = 2000;
-    public URI controllerURI;
-    public StreamManager streamManager;
+    private URI controllerURI;
+    private StreamManager streamManager;
     public StreamConfiguration streamConfig;
 
     public void setUp() {
@@ -66,7 +66,7 @@ public class CompatibilityChecker {
     * Here we are trying to create a stream and a scope, and then we are writing a couple of events.
     * And then reading those written event from the stream.
     */
-    public void checkWriteAndReadEvent() {
+    private void checkWriteAndReadEvent() {
         String scopeName = "write-and-read-test-scope";
         String streamName = "write-and-read-test-stream";
         streamManager.createScope(scopeName);
@@ -109,7 +109,7 @@ public class CompatibilityChecker {
     * Here we are creating some stream and writing events to that stream.
     * After that we are truncating to that stream and validating whether the stream truncation is working properly.
     */
-    public void checkTruncationOfStream() {
+    private void checkTruncationOfStream() {
         String scopeName = "truncate-test-scope";
         String streamName = "truncate-test-stream";
         streamManager.createScope(scopeName);
@@ -156,7 +156,7 @@ public class CompatibilityChecker {
     * Here we are creating a stream and writing some event to it.
     * And then sealing that stream by using stream manager and validating the stream whether sealing worked properly.
     */
-    public void checkSealStream() {
+    private void checkSealStream() {
         String scopeName = "stream-seal-test-scope";
         String streamName = "stream-seal-test-stream";
         streamManager.createScope(scopeName);
@@ -185,11 +185,10 @@ public class CompatibilityChecker {
     }
 
     /**
-     * This method is trying to create and delete a scope.
-     * And also validating it.
-     * @throws DeleteScopeFailedException is thrown if this method is unable to seal and delete a stream.
+     * This method attempts to create, delete and validate the existence of a scope.
+     * @throws DeleteScopeFailedException if unable to seal and delete a stream.
      */
-    public void checkDeleteScope() throws DeleteScopeFailedException {
+    private void checkDeleteScope() throws DeleteScopeFailedException {
         String scopeName = "scope-delete-test-scope";
         String streamName = "scope-delete-test-stream";
         streamManager.createScope(scopeName);
@@ -206,7 +205,7 @@ public class CompatibilityChecker {
      * This method is trying to create a stream and writing a couple of events.
      * Then deleting the newly created stream and validating it.
      */
-    public void checkStreamDelete() {
+    private void checkStreamDelete() {
         String scopeName = "stream-delete-test-scope";
         String streamName = "stream-delete-test-stream";
         streamManager.createScope(scopeName);
