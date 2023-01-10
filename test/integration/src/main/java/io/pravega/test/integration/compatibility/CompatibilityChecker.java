@@ -61,7 +61,7 @@ public class CompatibilityChecker {
     * Here we are trying to create a stream and a scope, and then we are writing a couple of events.
     * And then reading those written event from the stream.
     */
-    public void CheckWriteAndReadEvent() {
+    public void checkWriteAndReadEvent() {
         String scopeName = "write-and-read-test-scope";
         String streamName = "write-and-read-test-stream";
         streamManager.createScope(scopeName);
@@ -216,7 +216,7 @@ public class CompatibilityChecker {
     public static void main(String[] args) throws DeleteScopeFailedException {
         CompatibilityChecker compatibilityChecker = new CompatibilityChecker();
         compatibilityChecker.setUp();
-        compatibilityChecker.CheckWriteAndReadEvent();
+        compatibilityChecker.checkWriteAndReadEvent();
         compatibilityChecker.checkTruncationOfStream();
         compatibilityChecker.checkSealStream();
         compatibilityChecker.checkDeleteScope();
