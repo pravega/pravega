@@ -769,6 +769,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return wrapper.evictReadIndexCacheForSegment(segmentName);
     }
 
+
     //endregion
 
     //region Helpers
