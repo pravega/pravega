@@ -337,6 +337,55 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testResendFailedUponStreamSealed() {
+        String scope = "scope";
+        String streamName = "stream";
+        String routingKey = "RoutingKey";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment1 = new Segment(scope, streamName, 0);
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+
+        FakeSegmentOutputStream outputStream1 = new FakeSegmentOutputStream(segment1);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any(), any(), any())).thenAnswer(i -> {
+            outputStream1.callBackForSealed = i.getArgument(1);
+            return outputStream1;
+        });
+
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        val empty = CompletableFuture.completedFuture(new StreamSegments(new TreeMap<>()));
+
+        Mockito.when(controller.getCurrentSegments(scope, streamName))
+                .thenReturn(getSegmentsFuture(segment1))
+                .thenReturn(empty);
+        @Cleanup
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
+                config, executorService(), executorService(), null);
+        //When stream is not seal then we are able to write to the stream.
+        writer.writeEvent(routingKey, "Foo");
+        writer.writeEvent(routingKey, "Bar");
+
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(empty);
+        val noFutures = CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(new HashMap<>(), ""));
+        Mockito.when(controller.getSuccessors(segment1)).thenReturn(noFutures);
+
+        assertEquals(2, outputStream1.unacked.size());
+        assertEquals(0, outputStream1.acked.size());
+        val pendingEvents1 = outputStream1.getUnackedEventsOnSeal();
+        //invoke the sealed callback invocation simulating a netty call back with segment sealed exception.
+        outputStream1.sealed = true;
+        outputStream1.invokeSealedCallBack();
+
+        // If stream is sealed then all the pending event should complete exceptionally.
+        pendingEvents1.forEach(p -> p.getAckFuture().completeExceptionally(new IllegalStateException()));
+        assertThrows("Stream should throw IllegalStateException", () -> writer.writeEvent(routingKey, "foo"), e -> e.getClass().equals(IllegalStateException.class));
+        assertThrows("Stream should be sealed", () -> writer.writeEvent(routingKey, "Bar"), e -> e.getMessage().contains("sealed"));
+        writer.close();
+    }
+
+
+    @Test
     public void testEndOfSegmentBackgroundRefresh() {
         String scope = "scope";
         String streamName = "stream";

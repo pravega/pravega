@@ -222,6 +222,15 @@ public abstract class AbstractDrainingQueue<T> {
         }
     }
 
+    /**
+     * Returns whether the queue has been closed.
+     *
+     * @return If queue is closed.
+     */
+    public boolean isClosed() {
+        return this.closed;
+    }
+
     //endregion
 
     //region Abstract Methods
