@@ -60,21 +60,11 @@ plugins.withId('maven') {
                     }
                 }
 
-                // Sign the POM when the signing plugin is present.
-                // If Gradle version < 7.0
-                plugins.withId('signing') {
-                    if (project.hasProperty('doSigning')) {
-                        beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+                if (project.hasProperty('doSigning')) {
+                    plugins {
+                        id 'signing'
                     }
                 }
-
-                // Sign the POM when the signing plugin is present.
-                // If Gradle version > 7.0
-                //if (project.hasProperty('doSigning')) {
-                //    plugins {
-                //        id 'signing'
-                //    }
-                //}
             }
         }
     }
