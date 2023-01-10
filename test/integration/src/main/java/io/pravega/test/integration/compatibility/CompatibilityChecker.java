@@ -45,9 +45,9 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class CompatibilityChecker {
+    private static final int READER_TIMEOUT_MS = 2000;
     public  URI controllerURI;
     public  StreamManager streamManager;
-    private static final int READER_TIMEOUT_MS = 2000;
     public StreamConfiguration streamConfig;
 
     public  void setUp() {
@@ -77,8 +77,9 @@ public class CompatibilityChecker {
         @Cleanup
         EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
         // Writing 10 Events to the stream
-        for( int event = 0; event < 10; event++)
+        for (int event = 0; event < 10; event++) {
             writer.writeEvent("event test" + event);
+        }
         log.info("Reading all the events from {}, {}", scopeName, streamName);
         EventRead<String> event = null;
         // Reading all those 10 events from the stream
@@ -117,9 +118,10 @@ public class CompatibilityChecker {
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupId);
 
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,new UTF8StringSerializer(), EventWriterConfig.builder().build());
-        for( int event = 0; event < 2; event++)
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
+        for (int event = 0; event < 2; event++) {
             writer.writeEvent(String.valueOf(event)).join();
+        }
         EventStreamReader<String> reader = clientFactory.createReader(readerGroupId + "1", readerGroupId,
                 new UTF8StringSerializer(), ReaderConfig.builder().build());
         assertEquals(reader.readNextEvent(5000).getEvent(), "0");
@@ -174,7 +176,7 @@ public class CompatibilityChecker {
     /**
      * This method is trying to create and delete a scope.
      * And also validating it.
-     * @throws DeleteScopeFailedException
+     * @throws DeleteScopeFailedException is thrown if this method is unable to seal and delete a stream.
      */
     public  void checkDeleteScope() throws DeleteScopeFailedException {
         String scopeName = "scope-delete-test-scope";
@@ -200,7 +202,7 @@ public class CompatibilityChecker {
         streamManager.createStream(scopeName, streamName, streamConfig);
         assertTrue(streamManager.checkStreamExists(scopeName, streamName));
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName,ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
         // Before sealing of the stream it must write to the existing stream.
