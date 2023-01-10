@@ -105,7 +105,7 @@ public class CompatibilityChecker {
         String scopeName = "truncate-test-scope";
         String streamName = "truncate-test-stream";
         streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+            streamManager.createStream(scopeName, streamName, streamConfig);
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
 
@@ -125,7 +125,7 @@ public class CompatibilityChecker {
         assertEquals(reader.readNextEvent(5000).getEvent(), "0");
         reader.close();
 
-        // Create a Checkpoint, get StreamCut and truncate the Stream at that point.
+        // Get StreamCut and truncate the Stream at that point.
         StreamCut streamCut = readerGroup.getStreamCuts().get(Stream.of(scopeName, streamName));
         assertTrue(streamManager.truncateStream(scopeName, streamName, streamCut));
 
@@ -154,11 +154,21 @@ public class CompatibilityChecker {
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
+        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
+
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
+        readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(readerGroupId + "1", readerGroupId,
+                new UTF8StringSerializer(), ReaderConfig.builder().build());
         // Before sealing of the stream it must write to the existing stream.
         writer.writeEvent("0").join();
         assertTrue(streamManager.sealStream(scopeName, streamName));
         // It must complete Exceptionally because stream is sealed already.
         assertTrue(writer.writeEvent("1").completeExceptionally(new IllegalStateException()));
+        // But there should not be any problem while reading from a sealed stream.
+        assertEquals(reader.readNextEvent(READER_TIMEOUT_MS).getEvent(), "0");
     }
 
     /**
@@ -198,9 +208,7 @@ public class CompatibilityChecker {
         assertTrue(streamManager.sealStream(scopeName, streamName));
 
         assertTrue(streamManager.deleteStream(scopeName, streamName));
-        // It must complete Exceptionally because stream is sealed already.
-        assertTrue(writer.writeEvent("1").completeExceptionally(new IllegalStateException()));
-
+        assertFalse(streamManager.checkStreamExists(scopeName, streamName));
     }
 
     public static void main(String[] args) throws DeleteScopeFailedException {
