@@ -226,7 +226,7 @@ public class CompatibilityChecker {
     public static void main(String[] args) throws DeleteScopeFailedException {
         String uri = System.getProperty("controllerUri");
         if (uri == null) {
-            log.error("Enter correct gradle with correct controller URI. i.e : ./gradlew compatibilityCheck -Du=\"tcp://localhost:9090\"");
+            log.error("Enter correct gradle command with correct controller URI. i.e : ./gradlew compatibilityCheck -Du=\"tcp://localhost:9090\"");
             System.exit(1);
         }
         CompatibilityChecker compatibilityChecker = new CompatibilityChecker();
