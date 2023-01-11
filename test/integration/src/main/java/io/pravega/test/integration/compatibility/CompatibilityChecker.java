@@ -131,7 +131,7 @@ public class CompatibilityChecker {
         for (int event = 0; event < 2; event++) {
             writer.writeEvent(String.valueOf(event)).join();
         }
-
+        @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(readerGroupId + "1", readerGroupId,
                 new UTF8StringSerializer(), ReaderConfig.builder().build());
         assertEquals(reader.readNextEvent(5000).getEvent(), "0");
