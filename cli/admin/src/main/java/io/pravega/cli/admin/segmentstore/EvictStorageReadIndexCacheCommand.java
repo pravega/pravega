@@ -27,10 +27,13 @@ import org.apache.curator.framework.CuratorFramework;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-public class EvictReadIndexCacheCommand extends StorageCommand {
+/**
+ * Executes a request to evictStorageReadIndexCache for specified Segment Store instance.
+ */
+public class EvictStorageReadIndexCacheCommand extends StorageCommand {
     private static final int REQUEST_TIMEOUT_SECONDS = 30;
 
-    public EvictReadIndexCacheCommand(CommandArgs args) {
+    public EvictStorageReadIndexCacheCommand(CommandArgs args) {
         super(args);
     }
 
@@ -47,12 +50,12 @@ public class EvictReadIndexCacheCommand extends StorageCommand {
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
 
         if (null != fullyQualifiedSegmentName) {
-            CompletableFuture<WireCommands.ReadIndexCacheEvictedForSegment> reply = adminSegmentHelper.evictReadIndexCacheForSegment(containerId, fullyQualifiedSegmentName,
+            CompletableFuture<WireCommands.StorageReadIndexCacheEvictedForSegment> reply = adminSegmentHelper.evictStorageReadIndexCacheForSegment(containerId, fullyQualifiedSegmentName,
                     new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
             reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             output("Read Index Cache evicted for the Segment Container with containerId %d.", containerId);
         } else {
-            CompletableFuture<WireCommands.ReadIndexCacheEvicted> reply = adminSegmentHelper.evictReadIndexCache(containerId,
+            CompletableFuture<WireCommands.StorageReadIndexCacheEvicted> reply = adminSegmentHelper.evictStorageReadIndexCache(containerId,
                     new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
             reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             output("Read Index Cache evicted for the Segment Container with containerId %d.", containerId);

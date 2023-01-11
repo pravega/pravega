@@ -113,26 +113,26 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     }
 
     @Override
-    public CompletableFuture<Void> evictMetaDataCache(int containerId, Duration timeout) {
+    public CompletableFuture<Void> evictStorageMetaDataCache(int containerId, Duration timeout) {
         return invoke(
                 containerId,
-                container -> container.evictMetaDataCache(containerId, timeout),
+                container -> container.evictStorageMetaDataCache(containerId, timeout),
                 "evictMetaDataCache");
     }
 
     @Override
-    public CompletableFuture<Void> evictReadIndexCache(int containerId, Duration timeout) {
+    public CompletableFuture<Void> evictStorageReadIndexCache(int containerId, Duration timeout) {
         return invoke(
                 containerId,
-                container -> container.evictReadIndexCache(containerId, timeout),
+                container -> container.evictStorageReadIndexCache(containerId, timeout),
                 "evictReadIndexCache");
     }
 
     @Override
-    public CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
+    public CompletableFuture<Void> evictStorageReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
         return invoke(
                 containerId,
-                container -> container.evictReadIndexCacheForSegment(containerId, segmentName, timeout),
+                container -> container.evictStorageReadIndexCacheForSegment(containerId, segmentName, timeout),
                 "evictReadIndexCacheForSegment", segmentName);
     }
 

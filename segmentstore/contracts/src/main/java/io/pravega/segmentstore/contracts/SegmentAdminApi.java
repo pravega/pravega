@@ -40,7 +40,7 @@ public interface SegmentAdminApi {
      * @param timeout Timeout for the operation.
      * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
      */
-    default CompletableFuture<Void> evictMetaDataCache(int containerId, Duration timeout) {
+    default CompletableFuture<Void> evictStorageMetaDataCache(int containerId, Duration timeout) {
         throw new UnsupportedOperationException("evictMetaDataCache is not supported on " + getClass().getSimpleName());
     }
 
@@ -51,8 +51,8 @@ public interface SegmentAdminApi {
      * @param timeout Timeout for the operation.
      * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
      */
-    default CompletableFuture<Void> evictReadIndexCache(int containerId, Duration timeout) {
-        throw new UnsupportedOperationException("evictReadIndexCache is not supported on " + getClass().getSimpleName());
+    default CompletableFuture<Void> evictStorageReadIndexCache(int containerId, Duration timeout) {
+        throw new UnsupportedOperationException("evictStorageReadIndexCache is not supported on " + getClass().getSimpleName());
     }
 
     /**
@@ -63,7 +63,7 @@ public interface SegmentAdminApi {
      * @param timeout Timeout for the operation.
      * @return A Completable future that when completed, will indicate that the operation has been successfully completed.
      */
-    default CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
-        throw new UnsupportedOperationException("evictReadIndexCacheForSegment is not supported on " + getClass().getSimpleName());
+    default CompletableFuture<Void> evictStorageReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
+        throw new UnsupportedOperationException("evictStorageReadIndexCacheForSegment is not supported on " + getClass().getSimpleName());
     }
 }

@@ -122,44 +122,44 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
     }
 
     @Test(timeout = 60000)
-    public void testEvictMetaDataCache() {
+    public void testEvictStorageMetaDataCache() {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
-        when(store.evictMetaDataCache(anyInt(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(store.evictStorageMetaDataCache(anyInt(), any())).thenReturn(CompletableFuture.completedFuture(null));
 
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
         AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
 
-        processor.evictMetaDataCache(new WireCommands.EvictMetaDataCache(1, null, 123));
-        order.verify(connection).send(new WireCommands.MetaDataCacheEvicted(123));
+        processor.evictStorageMetaDataCache(new WireCommands.EvictStorageMetaDataCache(1, null, 123));
+        order.verify(connection).send(new WireCommands.StorageMetaDataCacheEvicted(123));
     }
 
     @Test(timeout = 60000)
-    public void testEvictReadIndexCache() {
+    public void testEvictStorageReadIndexCache() {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
-        when(store.evictReadIndexCache(anyInt(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(store.evictStorageReadIndexCache(anyInt(), any())).thenReturn(CompletableFuture.completedFuture(null));
 
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
         AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
 
-        processor.evictReadIndexCache(new WireCommands.EvictReadIndexCache(1, null, 123));
-        order.verify(connection).send(new WireCommands.ReadIndexCacheEvicted(123));
+        processor.evictStorageReadIndexCache(new WireCommands.EvictStorageReadIndexCache(1, null, 123));
+        order.verify(connection).send(new WireCommands.StorageReadIndexCacheEvicted(123));
     }
 
     @Test(timeout = 60000)
-    public void testEvictReadIndexCacheForSegment() {
+    public void testEvictStorageReadIndexCacheForSegment() {
         String segmentName = "dummy";
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
-        when(store.evictReadIndexCacheForSegment(anyInt(), anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(store.evictStorageReadIndexCacheForSegment(anyInt(), anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
 
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
         AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
 
-        processor.evictReadIndexCacheForSegment(new WireCommands.EvictReadIndexCacheForSegment(1, "dummy", null, 123));
-        order.verify(connection).send(new WireCommands.ReadIndexCacheEvictedForSegment(123));
+        processor.evictStorageReadIndexCacheForSegment(new WireCommands.EvictStorageReadIndexCacheForSegment(1, "dummy", null, 123));
+        order.verify(connection).send(new WireCommands.StorageReadIndexCacheEvictedForSegment(123));
     }
 
 }

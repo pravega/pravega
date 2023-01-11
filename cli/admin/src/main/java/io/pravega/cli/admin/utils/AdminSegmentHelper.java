@@ -45,9 +45,9 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
                     .put(WireCommands.GetTableSegmentInfo.class, ImmutableSet.of(WireCommands.TableSegmentInfo.class))
                     .put(WireCommands.ListStorageChunks.class, ImmutableSet.of(WireCommands.StorageChunksListed.class))
                     .put(WireCommands.CheckChunkSanity.class, ImmutableSet.of(WireCommands.ChunkSanityChecked.class))
-                    .put(WireCommands.EvictMetaDataCache.class, ImmutableSet.of(WireCommands.MetaDataCacheEvicted.class))
-                    .put(WireCommands.EvictReadIndexCache.class, ImmutableSet.of(WireCommands.ReadIndexCacheEvicted.class))
-                    .put(WireCommands.EvictReadIndexCacheForSegment.class, ImmutableSet.of(WireCommands.ReadIndexCacheEvictedForSegment.class))
+                    .put(WireCommands.EvictStorageMetaDataCache.class, ImmutableSet.of(WireCommands.StorageMetaDataCacheEvicted.class))
+                    .put(WireCommands.EvictStorageReadIndexCache.class, ImmutableSet.of(WireCommands.StorageReadIndexCacheEvicted.class))
+                    .put(WireCommands.EvictStorageReadIndexCacheForSegment.class, ImmutableSet.of(WireCommands.StorageReadIndexCacheEvictedForSegment.class))
                     .build();
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_FAILING_REPLIES =
@@ -111,67 +111,69 @@ public class AdminSegmentHelper extends SegmentHelper implements AutoCloseable {
     }
 
     /**
-     * Evicts all eligible entries from buffer cache and all entries from guava cache.
+     * The following method is useful for the administration of LTS.
+     * It evicts all eligible entries from buffer cache and all entries from guava cache.
      *
      * @param containerId The Id of the container for which the meta data cache is evicted.
      * @param uri The uri of the Segment Store instance.
      * @param delegationToken The token to be presented to the Segment Store.
      * @return A CompletableFuture that will complete normally when all the eligible entries from buffer cache and guava cache are evicted.
      */
-    public CompletableFuture<WireCommands.MetaDataCacheEvicted> evictMetaDataCache(int containerId, PravegaNodeUri uri, String delegationToken) {
-        final WireCommandType type = WireCommandType.EVICT_METADATA_CACHE;
+    public CompletableFuture<WireCommands.StorageMetaDataCacheEvicted> evictStorageMetaDataCache(int containerId, PravegaNodeUri uri, String delegationToken) {
+        final WireCommandType type = WireCommandType.EVICT_STORAGE_METADATA_CACHE;
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        WireCommands.EvictMetaDataCache request = new WireCommands.EvictMetaDataCache(containerId, delegationToken, requestId);
+        WireCommands.EvictStorageMetaDataCache request = new WireCommands.EvictStorageMetaDataCache(containerId, delegationToken, requestId);
         return sendRequest(connection, requestId, request)
                 .thenApply(r -> {
-                    handleReply(requestId, r, connection, null, WireCommands.EvictMetaDataCache.class, type);
-                    assert r instanceof WireCommands.MetaDataCacheEvicted;
-                    return (WireCommands.MetaDataCacheEvicted) r;
+                    handleReply(requestId, r, connection, null, WireCommands.EvictStorageMetaDataCache.class, type);
+                    assert r instanceof WireCommands.StorageMetaDataCacheEvicted;
+                    return (WireCommands.StorageMetaDataCacheEvicted) r;
                 });
     }
 
     /**
      * Evicts entire read index cache.
+     * This LTS method is invoked right after changing the metadata in table segment to ignore cached values.
      * @param containerId The Id of the container for which the read index cache is evicted.
      * @param uri The uri of the Segment Store instance.
      * @param delegationToken The token to be presented to the Segment Store.
      * @return A CompletableFuture that will complete normally when entire read index cache is evicted.
      */
-    public CompletableFuture<WireCommands.ReadIndexCacheEvicted> evictReadIndexCache(int containerId, PravegaNodeUri uri, String delegationToken) {
-        final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE;
+    public CompletableFuture<WireCommands.StorageReadIndexCacheEvicted> evictStorageReadIndexCache(int containerId, PravegaNodeUri uri, String delegationToken) {
+        final WireCommandType type = WireCommandType.EVICT_STORAGE_READINDEX_CACHE;
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        WireCommands.EvictReadIndexCache request = new WireCommands.EvictReadIndexCache(containerId, delegationToken, requestId);
+        WireCommands.EvictStorageReadIndexCache request = new WireCommands.EvictStorageReadIndexCache(containerId, delegationToken, requestId);
         return sendRequest(connection, requestId, request)
                 .thenApply(r -> {
-                    handleReply(requestId, r, connection, null, WireCommands.EvictReadIndexCache.class, type);
-                    assert r instanceof WireCommands.ReadIndexCacheEvicted;
-                    return (WireCommands.ReadIndexCacheEvicted) r;
+                    handleReply(requestId, r, connection, null, WireCommands.EvictStorageReadIndexCache.class, type);
+                    assert r instanceof WireCommands.StorageReadIndexCacheEvicted;
+                    return (WireCommands.StorageReadIndexCacheEvicted) r;
                 });
     }
 
     /**
-     * Evicts read index cache for given segment.
+     * SLTS method to evicts read index cache for given segment.
      * @param containerId The Id of the container for which the read index cache for given segment is evicted.
      * @param segmentName Name of the segment for which the read index cache is evicted.
      * @param uri The uri of the Segment Store instance.
      * @param delegationToken The token to be presented to the Segment Store.
      * @return A CompletableFuture that will complete normally when entire read index cache for given segment is evicted.
      */
-    public CompletableFuture<WireCommands.ReadIndexCacheEvictedForSegment> evictReadIndexCacheForSegment(int containerId, String segmentName, PravegaNodeUri uri, String delegationToken) {
-        final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE_SEGMENT;
+    public CompletableFuture<WireCommands.StorageReadIndexCacheEvictedForSegment> evictStorageReadIndexCacheForSegment(int containerId, String segmentName, PravegaNodeUri uri, String delegationToken) {
+        final WireCommandType type = WireCommandType.EVICT_STORAGE_READINDEX_CACHE_SEGMENT;
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        WireCommands.EvictReadIndexCacheForSegment request = new WireCommands.EvictReadIndexCacheForSegment(containerId, segmentName, delegationToken, requestId);
+        WireCommands.EvictStorageReadIndexCacheForSegment request = new WireCommands.EvictStorageReadIndexCacheForSegment(containerId, segmentName, delegationToken, requestId);
         return sendRequest(connection, requestId, request)
                 .thenApply(r -> {
-                    handleReply(requestId, r, connection, segmentName, WireCommands.EvictReadIndexCacheForSegment.class, type);
-                    assert r instanceof WireCommands.ReadIndexCacheEvictedForSegment;
-                    return (WireCommands.ReadIndexCacheEvictedForSegment) r;
+                    handleReply(requestId, r, connection, segmentName, WireCommands.EvictStorageReadIndexCacheForSegment.class, type);
+                    assert r instanceof WireCommands.StorageReadIndexCacheEvictedForSegment;
+                    return (WireCommands.StorageReadIndexCacheEvictedForSegment) r;
                 });
     }
 

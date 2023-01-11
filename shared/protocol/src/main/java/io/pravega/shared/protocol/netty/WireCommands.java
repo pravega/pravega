@@ -962,8 +962,8 @@ public final class WireCommands {
      * WireCommand to evict all eligible entries from buffer cache and guava cache.
      */
     @Data
-    public static final class EvictMetaDataCache implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.EVICT_METADATA_CACHE;
+    public static final class EvictStorageMetaDataCache implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.EVICT_STORAGE_METADATA_CACHE;
         final int containerId;
         @ToString.Exclude
         final String delegationToken;
@@ -971,12 +971,12 @@ public final class WireCommands {
 
         @Override
         public void process(RequestProcessor cp) {
-            ((AdminRequestProcessor) cp).evictMetaDataCache(this);
+            ((AdminRequestProcessor) cp).evictStorageMetaDataCache(this);
         }
 
         @Override
         public WireCommandType getType() {
-            return WireCommandType.EVICT_METADATA_CACHE;
+            return WireCommandType.EVICT_STORAGE_METADATA_CACHE;
         }
 
         @Override
@@ -986,17 +986,17 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static EvictMetaDataCache readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static EvictStorageMetaDataCache readFrom(ByteBufInputStream in, int length) throws IOException {
             int containerId = in.readInt();
             String delegationToken = in.readUTF();
             long requestId = in.readLong();
-            return new EvictMetaDataCache(containerId, delegationToken, requestId);
+            return new EvictStorageMetaDataCache(containerId, delegationToken, requestId);
         }
     }
 
     @Data
-    public static final class MetaDataCacheEvicted implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.METADATA_CACHE_EVICTED;
+    public static final class StorageMetaDataCacheEvicted implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.STORAGE_METADATA_CACHE_EVICTED;
         final long requestId;
 
         @Override
@@ -1011,7 +1011,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
-            return new MetaDataCacheEvicted(requestId);
+            return new StorageMetaDataCacheEvicted(requestId);
         }
     }
 
@@ -1019,8 +1019,8 @@ public final class WireCommands {
      * WireCommand to evict entire read index cache.
      */
     @Data
-    public static final class EvictReadIndexCache implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE;
+    public static final class EvictStorageReadIndexCache implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.EVICT_STORAGE_READINDEX_CACHE;
         final int containerId;
         @ToString.Exclude
         final String delegationToken;
@@ -1028,12 +1028,12 @@ public final class WireCommands {
 
         @Override
         public void process(RequestProcessor cp) {
-            ((AdminRequestProcessor) cp).evictReadIndexCache(this);
+            ((AdminRequestProcessor) cp).evictStorageReadIndexCache(this);
         }
 
         @Override
         public WireCommandType getType() {
-            return WireCommandType.EVICT_READINDEX_CACHE;
+            return WireCommandType.EVICT_STORAGE_READINDEX_CACHE;
         }
 
         @Override
@@ -1043,17 +1043,17 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static EvictReadIndexCache readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static EvictStorageReadIndexCache readFrom(ByteBufInputStream in, int length) throws IOException {
             int containerId = in.readInt();
             String delegationToken = in.readUTF();
             long requestId = in.readLong();
-            return new EvictReadIndexCache(containerId, delegationToken, requestId);
+            return new EvictStorageReadIndexCache(containerId, delegationToken, requestId);
         }
     }
 
     @Data
-    public static final class ReadIndexCacheEvicted implements  Reply, WireCommand {
-        final WireCommandType type = WireCommandType.READINDEX_CACHE_EVICTED;
+    public static final class StorageReadIndexCacheEvicted implements  Reply, WireCommand {
+        final WireCommandType type = WireCommandType.STORAGE_READINDEX_CACHE_EVICTED;
         final long requestId;
 
         @Override
@@ -1068,7 +1068,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
-            return new ReadIndexCacheEvicted(requestId);
+            return new StorageReadIndexCacheEvicted(requestId);
         }
     }
 
@@ -1076,8 +1076,8 @@ public final class WireCommands {
      * Command to evict read index cache for specific segment.
      */
     @Data
-    public static final class EvictReadIndexCacheForSegment implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.EVICT_READINDEX_CACHE_SEGMENT;
+    public static final class EvictStorageReadIndexCacheForSegment implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.EVICT_STORAGE_READINDEX_CACHE_SEGMENT;
         final int containerId;
         final String segmentName;
         @ToString.Exclude
@@ -1086,12 +1086,12 @@ public final class WireCommands {
 
         @Override
         public void process(RequestProcessor cp) {
-            ((AdminRequestProcessor) cp).evictReadIndexCacheForSegment(this);
+            ((AdminRequestProcessor) cp).evictStorageReadIndexCacheForSegment(this);
         }
 
         @Override
         public WireCommandType getType() {
-            return WireCommandType.EVICT_READINDEX_CACHE_SEGMENT;
+            return WireCommandType.EVICT_STORAGE_READINDEX_CACHE_SEGMENT;
         }
 
         @Override
@@ -1102,18 +1102,18 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static EvictReadIndexCacheForSegment readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static EvictStorageReadIndexCacheForSegment readFrom(ByteBufInputStream in, int length) throws IOException {
             int containerId = in.readInt();
             String segmentName  = in.readUTF();
             String delegationToken = in.readUTF();
             long requestId = in.readLong();
-            return new EvictReadIndexCacheForSegment(containerId, segmentName, delegationToken, requestId);
+            return new EvictStorageReadIndexCacheForSegment(containerId, segmentName, delegationToken, requestId);
         }
     }
 
     @Data
-    public static final class ReadIndexCacheEvictedForSegment implements  Reply, WireCommand {
-        final WireCommandType type = WireCommandType.READINDEX_CACHE_EVICTED_SEGMENT;
+    public static final class StorageReadIndexCacheEvictedForSegment implements  Reply, WireCommand {
+        final WireCommandType type = WireCommandType.STORAGE_READINDEX_CACHE_EVICTED_SEGMENT;
         final long requestId;
 
         @Override
@@ -1128,7 +1128,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
-            return new ReadIndexCacheEvictedForSegment(requestId);
+            return new StorageReadIndexCacheEvictedForSegment(requestId);
         }
     }
 

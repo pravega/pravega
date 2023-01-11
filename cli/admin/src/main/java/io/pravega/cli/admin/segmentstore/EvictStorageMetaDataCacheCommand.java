@@ -26,10 +26,13 @@ import org.apache.curator.framework.CuratorFramework;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-public class EvictMetaDataCacheCommand extends StorageCommand {
+/**
+ * Executes a request to evictStorageMetaDataCache for specified Segment Store instance.
+ */
+public class EvictStorageMetaDataCacheCommand extends StorageCommand {
     private static final int REQUEST_TIMEOUT_SECONDS = 30;
 
-    public EvictMetaDataCacheCommand(CommandArgs args) {
+    public EvictStorageMetaDataCacheCommand(CommandArgs args) {
         super(args);
     }
 
@@ -44,7 +47,7 @@ public class EvictMetaDataCacheCommand extends StorageCommand {
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
 
-        CompletableFuture<WireCommands.MetaDataCacheEvicted> reply = adminSegmentHelper.evictMetaDataCache(containerId,
+        CompletableFuture<WireCommands.StorageMetaDataCacheEvicted> reply = adminSegmentHelper.evictStorageMetaDataCache(containerId,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
         reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         output("Meta Data Cache evicted for the Segment Container with containerId %d.", containerId);

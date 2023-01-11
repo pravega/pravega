@@ -47,7 +47,7 @@ public class CheckChunkSanityCommand extends StorageCommand {
 
         final String segmentStoreHost = getArg(0);
         final int containerId = getIntArg(1);
-        final String fullyQualifiedChunkName = getArg(2);
+        final String fullyQualifiedChunkName = getArg(2) + System.currentTimeMillis();
         final int dataSize = getIntArg(3);
 
         @Cleanup

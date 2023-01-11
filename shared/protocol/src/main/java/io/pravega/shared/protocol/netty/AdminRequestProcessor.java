@@ -44,21 +44,21 @@ public interface AdminRequestProcessor extends RequestProcessor {
     /**
      * Call to evict all eligible entries from buffer cache and all entries from guava cache.
      *
-     * @param evictMetaDataCache {@link WireCommand} call for evicting all entries from cache.
+     * @param evictStorageMetaDataCache {@link WireCommand} call for evicting all entries from cache.
      */
-    void evictMetaDataCache(WireCommands.EvictMetaDataCache evictMetaDataCache);
+    void evictStorageMetaDataCache(WireCommands.EvictStorageMetaDataCache evictStorageMetaDataCache);
 
     /**
      * Call to evict entire read index cache.
      *
-     * @param evictReadIndexCache {@link WireCommand} call for evicting entire ReadIndexCache.
+     * @param evictStorageReadIndexCache {@link WireCommand} call for evicting entire ReadIndexCache.
      */
-    void evictReadIndexCache(WireCommands.EvictReadIndexCache evictReadIndexCache);
+    void evictStorageReadIndexCache(WireCommands.EvictStorageReadIndexCache evictStorageReadIndexCache);
 
     /**
      * Call to evict entire read index cache for given segment.
      *
-     * @param evictReadIndexCacheForSegment {@link WireCommand} call for evicting entire read index cache for given segment.
+     * @param evictStorageReadIndexCacheForSegment {@link WireCommand} call for evicting entire read index cache for given segment.
      */
-    void evictReadIndexCacheForSegment(WireCommands.EvictReadIndexCacheForSegment evictReadIndexCacheForSegment);
+    void evictStorageReadIndexCacheForSegment(WireCommands.EvictStorageReadIndexCacheForSegment evictStorageReadIndexCacheForSegment);
 }

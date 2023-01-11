@@ -36,26 +36,26 @@ public class SegmentAdminApiTest {
     }
 
     @Test
-    public void evictMetaDataCacheThrows() throws Exception {
+    public void evictStorageMetaDataCacheThrows() throws Exception {
         MockSegmentAdminApi mockSegmentAdminApi = new MockSegmentAdminApi();
-        AssertExtensions.assertThrows("evictMetaDataCache is not supported",
-                () -> mockSegmentAdminApi.evictMetaDataCache(10, null),
+        AssertExtensions.assertThrows("evictStorageMetaDataCache is not supported",
+                () -> mockSegmentAdminApi.evictStorageMetaDataCache(10, null),
                 ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test
     public void evictReadIndexCacheThrows() throws Exception {
         MockSegmentAdminApi mockSegmentAdminApi = new MockSegmentAdminApi();
-        AssertExtensions.assertThrows("evictReadIndexCache is not supported",
-                () -> mockSegmentAdminApi.evictReadIndexCache(10, null),
+        AssertExtensions.assertThrows("evictStorageReadIndexCache is not supported",
+                () -> mockSegmentAdminApi.evictStorageReadIndexCache(10, null),
                 ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test
-    public void evictReadIndexCacheForSegmentThrows() throws Exception {
+    public void evictStorageReadIndexCacheForSegmentThrows() throws Exception {
         MockSegmentAdminApi mockSegmentAdminApi = new MockSegmentAdminApi();
-        AssertExtensions.assertThrows("evictReadIndexCacheForSegment is not supported",
-                () -> mockSegmentAdminApi.evictReadIndexCacheForSegment(10, "TestChunk", null),
+        AssertExtensions.assertThrows("evictStorageReadIndexCacheForSegment is not supported",
+                () -> mockSegmentAdminApi.evictStorageReadIndexCacheForSegment(10, "TestChunk", null),
                 ex -> ex instanceof UnsupportedOperationException);
     }
 

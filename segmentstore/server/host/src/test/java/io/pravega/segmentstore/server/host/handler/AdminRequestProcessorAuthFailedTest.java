@@ -69,20 +69,20 @@ public class AdminRequestProcessorAuthFailedTest {
     }
 
     @Test
-    public void evictMetaDataCache() {
-        processor.evictMetaDataCache(new WireCommands.EvictMetaDataCache(0, "", 1));
+    public void evictStorageMetaDataCache() {
+        processor.evictStorageMetaDataCache(new WireCommands.EvictStorageMetaDataCache(0, "", 1));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
     }
 
     @Test
-    public void evictReadIndexCache() {
-        processor.evictReadIndexCache(new WireCommands.EvictReadIndexCache(0, "", 1));
+    public void evictStorageReadIndexCache() {
+        processor.evictStorageReadIndexCache(new WireCommands.EvictStorageReadIndexCache(0, "", 1));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
     }
 
     @Test
-    public void evictReadIndexCacheForSegment() {
-        processor.evictReadIndexCacheForSegment(new WireCommands.EvictReadIndexCacheForSegment(0, "dummy", "", 1));
+    public void evictStorageReadIndexCacheForSegment() {
+        processor.evictStorageReadIndexCacheForSegment(new WireCommands.EvictStorageReadIndexCacheForSegment(0, "dummy", "", 1));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
     }
 }

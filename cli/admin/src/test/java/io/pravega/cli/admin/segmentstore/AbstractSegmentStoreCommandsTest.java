@@ -77,7 +77,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
     protected static final int CONTAINER_COUNT = 1;
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(6000, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
 
     private ClientConfig clientConfig;
 
@@ -379,24 +379,24 @@ public abstract class AbstractSegmentStoreCommandsTest {
     }
 
     @Test
-    public void testEvictMetaDataCacheCommand() throws Exception {
-        String commandResult = TestUtils.executeCommand("storage evict-meta-data-cache localhost 0", STATE.get());
+    public void testEvictStorageMetaDataCacheCommand() throws Exception {
+        String commandResult = TestUtils.executeCommand("storage evict-storage-meta-data-cache localhost 0", STATE.get());
         Assert.assertTrue(commandResult.contains("Meta Data Cache evicted for the Segment Container with containerId 0."));
-        Assert.assertNotNull(EvictMetaDataCacheCommand.descriptor());
+        Assert.assertNotNull(EvictStorageMetaDataCacheCommand.descriptor());
     }
 
     @Test
-    public void testEvictReadIndexCacheCommand() throws Exception {
-        String commonResult = TestUtils.executeCommand("storage evict-read-index-cache localhost 0", STATE.get());
+    public void testEvictStorageReadIndexCacheCommand() throws Exception {
+        String commonResult = TestUtils.executeCommand("storage evict-storage-read-index-cache localhost 0", STATE.get());
         Assert.assertTrue(commonResult.contains("Read Index Cache evicted for the Segment Container with containerId 0."));
-        Assert.assertNotNull(EvictReadIndexCacheCommand.descriptor());
+        Assert.assertNotNull(EvictStorageReadIndexCacheCommand.descriptor());
     }
 
     @Test
-    public void testEvictReadIndexCacheForSegmentCommand() throws Exception {
-        String commonResult = TestUtils.executeCommand("storage evict-read-index-cache localhost 0 testSegment", STATE.get());
+    public void testEvictStorageReadIndexCacheForSegmentCommand() throws Exception {
+        String commonResult = TestUtils.executeCommand("storage evict-storage-read-index-cache localhost 0 testSegment", STATE.get());
         Assert.assertTrue(commonResult.contains("Read Index Cache evicted for the Segment Container with containerId 0."));
-        Assert.assertNotNull(EvictReadIndexCacheCommand.descriptor());
+        Assert.assertNotNull(EvictStorageReadIndexCacheCommand.descriptor());
     }
 
     @After

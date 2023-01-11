@@ -102,9 +102,9 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.storageFlushed(new StorageFlushed(0)));
         assertThrows(IllegalStateException.class, () -> rp.storageChunksListed(new WireCommands.StorageChunksListed(0, new ArrayList<>())));
         assertThrows(IllegalStateException.class, () -> rp.chunkSanityChecked(new WireCommands.ChunkSanityChecked(0)));
-        assertThrows(IllegalStateException.class, () -> rp.metaDataCacheEvicted(new WireCommands.MetaDataCacheEvicted(0)));
-        assertThrows(IllegalStateException.class, () -> rp.readIndexCacheEvicted(new WireCommands.ReadIndexCacheEvicted(0)));
-        assertThrows(IllegalStateException.class, () -> rp.readIndexCacheEvictedForSegment(new WireCommands.ReadIndexCacheEvictedForSegment(0)));
+        assertThrows(IllegalStateException.class, () -> rp.metaDataCacheEvicted(new WireCommands.StorageMetaDataCacheEvicted(0)));
+        assertThrows(IllegalStateException.class, () -> rp.readIndexCacheEvicted(new WireCommands.StorageReadIndexCacheEvicted(0)));
+        assertThrows(IllegalStateException.class, () -> rp.readIndexCacheEvictedForSegment(new WireCommands.StorageReadIndexCacheEvictedForSegment(0)));
     }
 
 }

@@ -629,33 +629,33 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
-    public void testEvictMetaDataCache() throws IOException {
-        testCommand(new WireCommands.EvictMetaDataCache(i, "", l));
+    public void testEvictStorageMetaDataCache() throws IOException {
+        testCommand(new WireCommands.EvictStorageMetaDataCache(i, "", l));
     }
 
     @Test
     public void testMetaDataCacheEvicted() throws IOException {
-        testCommand(new WireCommands.MetaDataCacheEvicted(l));
+        testCommand(new WireCommands.StorageMetaDataCacheEvicted(l));
     }
 
     @Test
-    public void testEvictReadIndexCache() throws IOException {
-        testCommand(new WireCommands.EvictReadIndexCache(i, "", l));
+    public void testEvictStorageReadIndexCache() throws IOException {
+        testCommand(new WireCommands.EvictStorageReadIndexCache(i, "", l));
     }
     
     @Test
     public void testReadIndexCacheEvicted() throws IOException {
-        testCommand(new WireCommands.ReadIndexCacheEvicted(l));
+        testCommand(new WireCommands.StorageReadIndexCacheEvicted(l));
     }
 
     @Test
-    public void testEvictReadIndexCacheForSegment() throws IOException {
-        testCommand(new WireCommands.EvictReadIndexCacheForSegment(i, testString1, "", l));
+    public void testEvictStorageReadIndexCacheForSegment() throws IOException {
+        testCommand(new WireCommands.EvictStorageReadIndexCacheForSegment(i, testString1, "", l));
     }
 
     @Test
     public void testReadIndexCacheEvictedForSegment() throws IOException {
-        testCommand(new WireCommands.ReadIndexCacheEvictedForSegment(l));
+        testCommand(new WireCommands.StorageReadIndexCacheEvictedForSegment(l));
     }
 
     @Test

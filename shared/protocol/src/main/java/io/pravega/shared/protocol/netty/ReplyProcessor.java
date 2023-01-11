@@ -54,11 +54,11 @@ public interface ReplyProcessor {
 
     void chunkSanityChecked(WireCommands.ChunkSanityChecked chunkSanityChecked);
 
-    void metaDataCacheEvicted(WireCommands.MetaDataCacheEvicted metaDataCacheEvicted);
+    void metaDataCacheEvicted(WireCommands.StorageMetaDataCacheEvicted storageMetaDataCacheEvicted);
 
-    void readIndexCacheEvicted(WireCommands.ReadIndexCacheEvicted readIndexCacheEvicted);
+    void readIndexCacheEvicted(WireCommands.StorageReadIndexCacheEvicted storageReadIndexCacheEvicted);
 
-    void readIndexCacheEvictedForSegment(WireCommands.ReadIndexCacheEvictedForSegment readIndexCacheEvictedForSegment);
+    void readIndexCacheEvictedForSegment(WireCommands.StorageReadIndexCacheEvictedForSegment storageReadIndexCacheEvictedForSegment);
 
     void segmentRead(WireCommands.SegmentRead segmentRead);
     

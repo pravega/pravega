@@ -96,22 +96,22 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Void> evictMetaDataCache(int containerId, Duration timeout) {
-        CompletableFuture<Void> result = impl.evictMetaDataCache(containerId, timeout);
+    public CompletableFuture<Void> evictStorageMetaDataCache(int containerId, Duration timeout) {
+        CompletableFuture<Void> result = impl.evictStorageMetaDataCache(containerId, timeout);
         Futures.await(result);
         return result;
     }
 
     @Override
-    public CompletableFuture<Void> evictReadIndexCache(int containerId, Duration timeout) {
-        CompletableFuture<Void> result = impl.evictReadIndexCache(containerId, timeout);
+    public CompletableFuture<Void> evictStorageReadIndexCache(int containerId, Duration timeout) {
+        CompletableFuture<Void> result = impl.evictStorageReadIndexCache(containerId, timeout);
         Futures.await(result);
         return result;
     }
 
     @Override
-    public CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
-        CompletableFuture<Void> result = impl.evictReadIndexCacheForSegment(containerId, segmentName, timeout);
+    public CompletableFuture<Void> evictStorageReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
+        CompletableFuture<Void> result = impl.evictStorageReadIndexCacheForSegment(containerId, segmentName, timeout);
         Futures.await(result);
         return result;
     }

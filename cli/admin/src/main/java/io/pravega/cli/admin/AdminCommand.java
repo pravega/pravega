@@ -64,8 +64,8 @@ import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
-import io.pravega.cli.admin.segmentstore.EvictMetaDataCacheCommand;
-import io.pravega.cli.admin.segmentstore.EvictReadIndexCacheCommand;
+import io.pravega.cli.admin.segmentstore.EvictStorageMetaDataCacheCommand;
+import io.pravega.cli.admin.segmentstore.EvictStorageReadIndexCacheCommand;
 import io.pravega.cli.admin.segmentstore.storage.ListChunksCommand;
 import io.pravega.cli.admin.segmentstore.storage.StorageUpdateSnapshotCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentEntryCommand;
@@ -427,8 +427,8 @@ public abstract class AdminCommand {
                         .put(ControllerMetadataViewReaderInfoCommand::descriptor, ControllerMetadataViewReaderInfoCommand::new)
                         .put(ListChunksCommand::descriptor, ListChunksCommand::new)
                         .put(CheckChunkSanityCommand::descriptor, CheckChunkSanityCommand::new)
-                        .put(EvictMetaDataCacheCommand::descriptor, EvictMetaDataCacheCommand::new)
-                        .put(EvictReadIndexCacheCommand::descriptor, EvictReadIndexCacheCommand::new)
+                        .put(EvictStorageMetaDataCacheCommand::descriptor, EvictStorageMetaDataCacheCommand::new)
+                        .put(EvictStorageReadIndexCacheCommand::descriptor, EvictStorageReadIndexCacheCommand::new)
                         .put(ControllerMetadataViewPendingEventsCommand::descriptor, ControllerMetadataViewPendingEventsCommand::new)
                         .build());
 

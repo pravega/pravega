@@ -137,9 +137,9 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         assertUnsupported("mergeTransaction", () -> context.container.mergeStreamSegment(SEGMENT_NAME, SEGMENT_NAME, new AttributeUpdateCollection(), TIMEOUT));
         assertUnsupported("getExtendedChunkInfo", () -> context.container.getExtendedChunkInfo(SEGMENT_NAME, TIMEOUT));
         assertUnsupported("getCheckSanity", () -> context.container.checkChunkStorageSanity(123, CHUNK_NAME, 10, TIMEOUT));
-        assertUnsupported("evictMetaDataCache", () -> context.container.evictMetaDataCache(222, TIMEOUT));
-        assertUnsupported("evictReadIndexCache", () -> context.container.evictReadIndexCache(222, TIMEOUT));
-        assertUnsupported("evictReadIndexCacheForSegment", () -> context.container.evictReadIndexCacheForSegment(222, SEGMENT_NAME, TIMEOUT));
+        assertUnsupported("evictStorageMetaDataCache", () -> context.container.evictStorageMetaDataCache(222, TIMEOUT));
+        assertUnsupported("evictStorageReadIndexCache", () -> context.container.evictStorageReadIndexCache(222, TIMEOUT));
+        assertUnsupported("evictStorageReadIndexCacheForSegment", () -> context.container.evictStorageReadIndexCacheForSegment(222, SEGMENT_NAME, TIMEOUT));
     }
 
     private byte[] populate(int length, int truncationOffset, TestContext context) {

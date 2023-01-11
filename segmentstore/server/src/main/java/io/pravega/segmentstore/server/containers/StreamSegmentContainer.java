@@ -747,7 +747,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @SneakyThrows
     @Override
-    public CompletableFuture<Void> evictMetaDataCache(int containerId, Duration timeout) {
+    public CompletableFuture<Void> evictStorageMetaDataCache(int containerId, Duration timeout) {
         val chunkedSegmentStorage = getReference(this.storage);
         UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
         return wrapper.evictMetadataCache();
@@ -755,7 +755,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @SneakyThrows
     @Override
-    public CompletableFuture<Void> evictReadIndexCache(int containerId, Duration timeout) {
+    public CompletableFuture<Void> evictStorageReadIndexCache(int containerId, Duration timeout) {
         val chunkedSegmentStorage = getReference(this.storage);
         UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
         return wrapper.evictReadIndexCache();
@@ -763,7 +763,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @SneakyThrows
     @Override
-    public CompletableFuture<Void> evictReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
+    public CompletableFuture<Void> evictStorageReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
         val chunkedSegmentStorage = getReference(this.storage);
         UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
         return wrapper.evictReadIndexCacheForSegment(segmentName);

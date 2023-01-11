@@ -2638,34 +2638,34 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 30000)
-    public void testEvictMetaDataCache() throws Exception {
+    public void testEvictStorageMetaDataCache() throws Exception {
         InMemorySimpleStorageFactory chunkSegmentStorageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
         val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory, metadataStore);
         val container = (StreamSegmentContainer) context.container;
-        container.evictMetaDataCache(CONTAINER_ID, TIMEOUT).join();
+        container.evictStorageMetaDataCache(CONTAINER_ID, TIMEOUT).join();
     }
 
     @Test(timeout = 30000)
-    public void testEvictReadIndexCache() throws Exception {
+    public void testEvictStorageReadIndexCache() throws Exception {
         InMemorySimpleStorageFactory chunkSegmentStorageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
         val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory, metadataStore);
         val container = (StreamSegmentContainer) context.container;
-        container.evictReadIndexCache(CONTAINER_ID, TIMEOUT).join();
+        container.evictStorageReadIndexCache(CONTAINER_ID, TIMEOUT).join();
     }
 
     @Test(timeout = 30000)
-    public void testEvictReadIndexCacheForSegment() throws Exception {
+    public void testEvictStorageReadIndexCacheForSegment() throws Exception {
         val testSegmentName = "TestSegmentName";
         InMemorySimpleStorageFactory chunkSegmentStorageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
         val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory, metadataStore);
         val container = (StreamSegmentContainer) context.container;
-        container.evictReadIndexCacheForSegment(CONTAINER_ID, testSegmentName, TIMEOUT).join();
+        container.evictStorageReadIndexCacheForSegment(CONTAINER_ID, testSegmentName, TIMEOUT).join();
     }
 
     /**
