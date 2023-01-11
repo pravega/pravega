@@ -55,8 +55,8 @@ public class CompatibilityChecker {
     private StreamManager streamManager;
     private StreamConfiguration streamConfig;
 
-    public void setUp() {
-        controllerURI = URI.create("tcp://localhost:9090");
+    public void setUp(String uri) {
+        controllerURI = URI.create(uri);
         streamManager = StreamManager.create(controllerURI);
         streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
     }
@@ -224,8 +224,13 @@ public class CompatibilityChecker {
     }
 
     public static void main(String[] args) throws DeleteScopeFailedException {
+        String uri = System.getProperty("controllerUri");
+        if (uri == null) {
+            log.error("Enter correct gradle with correct controller URI. i.e : ./gradlew compatibilityCheck -Du=\"tcp://localhost:9090\"");
+            System.exit(1);
+        }
         CompatibilityChecker compatibilityChecker = new CompatibilityChecker();
-        compatibilityChecker.setUp();
+        compatibilityChecker.setUp(uri);
         compatibilityChecker.checkWriteAndReadEvent();
         compatibilityChecker.checkTruncationOfStream();
         compatibilityChecker.checkSealStream();

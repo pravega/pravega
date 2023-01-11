@@ -733,6 +733,7 @@ project('test:integration') {
         main = "io.pravega.test.integration.compatibility.CompatibilityChecker"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
+        systemProperties System.getProperties()
     }
 
     /**
