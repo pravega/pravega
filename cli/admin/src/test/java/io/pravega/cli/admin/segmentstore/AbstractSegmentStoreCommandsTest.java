@@ -77,7 +77,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
     protected static final int CONTAINER_COUNT = 1;
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(6000, TimeUnit.SECONDS);
 
     private ClientConfig clientConfig;
 

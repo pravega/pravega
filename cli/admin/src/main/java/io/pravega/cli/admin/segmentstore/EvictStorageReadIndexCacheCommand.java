@@ -63,7 +63,7 @@ public class EvictStorageReadIndexCacheCommand extends StorageCommand {
     }
 
     public static AdminCommand.CommandDescriptor descriptor() {
-        return new AdminCommand.CommandDescriptor(COMPONENT, "evict-read-index-cache", "Evict entire Read Index Cache.",
+        return new AdminCommand.CommandDescriptor(COMPONENT, "evict-storage-read-index-cache", "Evict entire Read Index Cache.",
                 new AdminCommand.ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
                 new AdminCommand.ArgDescriptor("container-id", "The container Id of the Segment Container for which read index cache is evicted"),
                 new AdminCommand.ArgDescriptor("fully-qualified-segment-name", "Fully qualified name of the Segment.", true));

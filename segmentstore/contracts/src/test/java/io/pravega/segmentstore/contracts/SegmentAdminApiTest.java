@@ -44,7 +44,7 @@ public class SegmentAdminApiTest {
     }
 
     @Test
-    public void evictReadIndexCacheThrows() throws Exception {
+    public void evictStorageReadIndexCacheThrows() throws Exception {
         MockSegmentAdminApi mockSegmentAdminApi = new MockSegmentAdminApi();
         AssertExtensions.assertThrows("evictStorageReadIndexCache is not supported",
                 () -> mockSegmentAdminApi.evictStorageReadIndexCache(10, null),

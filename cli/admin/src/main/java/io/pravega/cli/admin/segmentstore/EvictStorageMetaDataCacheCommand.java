@@ -54,7 +54,7 @@ public class EvictStorageMetaDataCacheCommand extends StorageCommand {
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "evict-meta-data-cache", "Evicts all eligible entries from buffer cache and all entries from guava cache.",
+        return new CommandDescriptor(COMPONENT, "evict-storage-meta-data-cache", "Evicts all eligible entries from buffer cache and all entries from guava cache.",
                 new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."),
                 new ArgDescriptor("container-id", "The container Id of the Segment Container for which meta data cache is evicted."));
     }
