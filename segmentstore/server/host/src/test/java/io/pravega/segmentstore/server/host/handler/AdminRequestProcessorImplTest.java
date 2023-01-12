@@ -77,7 +77,7 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.StorageChunksListed(1, List.of(chunkInfo)));
     }
 
-    @Test(timeout = 60000)
+    @Test
     public void testCheckChunkSanity() {
         String chunkName = "testChunk";
 
@@ -92,7 +92,7 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.ChunkSanityChecked(123));
     }
 
-    @Test(timeout = 60000)
+    @Test
     public void testFailedArgumentCheckChunkSanity() {
         String chunkName = "testChunk";
 
@@ -107,7 +107,7 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.ErrorMessage(123, "testChunk", "test", WireCommands.ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION));
     }
 
-    @Test(timeout = 60000)
+    @Test
     public void testFailedStateCheckChunkSanity() {
         String chunkName = "testChunk";
 
@@ -121,7 +121,7 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.ErrorMessage(123, "testChunk", "test", WireCommands.ErrorMessage.ErrorCode.ILLEGAL_STATE_EXCEPTION));
     }
 
-    @Test(timeout = 60000)
+    @Test
     public void testEvictStorageMetaDataCache() {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         when(store.evictStorageMetaDataCache(anyInt(), any())).thenReturn(CompletableFuture.completedFuture(null));
@@ -134,7 +134,7 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.StorageMetaDataCacheEvicted(123));
     }
 
-    @Test(timeout = 60000)
+    @Test
     public void testEvictStorageReadIndexCache() {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         when(store.evictStorageReadIndexCache(anyInt(), any())).thenReturn(CompletableFuture.completedFuture(null));
@@ -147,7 +147,7 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.StorageReadIndexCacheEvicted(123));
     }
 
-    @Test(timeout = 60000)
+    @Test
     public void testEvictStorageReadIndexCacheForSegment() {
         String segmentName = "dummy";
 

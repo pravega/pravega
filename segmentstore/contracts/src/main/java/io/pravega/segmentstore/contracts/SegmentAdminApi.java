@@ -18,6 +18,9 @@ package io.pravega.segmentstore.contracts;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Defines operations useful for administration of LTS.
+ */
 public interface SegmentAdminApi {
 
     /**
