@@ -731,6 +731,13 @@ project('test:integration') {
         systemProperties System.getProperties()
     }
 
+    task compatibilityCheck(type: JavaExec){
+        main = "io.pravega.test.integration.compatibility.CompatibilityChecker"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        systemProperties System.getProperties()
+    }
+
     /**
      * See: https://github.com/pravega/pravega/wiki/Pravega-User-CLI.
      * This will only work well from the console if all Gradle output is suppressed: -q --console=plain
