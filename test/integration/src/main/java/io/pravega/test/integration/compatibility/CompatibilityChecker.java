@@ -27,7 +27,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -41,7 +40,6 @@ import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -82,26 +80,26 @@ public class CompatibilityChecker {
         readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
         @Cleanup
         EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
+        int writeCount = 0;
         // Writing 10 Events to the stream
-        for (int event = 0; event < 10; event++) {
+        for (int event = 1; event <= 10; event++) {
             writer.writeEvent("event test" + event);
+            writeCount++;
         }
         log.info("Reading all the events from {}, {}", scopeName, streamName);
-        EventRead<String> event = null;
-        // Reading all those 10 events from the stream
-        do {
-            try {
-                event = reader.readNextEvent(READER_TIMEOUT_MS);
-                if (event.getEvent() != null) {
-                    System.out.format("Read event '%s'%n", event.getEvent());
-                }
-            } catch (ReinitializationRequiredException e) {
-                //There are certain circumstances where the reader needs to be reinitialized
-                e.printStackTrace();
-            }
-        } while (event.getEvent() != null);
+        int eventNumber = 1;
+        int readCount = 0;
+        EventRead<String> event = reader.readNextEvent(READER_TIMEOUT_MS);
+        // Reading written Events
+        while (event.getEvent() != null) {
+            assertEquals("event test" + eventNumber, event.getEvent());
+            event = reader.readNextEvent(READER_TIMEOUT_MS);
+            readCount++;
+            eventNumber++;
+        }
+        // Validating the readCount and writeCount
+        assertEquals(readCount, writeCount);
         log.info("No more events from {}, {}", scopeName, streamName);
-        assertNull(event.getEvent());
     }
 
     /**
