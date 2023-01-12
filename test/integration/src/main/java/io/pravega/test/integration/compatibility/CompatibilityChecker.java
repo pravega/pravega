@@ -236,5 +236,6 @@ public class CompatibilityChecker {
         compatibilityChecker.checkSealStream();
         compatibilityChecker.checkDeleteScope();
         compatibilityChecker.checkStreamDelete();
+        System.exit(0);
     }
 }
