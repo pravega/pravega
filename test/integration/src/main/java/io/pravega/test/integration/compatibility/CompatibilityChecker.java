@@ -53,7 +53,7 @@ public class CompatibilityChecker {
     private StreamManager streamManager;
     private StreamConfiguration streamConfig;
 
-    public void setUp(String uri) {
+    private void setUp(String uri) {
         controllerURI = URI.create(uri);
         streamManager = StreamManager.create(controllerURI);
         streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
