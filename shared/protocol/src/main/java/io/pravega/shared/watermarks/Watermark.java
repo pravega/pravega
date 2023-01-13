@@ -44,21 +44,17 @@ import lombok.SneakyThrows;
 @Data
 public class Watermark {
     public static final WatermarkSerializer SERIALIZER = new WatermarkSerializer();
-    public static final Watermark EMPTY = new Watermark(Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of(), "scope", "stream");
+    public static final Watermark EMPTY = new Watermark(Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of());
     private final long lowerTimeBound;
     private final long upperTimeBound;
     private final Map<SegmentWithRange, Long> streamCut;
-    private String scope;
-    private String stream; 
 
     @Builder
-    public Watermark(long lowerTimeBound, long upperTimeBound, Map<SegmentWithRange, Long> streamCut, String scope, String stream) {
+    public Watermark(long lowerTimeBound, long upperTimeBound, Map<SegmentWithRange, Long> streamCut) {
         Preconditions.checkArgument(upperTimeBound >= lowerTimeBound);
         this.lowerTimeBound = lowerTimeBound;
         this.upperTimeBound = upperTimeBound;
         this.streamCut = streamCut;
-        this.scope = scope;
-        this.stream = stream;
     }
 
     public static class WatermarkBuilder implements ObjectBuilder<Watermark> {
@@ -95,16 +91,12 @@ public class Watermark {
             ImmutableMap.Builder<SegmentWithRange, Long> mapBuilder = ImmutableMap.builder();
             revisionDataInput.readMap(SegmentWithRange.SERIALIZER::deserialize, DataInput::readLong, mapBuilder);
             builder.streamCut(mapBuilder.build());
-            builder.scope(revisionDataInput.readUTF());
-            builder.stream(revisionDataInput.readUTF());
         }
         
         private void write00(Watermark watermark, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeLong(watermark.lowerTimeBound);
             revisionDataOutput.writeLong(watermark.upperTimeBound);
             revisionDataOutput.writeMap(watermark.streamCut, SegmentWithRange.SERIALIZER::serialize, DataOutput::writeLong);
-            revisionDataOutput.writeUTF(watermark.getScope());
-            revisionDataOutput.writeUTF(watermark.getStream());
         }
 
         @Override

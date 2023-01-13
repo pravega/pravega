@@ -103,14 +103,14 @@ public class WatermarkReaderImplTest {
         Map<SegmentWithRange, Long> m7 = ImmutableMap.of(s2, 4L, s3, 0L);
         Map<SegmentWithRange, Long> m8 = ImmutableMap.of(s2, 6L, s3, 4L);
         
-        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m1)).lowerTimeBound(10).upperTimeBound(19).scope("scope").stream("streamName").build());
-        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m2)).lowerTimeBound(20).upperTimeBound(29).scope("scope").stream("streamName").build());
-        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m3)).lowerTimeBound(30).upperTimeBound(39).scope("scope").stream("streamName").build());
-        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m4)).lowerTimeBound(40).upperTimeBound(49).scope("scope").stream("streamName").build());
-        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m5)).lowerTimeBound(50).upperTimeBound(59).scope("scope").stream("streamName").build());
-        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m6)).lowerTimeBound(60).upperTimeBound(69).scope("scope").stream("streamName").build());
-        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m7)).lowerTimeBound(70).upperTimeBound(79).scope("scope").stream("streamName").build());
-        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m8)).lowerTimeBound(80).upperTimeBound(89).scope("scope").stream("streamName").build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m1)).lowerTimeBound(10).upperTimeBound(19).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m2)).lowerTimeBound(20).upperTimeBound(29).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m3)).lowerTimeBound(30).upperTimeBound(39).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m4)).lowerTimeBound(40).upperTimeBound(49).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m5)).lowerTimeBound(50).upperTimeBound(59).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m6)).lowerTimeBound(60).upperTimeBound(69).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m7)).lowerTimeBound(70).upperTimeBound(79).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m8)).lowerTimeBound(80).upperTimeBound(89).build());
   
         assertEquals(null, impl.getTimeWindow().getLowerTimeBound());
         assertEquals(null, impl.getTimeWindow().getUpperTimeBound());

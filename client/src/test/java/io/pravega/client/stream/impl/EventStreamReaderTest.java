@@ -1026,11 +1026,11 @@ public class EventStreamReaderTest {
         //Write mark data
         val r1 = new SegmentWithRange(segment1, 0, 0.5).convert();
         val r2 = new SegmentWithRange(segment2, 0.5, 1).convert();
-        markWriter.writeUnconditionally(new Watermark(  0L,  99L, ImmutableMap.of(r1, 0L, r2, 0L), scope, streamName));
-        markWriter.writeUnconditionally(new Watermark(100L, 199L, ImmutableMap.of(r1, 12L, r2, 0L), scope, streamName));
-        markWriter.writeUnconditionally(new Watermark(200L, 299L, ImmutableMap.of(r1, 12L, r2, 12L), scope, streamName));
-        markWriter.writeUnconditionally(new Watermark(300L, 399L, ImmutableMap.of(r1, 12L, r2, 24L), scope, streamName));
-        markWriter.writeUnconditionally(new Watermark(400L, 499L, ImmutableMap.of(r1, 12L, r2, 36L), scope, streamName));
+        markWriter.writeUnconditionally(new Watermark(  0L,  99L, ImmutableMap.of(r1, 0L, r2, 0L)));
+        markWriter.writeUnconditionally(new Watermark(100L, 199L, ImmutableMap.of(r1, 12L, r2, 0L)));
+        markWriter.writeUnconditionally(new Watermark(200L, 299L, ImmutableMap.of(r1, 12L, r2, 12L)));
+        markWriter.writeUnconditionally(new Watermark(300L, 399L, ImmutableMap.of(r1, 12L, r2, 24L)));
+        markWriter.writeUnconditionally(new Watermark(400L, 499L, ImmutableMap.of(r1, 12L, r2, 36L)));
         
         //Create reader
         AtomicLong clock = new AtomicLong();

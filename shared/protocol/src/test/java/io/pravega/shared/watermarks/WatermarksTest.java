@@ -46,11 +46,11 @@ public class WatermarksTest {
         SegmentWithRange segmentWithRange1 = new SegmentWithRange(0L, 0.0, 0.5);
         SegmentWithRange segmentWithRange2 = new SegmentWithRange(1L, 0.5, 1.0);
         ImmutableMap<SegmentWithRange, Long> map = ImmutableMap.of(segmentWithRange1, 1L, segmentWithRange2, 1L);
-        Watermark watermark = new Watermark(0L, 1L, map, "scope", "stream");
+        Watermark watermark = new Watermark(0L, 1L, map);
         ByteBuffer serialized = watermark.toByteBuf();
         Watermark deserialized = Watermark.fromByteBuf(serialized);
         assertEquals(deserialized, watermark);
-        AssertExtensions.assertThrows("upper bound less than lower bound", () -> new Watermark(1L, 0L, map, "scope", "stream"),
+        AssertExtensions.assertThrows("upper bound less than lower bound", () -> new Watermark(1L, 0L, map),
                 e -> e instanceof IllegalArgumentException);
     }
 }

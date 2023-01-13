@@ -67,7 +67,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -362,17 +361,23 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public CompletableFuture<Long> getDistanceBetweenTwoStreamCuts(Stream stream, StreamCut fromStreamCut, StreamCut toStreamCut) {
-        Preconditions.checkArgument(fromStreamCut.asImpl().getStream().equals(toStreamCut.asImpl().getStream()),
-                "Ensure streamCuts for the same stream is passed");
+        Preconditions.checkNotNull(fromStreamCut, "fromStreamCut");
+        Preconditions.checkNotNull(toStreamCut, "toStreamCut");
+        if (!fromStreamCut.equals(StreamCut.UNBOUNDED) && !toStreamCut.equals(StreamCut.UNBOUNDED)) {
+            Preconditions.checkArgument(fromStreamCut.asImpl().getStream().equals(toStreamCut.asImpl().getStream()),
+                    "Ensure streamCuts for the same stream is passed");
+        }
         final CompletableFuture<StreamSegmentSuccessors> unread;
         final Map<Segment, Long> endPositions;
-        if (toStreamCut.equals(StreamCut.UNBOUNDED)) {
-            /*CompletableFuture<StreamInfo> streamInfo = fetchStreamInfo(stream.getScope(), stream.getStreamName());
+        if (!fromStreamCut.equals(StreamCut.UNBOUNDED) && toStreamCut.equals(StreamCut.UNBOUNDED)) {
+            CompletableFuture<StreamInfo> streamInfo = fetchStreamInfo(stream.getScope(), stream.getStreamName());
             StreamCut endSC = streamInfo.join().getTailStreamCut();
             unread = controller.getSegments(fromStreamCut, endSC);
-            endPositions = endSC.asImpl().getPositions();*/
-            unread = controller.getSuccessors(fromStreamCut);
-            endPositions = Collections.emptyMap();
+            endPositions = endSC.asImpl().getPositions();
+        } else if (fromStreamCut.equals(StreamCut.UNBOUNDED) && !toStreamCut.equals(StreamCut.UNBOUNDED)) {
+            StreamCut startSC = getStartStreamCutForUnboundedSC(stream);
+            unread = controller.getSegments(startSC, toStreamCut);
+            endPositions = toStreamCut.asImpl().getPositions();
         } else {
             unread = controller.getSegments(fromStreamCut, toStreamCut);
             endPositions = toStreamCut.asImpl().getPositions();
@@ -395,11 +400,24 @@ public class StreamManagerImpl implements StreamManager {
             for (long bytesRemaining : sizes) {
                 totalLength += bytesRemaining;
             }
-            for (long bytesRead : fromStreamCut.asImpl().getPositions().values()) {
-                totalLength -= bytesRead;
+            if (fromStreamCut.equals(StreamCut.UNBOUNDED)) {
+                StreamCut startSC = getStartStreamCutForUnboundedSC(stream);
+                for (long bytesRead : startSC.asImpl().getPositions().values()) {
+                    totalLength -= bytesRead;
+                }
+            } else {
+                for (long bytesRead : fromStreamCut.asImpl().getPositions().values()) {
+                    totalLength -= bytesRead;
+                }
             }
             log.debug("Remaining bytes from position: {} to position: {} is {}", fromStreamCut, toStreamCut, totalLength);
             return totalLength;
         });
+    }
+
+    private StreamCut getStartStreamCutForUnboundedSC(Stream stream) {
+        CompletableFuture<StreamInfo> streamInfo = fetchStreamInfo(stream.getScope(), stream.getStreamName());
+        StreamCut startSC = streamInfo.join().getHeadStreamCut();
+        return startSC;
     }
 }

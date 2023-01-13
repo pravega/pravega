@@ -278,7 +278,7 @@ public class PeriodicWatermarking implements AutoCloseable {
                 // add writer positions to upperBound map. 
                 addToUpperBound(position, upperBound);
             })).thenCompose(v -> computeStreamCut(scope, streamName, context, upperBound, previousWatermark)
-                    .thenApply(streamCut -> builder.lowerTimeBound(lowerBoundOnTime).upperTimeBound(upperBoundOnTime).stream(streamName).scope(scope)
+                    .thenApply(streamCut -> builder.lowerTimeBound(lowerBoundOnTime).upperTimeBound(upperBoundOnTime)
                                .streamCut(ImmutableMap.copyOf(streamCut)).build()));
         } else {
             // new time is not advanced. No watermark to be emitted. 
