@@ -143,7 +143,7 @@ public class WatermarkWorkflowTest {
         Map.Entry<String, WriterMark> entry5 = new AbstractMap.SimpleEntry<>("writerId", new WriterMark(5L, ImmutableMap.of()));
         assertTrue(client.isWriterActive(entry0, 0L));
         assertTrue(client.isWriterParticipating(0L));
-        Watermark first = new Watermark(1L, 2L, ImmutableMap.of(), "scope", "stream");
+        Watermark first = new Watermark(1L, 2L, ImmutableMap.of());
         client.completeIteration(first);
 
         // iteration 2 : do not emit ==> w1 -> w1
@@ -170,7 +170,7 @@ public class WatermarkWorkflowTest {
         assertFalse(client.isWriterParticipating(1L));
         assertTrue(client.isWriterParticipating(2L));
         // emit second watermark
-        Watermark second = new Watermark(2L, 3L, ImmutableMap.of(), "scope", "stream");
+        Watermark second = new Watermark(2L, 3L, ImmutableMap.of());
         client.completeIteration(second);
 
         // iteration 4: do not emit ==> w1 w2 -> w1 w2
@@ -200,7 +200,7 @@ public class WatermarkWorkflowTest {
         assertFalse(client.isWriterParticipating(2L));
         assertTrue(client.isWriterParticipating(3L));
         // emit third watermark
-        Watermark third = new Watermark(3L, 4L, ImmutableMap.of(), "scope", "stream");
+        Watermark third = new Watermark(3L, 4L, ImmutableMap.of());
         client.completeIteration(third);
 
         // iteration 7: do not emit ==> w1 w2 w3 -> w1 w2 w3
@@ -228,7 +228,7 @@ public class WatermarkWorkflowTest {
         assertTrue(client.isWriterParticipating(4L));
 
         // emit fourth watermark
-        Watermark fourth = new Watermark(4L, 5L, ImmutableMap.of(), "scope", "stream");
+        Watermark fourth = new Watermark(4L, 5L, ImmutableMap.of());
         client.completeIteration(fourth);
 
         // iteration 9: do not emit ==> w1 w2 w3 w4 -> w1 w2 w3 w4.. check writer timeout
