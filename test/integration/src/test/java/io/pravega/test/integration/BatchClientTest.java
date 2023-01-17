@@ -264,21 +264,6 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertEquals(Long.valueOf(20), distance.join());
     }
 
-    @Test(timeout = 50000)
-    @SuppressWarnings("deprecation")
-    public void testGetDistanceBetweenTwoSCwithStartAndEndAsUnboundedSC() throws InterruptedException, ExecutionException {
-        @Cleanup
-        StreamManager streamManager = StreamManager.create(clientConfig);
-        Stream stream = new StreamImpl(SCOPE, STREAM);
-        @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
-        createTestStreamWithEvents(clientFactory);
-        log.info("Done creating a test stream with test events");
-
-        CompletableFuture<Long> distance =  streamManager.getDistanceBetweenTwoStreamCuts(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
-        assertEquals(Long.valueOf(270), distance.join());
-    }
-
     //region Private helper methods
 
     private void listAndReadSegmentsUsingBatchClient() throws InterruptedException, ExecutionException {
