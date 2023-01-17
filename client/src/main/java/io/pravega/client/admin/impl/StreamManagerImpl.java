@@ -364,18 +364,15 @@ public class StreamManagerImpl implements StreamManager {
         Preconditions.checkNotNull(stream, "Ensure to pass a valid stream");
         Preconditions.checkNotNull(fromStreamCut, "fromStreamCut");
         Preconditions.checkNotNull(toStreamCut, "toStreamCut");
-        if (!fromStreamCut.equals(StreamCut.UNBOUNDED) && !toStreamCut.equals(StreamCut.UNBOUNDED)) {
-            Preconditions.checkArgument(fromStreamCut.asImpl().getStream().equals(toStreamCut.asImpl().getStream()),
-                    "Ensure streamCuts for the same stream is passed");
-            Preconditions.checkArgument(fromStreamCut != toStreamCut, "Ensure that two different stream cuts from same stream is passed");
-        }
         final CompletableFuture<StreamSegmentSuccessors> unread;
         final Map<Segment, Long> endPositions;
         if (!fromStreamCut.equals(StreamCut.UNBOUNDED) && toStreamCut.equals(StreamCut.UNBOUNDED)) {
+            Preconditions.checkArgument(stream.getScopedName().equals(fromStreamCut.asImpl().getStream().getScopedName()), "Ensure that the stream passed is same as that of the input streamcut");
             StreamCut endSC = getTailStreamCut(stream);
             unread = controller.getSegments(fromStreamCut, endSC);
             endPositions = endSC.asImpl().getPositions();
         } else if (fromStreamCut.equals(StreamCut.UNBOUNDED) && !toStreamCut.equals(StreamCut.UNBOUNDED)) {
+            Preconditions.checkArgument(stream.getScopedName().equals(toStreamCut.asImpl().getStream().getScopedName()), "Ensure that the stream passed is same as that of the input streamcut");
             StreamCut startSC = getHeadStreamCut(stream);
             unread = controller.getSegments(startSC, toStreamCut);
             endPositions = toStreamCut.asImpl().getPositions();
@@ -385,6 +382,8 @@ public class StreamManagerImpl implements StreamManager {
             unread = controller.getSegments(startSC, endSC);
             endPositions = endSC.asImpl().getPositions();
         } else {
+            Preconditions.checkArgument(stream.getScopedName().equals(fromStreamCut.asImpl().getStream().getScopedName()), "Ensure that the stream passed is same as that of the input streamcut");
+            Preconditions.checkArgument(fromStreamCut != toStreamCut, "Ensure that two different stream cuts from same stream is passed");
             unread = controller.getSegments(fromStreamCut, toStreamCut);
             endPositions = toStreamCut.asImpl().getPositions();
         }
