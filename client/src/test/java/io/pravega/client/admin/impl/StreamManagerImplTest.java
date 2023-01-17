@@ -990,6 +990,53 @@ public class StreamManagerImplTest {
         assertEquals(Long.valueOf(20), distance);
     }
 
+    @Test
+    public void testGetDistanceBetweenTwoSCWhenBothUnbounded() throws ConnectionFailedException {
+        final String streamName = "stream";
+        final Stream stream = new StreamImpl(defaultScope, streamName);
+
+        // Setup Mocks
+        ClientConnection connection = mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.CreateSegment request = (WireCommands.CreateSegment) invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                        .process(new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
+                return null;
+            }
+        }).when(connection).send(Mockito.any(WireCommands.CreateSegment.class));
+
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.GetStreamSegmentInfo request = (WireCommands.GetStreamSegmentInfo) invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                        .process(new WireCommands.StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
+                                false, false, 0, 10, 0));
+                return null;
+            }
+        }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
+        connectionFactory.provideConnection(location, connection);
+        MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
+                connectionFactory, true);
+        ConnectionPoolImpl pool = new ConnectionPoolImpl(ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
+        @Cleanup
+        final StreamManager streamManager = new StreamManagerImpl(mockController, pool);
+
+        streamManager.createScope(defaultScope);
+        streamManager.createStream(defaultScope, streamName, StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+        final StreamCut startStreamCut = StreamCut.UNBOUNDED;
+        final StreamCut endStreamCut = StreamCut.UNBOUNDED;
+        CompletableFuture<Long> cf = streamManager.getDistanceBetweenTwoStreamCuts(stream, startStreamCut,
+                endStreamCut);
+        Long distance = cf.join();
+        assertEquals(Long.valueOf(10), distance);
+    }
+
     private StreamCut getStreamCut(String scope, String streamName, long offset, int... segmentNumbers) {
         ImmutableMap.Builder<Segment, Long> builder = ImmutableMap.<Segment, Long>builder();
         Arrays.stream(segmentNumbers).forEach(seg -> {
