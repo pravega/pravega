@@ -163,7 +163,7 @@ public class BatchClientImplTest {
 
         assertNotNull(segRanges);
         assertEquals(3, segRanges.size());
-        assertEquals("stream", segRanges.get(2).getASegment().getStream().getStreamName());
+        assertEquals("stream", segRanges.get(2).getSegment().getStream().getStreamName());
     }
 
     private Stream createStream(String scope, String streamName, int numSegments, MockController mockController) {

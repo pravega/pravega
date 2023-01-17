@@ -40,7 +40,7 @@ public final class SegmentRangeImpl implements SegmentRange {
      * Segment to which the metadata relates to.
      */
     @NonNull
-    @Getter(value = AccessLevel.PACKAGE)
+    @Getter(value = AccessLevel.PUBLIC)
     private final Segment segment;
 
     /**
@@ -68,11 +68,6 @@ public final class SegmentRangeImpl implements SegmentRange {
     @Override
     public String getScope() {
         return segment.getScope();
-    }
-
-    @Override
-    public Segment getASegment() {
-        return this.segment;
     }
 
     @Override

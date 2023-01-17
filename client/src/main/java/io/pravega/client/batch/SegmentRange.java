@@ -67,5 +67,5 @@ public interface SegmentRange extends Serializable {
      * Returns the segment.
      * @return The segment.
      */
-    Segment getASegment();
+    Segment getSegment();
 }
