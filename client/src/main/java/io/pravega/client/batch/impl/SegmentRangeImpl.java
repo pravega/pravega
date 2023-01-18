@@ -40,7 +40,7 @@ public final class SegmentRangeImpl implements SegmentRange {
      * Segment to which the metadata relates to.
      */
     @NonNull
-    @Getter(value = AccessLevel.PACKAGE)
+    @Getter(value = AccessLevel.PUBLIC)
     private final Segment segment;
 
     /**
