@@ -366,27 +366,23 @@ public class StreamManagerImpl implements StreamManager {
         Preconditions.checkNotNull(toStreamCut, "toStreamCut");
         final CompletableFuture<StreamSegmentSuccessors> unread;
         final Map<Segment, Long> endPositions;
-        if (!fromStreamCut.equals(StreamCut.UNBOUNDED) && toStreamCut.equals(StreamCut.UNBOUNDED)) {
+        StreamCut startSC = fromStreamCut;
+        StreamCut endSC = toStreamCut;
+        if (!fromStreamCut.equals(StreamCut.UNBOUNDED)) {
             Preconditions.checkArgument(stream.getScopedName().equals(fromStreamCut.asImpl().getStream().getScopedName()), "Ensure that the stream passed is same as that of the input streamcut");
-            StreamCut endSC = getTailStreamCut(stream);
-            unread = controller.getSegments(fromStreamCut, endSC);
-            endPositions = endSC.asImpl().getPositions();
-        } else if (fromStreamCut.equals(StreamCut.UNBOUNDED) && !toStreamCut.equals(StreamCut.UNBOUNDED)) {
+        } else if (!toStreamCut.equals(StreamCut.UNBOUNDED)) {
             Preconditions.checkArgument(stream.getScopedName().equals(toStreamCut.asImpl().getStream().getScopedName()), "Ensure that the stream passed is same as that of the input streamcut");
-            StreamCut startSC = getHeadStreamCut(stream);
-            unread = controller.getSegments(startSC, toStreamCut);
-            endPositions = toStreamCut.asImpl().getPositions();
-        } else if (fromStreamCut.equals(StreamCut.UNBOUNDED) && toStreamCut.equals(StreamCut.UNBOUNDED)) {
-            StreamCut startSC = getHeadStreamCut(stream);
-            StreamCut endSC = getTailStreamCut(stream);
-            unread = controller.getSegments(startSC, endSC);
-            endPositions = endSC.asImpl().getPositions();
-        } else {
-            Preconditions.checkArgument(stream.getScopedName().equals(fromStreamCut.asImpl().getStream().getScopedName()), "Ensure that the stream passed is same as that of the input streamcut");
-            Preconditions.checkArgument(fromStreamCut != toStreamCut, "Ensure that two different stream cuts from same stream is passed");
-            unread = controller.getSegments(fromStreamCut, toStreamCut);
-            endPositions = toStreamCut.asImpl().getPositions();
         }
+        // get the head/tail streamcuts in case of UNBOUNDED Streamcuts
+        if (fromStreamCut.equals(StreamCut.UNBOUNDED)) {
+            startSC = getHeadStreamCut(stream);
+        }
+        if (toStreamCut.equals(StreamCut.UNBOUNDED)) {
+            endSC = getTailStreamCut(stream);
+        }
+        Preconditions.checkArgument(startSC != endSC, "Ensure that two different stream cuts from same stream is passed");
+        unread = controller.getSegments(startSC, endSC);
+        endPositions = endSC.asImpl().getPositions();
         return unread.thenCompose(unreadVal -> {
             DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
                     .create(controller, stream.getScope(), stream.getStreamName(), AccessOperation.READ);
@@ -406,8 +402,8 @@ public class StreamManagerImpl implements StreamManager {
                 totalLength += bytesRemaining;
             }
             if (fromStreamCut.equals(StreamCut.UNBOUNDED)) {
-                StreamCut startSC = getHeadStreamCut(stream);
-                for (long bytesRead : startSC.asImpl().getPositions().values()) {
+                StreamCut headSC = getHeadStreamCut(stream);
+                for (long bytesRead : headSC.asImpl().getPositions().values()) {
                     totalLength -= bytesRead;
                 }
             } else {
