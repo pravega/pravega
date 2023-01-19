@@ -123,9 +123,9 @@ public interface ControllerServiceConfig {
     Duration getShutdownTimeout();
 
     /**
-     * Fetches the minimum interval between two consecutive controller bucket redistribution operation.
+     * Fetches the minimum interval between two consecutive controller bucket redistribution operations.
      *
-     * @return The minimum interval between two consecutive controller bucket redistribution operation.
+     * @return The minimum interval between two consecutive controller bucket redistribution operations.
      */
     int getMinBucketRedistributionIntervalInSeconds();
 }

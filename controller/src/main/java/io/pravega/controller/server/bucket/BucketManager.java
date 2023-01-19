@@ -16,6 +16,7 @@
 package io.pravega.controller.server.bucket;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
@@ -114,6 +115,8 @@ public abstract class BucketManager extends AbstractService {
                               log.info("{}: Buckets added to process : {} are {}.", serviceType, processId, addBuckets);
                               log.info("{}: Buckets removed from process : {} are {}.", serviceType, processId,
                                       removableBuckets);
+                              Preconditions.checkArgument(Collections.disjoint(addBuckets, removableBuckets),
+                                      "Invalid distribution of buckets");
                               return Futures.allOf(addBuckets.stream().map(x -> initializeBucket(x)
                                                                      .thenCompose(v -> startBucketService(x)))
                                                              .collect(Collectors.toList()))
@@ -232,7 +235,7 @@ public abstract class BucketManager extends AbstractService {
                 }
                 releaseBucketOwnership(bucketId, processId).thenCompose(released -> {
                     if (!released) {
-                        log.warn("{}: Unable to stop bucket service  {} because it doesn't release it's ownership.",
+                        log.warn("{}: Unable to stop bucket service {} because it doesn't release it's ownership.",
                                 serviceType, bucketId);
                         return startBucketService(bucketId);
                     }

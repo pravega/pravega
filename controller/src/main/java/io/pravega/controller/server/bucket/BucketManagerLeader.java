@@ -113,7 +113,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
                 case ERROR:
                     // This event should be due to ZK connection errors and would have been received by the monitor too,
                     // hence not handling it explicitly here.
-                    log.info("{}: Received error event when monitoring the pravega host cluster, ignoring...", serviceType);
+                    log.error("{}: Received error event when monitoring the pravega host cluster, ignoring...", serviceType);
                     break;
             }
         });
