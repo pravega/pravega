@@ -164,8 +164,9 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 log.warn("Current outstanding checkpoints are : {}, " +
                                  "maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}, readers blocking checkpoint are: {}",
                          outstandingCheckpoints, maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage,
-                         maxOutstandingCheckpointRequest, checkpointState.getReaderBlockingCheckpointsMap());
+                         maxOutstandingCheckpointRequest);
 
+                log.warn(" readers oustanding checkpoints {} ",checkpointState.getReaderBlockingCheckpointsMap());
                 return false;
             } else {
                 updates.add(new CreateCheckpoint(checkpointName));
