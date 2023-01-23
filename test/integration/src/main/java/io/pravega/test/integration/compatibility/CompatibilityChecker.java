@@ -37,6 +37,7 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
 
 import java.net.URI;
 import java.util.UUID;
@@ -69,6 +70,7 @@ public class CompatibilityChecker {
     * Here we are trying to create a stream and a scope, and then we are writing a couple of events.
     * And then reading those written event from the stream.
     */
+    @Test(timeout = 20000)
     private void checkWriteAndReadEvent() {
         String scopeName = "write-and-read-test-scope";
         String streamName = "write-and-read-test-stream";
@@ -112,6 +114,7 @@ public class CompatibilityChecker {
     * Here we are creating some stream and writing events to that stream.
     * After that we are truncating to that stream and validating whether the stream truncation is working properly.
     */
+    @Test(timeout = 20000)
     private void checkTruncationOfStream() {
         String scopeName = "truncate-test-scope";
         String streamName = "truncate-test-stream";
@@ -159,6 +162,7 @@ public class CompatibilityChecker {
     * Here we are creating a stream and writing some event to it.
     * And then sealing that stream by using stream manager and validating the stream whether sealing worked properly.
     */
+    @Test(timeout = 20000)
     private void checkSealStream() {
         String scopeName = "stream-seal-test-scope";
         String streamName = "stream-seal-test-stream";
@@ -191,6 +195,7 @@ public class CompatibilityChecker {
      * This method attempts to create, delete and validate the existence of a scope.
      * @throws DeleteScopeFailedException if unable to seal and delete a stream.
      */
+    @Test(timeout = 20000)
     private void checkDeleteScope() throws DeleteScopeFailedException {
         String scopeName = "scope-delete-test-scope";
         String streamName = "scope-delete-test-stream";
@@ -208,6 +213,7 @@ public class CompatibilityChecker {
      * This method is trying to create a stream and writing a couple of events.
      * Then deleting the newly created stream and validating it.
      */
+    @Test(timeout = 20000)
     private void checkStreamDelete() {
         String scopeName = "stream-delete-test-scope";
         String streamName = "stream-delete-test-stream";
@@ -230,6 +236,7 @@ public class CompatibilityChecker {
      * This method attempts to validate abort functionality after creating a transaction.
      * @throws TxnFailedException if unable to commit or write to the transaction.
      */
+    @Test(timeout = 20000)
     private void checkTransactionAbort() throws TxnFailedException {
         String scopeName = "transaction-abort-test-scope";
         String streamName = "transaction-abort-test-stream";
@@ -270,6 +277,7 @@ public class CompatibilityChecker {
      * This method tests the ability to successfully commit a transaction, including writing and reading events from a stream.
      * @throws TxnFailedException if unable to commit or write to the transaction.
      */
+    @Test(timeout = 20000)
     private void checkTransactionReadAndWrite() throws TxnFailedException {
         String scopeName = "transaction-test-scope";
         String streamName = "transaction-test-stream";
