@@ -254,7 +254,7 @@ public class CompatibilityChecker {
         txn.writeEvent("event test");
         // Checking and validating the Transaction status.
         Transaction.Status status = txn.checkStatus();
-        assertEquals("OPEN", status.toString());
+        assertEquals(Transaction.Status.OPEN, status);
         // Aborting the transaction
         txn.abort();
         // It must fail if we are going to write to an aborted or aborting transaction.
@@ -270,7 +270,7 @@ public class CompatibilityChecker {
         // It should not read an event from the stream because transaction was aborted.
         EventRead<String>  eventRead =  reader.readNextEvent(READER_TIMEOUT_MS);
         assertTrue(eventRead.getEvent() == null);
-        assertEquals("ABORTED", txn.checkStatus().toString());
+        assertEquals(Transaction.Status.ABORTED, txn.checkStatus());
     }
 
     /**
@@ -292,15 +292,13 @@ public class CompatibilityChecker {
         // Begin a transaction.
         Transaction<String> txn = writerTxn.beginTxn();
         assertNotNull(txn.getTxnId());
-        int writeCount = 0;
         // Writing 10 Events to the transaction
         for (int event = 1; event <= 10; event++) {
             txn.writeEvent("event test" + event);
-            writeCount++;
         }
         // Checking Status of transaction.
         Transaction.Status status = txn.checkStatus();
-        assertEquals("OPEN", status.toString());
+        assertEquals(Transaction.Status.OPEN, status);
         // Committing the transaction.
         txn.commit();
 
@@ -322,8 +320,8 @@ public class CompatibilityChecker {
             eventNumber++;
         }
         // Validating the readCount and writeCount of event which was written by transaction.
-        assertEquals(readCount, writeCount);
-        assertEquals( "COMMITTED", txn.checkStatus().toString());
+        assertEquals(readCount, eventNumber - 1);
+        assertEquals( Transaction.Status.COMMITTED, txn.checkStatus());
     }
 
     public static void main(String[] args) throws DeleteScopeFailedException, TxnFailedException {
