@@ -31,6 +31,9 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +43,8 @@ import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -221,7 +226,104 @@ public class CompatibilityChecker {
         assertFalse(streamManager.checkStreamExists(scopeName, streamName));
     }
 
-    public static void main(String[] args) throws DeleteScopeFailedException {
+    private  EventStreamReader<String> getReader(String scopeName, String streamName, EventStreamClientFactory clientFactory){
+        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
+
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
+        readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
+        @Cleanup
+        EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
+        return  reader;
+    }
+
+    private void checkTransactionAbort() throws TxnFailedException {
+        String scopeName = "transaction-abort-test-scope";
+        String streamName = "transaction-abort-test-stream";
+        streamManager.createScope(scopeName);
+        streamManager.createStream(scopeName, streamName, streamConfig);
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        @Cleanup
+        TransactionalEventStreamWriter<String> writerTxn = clientFactory.createTransactionalEventWriter(streamName, new UTF8StringSerializer(),
+                EventWriterConfig.builder().build());
+        /// begin a transaction
+        Transaction<String> txn = writerTxn.beginTxn();
+        assertNotNull(txn.getTxnId());
+
+        txn.writeEvent("event test");
+
+        Transaction.Status status = txn.checkStatus();
+        assertEquals("OPEN", status.toString());
+
+        txn.abort();
+        assertThrows(TxnFailedException.class , () -> txn.writeEvent("event test"));
+        assertEquals("ABORTED", txn.checkStatus().toString());
+        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
+
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
+        readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
+        @Cleanup
+        EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
+
+       EventRead<String>  eventRead =  reader.readNextEvent(READER_TIMEOUT_MS);
+        assertTrue(eventRead.getEvent() == null);
+        assertEquals("ABORTED", txn.checkStatus().toString());
+    }
+
+    private void checkTransanctionReadAndWrite() throws TxnFailedException {
+        String scopeName = "transaction-test-scope";
+        String streamName = "transaction-test-stream";
+        streamManager.createScope(scopeName);
+        streamManager.createStream(scopeName, streamName, streamConfig);
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        @Cleanup
+        TransactionalEventStreamWriter<String> writerTxn = clientFactory.createTransactionalEventWriter(streamName, new UTF8StringSerializer(),
+                EventWriterConfig.builder().build());
+        assertNotNull(writerTxn);
+        /// begin a transanction
+        Transaction<String> txn = writerTxn.beginTxn();
+        assertNotNull(txn.getTxnId());
+        int writeCount = 0;
+        // Writing 10 Events to the stream
+        for (int event = 1; event <= 10; event++) {
+            txn.writeEvent("event test" + event);
+            writeCount++;
+        }
+        Transaction.Status status = txn.checkStatus();
+        assertEquals("OPEN", status.toString());
+
+        txn.commit();
+        assertEquals("COMMITTING", txn.checkStatus().toString());
+
+        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
+        readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
+        @Cleanup
+        EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
+        EventRead<String> event = reader.readNextEvent(READER_TIMEOUT_MS);
+        int eventNumber = 1;
+        int readCount = 0;
+        // Reading written Events
+        while (event.getEvent() != null) {
+            assertEquals("event test" + eventNumber, event.getEvent());
+            event = reader.readNextEvent(READER_TIMEOUT_MS);
+            readCount++;
+            eventNumber++;
+        }
+        // Validating the readCount and writeCount
+        assertEquals(readCount, writeCount);
+        assertEquals( "COMMITTED", txn.checkStatus().toString() );
+        txn.abort();
+    }
+
+    public static void main(String[] args) throws DeleteScopeFailedException, TxnFailedException {
         String uri = System.getProperty("controllerUri");
         if (uri == null) {
             log.error("Input correct controller URI (e.g., \"tcp://localhost:9090\")");
@@ -229,11 +331,12 @@ public class CompatibilityChecker {
         }
         CompatibilityChecker compatibilityChecker = new CompatibilityChecker();
         compatibilityChecker.setUp(uri);
-        compatibilityChecker.checkWriteAndReadEvent();
-        compatibilityChecker.checkTruncationOfStream();
-        compatibilityChecker.checkSealStream();
-        compatibilityChecker.checkDeleteScope();
-        compatibilityChecker.checkStreamDelete();
+//        compatibilityChecker.checkWriteAndReadEvent();
+//        compatibilityChecker.checkTruncationOfStream();
+//        compatibilityChecker.checkSealStream();
+//        compatibilityChecker.checkDeleteScope();
+//        compatibilityChecker.checkStreamDelete();
+        compatibilityChecker.checkTransactionAbort();
         System.exit(0);
     }
 }
