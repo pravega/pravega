@@ -109,6 +109,9 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 3000);
         assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 3000);
 
+        //make zookeeper server restart, it will test connection suspended.
+        zkServer.restart();
+
         //add new controller instance in pravgea cluster.
         Host controller1 = new Host(UUID.randomUUID().toString(), 9090, null);
         addEntryToZkCluster(controller1);
