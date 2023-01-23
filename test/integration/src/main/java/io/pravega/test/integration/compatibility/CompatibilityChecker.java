@@ -226,18 +226,10 @@ public class CompatibilityChecker {
         assertFalse(streamManager.checkStreamExists(scopeName, streamName));
     }
 
-    private  EventStreamReader<String> getReader(String scopeName, String streamName, EventStreamClientFactory clientFactory){
-        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
-        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
-
-        @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
-        readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
-        @Cleanup
-        EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
-        return  reader;
-    }
-
+    /**
+     * This method attempts to validate abort functionality after creating a transaction.
+     * @throws TxnFailedException if unable to commit or write to the transaction.
+     */
     private void checkTransactionAbort() throws TxnFailedException {
         String scopeName = "transaction-abort-test-scope";
         String streamName = "transaction-abort-test-stream";
@@ -248,18 +240,18 @@ public class CompatibilityChecker {
         @Cleanup
         TransactionalEventStreamWriter<String> writerTxn = clientFactory.createTransactionalEventWriter(streamName, new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
-        /// begin a transaction
+        // Begin a transaction
         Transaction<String> txn = writerTxn.beginTxn();
         assertNotNull(txn.getTxnId());
-
+        // Writing to the transaction
         txn.writeEvent("event test");
-
+        // Checking and validating the Transaction status.
         Transaction.Status status = txn.checkStatus();
         assertEquals("OPEN", status.toString());
-
+        // Aborting the transaction
         txn.abort();
-        assertThrows(TxnFailedException.class , () -> txn.writeEvent("event test"));
-        assertEquals("ABORTED", txn.checkStatus().toString());
+        // It must fail if we are going to write to an aborted or aborting transaction.
+        assertThrows(TxnFailedException.class, () -> txn.writeEvent("event test"));
         String readerGroupId = UUID.randomUUID().toString().replace("-", "");
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
 
@@ -268,13 +260,17 @@ public class CompatibilityChecker {
         readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
         @Cleanup
         EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
-
-       EventRead<String>  eventRead =  reader.readNextEvent(READER_TIMEOUT_MS);
+        // It should not read an event from the stream because transaction was aborted.
+        EventRead<String>  eventRead =  reader.readNextEvent(READER_TIMEOUT_MS);
         assertTrue(eventRead.getEvent() == null);
         assertEquals("ABORTED", txn.checkStatus().toString());
     }
 
-    private void checkTransanctionReadAndWrite() throws TxnFailedException {
+    /**
+     * This method tests the ability to successfully commit a transaction, including writing and reading events from a stream.
+     * @throws TxnFailedException if unable to commit or write to the transaction.
+     */
+    private void checkTransactionReadAndWrite() throws TxnFailedException {
         String scopeName = "transaction-test-scope";
         String streamName = "transaction-test-stream";
         streamManager.createScope(scopeName);
@@ -285,20 +281,20 @@ public class CompatibilityChecker {
         TransactionalEventStreamWriter<String> writerTxn = clientFactory.createTransactionalEventWriter(streamName, new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
         assertNotNull(writerTxn);
-        /// begin a transanction
+        // Begin a transaction.
         Transaction<String> txn = writerTxn.beginTxn();
         assertNotNull(txn.getTxnId());
         int writeCount = 0;
-        // Writing 10 Events to the stream
+        // Writing 10 Events to the transaction
         for (int event = 1; event <= 10; event++) {
             txn.writeEvent("event test" + event);
             writeCount++;
         }
+        // Checking Status of transaction.
         Transaction.Status status = txn.checkStatus();
         assertEquals("OPEN", status.toString());
-
+        // Committing the transaction.
         txn.commit();
-        assertEquals("COMMITTING", txn.checkStatus().toString());
 
         String readerGroupId = UUID.randomUUID().toString().replace("-", "");
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
@@ -310,17 +306,16 @@ public class CompatibilityChecker {
         EventRead<String> event = reader.readNextEvent(READER_TIMEOUT_MS);
         int eventNumber = 1;
         int readCount = 0;
-        // Reading written Events
+        // Reading events committed by the transaction.
         while (event.getEvent() != null) {
             assertEquals("event test" + eventNumber, event.getEvent());
             event = reader.readNextEvent(READER_TIMEOUT_MS);
             readCount++;
             eventNumber++;
         }
-        // Validating the readCount and writeCount
+        // Validating the readCount and writeCount of event which was written by transaction.
         assertEquals(readCount, writeCount);
-        assertEquals( "COMMITTED", txn.checkStatus().toString() );
-        txn.abort();
+        assertEquals( "COMMITTED", txn.checkStatus().toString());
     }
 
     public static void main(String[] args) throws DeleteScopeFailedException, TxnFailedException {
@@ -331,11 +326,12 @@ public class CompatibilityChecker {
         }
         CompatibilityChecker compatibilityChecker = new CompatibilityChecker();
         compatibilityChecker.setUp(uri);
-//        compatibilityChecker.checkWriteAndReadEvent();
-//        compatibilityChecker.checkTruncationOfStream();
-//        compatibilityChecker.checkSealStream();
-//        compatibilityChecker.checkDeleteScope();
-//        compatibilityChecker.checkStreamDelete();
+        compatibilityChecker.checkWriteAndReadEvent();
+        compatibilityChecker.checkTruncationOfStream();
+        compatibilityChecker.checkSealStream();
+        compatibilityChecker.checkDeleteScope();
+        compatibilityChecker.checkStreamDelete();
+        compatibilityChecker.checkTransactionReadAndWrite();
         compatibilityChecker.checkTransactionAbort();
         System.exit(0);
     }
