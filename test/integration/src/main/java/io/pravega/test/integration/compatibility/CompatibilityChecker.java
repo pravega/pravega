@@ -252,8 +252,7 @@ public class CompatibilityChecker {
         // Writing to the transaction
         txn.writeEvent("event test");
         // Checking and validating the Transaction status.
-        Transaction.Status status = txn.checkStatus();
-        assertEquals(Transaction.Status.OPEN, status);
+        assertEquals(Transaction.Status.OPEN, txn.checkStatus());
         // Aborting the transaction
         txn.abort();
         // It must fail if we are going to write to an aborted or aborting transaction.
@@ -295,8 +294,7 @@ public class CompatibilityChecker {
             txn.writeEvent("event test" + event);
         }
         // Checking Status of transaction.
-        Transaction.Status status = txn.checkStatus();
-        assertEquals(Transaction.Status.OPEN, status);
+        assertEquals(Transaction.Status.OPEN, txn.checkStatus());
         // Committing the transaction.
         txn.commit();
 
