@@ -65,6 +65,11 @@ public class CompatibilityChecker {
         streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
     }
 
+   private void createScopeAndStream(String scopeName, String streamName) {
+       streamManager.createScope(scopeName);
+       streamManager.createStream(scopeName, streamName, streamConfig);
+   }
+
     /**
     * This method is Checking the working of the read and write event of the stream.
     * Here we are trying to create a stream and a scope, and then we are writing a couple of events.
@@ -74,8 +79,7 @@ public class CompatibilityChecker {
     private void checkWriteAndReadEvent() {
         String scopeName = "write-and-read-test-scope";
         String streamName = "write-and-read-test-stream";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+        createScopeAndStream(scopeName, streamName);
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
@@ -118,8 +122,7 @@ public class CompatibilityChecker {
     private void checkTruncationOfStream() {
         String scopeName = "truncate-test-scope";
         String streamName = "truncate-test-stream";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+        createScopeAndStream(scopeName, streamName);
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
 
@@ -166,8 +169,7 @@ public class CompatibilityChecker {
     private void checkSealStream() {
         String scopeName = "stream-seal-test-scope";
         String streamName = "stream-seal-test-stream";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+        createScopeAndStream(scopeName, streamName);
         assertTrue(streamManager.checkStreamExists(scopeName, streamName));
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
@@ -199,8 +201,7 @@ public class CompatibilityChecker {
     private void checkDeleteScope() throws DeleteScopeFailedException {
         String scopeName = "scope-delete-test-scope";
         String streamName = "scope-delete-test-stream";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+        createScopeAndStream(scopeName, streamName);
         assertTrue(streamManager.checkScopeExists(scopeName));
 
         assertTrue(streamManager.deleteScopeRecursive(scopeName));
@@ -217,8 +218,7 @@ public class CompatibilityChecker {
     private void checkStreamDelete() {
         String scopeName = "stream-delete-test-scope";
         String streamName = "stream-delete-test-stream";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+        createScopeAndStream(scopeName, streamName);
         assertTrue(streamManager.checkStreamExists(scopeName, streamName));
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
@@ -240,8 +240,7 @@ public class CompatibilityChecker {
     private void checkTransactionAbort() throws TxnFailedException {
         String scopeName = "transaction-abort-test-scope";
         String streamName = "transaction-abort-test-stream";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+        createScopeAndStream(scopeName, streamName);
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
@@ -281,8 +280,7 @@ public class CompatibilityChecker {
     private void checkTransactionReadAndWrite() throws TxnFailedException {
         String scopeName = "transaction-test-scope";
         String streamName = "transaction-test-stream";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+        createScopeAndStream(scopeName, streamName);
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
