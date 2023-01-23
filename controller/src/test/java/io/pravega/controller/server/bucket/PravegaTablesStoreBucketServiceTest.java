@@ -240,6 +240,6 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
 
     private BucketManagerLeader getBucketManagerLeader(BucketStore bucketStore, BucketStore.ServiceType serviceType) {
         return new BucketManagerLeader(bucketStore, 1,
-                new UniformBucketDistributor(), serviceType);
+                new UniformBucketDistributor(), serviceType, executor);
     }
 }

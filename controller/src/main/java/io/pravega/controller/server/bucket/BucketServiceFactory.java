@@ -49,7 +49,7 @@ public class BucketServiceFactory {
                                 maxConcurrentExecutions, executionDuration, work);
 
                 return new ZooKeeperBucketManager(hostId, zkBucketStore, BucketStore.ServiceType.RetentionService,
-                        executorService, zkSupplier, getBucketManagerLeader(BucketStore.ServiceType.RetentionService));
+                        executorService, zkSupplier, getBucketManagerLeader(BucketStore.ServiceType.RetentionService, executorService));
             case InMemory:
                 InMemoryBucketStore inMemoryBucketStore = (InMemoryBucketStore) bucketStore;
                 Function<Integer, BucketService> inMemorySupplier = bucket ->
@@ -57,7 +57,7 @@ public class BucketServiceFactory {
                                 maxConcurrentExecutions, executionDuration, work);
 
                 return new InMemoryBucketManager(hostId, (InMemoryBucketStore) bucketStore, BucketStore.ServiceType.RetentionService, 
-                        executorService, inMemorySupplier, getBucketManagerLeader(BucketStore.ServiceType.RetentionService));
+                        executorService, inMemorySupplier, getBucketManagerLeader(BucketStore.ServiceType.RetentionService, executorService));
             default:
                 throw new IllegalArgumentException(String.format("store type %s not supported", bucketStore.getStoreType().name()));
         }
@@ -72,7 +72,7 @@ public class BucketServiceFactory {
                                 maxConcurrentExecutions, executionDuration, work);
 
                 return new ZooKeeperBucketManager(hostId, zkBucketStore, BucketStore.ServiceType.WatermarkingService,
-                        executorService, zkSupplier, getBucketManagerLeader(BucketStore.ServiceType.WatermarkingService));
+                        executorService, zkSupplier, getBucketManagerLeader(BucketStore.ServiceType.WatermarkingService, executorService));
             case InMemory:
                 InMemoryBucketStore inMemoryBucketStore = (InMemoryBucketStore) bucketStore;
                 Function<Integer, BucketService> inMemorySupplier = bucket ->
@@ -80,14 +80,15 @@ public class BucketServiceFactory {
                                 maxConcurrentExecutions, executionDuration, work);
 
                 return new InMemoryBucketManager(hostId, (InMemoryBucketStore) bucketStore, BucketStore.ServiceType.WatermarkingService, 
-                        executorService, inMemorySupplier, getBucketManagerLeader(BucketStore.ServiceType.WatermarkingService));
+                        executorService, inMemorySupplier, getBucketManagerLeader(BucketStore.ServiceType.WatermarkingService, executorService));
             default:
                 throw new IllegalArgumentException(String.format("store type %s not supported", bucketStore.getStoreType().name()));
         }
     }
 
-    private BucketManagerLeader getBucketManagerLeader(BucketStore.ServiceType serviceType) {
+    private BucketManagerLeader getBucketManagerLeader(BucketStore.ServiceType serviceType,
+                                                       ScheduledExecutorService executorService) {
         return new BucketManagerLeader(bucketStore, minBucketRedistributionInterval,
-                new UniformBucketDistributor(), serviceType);
+                new UniformBucketDistributor(), serviceType, executorService);
     }
 }

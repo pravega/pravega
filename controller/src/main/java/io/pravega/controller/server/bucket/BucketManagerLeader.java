@@ -20,9 +20,12 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
 import java.time.Duration;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -61,9 +64,11 @@ public class BucketManagerLeader implements LeaderSelectorListener {
     private final BucketDistributor bucketDistributor;
     // Service type
     private final BucketStore.ServiceType serviceType;
+    private final ScheduledExecutorService executorService;
 
     public BucketManagerLeader(BucketStore bucketStore, int minBucketRedistributionIntervalInSeconds,
-                               BucketDistributor bucketDistributor, BucketStore.ServiceType serviceType) {
+                               BucketDistributor bucketDistributor, BucketStore.ServiceType serviceType,
+                               ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(bucketStore, "bucketStore");
         Preconditions.checkArgument(minBucketRedistributionIntervalInSeconds >= 0,
                 "minBucketRedistributionInterval should not be negative");
@@ -72,6 +77,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
         this.minBucketRedistributionIntervalInSeconds = Duration.ofSeconds(minBucketRedistributionIntervalInSeconds);
         this.bucketDistributor = bucketDistributor;
         this.serviceType = serviceType;
+        this.executorService = executorService;
     }
 
     /**
@@ -163,10 +169,10 @@ public class BucketManagerLeader implements LeaderSelectorListener {
      * -- Clubs multiple host events into one to reduce redistribution operations. For example:
      *      Fresh cluster start, cluster/multi-host/host restarts, etc.
      */
-    private void waitForReDistribute() throws InterruptedException {
+    private void waitForReDistribute() throws InterruptedException, ExecutionException {
         log.info("{}: Waiting for {} seconds before attempting to distribute.", serviceType,
                 minBucketRedistributionIntervalInSeconds.getSeconds());
-        Thread.sleep(minBucketRedistributionIntervalInSeconds.toMillis());
+        Futures.delayedFuture(minBucketRedistributionIntervalInSeconds, executorService).get();
     }
 
     private void triggerDistribution() {
