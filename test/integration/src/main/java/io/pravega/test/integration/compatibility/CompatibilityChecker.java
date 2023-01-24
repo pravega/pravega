@@ -289,9 +289,11 @@ public class CompatibilityChecker {
         // Begin a transaction.
         Transaction<String> txn = writerTxn.beginTxn();
         assertNotNull(txn.getTxnId());
+        int writeCount = 0;
         // Writing 10 Events to the transaction
         for (int event = 1; event <= 10; event++) {
             txn.writeEvent("event test" + event);
+            writeCount++;
         }
         // Checking Status of transaction.
         assertEquals(Transaction.Status.OPEN, txn.checkStatus());
@@ -306,17 +308,15 @@ public class CompatibilityChecker {
         @Cleanup
         EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
         EventRead<String> event = reader.readNextEvent(READER_TIMEOUT_MS);
-        int eventNumber = 1;
         int readCount = 0;
         // Reading events committed by the transaction.
         while (event.getEvent() != null) {
-            assertEquals("event test" + eventNumber, event.getEvent());
-            event = reader.readNextEvent(READER_TIMEOUT_MS);
             readCount++;
-            eventNumber++;
+            assertEquals("event test" + readCount, event.getEvent());
+            event = reader.readNextEvent(READER_TIMEOUT_MS);
         }
         // Validating the readCount and writeCount of event which was written by transaction.
-        assertEquals(readCount, eventNumber - 1);
+        assertEquals(readCount, writeCount);
         assertEquals( Transaction.Status.COMMITTED, txn.checkStatus());
     }
 
