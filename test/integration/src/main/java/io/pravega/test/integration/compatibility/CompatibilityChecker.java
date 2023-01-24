@@ -70,6 +70,10 @@ public class CompatibilityChecker {
        streamManager.createStream(scopeName, streamName, streamConfig);
    }
 
+   private String getRandomID() {
+       return UUID.randomUUID().toString().replace("-", "");
+   }
+   
     /**
     * This method is Checking the working of the read and write event of the stream.
     * Here we are trying to create a stream and a scope, and then we are writing a couple of events.
@@ -84,7 +88,7 @@ public class CompatibilityChecker {
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
-        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
+        String readerGroupId = getRandomID();
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
@@ -126,7 +130,7 @@ public class CompatibilityChecker {
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
 
-        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
+        String readerGroupId = getRandomID();
 
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
         @Cleanup
@@ -175,7 +179,7 @@ public class CompatibilityChecker {
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
-        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
+        String readerGroupId = getRandomID();
 
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
         @Cleanup
@@ -257,7 +261,7 @@ public class CompatibilityChecker {
         txn.abort();
         // It must fail if we are going to write to an aborted or aborting transaction.
         assertThrows(TxnFailedException.class, () -> txn.writeEvent("event test"));
-        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
+        String readerGroupId = getRandomID();
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
 
         @Cleanup
@@ -300,13 +304,13 @@ public class CompatibilityChecker {
         // Committing the transaction.
         txn.commit();
 
-        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
+        String readerGroupId = getRandomID();
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
         readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
         @Cleanup
-        EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
+        EventStreamReader<String> reader = clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
         EventRead<String> event = reader.readNextEvent(READER_TIMEOUT_MS);
         int readCount = 0;
         // Reading events committed by the transaction.
