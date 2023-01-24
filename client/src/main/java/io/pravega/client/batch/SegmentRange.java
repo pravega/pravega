@@ -17,6 +17,8 @@ package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
 import io.pravega.client.batch.impl.SegmentRangeImpl;
+import io.pravega.client.segment.impl.Segment;
+
 import java.io.Serializable;
 
 /**
@@ -60,4 +62,10 @@ public interface SegmentRange extends Serializable {
      * @return This
      */
     SegmentRangeImpl asImpl();
+
+    /**
+     * Returns the segment.
+     * @return The segment.
+     */
+    Segment getSegment();
 }
