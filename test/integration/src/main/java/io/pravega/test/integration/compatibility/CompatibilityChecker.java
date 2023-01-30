@@ -31,15 +31,21 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
 
 import java.net.URI;
 import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -59,21 +65,30 @@ public class CompatibilityChecker {
         streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
     }
 
+   private void createScopeAndStream(String scopeName, String streamName) {
+       streamManager.createScope(scopeName);
+       streamManager.createStream(scopeName, streamName, streamConfig);
+   }
+
+   private String getRandomID() {
+       return UUID.randomUUID().toString().replace("-", "");
+   }
+   
     /**
     * This method is Checking the working of the read and write event of the stream.
     * Here we are trying to create a stream and a scope, and then we are writing a couple of events.
     * And then reading those written event from the stream.
     */
+    @Test(timeout = 20000)
     private void checkWriteAndReadEvent() {
         String scopeName = "write-and-read-test-scope";
         String streamName = "write-and-read-test-stream";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+        createScopeAndStream(scopeName, streamName);
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
-        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
+        String readerGroupId = getRandomID();
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
@@ -107,15 +122,15 @@ public class CompatibilityChecker {
     * Here we are creating some stream and writing events to that stream.
     * After that we are truncating to that stream and validating whether the stream truncation is working properly.
     */
+    @Test(timeout = 20000)
     private void checkTruncationOfStream() {
         String scopeName = "truncate-test-scope";
         String streamName = "truncate-test-stream";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+        createScopeAndStream(scopeName, streamName);
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
 
-        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
+        String readerGroupId = getRandomID();
 
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
         @Cleanup
@@ -154,17 +169,17 @@ public class CompatibilityChecker {
     * Here we are creating a stream and writing some event to it.
     * And then sealing that stream by using stream manager and validating the stream whether sealing worked properly.
     */
+    @Test(timeout = 20000)
     private void checkSealStream() {
         String scopeName = "stream-seal-test-scope";
         String streamName = "stream-seal-test-stream";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+        createScopeAndStream(scopeName, streamName);
         assertTrue(streamManager.checkStreamExists(scopeName, streamName));
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
-        String readerGroupId = UUID.randomUUID().toString().replace("-", "");
+        String readerGroupId = getRandomID();
 
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
         @Cleanup
@@ -186,11 +201,11 @@ public class CompatibilityChecker {
      * This method attempts to create, delete and validate the existence of a scope.
      * @throws DeleteScopeFailedException if unable to seal and delete a stream.
      */
+    @Test(timeout = 20000)
     private void checkDeleteScope() throws DeleteScopeFailedException {
         String scopeName = "scope-delete-test-scope";
         String streamName = "scope-delete-test-stream";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+        createScopeAndStream(scopeName, streamName);
         assertTrue(streamManager.checkScopeExists(scopeName));
 
         assertTrue(streamManager.deleteScopeRecursive(scopeName));
@@ -203,11 +218,11 @@ public class CompatibilityChecker {
      * This method is trying to create a stream and writing a couple of events.
      * Then deleting the newly created stream and validating it.
      */
+    @Test(timeout = 20000)
     private void checkStreamDelete() {
         String scopeName = "stream-delete-test-scope";
         String streamName = "stream-delete-test-stream";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamName, streamConfig);
+        createScopeAndStream(scopeName, streamName);
         assertTrue(streamManager.checkStreamExists(scopeName, streamName));
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
@@ -221,7 +236,95 @@ public class CompatibilityChecker {
         assertFalse(streamManager.checkStreamExists(scopeName, streamName));
     }
 
-    public static void main(String[] args) throws DeleteScopeFailedException {
+    /**
+     * This method attempts to validate abort functionality after creating a transaction.
+     * @throws TxnFailedException if unable to commit or write to the transaction.
+     */
+    @Test(timeout = 20000)
+    private void checkTransactionAbort() throws TxnFailedException {
+        String scopeName = "transaction-abort-test-scope";
+        String streamName = "transaction-abort-test-stream";
+        createScopeAndStream(scopeName, streamName);
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        @Cleanup
+        TransactionalEventStreamWriter<String> writerTxn = clientFactory.createTransactionalEventWriter(streamName, new UTF8StringSerializer(),
+                EventWriterConfig.builder().build());
+        // Begin a transaction
+        Transaction<String> txn = writerTxn.beginTxn();
+        assertNotNull(txn.getTxnId());
+        // Writing to the transaction
+        txn.writeEvent("event test");
+        // Checking and validating the Transaction status.
+        assertEquals(Transaction.Status.OPEN, txn.checkStatus());
+        // Aborting the transaction
+        txn.abort();
+        // It must fail if we are going to write to an aborted or aborting transaction.
+        assertThrows(TxnFailedException.class, () -> txn.writeEvent("event test"));
+        String readerGroupId = getRandomID();
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
+
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
+        readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
+        @Cleanup
+        EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
+        // It should not read an event from the stream because transaction was aborted.
+        EventRead<String>  eventRead =  reader.readNextEvent(READER_TIMEOUT_MS);
+        assertTrue(eventRead.getEvent() == null);
+        assertEquals(Transaction.Status.ABORTED, txn.checkStatus());
+    }
+
+    /**
+     * This method tests the ability to successfully commit a transaction, including writing and reading events from a stream.
+     * @throws TxnFailedException if unable to commit or write to the transaction.
+     */
+    @Test(timeout = 20000)
+    private void checkTransactionReadAndWrite() throws TxnFailedException {
+        String scopeName = "transaction-test-scope";
+        String streamName = "transaction-test-stream";
+        createScopeAndStream(scopeName, streamName);
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        @Cleanup
+        TransactionalEventStreamWriter<String> writerTxn = clientFactory.createTransactionalEventWriter(streamName, new UTF8StringSerializer(),
+                EventWriterConfig.builder().build());
+        assertNotNull(writerTxn);
+        // Begin a transaction.
+        Transaction<String> txn = writerTxn.beginTxn();
+        assertNotNull(txn.getTxnId());
+        int writeCount = 0;
+        // Writing 10 Events to the transaction
+        for (int event = 1; event <= 10; event++) {
+            txn.writeEvent("event test" + event);
+            writeCount++;
+        }
+        // Checking Status of transaction.
+        assertEquals(Transaction.Status.OPEN, txn.checkStatus());
+        // Committing the transaction.
+        txn.commit();
+
+        String readerGroupId = getRandomID();
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
+        readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
+        EventRead<String> event = reader.readNextEvent(READER_TIMEOUT_MS);
+        int readCount = 0;
+        // Reading events committed by the transaction.
+        while (event.getEvent() != null) {
+            readCount++;
+            assertEquals("event test" + readCount, event.getEvent());
+            event = reader.readNextEvent(READER_TIMEOUT_MS);
+        }
+        // Validating the readCount and writeCount of event which was written by transaction.
+        assertEquals(readCount, writeCount);
+        assertEquals( Transaction.Status.COMMITTED, txn.checkStatus());
+    }
+
+    public static void main(String[] args) throws DeleteScopeFailedException, TxnFailedException {
         String uri = System.getProperty("controllerUri");
         if (uri == null) {
             log.error("Input correct controller URI (e.g., \"tcp://localhost:9090\")");
@@ -234,6 +337,8 @@ public class CompatibilityChecker {
         compatibilityChecker.checkSealStream();
         compatibilityChecker.checkDeleteScope();
         compatibilityChecker.checkStreamDelete();
+        compatibilityChecker.checkTransactionReadAndWrite();
+        compatibilityChecker.checkTransactionAbort();
         System.exit(0);
     }
 }
