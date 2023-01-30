@@ -21,12 +21,12 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.controller.store.stream.BucketStore;
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -43,14 +43,15 @@ import org.apache.curator.framework.state.ConnectionState;
 public class BucketManagerLeader implements LeaderSelectorListener {
 
     private final BucketStore bucketStore;
+    private final Object lock = new Object();
     // The pravega cluster which this controller manages.
     @GuardedBy("lock")
     private Cluster pravegaServiceCluster = null;
-    // Semaphore to notify the leader thread to trigger a rebalance.
-    private final Semaphore controllerChange = new Semaphore(0);
+    // ReusableLatch to notify the leader thread to trigger a redistribution.
+    private final ReusableLatch controllerChange = new ReusableLatch();
 
-    // Semaphore to keep the current thread in suspended state.
-    private final Semaphore suspendMonitor = new Semaphore(0);
+    // ReusableLatch to keep the current thread in suspended state.
+    private final ReusableLatch suspendMonitor = new ReusableLatch();
 
     // Flag to check if monitor is suspended or not.
     private final AtomicBoolean suspended = new AtomicBoolean(false);
@@ -104,7 +105,9 @@ public class BucketManagerLeader implements LeaderSelectorListener {
         controllerChange.release();
 
         // Start cluster monitor.
-        pravegaServiceCluster = new ClusterZKImpl(client, ClusterType.CONTROLLER);
+        synchronized (lock) {
+            pravegaServiceCluster = new ClusterZKImpl(client, ClusterType.CONTROLLER);
+        }
 
         // Add listener to track controller changes on the monitored pravega cluster.
         pravegaServiceCluster.addListener((type, controller) -> {
@@ -129,11 +132,11 @@ public class BucketManagerLeader implements LeaderSelectorListener {
             try {
                 if (suspended.get()) {
                     log.info("{}: Monitor is suspended, waiting for notification to resume.", serviceType);
-                    suspendMonitor.acquire();
+                    suspendMonitor.await();
                     log.info("{}: Resuming monitor.", serviceType);
                 }
 
-                controllerChange.acquire();
+                controllerChange.await();
                 log.info("{}: Received distribute buckets.", serviceType);
 
                 // Wait here until distribution can be performed.
@@ -141,13 +144,15 @@ public class BucketManagerLeader implements LeaderSelectorListener {
 
                 // Clear all events that has been received until this point since this will be included in the current
                 // distribution operation.
-                controllerChange.drainPermits();
+                controllerChange.reset();
                 triggerDistribution();
             } catch (InterruptedException e) {
                 log.warn("{}: Leadership interrupted, releasing monitor thread.", serviceType);
 
                 // Stop watching the pravega cluster.
-                pravegaServiceCluster.close();
+                synchronized (lock) {
+                    pravegaServiceCluster.close();
+                }
                 throw e;
             } catch (Exception e) {
                 // We will not release leadership if in suspended mode.
@@ -155,7 +160,9 @@ public class BucketManagerLeader implements LeaderSelectorListener {
                     log.warn("{}: Failed to perform distribution, relinquishing leadership.", serviceType);
 
                     // Stop watching the pravega cluster.
-                    pravegaServiceCluster.close();
+                    synchronized (lock) {
+                        pravegaServiceCluster.close();
+                    }
                     throw e;
                 }
             }
@@ -177,9 +184,11 @@ public class BucketManagerLeader implements LeaderSelectorListener {
 
     private void triggerDistribution() {
         //Read the current mapping from the bucket store and write back the update after distribution.
-        Set<String> currentControllers = pravegaServiceCluster.getClusterMembers().stream().map(controller ->
-                controller.getHostId()).collect(Collectors.toSet());
-
+        Set<String> currentControllers;
+        synchronized (lock) {
+            currentControllers = pravegaServiceCluster.getClusterMembers().stream().map(controller ->
+                    controller.getHostId()).collect(Collectors.toSet());
+        }
         bucketStore.getBucketControllerMap(serviceType)
                    .thenApply(currentControllerMapping -> bucketDistributor.distribute(currentControllerMapping,
                            currentControllers, bucketStore.getBucketCount(serviceType)))

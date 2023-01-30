@@ -20,10 +20,12 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -39,7 +41,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
@@ -190,25 +191,17 @@ public abstract class BucketServiceTest {
     }
 
     protected void addControllerToZkCluster(Host host, Cluster cluster)  {
-        final CountDownLatch latch = new CountDownLatch(1);
-        cluster.addListener((type, host1) -> latch.countDown());
+        final ReusableLatch latch = new ReusableLatch();
+        cluster.addListener((type, host1) -> latch.release());
         cluster.registerHost(host);
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        Exceptions.handleInterrupted(() -> latch.await());
     }
 
 
     protected void removeControllerFromZkCluster(Host host, Cluster cluster)  {
-        final CountDownLatch latch = new CountDownLatch(1);
-        cluster.addListener((type, host1) -> latch.countDown());
+        final ReusableLatch latch = new ReusableLatch();
+        cluster.addListener((type, host1) -> latch.release());
         cluster.deregisterHost(host);
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        Exceptions.handleInterrupted(() -> latch.await());
     }
 }

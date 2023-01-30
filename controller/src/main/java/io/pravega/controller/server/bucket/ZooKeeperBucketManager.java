@@ -226,7 +226,6 @@ public class ZooKeeperBucketManager extends BucketManager {
         log.info("{}: Leader election started.", getServiceType());
     }
 
-    @SneakyThrows
     @Override
     public void stopLeader() {
         leaderSelector.interruptLeadership();
