@@ -50,10 +50,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -65,7 +63,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
-import lombok.val;
 import org.junit.Before;
 import org.junit.After;
 import org.junit.Test;
@@ -531,10 +528,12 @@ public class ReaderGroupImplTest {
             assertTrue("expecting MaxNumberOfCheckpointsExceededException", e.getCause() instanceof MaxNumberOfCheckpointsExceededException);
         }
     }
+    
     private void createScopeAndStream(String scope, String stream, MockController controller) {
         controller.createScope(scope).join();
         controller.createStream(scope, stream, configStream).join();
     }
+
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(numberOfSegments).forEach(segNum -> positions.put(new Segment(SCOPE, streamName, segNum), 10L));
