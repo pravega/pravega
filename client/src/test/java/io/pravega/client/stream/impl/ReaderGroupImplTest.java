@@ -107,7 +107,6 @@ public class ReaderGroupImplTest {
     private ReaderGroupState state;
     @Mock
     private ScheduledThreadPoolExecutor scheduledThreadPoolExecutor;
-
     private Serializer<InitialUpdate<ReaderGroupState>> initSerializer = new ReaderGroupStateInitSerializer();
     private Serializer<Update<ReaderGroupState>> updateSerializer = new ReaderGroupStateUpdatesSerializer();
     private final StreamConfiguration configStream = StreamConfiguration.builder()
@@ -494,41 +493,37 @@ public class ReaderGroupImplTest {
 
         @Test(timeout = 10000)
     public void initiateCheckpointOutstandingCheckPoint() throws Exception {
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 12345);
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        MockController mkController = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
-        createScopeAndStream("scope", "stream", mkController);
-        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+            PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 12345);
+            MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+            MockController mkController = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+            createScopeAndStream("scope", "stream", mkController);
+            MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
 
-        @Cleanup
-        SynchronizerClientFactory syncClientFactory = new ClientFactoryImpl("scope", mkController, connectionFactory, streamFactory,
-                streamFactory, streamFactory, streamFactory);
-        SynchronizerConfig syncConfig = SynchronizerConfig.builder().build();
-        Map<SegmentWithRange, Long> segments = new HashMap<>();
-        Segment s1 = new Segment("scope", "stream", 1);
-        Segment s2 = new Segment("scope", "stream", 2);
-        segments.put(new SegmentWithRange(s1, 0.0, 0.5), 1L);
-        segments.put(new SegmentWithRange(s2, 0.5, 1.0), 2L);
-        createScopeAndStream("scope", NameUtils.getStreamForReaderGroup(GROUP_NAME), mkController);
-        readerGroup = new ReaderGroupImpl("scope", GROUP_NAME, syncConfig, initSerializer,
-                updateSerializer, syncClientFactory, mkController, connectionPool);
+            @Cleanup
+            SynchronizerClientFactory syncClientFactory = new ClientFactoryImpl("scope", mkController, connectionFactory, streamFactory,
+                    streamFactory, streamFactory, streamFactory);
+            SynchronizerConfig syncConfig = SynchronizerConfig.builder().build();
+            Map<SegmentWithRange, Long> segments = new HashMap<>();
+            Segment s1 = new Segment("scope", "stream", 1);
+            Segment s2 = new Segment("scope", "stream", 2);
+            segments.put(new SegmentWithRange(s1, 0.0, 0.5), 1L);
+            segments.put(new SegmentWithRange(s2, 0.5, 1.0), 2L);
+            createScopeAndStream("scope", NameUtils.getStreamForReaderGroup(GROUP_NAME), mkController);
+            readerGroup = new ReaderGroupImpl("scope", GROUP_NAME, syncConfig, initSerializer,
+                    updateSerializer, syncClientFactory, mkController, connectionPool);
 
-        @Cleanup("shutdown")
-        InlineExecutor executor = new InlineExecutor();
-        StateSynchronizer<ReaderGroupState> rgStateSynchronizer = readerGroup.getSynchronizer();
-        rgStateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(
-                ReaderGroupConfig.builder().stream(Stream.of("scope", "stream")).maxOutstandingCheckpointRequest(1).build(), segments, Collections.emptyMap(), false));
-        CheckpointState rgState = rgStateSynchronizer.getState().getCheckpointState();
-        rgState.beginNewCheckpoint("1", ImmutableSet.of("a", "b"), Collections.emptyMap());
-        CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", executor);
-        assertTrue("expecting a checkpoint failure", result.isCompletedExceptionally());
-        try {
-            result.get();
-        } catch (InterruptedException | ExecutionException e) {
-            assertTrue("expecting MaxNumberOfCheckpointsExceededException", e.getCause() instanceof MaxNumberOfCheckpointsExceededException);
+            @Cleanup("shutdown")
+            InlineExecutor executor = new InlineExecutor();
+            StateSynchronizer<ReaderGroupState> rgStateSynchronizer = readerGroup.getSynchronizer();
+            rgStateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(
+                    ReaderGroupConfig.builder().stream(Stream.of("scope", "stream")).maxOutstandingCheckpointRequest(1).build(), segments, Collections.emptyMap(), false));
+            CheckpointState rgState = rgStateSynchronizer.getState().getCheckpointState();
+            rgState.beginNewCheckpoint("1", ImmutableSet.of("a", "b"), Collections.emptyMap());
+            CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", executor);
+            assertTrue("expecting a checkpoint failure", result.isCompletedExceptionally());
+            AssertExtensions.assertThrows("", result::get, e -> e instanceof MaxNumberOfCheckpointsExceededException);
         }
-    }
-    
+
     private void createScopeAndStream(String scope, String stream, MockController controller) {
         controller.createScope(scope).join();
         controller.createStream(scope, stream, configStream).join();

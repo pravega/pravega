@@ -173,7 +173,6 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
         });
         if (!canPerformCheckpoint) {
-            log.warn(rejectMessage);
             return Futures.failedFuture(new MaxNumberOfCheckpointsExceededException(rejectMessage));
         }
 
