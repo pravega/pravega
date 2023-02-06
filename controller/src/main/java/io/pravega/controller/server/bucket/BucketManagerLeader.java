@@ -148,7 +148,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
                 triggerDistribution();
             } catch (InterruptedException e) {
                 log.warn("{}: Leadership interrupted, releasing monitor thread.", serviceType);
-
+                Thread.currentThread().interrupt();
                 // Stop watching the pravega cluster.
                 synchronized (lock) {
                     pravegaServiceCluster.close();
@@ -182,7 +182,14 @@ public class BucketManagerLeader implements LeaderSelectorListener {
         Futures.delayedFuture(minBucketRedistributionIntervalInSeconds, executorService).get();
     }
 
-    private void triggerDistribution() {
+    /**
+     * This method will distribute the bucket among available controller instances and update the bucket to controller
+     * mapping on the znode path. Using this znode path all controller instances can fetch the controller to bucket
+     * mapping.
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
+    private void triggerDistribution() throws ExecutionException, InterruptedException {
         //Read the current mapping from the bucket store and write back the update after distribution.
         Set<String> currentControllers;
         synchronized (lock) {
@@ -192,14 +199,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
         bucketStore.getBucketControllerMap(serviceType)
                    .thenApply(currentControllerMapping -> bucketDistributor.distribute(currentControllerMapping,
                            currentControllers, bucketStore.getBucketCount(serviceType)))
-                   .thenCompose(newMapping -> bucketStore.updateBucketControllerMap(newMapping, serviceType))
-                   .whenComplete((r, e) -> {
-                       if (e != null) {
-                           log.warn("{}: Bucket redistribution is failed with exception {}.", serviceType, e);
-                       } else {
-                           log.info("{}: Bucket redistribution is successful.", serviceType);
-                       }
-                   });
+                   .thenCompose(newMapping -> bucketStore.updateBucketControllerMap(newMapping, serviceType)).get();
     }
 
     @Override

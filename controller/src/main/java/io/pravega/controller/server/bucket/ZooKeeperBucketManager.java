@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.server.bucket;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.BucketControllerMap;
@@ -251,5 +252,14 @@ public class ZooKeeperBucketManager extends BucketManager {
     private String getLeaderZkPath() {
         String rootPath = ZKPaths.makePath(ROOT_PATH, getServiceType().getName());
         return ZKPaths.makePath(rootPath, BUCKET_DISTRIBUTOR_LEADER_PATH);
+    }
+
+    /**
+     * Method to check if current instance is leader or not.
+     * @return ture, if current instance is leader else false.
+     */
+    @VisibleForTesting
+    public boolean isLeader() {
+       return leaderSelector.hasLeadership();
     }
 }

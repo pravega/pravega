@@ -237,7 +237,24 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
                 .releaseBucketOwnership(BucketStore.ServiceType.WatermarkingService, 0, hostId);
         bucketManager.stopBucketServices(Set.of(0), false);
         assertEventuallyEquals(2, () -> bucketManager.getBucketServices().size(), 10000);
+        //stop the current leader, new controller instance will become leader.
+        assertTrue(((ZooKeeperBucketManager) watermarkingService).isLeader());
+        watermarkingService.stopAsync().awaitTerminated();
+        assertEventuallyEquals(false, () -> ((ZooKeeperBucketManager) watermarkingService).isLeader(), 10000);
+        //bucketManager will throw exception while distributing. So it will release the leadership.
+        doThrow(new RuntimeException("Distribution failed.")).when(spyBucketStore)
+                                                             .getBucketCount(BucketStore.ServiceType.WatermarkingService);
+        Host controller2 = new Host(UUID.randomUUID().toString(), 9090, null);
+        addEntryToZkCluster(controller2);
+        BucketManager bucketManager2 = new ZooKeeperBucketManager(controller2.getHostId(), (ZookeeperBucketStore) bucketStore,
+                BucketStore.ServiceType.WatermarkingService, executor, zkSupplier,
+                getBucketManagerLeader(bucketStore, BucketStore.ServiceType.WatermarkingService));
+        bucketManager2.startAsync();
+        bucketManager2.awaitRunning();
+        //bucketManager2 will become the leader.
+        assertEventuallyEquals(true, () -> ((ZooKeeperBucketManager) bucketManager2).isLeader(), 10000);
         bucketManager.stopAsync();
+        bucketManager2.stopAsync();
         AssertExtensions.assertThrows(IllegalStateException.class, () -> bucketManager.awaitTerminated());
     }
 
