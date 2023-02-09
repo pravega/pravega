@@ -68,7 +68,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
     private final ReaderConfig readerConfig = ReaderConfig.builder().build();
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
-    private final ScheduledExecutorService streamCutExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "streamCutExecutor");
+    private final ScheduledExecutorService streamCutExecutor = ExecutorServiceHelpers.newScheduledThreadPool(3, "streamCutExecutor");
     private URI controllerURI = null;
     private StreamManager streamManager = null;
     private Controller controller = null;
@@ -230,9 +230,9 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         // Wait for 5 seconds to force reader group state update. This will allow for the silent
         // checkpoint event generated as part of generateStreamCuts to be picked and processed.
         Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
-        assertTrue("Stream-cut generation did not complete for reader group 1", Futures.await(futureCuts1, 10_000));
-        assertTrue("Stream-cut generation did not complete for reader group 2", Futures.await(futureCuts2, 10_000));
-        assertTrue("Stream-cut generation did not complete for reader group 3", Futures.await(futureCuts3, 10_000));
+        assertTrue("Stream-cut generation did not complete for reader group 1", Futures.await(futureCuts1, 20000));
+        assertTrue("Stream-cut generation did not complete for reader group 2", Futures.await(futureCuts2, 20000));
+        assertTrue("Stream-cut generation did not complete for reader group 3", Futures.await(futureCuts3, 20000));
 
         Map<Stream, StreamCut> streamCuts1 = futureCuts1.join();
         Map<Stream, StreamCut> streamCuts2 = futureCuts2.join();
@@ -240,9 +240,9 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts1);
         readerGroup1.updateRetentionStreamCut(streamCuts1);
         log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} updating its retention stream-cut to {}", READER_GROUP_2, streamCuts2);
-        readerGroup1.updateRetentionStreamCut(streamCuts2);
+        readerGroup2.updateRetentionStreamCut(streamCuts2);
         log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} updating its retention stream-cut to {}", READER_GROUP_3, streamCuts3);
-        readerGroup1.updateRetentionStreamCut(streamCuts3);
+        readerGroup3.updateRetentionStreamCut(streamCuts3);
 
         // Check to make sure truncation happened after the first event.
         // The timeout is 5 minutes as the retention period is set to 2 minutes. We allow for 2 cycles to fully complete
