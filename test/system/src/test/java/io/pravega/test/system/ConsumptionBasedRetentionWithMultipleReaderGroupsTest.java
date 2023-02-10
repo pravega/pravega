@@ -68,7 +68,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
     private final ReaderConfig readerConfig = ReaderConfig.builder().build();
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
-    private final ScheduledExecutorService streamCutExecutor = ExecutorServiceHelpers.newScheduledThreadPool(3, "streamCutExecutor");
+    private final ScheduledExecutorService streamCutExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "streamCutExecutor");
     private URI controllerURI = null;
     private StreamManager streamManager = null;
     private Controller controller = null;
@@ -223,17 +223,18 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         // Update the retention stream-cut.
         log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} generating stream-cuts for {}/{}", READER_GROUP_1, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts1 = readerGroup1.generateStreamCuts(streamCutExecutor);
-//        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} generating stream-cuts for {}/{}", READER_GROUP_2, SCOPE, STREAM);
-//        CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup2.generateStreamCuts(streamCutExecutor);
-//        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} generating stream-cuts for {}/{}", READER_GROUP_3, SCOPE, STREAM);
-//        CompletableFuture<Map<Stream, StreamCut>> futureCuts3 = readerGroup3.generateStreamCuts(streamCutExecutor);
+        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} generating stream-cuts for {}/{}", READER_GROUP_2, SCOPE, STREAM);
+        CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup2.generateStreamCuts(streamCutExecutor);
+        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} generating stream-cuts for {}/{}", READER_GROUP_3, SCOPE, STREAM);
+        CompletableFuture<Map<Stream, StreamCut>> futureCuts3 = readerGroup3.generateStreamCuts(streamCutExecutor);
         // Wait for 5 seconds to force reader group state update. This will allow for the silent
         // checkpoint event generated as part of generateStreamCuts to be picked and processed.
         Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
-        Map<Stream, StreamCut> streamCuts1 = futureCuts1.join();
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> streamcut 1 value {}",streamCuts1);
-        //assertTrue("Stream-cut generation did not complete for reader group 1", Futures.await(futureCuts1, 20000));
-        /*assertTrue("Stream-cut generation did not complete for reader group 2", Futures.await(futureCuts2, 20000));
+        read = reader1.readNextEvent(READ_TIMEOUT);
+        read2 = reader2.readNextEvent(READ_TIMEOUT);
+        read3 = reader3.readNextEvent(READ_TIMEOUT);
+        assertTrue("Stream-cut generation did not complete for reader group 1", Futures.await(futureCuts1, 20000));
+        assertTrue("Stream-cut generation did not complete for reader group 2", Futures.await(futureCuts2, 20000));
         assertTrue("Stream-cut generation did not complete for reader group 3", Futures.await(futureCuts3, 20000));
 
         Map<Stream, StreamCut> streamCuts1 = futureCuts1.join();
@@ -244,14 +245,14 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} updating its retention stream-cut to {}", READER_GROUP_2, streamCuts2);
         readerGroup2.updateRetentionStreamCut(streamCuts2);
         log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} updating its retention stream-cut to {}", READER_GROUP_3, streamCuts3);
-        readerGroup3.updateRetentionStreamCut(streamCuts3);*/
+        readerGroup3.updateRetentionStreamCut(streamCuts3);
 
         // Check to make sure truncation happened after the first event.
         // The timeout is 5 minutes as the retention period is set to 2 minutes. We allow for 2 cycles to fully complete
         // and a little longer in order to confirm that the retention has taken place.
-        /*AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 90.", true, () -> controller.getSegmentsAtTime(
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 90.", true, () -> controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().allMatch(off -> off >= 90),
-                5000, 5 * 60 * 1000L);*/
+                5000, 5 * 60 * 1000L);
 
     }
 }
