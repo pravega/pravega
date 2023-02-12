@@ -15,32 +15,33 @@
  */
 package io.pravega.test.integration.compatibility;
 
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.KeyValueTableFactory;
+import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.stream.DeleteScopeFailedException;
-import io.pravega.client.stream.EventRead;
-import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ReaderConfig;
-import io.pravega.client.stream.ReaderGroup;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.TransactionalEventStreamWriter;
-import io.pravega.client.stream.TxnFailedException;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.*;
+import io.pravega.client.stream.impl.ByteBufferSerializer;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.client.tables.*;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import lombok.Cleanup;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.junit.Test;
 
 import java.net.URI;
-import java.util.UUID;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -55,14 +56,23 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class CompatibilityChecker {
     private static final int READER_TIMEOUT_MS = 2000;
+    private final static int NUM_EVENTS = 10;
     private URI controllerURI;
     private StreamManager streamManager;
     private StreamConfiguration streamConfig;
+    private Controller controller;
+    private KeyValueTableManager keyValueTableManager;
+    private static final PaddedStringSerializer USERNAME_SERIALIZER = new PaddedStringSerializer(64);
+    private static final PaddedStringSerializer CHANNEL_NAME_SERIALIZER = new PaddedStringSerializer(USERNAME_SERIALIZER.getMaxLength() * 2);
+    private static final UTF8StringSerializer SERIALIZER = new UTF8StringSerializer();
+    private ScheduledExecutorService executor;
 
     private void setUp(String uri) {
         controllerURI = URI.create(uri);
         streamManager = StreamManager.create(controllerURI);
         streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        keyValueTableManager = KeyValueTableManager.create(controllerURI);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "compatibility-test");
     }
 
    private void createScopeAndStream(String scopeName, String streamName) {
@@ -324,6 +334,137 @@ public class CompatibilityChecker {
         assertEquals( Transaction.Status.COMMITTED, txn.checkStatus());
     }
 
+    private static TableKey toKey(String s, PaddedStringSerializer serializer) {
+        return new TableKey(serializer.serialize(s));
+    }
+
+    private KeyValueTable getKVTable(String keyValueTableName, String scopeName){
+        KeyValueTableFactory keyValueTableFactory = KeyValueTableFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        return keyValueTableFactory.forKeyValueTable(keyValueTableName,
+                KeyValueTableClientConfiguration.builder().build());
+    }
+
+
+    private void checkKeyValueTable() {
+        String scopeName = "transaction-test-scope";
+        String keyValueTableName = "KVT-test";
+        String userName = "Compatibility-checker";
+        String testData = "test-data";
+
+        val kvtConfig = KeyValueTableConfiguration.builder()
+                .partitionCount(2)
+                .primaryKeyLength(USERNAME_SERIALIZER.getMaxLength())
+                .secondaryKeyLength(0)
+                .build();
+        val created = keyValueTableManager.createKeyValueTable(scopeName, keyValueTableName, kvtConfig);
+        assertTrue(created);
+        // creating key value table twice should fail.
+        assertFalse(keyValueTableManager.createKeyValueTable(scopeName, keyValueTableName, kvtConfig));
+
+        KeyValueTable testKVTables = getKVTable(keyValueTableName, scopeName);
+        // Inserting single entry to validate duplication of the key
+        val insertEntry = new Insert(toKey(userName + "0", USERNAME_SERIALIZER), SERIALIZER.serialize(testData + "0"));
+        testKVTables.update(insertEntry);
+        assertTrue(testKVTables.exists(toKey(userName + "0", USERNAME_SERIALIZER)).join());
+        assertEquals(SERIALIZER.deserialize(testKVTables.get(toKey(userName + "0", USERNAME_SERIALIZER)).join().getValue()) , testData + "0");
+
+        assertThrows(ConditionalTableUpdateException.class, () -> testKVTables.update(insertEntry).join());
+        
+        // inserting 9 more key into the tables
+        for(int i = 1 ; i < 10 ; i++) {
+            val insert1 = new Insert(toKey(userName + i, USERNAME_SERIALIZER), SERIALIZER.serialize(testData + i));
+            testKVTables.update(insert1);
+        }
+        // validating the content of the KV table
+        for(int i = 0 ; i < 10 ; i++) {
+            assertTrue(testKVTables.exists(toKey(userName + i, USERNAME_SERIALIZER)).join());
+            assertEquals(SERIALIZER.deserialize(testKVTables.get(toKey(userName + i, USERNAME_SERIALIZER)).join().getValue()) , testData + i);
+        }
+        val count = new AtomicInteger(0);
+        testKVTables.iterator()
+                .maxIterationSize(20)
+                .all()
+                .keys()
+                .forEachRemaining(ii -> {
+                    for (val user : ii.getItems()) {
+                        val key = USERNAME_SERIALIZER.deserialize(user.getPrimaryKey());
+                        System.out.println(String.format("\t%s", key));
+                        count.incrementAndGet();
+                    }
+                }, this.executor).join();
+        assertEquals(10, count.get());
+        //updating existing key to some new data
+        val put = new Put(toKey(userName, USERNAME_SERIALIZER), SERIALIZER.serialize(testData));
+        testKVTables.update(put);
+
+        // New insert should fail and this should be and
+        assertTrue(testKVTables.exists(toKey(userName, USERNAME_SERIALIZER)).join());
+        assertEquals(SERIALIZER.deserialize(testKVTables.get(toKey(userName, USERNAME_SERIALIZER)).join().getValue()) , testData);
+
+        val delete = new Remove(toKey(userName, USERNAME_SERIALIZER));
+        testKVTables.update(delete);
+        assertFalse(testKVTables.exists(toKey(userName, USERNAME_SERIALIZER)).join());
+    }
+
+    @Test(timeout = 20000)
+    private void checkWriteAndReadLargeEvent() {
+        String scopeName = "largeevent-test-scope";
+        String streamName = "largeevent-test-stream";
+        createScopeAndStream(scopeName, streamName);
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        @Cleanup
+        EventStreamWriter<ByteBuffer> writer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(), EventWriterConfig.builder().enableLargeEvents(true).build());
+
+        byte[] payload = new byte[Serializer.MAX_EVENT_SIZE * 4];
+        for (int i = 0; i < NUM_EVENTS; i++) {
+            log.info("Writing event: {} ", i);
+            // any exceptions while writing the event will fail the test.
+            writer.writeEvent("", ByteBuffer.wrap(payload)).join();
+            log.info("Wrote event: {} ", i);
+            writer.flush();
+        }
+        String readerGroupId = getRandomID();
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName)).build();
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
+        readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
+        @Cleanup
+        EventStreamReader<ByteBuffer> reader =  clientFactory.createReader("reader-1", readerGroupId, new ByteBufferSerializer(), ReaderConfig.builder().build());
+
+        int readCount = 0;
+
+        EventRead<ByteBuffer> event = null;
+        do {
+            event = reader.readNextEvent(10_000);
+            log.debug("Read event: {}.", event.getEvent());
+            if (event.getEvent() != null) {
+                readCount++;
+            }
+            // try reading until all the written events are read, else the test will timeout.
+        } while ((event.getEvent() != null || event.isCheckpoint()) && readCount < NUM_EVENTS);
+        assertEquals("Read count should be equal to write count", NUM_EVENTS, readCount);
+    }
+
+    @Data
+    private static class PaddedStringSerializer {
+        private final int maxLength;
+
+        ByteBuffer serialize(String s) {
+            Preconditions.checkArgument(s.length() <= maxLength);
+            s = Strings.padStart(s, this.maxLength, ' ');
+            return ByteBuffer.wrap(s.getBytes(StandardCharsets.US_ASCII));
+        }
+
+        String deserialize(ByteBuffer b) {
+            Preconditions.checkArgument(b.remaining() <= maxLength);
+            String s = StandardCharsets.US_ASCII.decode(b).toString();
+            s = s.trim();
+            return s;
+        }
+
+    }
+
     public static void main(String[] args) throws DeleteScopeFailedException, TxnFailedException {
         String uri = System.getProperty("controllerUri");
         if (uri == null) {
@@ -339,6 +480,8 @@ public class CompatibilityChecker {
         compatibilityChecker.checkStreamDelete();
         compatibilityChecker.checkTransactionReadAndWrite();
         compatibilityChecker.checkTransactionAbort();
+        compatibilityChecker.checkKeyValueTable();
+        compatibilityChecker.checkWriteAndReadLargeEvent();
         System.exit(0);
     }
 }
