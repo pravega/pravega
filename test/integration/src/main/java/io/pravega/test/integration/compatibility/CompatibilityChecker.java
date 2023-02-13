@@ -425,8 +425,8 @@ public class CompatibilityChecker {
     }
 
     /**
-     * This method tests the ability to create a Key-Value in some scope.
-     * It also tries to exercise all CRUDS related to Key-Value table and validate it.
+     * This method tests the ability to create a KeyValueTable in some scope.
+     * This method performs all CRUD operations on a Key-Value table and validates them.
      */
     @Test(timeout = 20000)
     private void checkKeyValueTable() {
