@@ -17,6 +17,7 @@ package io.pravega.test.integration.compatibility;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.KeyValueTableFactory;
@@ -28,6 +29,7 @@ import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.ByteBufferSerializer;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.tables.*;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import lombok.Cleanup;
 import lombok.Data;
@@ -39,10 +41,12 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -57,6 +61,8 @@ import static org.junit.Assert.assertTrue;
 public class CompatibilityChecker {
     private static final int READER_TIMEOUT_MS = 2000;
     private final static int NUM_EVENTS = 10;
+    private static final int TEST_MAX_STREAMS = 10;
+    private static final int TEST_MAX_KEYS = 10;
     private URI controllerURI;
     private StreamManager streamManager;
     private StreamConfiguration streamConfig;
@@ -247,6 +253,60 @@ public class CompatibilityChecker {
     }
 
     /**
+     * This method creates a scope and streams, labeling the streams with a set of tags.
+     * Then listing streams and validating the existing stream tags.
+     */
+    @Test(timeout = 20000)
+    private  void checkStreamTags(){
+        String scope = "stream-tags-scope";
+        streamManager.createScope(scope);
+        final ImmutableSet<String> tagSet1 = ImmutableSet.of("t1", "t2", "t3");
+        final ImmutableSet<String> tagSet2 = ImmutableSet.of("t3", "t4", "t5");
+        // Create and Update Streams
+        for (int j = 1; j <= TEST_MAX_STREAMS; j++) {
+            StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(j)).build();
+            final String stream = "stream" + j;
+            log.info("creating a new stream in scope {}/{}", stream, scope);
+            streamManager.createStream(scope, stream, config);
+            log.info("updating the stream in scope {}/{}", stream, scope);
+            streamManager.updateStream(scope, stream, config.toBuilder().tags(tagSet1).build());
+            assertEquals(tagSet1, streamManager.getStreamTags(scope, stream));
+        }
+        // Check the size of streams with tagName t1
+        assertEquals(TEST_MAX_STREAMS, newArrayList(streamManager.listStreams(scope, "t1")).size());
+        // Check if the lists of tag t3 and t1 are equal
+        assertEquals(newArrayList(streamManager.listStreams(scope, "t3")), newArrayList(streamManager.listStreams(scope, "t1")));
+
+        // Update the streams with new tagSet
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (int j = 1; j <= TEST_MAX_STREAMS; j++) {
+            StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(j)).build();
+            final String stream = "stream" + j;
+            log.info("updating the stream tag scope {}/{}", stream, scope);
+            futures.add(CompletableFuture.runAsync(() -> streamManager.updateStream(scope, stream, config.toBuilder().clearTags().tags(tagSet2).build())));
+        }
+        assertEquals(TEST_MAX_STREAMS, futures.size());
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        // Check if the update was successfully done
+        assertTrue(newArrayList(streamManager.listStreams(scope, "t1")).isEmpty());
+        assertEquals(TEST_MAX_STREAMS, newArrayList(streamManager.listStreams(scope, "t4")).size());
+        final int tagT3Size = newArrayList(streamManager.listStreams(scope, "t3")).size();
+        final int tagT4Size = newArrayList(streamManager.listStreams(scope, "t4")).size();
+        log.info("list size of t3 tags and t4 are {}/{}", tagT3Size, tagT4Size);
+        assertEquals(tagT3Size, tagT4Size);
+
+        // seal and delete stream
+        for (int j = 1; j <= TEST_MAX_STREAMS; j++) {
+            final String stream = "stream" + j;
+            streamManager.sealStream(scope, stream);
+            log.info("deleting the stream in scope {}/{}", stream, scope);
+            streamManager.deleteStream(scope, stream);
+        }
+        // Check if list streams is updated.
+        assertTrue(newArrayList(streamManager.listStreams(scope)).isEmpty());
+    }
+
+    /**
      * This method attempts to validate abort functionality after creating a transaction.
      * @throws TxnFailedException if unable to commit or write to the transaction.
      */
@@ -344,7 +404,11 @@ public class CompatibilityChecker {
                 KeyValueTableClientConfiguration.builder().build());
     }
 
-
+    /**
+     * This method tests the ability to create a Key-Value in some scope.
+     * It also tries to exercise all CRUDS related to Key-Value table and validate it.
+     */
+    @Test(timeout = 20000)
     private void checkKeyValueTable() {
         String scopeName = "transaction-test-scope";
         String keyValueTableName = "KVT-test";
@@ -364,22 +428,30 @@ public class CompatibilityChecker {
         KeyValueTable testKVTables = getKVTable(keyValueTableName, scopeName);
         // Inserting single entry to validate duplication of the key
         val insertEntry = new Insert(toKey(userName + "0", USERNAME_SERIALIZER), SERIALIZER.serialize(testData + "0"));
-        testKVTables.update(insertEntry);
+        testKVTables.update(insertEntry).join();
         assertTrue(testKVTables.exists(toKey(userName + "0", USERNAME_SERIALIZER)).join());
-        assertEquals(SERIALIZER.deserialize(testKVTables.get(toKey(userName + "0", USERNAME_SERIALIZER)).join().getValue()) , testData + "0");
+        val data = SERIALIZER.deserialize(testKVTables.get(toKey(userName + "0", USERNAME_SERIALIZER)).join().getValue());
+        assertEquals(data, testData + "0");
 
-        assertThrows(ConditionalTableUpdateException.class, () -> testKVTables.update(insertEntry).join());
+        // While updating an already existing key, an exception of type ConditionalTableUpdateException should be thrown.
+        testKVTables.update(insertEntry)
+                .handle((r, ex) -> {
+                    ex = Exceptions.unwrap(ex);
+                    assertTrue(ex instanceof ConditionalTableUpdateException);
+                    return null;
+                }).join();
         
-        // inserting 9 more key into the tables
-        for(int i = 1 ; i < 10 ; i++) {
+        // Inserting 9 more key into the tables
+        for(int i = 1 ; i < TEST_MAX_KEYS ; i++) {
             val insert1 = new Insert(toKey(userName + i, USERNAME_SERIALIZER), SERIALIZER.serialize(testData + i));
-            testKVTables.update(insert1);
+            testKVTables.update(insert1).join();
         }
-        // validating the content of the KV table
-        for(int i = 0 ; i < 10 ; i++) {
+        // Validating the content of the KV table
+        for(int i = 0 ; i < TEST_MAX_KEYS ; i++) {
             assertTrue(testKVTables.exists(toKey(userName + i, USERNAME_SERIALIZER)).join());
             assertEquals(SERIALIZER.deserialize(testKVTables.get(toKey(userName + i, USERNAME_SERIALIZER)).join().getValue()) , testData + i);
         }
+        // Listing all the entries of kv tables
         val count = new AtomicInteger(0);
         testKVTables.iterator()
                 .maxIterationSize(20)
@@ -392,20 +464,25 @@ public class CompatibilityChecker {
                         count.incrementAndGet();
                     }
                 }, this.executor).join();
-        assertEquals(10, count.get());
-        //updating existing key to some new data
-        val put = new Put(toKey(userName, USERNAME_SERIALIZER), SERIALIZER.serialize(testData));
+        assertEquals(TEST_MAX_KEYS, count.get());
+        // Updating the key to some new data and validating it
+        val put = new Put(toKey(userName + "0", USERNAME_SERIALIZER), SERIALIZER.serialize(testData));
         testKVTables.update(put);
+        assertTrue(testKVTables.exists(toKey(userName + "0", USERNAME_SERIALIZER)).join());
+        assertEquals(SERIALIZER.deserialize(testKVTables.get(toKey(userName + "0", USERNAME_SERIALIZER)).join().getValue()) , testData);
 
-        // New insert should fail and this should be and
-        assertTrue(testKVTables.exists(toKey(userName, USERNAME_SERIALIZER)).join());
-        assertEquals(SERIALIZER.deserialize(testKVTables.get(toKey(userName, USERNAME_SERIALIZER)).join().getValue()) , testData);
-
-        val delete = new Remove(toKey(userName, USERNAME_SERIALIZER));
-        testKVTables.update(delete);
-        assertFalse(testKVTables.exists(toKey(userName, USERNAME_SERIALIZER)).join());
+        for(int i = 0 ; i < TEST_MAX_KEYS ; i++) {
+            val delete = new Remove(toKey(userName + i, USERNAME_SERIALIZER));
+            testKVTables.update(delete).join();
+            assertFalse(testKVTables.exists(toKey(userName + i, USERNAME_SERIALIZER)).join());
+        }
+        // Deleting key value table and validating it.
+        assertTrue(keyValueTableManager.deleteKeyValueTable(scopeName, keyValueTableName));
     }
-
+    
+    /**
+     * This method writes and reads large events (4MB) and validates them.
+     */
     @Test(timeout = 20000)
     private void checkWriteAndReadLargeEvent() {
         String scopeName = "largeevent-test-scope";
@@ -433,7 +510,6 @@ public class CompatibilityChecker {
         EventStreamReader<ByteBuffer> reader =  clientFactory.createReader("reader-1", readerGroupId, new ByteBufferSerializer(), ReaderConfig.builder().build());
 
         int readCount = 0;
-
         EventRead<ByteBuffer> event = null;
         do {
             event = reader.readNextEvent(10_000);
@@ -482,6 +558,7 @@ public class CompatibilityChecker {
         compatibilityChecker.checkTransactionAbort();
         compatibilityChecker.checkKeyValueTable();
         compatibilityChecker.checkWriteAndReadLargeEvent();
+        compatibilityChecker.checkStreamTags();
         System.exit(0);
     }
 }
