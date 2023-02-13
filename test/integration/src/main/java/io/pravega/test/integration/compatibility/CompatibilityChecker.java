@@ -24,11 +24,32 @@ import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.control.impl.Controller;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.DeleteScopeFailedException;
+import io.pravega.client.stream.EventRead;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ByteBufferSerializer;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
-import io.pravega.client.tables.*;
+import io.pravega.client.tables.ConditionalTableUpdateException;
+import io.pravega.client.tables.Insert;
+import io.pravega.client.tables.KeyValueTable;
+import io.pravega.client.tables.KeyValueTableClientConfiguration;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.Put;
+import io.pravega.client.tables.Remove;
+import io.pravega.client.tables.TableKey;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import lombok.Cleanup;
@@ -40,9 +61,10 @@ import org.junit.Test;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -63,14 +85,12 @@ public class CompatibilityChecker {
     private final static int NUM_EVENTS = 10;
     private static final int TEST_MAX_STREAMS = 10;
     private static final int TEST_MAX_KEYS = 10;
+    private static final PaddedStringSerializer USERNAME_SERIALIZER = new PaddedStringSerializer(64);
+    private static final UTF8StringSerializer SERIALIZER = new UTF8StringSerializer();
     private URI controllerURI;
     private StreamManager streamManager;
     private StreamConfiguration streamConfig;
-    private Controller controller;
     private KeyValueTableManager keyValueTableManager;
-    private static final PaddedStringSerializer USERNAME_SERIALIZER = new PaddedStringSerializer(64);
-    private static final PaddedStringSerializer CHANNEL_NAME_SERIALIZER = new PaddedStringSerializer(USERNAME_SERIALIZER.getMaxLength() * 2);
-    private static final UTF8StringSerializer SERIALIZER = new UTF8StringSerializer();
     private ScheduledExecutorService executor;
 
     private void setUp(String uri) {
@@ -257,7 +277,7 @@ public class CompatibilityChecker {
      * Then listing streams and validating the existing stream tags.
      */
     @Test(timeout = 20000)
-    private  void checkStreamTags(){
+    private  void checkStreamTags() {
         String scope = "stream-tags-scope";
         streamManager.createScope(scope);
         final ImmutableSet<String> tagSet1 = ImmutableSet.of("t1", "t2", "t3");
@@ -398,7 +418,7 @@ public class CompatibilityChecker {
         return new TableKey(serializer.serialize(s));
     }
 
-    private KeyValueTable getKVTable(String keyValueTableName, String scopeName){
+    private KeyValueTable getKVTable(String keyValueTableName, String scopeName) {
         KeyValueTableFactory keyValueTableFactory = KeyValueTableFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
         return keyValueTableFactory.forKeyValueTable(keyValueTableName,
                 KeyValueTableClientConfiguration.builder().build());
@@ -442,14 +462,14 @@ public class CompatibilityChecker {
                 }).join();
         
         // Inserting 9 more key into the tables
-        for(int i = 1 ; i < TEST_MAX_KEYS ; i++) {
+        for (int i = 1; i < TEST_MAX_KEYS; i++) {
             val insert1 = new Insert(toKey(userName + i, USERNAME_SERIALIZER), SERIALIZER.serialize(testData + i));
             testKVTables.update(insert1).join();
         }
         // Validating the content of the KV table
-        for(int i = 0 ; i < TEST_MAX_KEYS ; i++) {
+        for (int i = 0; i < TEST_MAX_KEYS; i++) {
             assertTrue(testKVTables.exists(toKey(userName + i, USERNAME_SERIALIZER)).join());
-            assertEquals(SERIALIZER.deserialize(testKVTables.get(toKey(userName + i, USERNAME_SERIALIZER)).join().getValue()) , testData + i);
+            assertEquals(SERIALIZER.deserialize(testKVTables.get(toKey(userName + i, USERNAME_SERIALIZER)).join().getValue()), testData + i);
         }
         // Listing all the entries of kv tables
         val count = new AtomicInteger(0);
@@ -469,9 +489,9 @@ public class CompatibilityChecker {
         val put = new Put(toKey(userName + "0", USERNAME_SERIALIZER), SERIALIZER.serialize(testData));
         testKVTables.update(put);
         assertTrue(testKVTables.exists(toKey(userName + "0", USERNAME_SERIALIZER)).join());
-        assertEquals(SERIALIZER.deserialize(testKVTables.get(toKey(userName + "0", USERNAME_SERIALIZER)).join().getValue()) , testData);
+        assertEquals(SERIALIZER.deserialize(testKVTables.get(toKey(userName + "0", USERNAME_SERIALIZER)).join().getValue()), testData);
 
-        for(int i = 0 ; i < TEST_MAX_KEYS ; i++) {
+        for (int i = 0; i < TEST_MAX_KEYS; i++) {
             val delete = new Remove(toKey(userName + i, USERNAME_SERIALIZER));
             testKVTables.update(delete).join();
             assertFalse(testKVTables.exists(toKey(userName + i, USERNAME_SERIALIZER)).join());
@@ -479,7 +499,7 @@ public class CompatibilityChecker {
         // Deleting key value table and validating it.
         assertTrue(keyValueTableManager.deleteKeyValueTable(scopeName, keyValueTableName));
     }
-    
+
     /**
      * This method writes and reads large events (4MB) and validates them.
      */
