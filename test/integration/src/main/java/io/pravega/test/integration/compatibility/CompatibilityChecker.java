@@ -463,8 +463,8 @@ public class CompatibilityChecker {
         
         // Inserting 9 more key into the tables
         for (int i = 1; i < TEST_MAX_KEYS; i++) {
-            val insert1 = new Insert(toKey(userName + i, USERNAME_SERIALIZER), SERIALIZER.serialize(testData + i));
-            testKVTables.update(insert1).join();
+            val insert = new Insert(toKey(userName + i, USERNAME_SERIALIZER), SERIALIZER.serialize(testData + i));
+            testKVTables.update(insert).join();
         }
         // Validating the content of the KV table
         for (int i = 0; i < TEST_MAX_KEYS; i++) {
@@ -477,10 +477,10 @@ public class CompatibilityChecker {
                 .maxIterationSize(20)
                 .all()
                 .keys()
-                .forEachRemaining(ii -> {
-                    for (val user : ii.getItems()) {
+                .forEachRemaining(tableKey -> {
+                    for (val user : tableKey.getItems()) {
                         val key = USERNAME_SERIALIZER.deserialize(user.getPrimaryKey());
-                        System.out.println(String.format("\t%s", key));
+                        log.info("User: {} ", key);
                         count.incrementAndGet();
                     }
                 }, this.executor).join();
@@ -501,7 +501,7 @@ public class CompatibilityChecker {
     }
 
     /**
-     * This method writes and reads large events (4MB) and validates them.
+     * This method writes and reads large events (8MB) and validates them.
      */
     @Test(timeout = 20000)
     private void checkWriteAndReadLargeEvent() {
@@ -513,7 +513,7 @@ public class CompatibilityChecker {
         @Cleanup
         EventStreamWriter<ByteBuffer> writer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(), EventWriterConfig.builder().enableLargeEvents(true).build());
 
-        byte[] payload = new byte[Serializer.MAX_EVENT_SIZE * 4];
+        byte[] payload = new byte[Serializer.MAX_EVENT_SIZE * 8];
         for (int i = 0; i < NUM_EVENTS; i++) {
             log.info("Writing event: {} ", i);
             // any exceptions while writing the event will fail the test.
