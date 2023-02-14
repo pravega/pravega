@@ -554,9 +554,7 @@ public class CompatibilityChecker {
 
         String deserialize(ByteBuffer b) {
             Preconditions.checkArgument(b.remaining() <= maxLength);
-            String s = StandardCharsets.US_ASCII.decode(b).toString();
-            s = s.trim();
-            return s;
+            return StandardCharsets.US_ASCII.decode(b).toString().trim();
         }
 
     }
