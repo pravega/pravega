@@ -30,6 +30,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -61,7 +62,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
     private final Duration minBucketRedistributionIntervalInSeconds;
 
     // The controller to bucket distributor.
-    @Getter
+    @Getter(AccessLevel.PACKAGE)
     private final BucketDistributor bucketDistributor;
     // Service type
     private final BucketStore.ServiceType serviceType;
@@ -190,12 +191,13 @@ public class BucketManagerLeader implements LeaderSelectorListener {
      * @throws InterruptedException
      */
     private void triggerDistribution() throws ExecutionException, InterruptedException {
-        //Read the current mapping from the bucket store and write back the update after distribution.
+        //Get current controller instances.
         Set<String> currentControllers;
         synchronized (lock) {
             currentControllers = pravegaServiceCluster.getClusterMembers().stream().map(controller ->
                     controller.getHostId()).collect(Collectors.toSet());
         }
+        //Read the current mapping from the bucket store and write back the update after distribution.
         bucketStore.getBucketControllerMap(serviceType)
                    .thenApply(currentControllerMapping -> bucketDistributor.distribute(currentControllerMapping,
                            currentControllers, bucketStore.getBucketCount(serviceType)))

@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -262,4 +263,23 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         return new BucketManagerLeader(bucketStore, 1,
                 new UniformBucketDistributor(), serviceType, executor);
     }
+
+    @Test(timeout = 30000)
+    public void testNodeCacheFailure() throws Exception {
+        BucketStore.ServiceType serviceType = BucketStore.ServiceType.WatermarkingService;
+        BucketStore spyBucketStore = spy(bucketStore);
+        NodeCache nodeCache = spy(((ZookeeperBucketStore) spyBucketStore).getBucketControllerMapNodeCache(serviceType));
+        doThrow(new RuntimeException("unable to start node cache listener")).when(nodeCache).start(true);
+        doReturn(nodeCache).when((ZookeeperBucketStore) spyBucketStore).getBucketControllerMapNodeCache(serviceType);
+        Function<Integer, BucketService> zkSupplier = bucket -> new ZooKeeperBucketService(serviceType,
+                bucket, (ZookeeperBucketStore) spyBucketStore, executor, 2,
+                Duration.ofMillis(5), periodicWatermarking::watermark);
+
+        BucketManager bucketManager = new ZooKeeperBucketManager("testHostId", (ZookeeperBucketStore) spyBucketStore,
+                                serviceType, executor, zkSupplier, getBucketManagerLeader(spyBucketStore, serviceType));
+        bucketManager.startAsync();
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> bucketManager.awaitRunning());
+    }
+
+
 }

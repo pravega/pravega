@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.BucketControllerMap;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
 import io.pravega.controller.util.ZKUtils;
 import java.io.IOException;
@@ -29,7 +30,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
@@ -149,17 +149,20 @@ public class ZooKeeperBucketManager extends BucketManager {
         return bucketStore.createBucket(getServiceType(), bucket);
     }
 
-    @SneakyThrows(Exception.class)
     @Override
     public void startBucketControllerMapListener() {
         ZKUtils.createPathIfNotExists(bucketStore.getClient(), bucketStore.getBucketControllerMapPath(getServiceType()),
                 BucketControllerMap.EMPTY.toBytes());
         cache.getListenable().addListener(this::handleBuckets);
         log.info("{}: Bucket controller map listener registered.", getServiceType());
-        cache.start(true);
+        try {
+            cache.start(true);
+        } catch (Exception e) {
+            throw StoreException.create(StoreException.Type.UNKNOWN, e, "Unable to start node cache listener.");
+        }
         manageBuckets().whenComplete((r, e) -> {
             if (e == null) {
-                log.debug("{}: Manage buckets completes with result: {}.", getServiceType(), r);
+                log.debug("{}: Manage buckets completed successfully.", getServiceType());
             } else {
                 log.error("{}: Manage buckets completes with exception.", getServiceType(), e);
             }
