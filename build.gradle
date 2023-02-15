@@ -139,7 +139,9 @@ allprojects {
 	    force "org.jetbrains.kotlin:kotlin-stdlib-common:" + kotlinVersion
 	    force "org.jetbrains.kotlin:kotlin-stdlib:" + kotlinVersion
 	    force "org.yaml:snakeyaml:" + snakeYamlVersion
+            force "com.fasterxml.woodstox:woodstox-core:" + woodstoxVersion
 	    force "org.jdom:jdom2:" + jdomVersion
+	    force "commons-net:commons-net:" + commonsNetVersion
             // Netty 4 uber jar
             exclude group: 'io.netty', module: 'netty-all'
             // Netty 3
@@ -724,6 +726,13 @@ project('test:integration') {
 
     task selftest(type: JavaExec) {
         main = "io.pravega.test.integration.selftest.SelfTestRunner"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        systemProperties System.getProperties()
+    }
+
+    task compatibilityCheck(type: JavaExec){
+        main = "io.pravega.test.integration.compatibility.CompatibilityChecker"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
         systemProperties System.getProperties()

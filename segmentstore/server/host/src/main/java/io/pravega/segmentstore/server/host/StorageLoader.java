@@ -15,18 +15,20 @@
  */
 package io.pravega.segmentstore.server.host;
 
-import java.util.ServiceLoader;
-import java.util.concurrent.ScheduledExecutorService;
-
 import io.pravega.segmentstore.storage.ConfigSetup;
+import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.mocks.SlowStorageFactory;
-import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
+import io.pravega.segmentstore.storage.noop.ConditionalNoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
+import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+
+import java.util.ServiceLoader;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * This class loads a specific storage implementation dynamically. It uses the `ServiceLoader` (https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html)
@@ -53,7 +55,13 @@ public class StorageLoader {
                     if (storageExtraConfig.isStorageNoOpMode()) {
                         //The specified storage implementation is in No-Op mode.
                         log.warn("{} IS IN NO-OP MODE: DATA LOSS WILL HAPPEN! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);
-                        return new NoOpStorageFactory(storageExtraConfig, executor, factory, null);
+                        StorageFactory storageFactory;
+                        if (factory instanceof SimpleStorageFactory) {
+                            storageFactory = new ConditionalNoOpStorageFactory(executor, (SimpleStorageFactory) factory, storageExtraConfig);
+                        } else {
+                            storageFactory = new NoOpStorageFactory(storageExtraConfig, executor, factory, null);
+                        }
+                        return storageFactory;
                     }
                     if (storageExtraConfig.isSlowModeEnabled()) {
                         log.warn("{} IS IN SLOW MODE: PERF DEGRADATION EXPECTED! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);

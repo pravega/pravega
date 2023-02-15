@@ -162,9 +162,8 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             int currentOutstandingCheckpointRequest = outstandingCheckpoints.size();
             if (currentOutstandingCheckpointRequest >= maxOutstandingCheckpointRequest) {
                 log.warn("Current outstanding checkpoints are : {}, " +
-                                 "maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}",
-                         outstandingCheckpoints, maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage,
-                         maxOutstandingCheckpointRequest);
+                                 "maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}, readers blocking checkpoint are: {}",
+                         outstandingCheckpoints, maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage, maxOutstandingCheckpointRequest, checkpointState.getReaderBlockingCheckpointsMap());
 
                 return false;
             } else {
@@ -222,6 +221,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         if (map.isEmpty()) {
             log.info("All the events between start and end of stream cuts are already read by {}, nothing more to read", getGroupName());
         }
+        log.debug("Checkpointing for {} is completed successfully", checkpointName);
         return new CheckpointImpl(checkpointName, map);
     }
 
