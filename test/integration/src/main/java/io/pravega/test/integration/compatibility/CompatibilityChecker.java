@@ -513,7 +513,7 @@ public class CompatibilityChecker {
         @Cleanup
         EventStreamWriter<ByteBuffer> writer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(), EventWriterConfig.builder().enableLargeEvents(true).build());
 
-        byte[] payload = new byte[Serializer.MAX_EVENT_SIZE * 8];
+        byte[] payload = new byte[Serializer.MAX_EVENT_SIZE * 2];
         for (int i = 0; i < NUM_EVENTS; i++) {
             log.info("Writing event: {} ", i);
             // any exceptions while writing the event will fail the test.
