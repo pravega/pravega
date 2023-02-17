@@ -39,7 +39,9 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import java.net.URI;
@@ -71,6 +73,8 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private URI controllerURI = null;
     private StreamManager streamManager = null;
     private Controller controller = null;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(7 * 60);
 
     /**
      * This is used to setup the various services required by the system test framework.
