@@ -70,8 +70,6 @@ import static org.junit.Assert.assertTrue;
 @RunWith(SystemTestRunner.class)
 public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends AbstractReadWriteTest {
 
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(7 * 60);
     private static final String SCOPE = "testConsumptionBasedRetentionScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String STREAM = "testConsumptionBasedRetentionStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP_1 = "testConsumptionBasedRetentionReaderGroup1" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
@@ -81,6 +79,8 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private static final int READ_TIMEOUT = 1000;
     private static final int MAX_SIZE_IN_STREAM = 180;
     private static final int MIN_SIZE_IN_STREAM = 90;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(7 * 60);
 
     private final ReaderConfig readerConfig = ReaderConfig.builder().build();
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
