@@ -22,7 +22,18 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.EventRead;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.RetentionPolicy;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
@@ -51,12 +62,16 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends AbstractReadWriteTest {
 
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(7 * 60);
     private static final String SCOPE = "testConsumptionBasedRetentionScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String STREAM = "testConsumptionBasedRetentionStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP_1 = "testConsumptionBasedRetentionReaderGroup1" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
@@ -73,8 +88,6 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private URI controllerURI = null;
     private StreamManager streamManager = null;
     private Controller controller = null;
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(7 * 60);
 
     /**
      * This is used to setup the various services required by the system test framework.
