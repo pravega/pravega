@@ -140,26 +140,26 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                 EventWriterConfig.builder().build());
 
         // Write events.
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e1 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
+        log.info("Writing event e1 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e2 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
+        log.info("Writing event e2 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e3 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
+        log.info("Writing event e3 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e4 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
+        log.info("Writing event e4 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e5 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
+        log.info("Writing event e5 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e6 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
+        log.info("Writing event e6 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e7 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
+        log.info("Writing event e7 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
@@ -182,19 +182,19 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                 READER_GROUP_2, new JavaSerializer<>(), readerConfig);
 
         // Read three events with reader1.
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Reader1 reading event e1 from {}/{}", SCOPE, STREAM);
+        log.info("Reader1 reading event e1 from {}/{}", SCOPE, STREAM);
         EventRead<String> read = reader1.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read.getEvent());
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Reader1 Reading event e2 from {}/{}", SCOPE, STREAM);
+        log.info("Reader1 Reading event e2 from {}/{}", SCOPE, STREAM);
         read = reader1.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read.getEvent());
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Reader1 Reading event e3 from {}/{}", SCOPE, STREAM);
+        log.info("Reader1 Reading event e3 from {}/{}", SCOPE, STREAM);
         read = reader1.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read.getEvent());
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} generating 1st stream-cuts for {}/{}", READER_GROUP_1, SCOPE, STREAM);
+        log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_1, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts1 = readerGroup1.generateStreamCuts(streamCutExecutor);
         // Wait for 5 seconds to force reader group state update. This will allow for the silent
         // checkpoint event generated as part of generateStreamCuts to be picked and processed.
@@ -206,23 +206,23 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         log.info("{} generated 1st Stream cut at -> {}", READER_GROUP_1, streamCuts1);
 
         // Read four events with reader2.
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Reader2 Reading event e1 from {}/{}", SCOPE, STREAM);
+        log.info("Reader2 Reading event e1 from {}/{}", SCOPE, STREAM);
         EventRead<String> read2 = reader2.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read2.getEvent());
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Reader2 Reading event e2 from {}/{}", SCOPE, STREAM);
+        log.info("Reader2 Reading event e2 from {}/{}", SCOPE, STREAM);
         read2 = reader2.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read2.getEvent());
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Reader2 Reading event e3 from {}/{}", SCOPE, STREAM);
+        log.info("Reader2 Reading event e3 from {}/{}", SCOPE, STREAM);
         read2 = reader2.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read2.getEvent());
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Reader2 Reading event e4 from {}/{}", SCOPE, STREAM);
+        log.info("Reader2 Reading event e4 from {}/{}", SCOPE, STREAM);
         read2 = reader2.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read2.getEvent());
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} generating 1st stream-cuts for {}/{}", READER_GROUP_2, SCOPE, STREAM);
+        log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_2, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup2.generateStreamCuts(streamCutExecutor);
         // Wait for 5 seconds to force reader group state update. This will allow for the silent
         // checkpoint event generated as part of generateStreamCuts to be picked and processed.
@@ -231,32 +231,32 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertEquals("data of size 30", read2.getEvent());
         assertTrue("Stream-cut generation did not complete for reader group 2", Futures.await(futureCuts2, 10000));
         Map<Stream, StreamCut> streamCuts2 = futureCuts2.join();
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts1);
+        log.info("{} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts1);
         readerGroup1.updateRetentionStreamCut(streamCuts1);
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} updating its retention stream-cut to {}", READER_GROUP_2, streamCuts2);
+        log.info("{} updating its retention stream-cut to {}", READER_GROUP_2, streamCuts2);
         readerGroup2.updateRetentionStreamCut(streamCuts2);
 
         // Retention set has one stream cut at 0/210
         // READER_GROUP_1 updated stream cut at 0/90, READER_GROUP_2 updated stream cut at 0/120
         // Subscriber lower bound is 0/90, truncation should happen at this point
-        // The timeout is to 3 minutes a little longer than the retention period which is set to 2 minutes
+        // The timeout is set to 3 minutes a little longer than the retention period which is set to 2 minutes
         // in order to confirm that the retention has taken place.
-        // Check to make sure truncation happened after streamcut generated by first subscriber
+        // Check to make sure truncation happened at streamcut generated by first subscriber
         AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 90.", true, () -> controller.getSegmentsAtTime(
                         new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 90),
                 5000, 3 * 60 * 1000L);
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e8 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
+        log.info("Writing event e8 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e9 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
+        log.info("Writing event e9 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e10 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
+        log.info("Writing event e10 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e11 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
+        log.info("Writing event e11 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
 
         read = reader1.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read.getEvent());
@@ -269,7 +269,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         read = reader1.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read.getEvent());
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} generating 2nd stream-cuts for {}/{}", READER_GROUP_1, SCOPE, STREAM);
+        log.info("{} generating 2nd stream-cuts for {}/{}", READER_GROUP_1, SCOPE, STREAM);
         futureCuts1 = readerGroup1.generateStreamCuts(streamCutExecutor);
         // Wait for 5 seconds to force reader group state update. This will allow for the silent
         // checkpoint event generated as part of generateStreamCuts to be picked and processed.
@@ -290,7 +290,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertEquals("data of size 30", read2.getEvent());
         read2 = reader2.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read2.getEvent());
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} generating 2nd stream-cuts for {}/{}", READER_GROUP_2, SCOPE, STREAM);
+        log.info("{} generating 2nd stream-cuts for {}/{}", READER_GROUP_2, SCOPE, STREAM);
         futureCuts2 = readerGroup2.generateStreamCuts(streamCutExecutor);
         // Wait for 5 seconds to force reader group state update. This will allow for the silent
         // checkpoint event generated as part of generateStreamCuts to be picked and processed.
@@ -300,40 +300,40 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Stream-cut generation did not complete for reader group 2", Futures.await(futureCuts2, 10000));
         streamCuts2 = futureCuts2.join();
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts1);
+        log.info("{} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts1);
         readerGroup1.updateRetentionStreamCut(streamCuts1);
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> {} updating its retention stream-cut to {}", "RG2", streamCuts2);
+        log.info("{} updating its retention stream-cut to {}", "RG2", streamCuts2);
         readerGroup2.updateRetentionStreamCut(streamCuts2);
 
         // Retention set has two stream cut at 0/210, 0/330
         // READER_GROUP_1 updated stream cut at 0/270, READER_GROUP_2 updated stream cut at 0/300
         // Subscriber lower bound is 0/270, but since truncating at SLB leaves less data in the stream than minimum limit
         // So truncating at stream cut 0/210 which leaves more data in the stream than min limit
-        // The timeout is to 3 minutes a little longer than the retention period which is set to 2 minutes
+        // The timeout is set to 3 minutes a little longer than the retention period which is set to 2 minutes
         // in order to confirm that the retention has taken place.
         // Check to make sure truncation happened at min stream cut from retention set
         AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 210.", true, () -> controller.getSegmentsAtTime(
                         new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 210),
                 5000, 3 * 60 * 1000L);
 
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e12 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e13 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e14 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e15 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
-        log.info("ConsumptionBasedRetentionWithMultipleReaderGroupsTest -> Writing event e16 to {}/{}", SCOPE, STREAM);
-        writer.writeEvent("", SIZE_30_EVENT).join();
+        log.info("Writing event e12 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
+        log.info("Writing event e13 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
+        log.info("Writing event e14 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
+        log.info("Writing event e15 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
+        log.info("Writing event e16 to {}/{}", SCOPE, STREAM);
+        writer.writeEvent(SIZE_30_EVENT).join();
 
         // Retention set has two stream cut at 0/330, 0/480
         // READER_GROUP_1 updated stream cut at 0/270, READER_GROUP_2 updated stream cut at 0/300
         // Subscriber lower bound is 0/270, but since truncating at SLB leaves more data in the stream than maximum limit
         // So truncating at stream cut i.e. 0/330 which leave less data in the stream the maximum limit
-        // The timeout is to 3 minutes a little longer than the retention period which is set to 2 minutes
+        // The timeout is set to 3 minutes a little longer than the retention period which is set to 2 minutes
         // in order to confirm that the retention has taken place.
-        // Check to make sure truncation happened at min stream cut from retention set
+        // Check to make sure truncation happened at max stream cut
         AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 330.", true, () -> controller.getSegmentsAtTime(
                         new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 330),
                 5000, 3 * 60 * 1000L);
