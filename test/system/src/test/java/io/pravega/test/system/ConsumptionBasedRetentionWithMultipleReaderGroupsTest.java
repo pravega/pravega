@@ -168,8 +168,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         EventRead<String> read;
         EventRead<String> read2;
         // Read three events with reader1.
-        for(int i=1; i<=3; i++)
-        {
+        for (int i = 1; i <= 3; i++) {
             read = reader1.readNextEvent(READ_TIMEOUT);
             assertEquals("data of size 30", read.getEvent());
         }
@@ -185,8 +184,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         log.info("{} generated 1st Stream cut at -> {}", READER_GROUP_1, streamCuts1);
 
         // Read four events with reader2.
-        for(int i=1; i<=4; i++)
-        {
+        for (int i = 1; i <= 4; i++) {
             read2 = reader2.readNextEvent(READ_TIMEOUT);
             assertEquals("data of size 30", read2.getEvent());
         }
@@ -222,8 +220,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         }
 
         //Read 5 events with reader 1 and reader 2
-        for(int i=1; i<=5; i++)
-        {
+        for (int i = 1; i <= 5; i++) {
             read = reader1.readNextEvent(READ_TIMEOUT);
             assertEquals("data of size 30", read.getEvent());
             read2 = reader2.readNextEvent(READ_TIMEOUT);
