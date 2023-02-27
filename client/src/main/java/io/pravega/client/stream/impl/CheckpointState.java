@@ -152,7 +152,7 @@ public class CheckpointState {
             positions.putAll(position);
             if (readers.isEmpty()) {
                 uncheckpointedHosts.remove(checkpointId);
-
+                log.info("Completed checkpointing for Checkpoint : {} by all readers", checkpointId);
                 //store last checkpoint position if it is not a stream-cut (silent checkpoint)
                 if (!isCheckpointSilent(checkpointId)) {
                     //checkpoint operation completed for all readers, update the last checkpoint position.
@@ -194,6 +194,16 @@ public class CheckpointState {
         return checkpoints.stream()
                           .filter(checkpoint -> !(isCheckpointSilent(checkpoint) || isCheckpointComplete(checkpoint)))
                           .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the map of CheckpointId to list of readers blocking that checkpoint.
+     * @return the map.
+     */
+    Map<String, List<String>> getReaderBlockingCheckpointsMap() {
+        return  uncheckpointedHosts.entrySet().stream()
+                                   .filter(checkpoint -> !(isCheckpointSilent(checkpoint.getKey()) || isCheckpointComplete(checkpoint.getKey())))
+                                   .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     void clearCheckpointsBefore(String checkpointId) {

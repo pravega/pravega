@@ -35,6 +35,7 @@ import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -48,6 +49,7 @@ import org.mockito.stubbing.Answer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -146,6 +148,22 @@ public class BatchClientImplTest {
         assertTrue(segmentIterator.hasNext());
         assertEquals(2L, segmentIterator.next().asImpl().getSegment().getSegmentId());
         assertFalse(segmentIterator.hasNext());
+    }
+
+    @Test(timeout = 5000)
+    public void testGetSegmentRangeBetweenStreamCuts() throws Exception {
+
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
+        MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory, false);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
+        List<SegmentRange> segRanges = client.getSegmentRangeBetweenStreamCuts(getStreamCut(5L, 0, 1, 2), getStreamCut(15L, 0, 1, 2));
+
+        assertNotNull(segRanges);
+        assertEquals(3, segRanges.size());
+        assertEquals("stream", segRanges.get(2).getSegment().getStream().getStreamName());
     }
 
     private Stream createStream(String scope, String streamName, int numSegments, MockController mockController) {
