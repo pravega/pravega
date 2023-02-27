@@ -56,11 +56,11 @@ import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -178,7 +178,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         CompletableFuture<Map<Stream, StreamCut>> futureCuts1 = readerGroup1.generateStreamCuts(streamCutExecutor);
         // Wait for 5 seconds to force reader group state update. This will allow for the silent
         // checkpoint event generated as part of generateStreamCuts to be picked and processed.
-        Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
+        Futures.delayedFuture(Duration.ofSeconds(5), executor).join();
         read = reader1.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read.getEvent());
         assertTrue("Stream-cut generation did not complete for reader group 1", Futures.await(futureCuts1, 10000));
@@ -195,7 +195,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup2.generateStreamCuts(streamCutExecutor);
         // Wait for 5 seconds to force reader group state update. This will allow for the silent
         // checkpoint event generated as part of generateStreamCuts to be picked and processed.
-        Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
+        Futures.delayedFuture(Duration.ofSeconds(5), executor).join();
         read2 = reader2.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read2.getEvent());
         assertTrue("Stream-cut generation did not complete for reader group 2", Futures.await(futureCuts2, 10000));
@@ -233,7 +233,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         futureCuts1 = readerGroup1.generateStreamCuts(streamCutExecutor);
         // Wait for 5 seconds to force reader group state update. This will allow for the silent
         // checkpoint event generated as part of generateStreamCuts to be picked and processed.
-        Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
+        Futures.delayedFuture(Duration.ofSeconds(5), executor).join();
         read = reader1.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read.getEvent());
         assertTrue("Stream-cut generation did not complete for reader group 1", Futures.await(futureCuts1, 10000));
@@ -244,7 +244,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         futureCuts2 = readerGroup2.generateStreamCuts(streamCutExecutor);
         // Wait for 5 seconds to force reader group state update. This will allow for the silent
         // checkpoint event generated as part of generateStreamCuts to be picked and processed.
-        Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
+        Futures.delayedFuture(Duration.ofSeconds(5), executor).join();
         read2 = reader2.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read2.getEvent());
         assertTrue("Stream-cut generation did not complete for reader group 2", Futures.await(futureCuts2, 10000));
