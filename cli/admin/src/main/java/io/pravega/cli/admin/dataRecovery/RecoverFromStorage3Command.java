@@ -17,34 +17,38 @@ package io.pravega.cli.admin.dataRecovery;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TableSegmentUtils;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.common.function.Callbacks;
+import io.pravega.common.io.SerializationException;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
-import io.pravega.segmentstore.server.CacheManager;
-import io.pravega.segmentstore.server.CachePolicy;
-import io.pravega.segmentstore.server.OperationLogFactory;
-import io.pravega.segmentstore.server.ReadIndexFactory;
-import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.server.*;
 import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
-import io.pravega.segmentstore.server.containers.ContainerConfig;
-import io.pravega.segmentstore.server.containers.ContainerRecoveryUtils;
-import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
-import io.pravega.segmentstore.server.containers.MetadataStore;
+import io.pravega.segmentstore.server.containers.*;
+import io.pravega.segmentstore.server.logs.DataFrameBuilder;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
+import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
+import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
@@ -52,8 +56,8 @@ import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
 import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
+import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
-import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
@@ -61,6 +65,7 @@ import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
+import io.pravega.segmentstore.storage.chunklayer.UtilsWrapper;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
@@ -70,18 +75,11 @@ import io.pravega.segmentstore.storage.metadata.StorageMetadata;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
-import lombok.Cleanup;
-import lombok.Getter;
-import lombok.SneakyThrows;
-import lombok.val;
+import lombok.*;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -90,11 +88,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiPredicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Loads the storage instance, recovers all segments from there.
@@ -118,6 +113,8 @@ public class RecoverFromStorage3Command extends DataRecoveryCommand {
     private static final MetadataStore.SegmentInfo.SegmentInfoSerializer SERIALIZER = new MetadataStore.SegmentInfo.SegmentInfoSerializer();
 
     private static final BaseMetadataStore.TransactionData.TransactionDataSerializer SLTS_SERIALIZER = new BaseMetadataStore.TransactionData.TransactionDataSerializer();
+
+    private static final MetadataCheckpointSerializer CHECKPOINT_SERIALIZER = new MetadataCheckpointSerializer();
 
     private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig.builder().build();
 
@@ -179,9 +176,9 @@ public class RecoverFromStorage3Command extends DataRecoveryCommand {
         val bkConfig = getCommandArgs().getState().getConfigBuilder().include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, getServiceConfig().getZkURL())).build().getConfig(BookKeeperConfig::builder);
         @Cleanup
         val dataLogFactory = new BookKeeperLogFactory(bkConfig, zkClient, containerExecService);
+        dataLogFactory.initialize();
         output("Container Count = %d", this.containerCount);
 
-        dataLogFactory.initialize();
         output("Started ZK Client at %s.", getServiceConfig().getZkURL());
 
         output("Starting recovery...");
@@ -196,49 +193,179 @@ public class RecoverFromStorage3Command extends DataRecoveryCommand {
             List<ByteArraySegment> storageSegmentBytes = readSegmentBytes(NameUtils.getStorageMetadataSegmentName(debugStreamSegmentContainer.getId()), debugStreamSegmentContainer).get();
             List<TableSegmentUtils.TableSegmentOperation> storageTableSegmentOperations = TableSegmentUtils.getOperationsFromBytes(storageSegmentBytes);
 
-            dataLogFactory.createDebugLogWrapper(containerId).deleteDurableLogMetadata();
+            Collection<StreamSegmentMetadata> reconciledMetadata = reconcileMetadata(tableSegmentOperations,storageTableSegmentOperations, debugStreamSegmentContainer);
 
+            MetadataCheckpointOperation metadataCheckpointOperation = createCheckPointOperation(reconciledMetadata, containerId);
+
+            val args = new DataFrameBuilder.Args(Callbacks::doNothing, this::commitSuccess, this::commitError, executorService);
+
+            dataLogFactory.createDebugLogWrapper(containerId).deleteDurableLogMetadata();
+            output("Queuing metadatacheckpoint operation");
+            DurableDataLog log = dataLogFactory.createDurableDataLog(containerId);
+            log.initialize(TIMEOUT);
+            DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(log, OperationSerializer.DEFAULT, args);
+            dataFrameBuilder.append(metadataCheckpointOperation);
+            dataFrameBuilder.flush();
+
+            Thread.sleep(5000);
+            SystemJournal journal = ((ChunkedSegmentStorage) debugStreamSegmentContainer.getStorage()).getSystemJournal();
+            output("Generating snapshot info for container %s", containerId);
+            journal.generateSnapshotIfRequired().join();
+            journal.writeSnapshotInfoIfRequired().join();
+            Thread.sleep(5000);
             debugStreamSegmentContainer.close();
 
-            Thread.sleep(5000);
-
-            deleteJournalsOf(containerId); // replace with slts api
-
-            DebugStreamSegmentContainer debugStreamSegmentContainer2 = createDebugSegmentContainer(context, containerId, dataLogFactory, "");
-
-            boolean firstRun = true;
-            int attempts = 0;
-
-            RecoverFromStorage3Command.ChunkValidator chunkValidator = new RecoverFromStorage3Command.ChunkValidator(debugStreamSegmentContainer2);
-            while( firstRun || (!chunkValidator.validate() /*&& attempts < RETRY_ATTEMPT*/ )) {
-                if (firstRun) firstRun = !firstRun;
-                writeEntriesToContainerMetadata(debugStreamSegmentContainer2, NameUtils.getMetadataSegmentName(containerId), tableSegmentOperations);
-
-                // storage table segment raw bytes
-                writeEntriesToStorageMetadata(debugStreamSegmentContainer2, NameUtils.getStorageMetadataSegmentName(containerId), storageTableSegmentOperations);
-
-                flushToStorage(debugStreamSegmentContainer2);
-                attempts++;
-            }
-            reconcileStorageSegment(debugStreamSegmentContainer2);
-
-    //            SystemJournal journal = ((ChunkedSegmentStorage) debugStreamSegmentContainer.getStorage()).getSystemJournal();
-    //            output("Generating snapshot info for container %s", containerId);
-    //            journal.generateSnapshotIfRequired().join();
-    //            journal.writeSnapshotInfoIfRequired().join();
-    //            debugStreamSegmentContainer.flushToStorage(TIMEOUT);
-    //            Thread.sleep(5000);
-    //            listKeysinStorage(debugStreamSegmentContainer);
-            output("Stopping container %s",containerId);
-            Thread.sleep(5000);
+//            dataLogFactory.createDebugLogWrapper(containerId).deleteDurableLogMetadata();
 
 
-            debugStreamSegmentContainer2.close();
-            output("contaoner %s has been stopped",containerId);
+//            Thread.sleep(5000);
+//
+//            deleteJournalsOf(containerId); // replace with slts api
+//
+//            DebugStreamSegmentContainer debugStreamSegmentContainer2 = createDebugSegmentContainer(context, containerId, dataLogFactory, "");
+//
+//            boolean firstRun = true;
+//            int attempts = 0;
+//
+//            RecoverFromStorage3Command.ChunkValidator chunkValidator = new RecoverFromStorage3Command.ChunkValidator(debugStreamSegmentContainer2);
+//            while( firstRun || (!chunkValidator.validate() /*&& attempts < RETRY_ATTEMPT*/ )) {
+//                if (firstRun) firstRun = !firstRun;
+//                writeEntriesToContainerMetadata(debugStreamSegmentContainer2, NameUtils.getMetadataSegmentName(containerId), tableSegmentOperations);
+//
+//                // storage table segment raw bytes
+//                writeEntriesToStorageMetadata(debugStreamSegmentContainer2, NameUtils.getStorageMetadataSegmentName(containerId), storageTableSegmentOperations);
+//
+//                flushToStorage(debugStreamSegmentContainer2);
+//                attempts++;
+//            }
+//            reconcileStorageSegment(debugStreamSegmentContainer2);
+//
+//    //            SystemJournal journal = ((ChunkedSegmentStorage) debugStreamSegmentContainer.getStorage()).getSystemJournal();
+//    //            output("Generating snapshot info for container %s", containerId);
+//    //            journal.generateSnapshotIfRequired().join();
+//    //            journal.writeSnapshotInfoIfRequired().join();
+//    //            debugStreamSegmentContainer.flushToStorage(TIMEOUT);
+//    //            Thread.sleep(5000);
+//    //            listKeysinStorage(debugStreamSegmentContainer);
+//            output("Stopping container %s",containerId);
+
+//            debugStreamSegmentContainer.close();
+
             System.out.println();
         }
     }
 
+    private void  commitSuccess(DataFrameBuilder.CommitArgs commitArgs) {
+        output("Succesfully saved the Checkpoint operation to BK %s", commitArgs.getLastFullySerializedSequenceNumber());
+    }
+
+    private void  commitError(Throwable ex, DataFrameBuilder.CommitArgs commitArgs) {
+        output("Some error saving the Checkpoint Operation %s", ex);
+    }
+
+    private Collection<StreamSegmentMetadata> reconcileMetadata(List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations, List<TableSegmentUtils.TableSegmentOperation> storageTableSegmentOperations
+            , DebugSegmentContainer container) throws IOException {
+
+        Map<String, MetadataStore.SegmentInfo> containerMetadataSegments = getContainerSegmentsFromOperations(tableSegmentOperations, container);
+        Map<String, StorageMetadata> storageMetadataSegments = getStorageSegmentsFromOperations(storageTableSegmentOperations, container);
+
+        Collection<StreamSegmentMetadata> reconciledContainerMetadata = new ArrayList<>();
+
+        for( MetadataStore.SegmentInfo segmentInfo : containerMetadataSegments.values() ) {
+            if( segmentInfo.getSegmentId() == NO_STREAM_SEGMENT_ID ) {
+                continue;
+            }
+            StorageMetadata storageMetadata = storageMetadataSegments.get(segmentInfo.getProperties().getName());
+            if(storageMetadata != null ) {
+                SegmentMetadata storageSegmentMetadata = (SegmentMetadata) storageMetadata;
+                StreamSegmentMetadata updateableSegmentMetadata = new StreamSegmentMetadata(segmentInfo.getProperties().getName(), segmentInfo.getSegmentId(), container.getId() );
+                updateableSegmentMetadata.setStartOffset(storageSegmentMetadata.getStartOffset());
+                updateableSegmentMetadata.setLength(storageSegmentMetadata.getLength());
+                updateableSegmentMetadata.setStorageLength(storageSegmentMetadata.getLength());
+                updateableSegmentMetadata.setLastModified(new ImmutableDate(storageSegmentMetadata.getLastModified()));
+                updateableSegmentMetadata.updateAttributes(segmentInfo.getProperties().getAttributes());
+                if(storageSegmentMetadata.isSealed()){
+                    updateableSegmentMetadata.markSealed();
+                    updateableSegmentMetadata.markSealedInStorage();
+                }
+                if(!storageSegmentMetadata.isActive()){
+                    updateableSegmentMetadata.markInactive();
+                }
+                reconciledContainerMetadata.add(updateableSegmentMetadata);
+            }else {
+                StreamSegmentMetadata updateableSegmentMetadata = new StreamSegmentMetadata(segmentInfo.getProperties().getName(), segmentInfo.getSegmentId(), container.getId() );
+                updateableSegmentMetadata.setStartOffset(segmentInfo.getProperties().getStartOffset());
+                updateableSegmentMetadata.setLength(segmentInfo.getProperties().getLength());
+                updateableSegmentMetadata.setStorageLength(segmentInfo.getProperties().getLength());
+                updateableSegmentMetadata.setLastModified(new ImmutableDate(segmentInfo.getProperties().getLastModified().getTime()));
+                updateableSegmentMetadata.updateAttributes(segmentInfo.getProperties().getAttributes());
+                reconciledContainerMetadata.add(updateableSegmentMetadata);
+            }
+        }
+        return reconciledContainerMetadata;
+    }
+
+    private Map<String, MetadataStore.SegmentInfo> getContainerSegmentsFromOperations(List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations, DebugSegmentContainer container) throws IOException {
+
+        Map<String, MetadataStore.SegmentInfo> containerMetadataSegmentsMap = new HashMap<>();
+        for (TableSegmentUtils.TableSegmentOperation operation : tableSegmentOperations) {
+            TableSegmentEntry entry = operation.getContents();
+            TableEntry unversionedEntry = TableEntry.unversioned(new ByteBufWrapper(entry.getKey().getKey()), new ByteBufWrapper(entry.getValue()));
+            String seg = new String(unversionedEntry.getKey().getKey().getCopy());
+
+            if (!allowSegment(seg)) continue;
+
+            if (operation instanceof TableSegmentUtils.PutOperation) {
+                MetadataStore.SegmentInfo segmentInfo = SERIALIZER.deserialize(new ByteArraySegment(unversionedEntry.getValue().getCopy()).getReader());
+                containerMetadataSegmentsMap.put(seg, segmentInfo);
+            } else {
+                containerMetadataSegmentsMap.remove(seg);
+            }
+        }
+        return containerMetadataSegmentsMap;
+    }
+
+    private Map<String,StorageMetadata> getStorageSegmentsFromOperations(List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations, DebugSegmentContainer container) throws IOException {
+
+        Map<String, StorageMetadata> storageSegmentsMap = new HashMap<>();
+        for (TableSegmentUtils.TableSegmentOperation operation : tableSegmentOperations) {
+            TableSegmentEntry entry = operation.getContents();
+
+            TableEntry unversionedEntry = TableEntry.unversioned(new ByteBufWrapper(entry.getKey().getKey()), new ByteBufWrapper(entry.getValue()));
+            String segment = new String(unversionedEntry.getKey().getKey().getCopy());
+
+            if(!allowSegment(segment)) continue;
+            StorageMetadata storageMetadata = null;
+            if (operation instanceof TableSegmentUtils.PutOperation) {
+                try {
+                    storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().array()).getValue();
+                }catch(Exception npe){
+                    System.out.println("There was a nullpointer. Shouldnt happen. Check this "+npe);
+                }
+                if(storageMetadata instanceof  SegmentMetadata) {
+                    storageSegmentsMap.put(segment, storageMetadata);
+                }
+            } else {
+                storageSegmentsMap.remove(segment);
+            }
+        }
+        return storageSegmentsMap;
+    }
+
+
+    private MetadataCheckpointOperation createCheckPointOperation(Collection<StreamSegmentMetadata> reconciledMetadata, int containerId ) throws IOException {
+
+        output("Creating checkpoint opeartion");
+        ContainerInfo containerInfo = new ContainerInfo();
+        containerInfo.containerId = containerId;
+        containerInfo.segmentMetadataCollection = reconciledMetadata;
+
+        ByteArraySegment checkPointBytes = CHECKPOINT_SERIALIZER.serialize(containerInfo);
+        MetadataCheckpointOperation metadataCheckpointOperation = new MetadataCheckpointOperation();
+        metadataCheckpointOperation.setContents(checkPointBytes);
+        metadataCheckpointOperation.setSequenceNumber(1);
+        return metadataCheckpointOperation;
+    }
 
     private void reconcileStorageSegment(DebugStreamSegmentContainer container) throws Exception {
 
@@ -581,7 +708,85 @@ public class RecoverFromStorage3Command extends DataRecoveryCommand {
         }
     }
 
-    public class DebugContainer extends DebugStreamSegmentContainer {
+    @Data
+    private class ContainerInfo {
+        int containerId;
+        Collection<StreamSegmentMetadata> segmentMetadataCollection;
+    }
+
+    private static class MetadataCheckpointSerializer extends VersionedSerializer.Direct<ContainerInfo> {
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, ContainerInfo containerInfo) {
+
+        }
+
+        protected void write00(ContainerInfo ci, RevisionDataOutput output) throws IOException {
+            // Intentionally skipping over the Sequence Number. There is no need for that here; it will be set on the
+            // operation anyway when it gets serialized.
+            output.writeCompactInt(ci.containerId);
+
+            val toSerialize = new ArrayList<io.pravega.segmentstore.server.SegmentMetadata>();
+
+            toSerialize.addAll(ci.segmentMetadataCollection);
+            output.writeCollection(toSerialize, this::writeSegmentMetadata00);
+        }
+
+        private void writeSegmentMetadata00(RevisionDataOutput output, io.pravega.segmentstore.server.SegmentMetadata sm) throws IOException {
+            output.writeLong(sm.getId());
+            output.writeUTF(sm.getName());
+            output.writeLong(sm.getLength());
+            output.writeLong(sm.getStorageLength());
+            output.writeBoolean(sm.isMerged());
+            output.writeBoolean(sm.isSealed());
+            output.writeBoolean(sm.isSealedInStorage());
+            output.writeBoolean(sm.isDeleted());
+            output.writeBoolean(sm.isDeletedInStorage());
+            output.writeLong(sm.getLastModified().getTime());
+            output.writeLong(sm.getStartOffset());
+
+            // We only serialize Core Attributes. Extended Attributes can be retrieved from the AttributeIndex.
+            output.writeMap(Attributes.getCoreNonNullAttributes(sm.getAttributes()), this::writeAttributeId00, RevisionDataOutput::writeLong);
+        }
+
+        private UpdateableSegmentMetadata readSegmentMetadata00(RevisionDataInput input) throws IOException {
+
+            return new StreamSegmentMetadata("", 0 , 0);
+        }
+
+        private void writeAttributeId00(RevisionDataOutput out, AttributeId attributeId) throws IOException {
+            assert attributeId.isUUID();
+            out.writeLong(attributeId.getBitGroup(0));
+            out.writeLong(attributeId.getBitGroup(1));
+        }
+
+        private AttributeId readAttributeId00(RevisionDataInput in) throws IOException {
+            return AttributeId.uuid(in.readLong(), in.readLong());
+        }
+
+        protected UpdateableSegmentMetadata getSegmentMetadata(String name, long segmentId) {
+            return new StreamSegmentMetadata("", 0 , 0);
+        }
+
+        protected void postRead(Collection<UpdateableSegmentMetadata> checkpointMetadata) {
+            // This method intentionally left blank. Will be overridden in derived classes.
+        }
+    }
+
+
+
+
+
+    class DebugContainer extends DebugStreamSegmentContainer {
 
         String journalPath;
 
@@ -625,19 +830,6 @@ public class RecoverFromStorage3Command extends DataRecoveryCommand {
             output("latest epoch is %s and latest snapshot is %s for container %s",latestEpoch.get(),latestSnapshot.get(), this.metadata.getContainerId());
             return CompletableFuture.completedFuture(retValue);
         }
-
-//        @Override
-//        public CompletableFuture<Void> startSecondaryServicesAsync() {
-//            CompletableFuture<Void> cf = super.startSecondaryServicesAsync();
-//            return CompletableFuture.allOf(cf, super.startSecondaryServicesAsync());
-//        }
-//
-//        private CompletableFuture<Void> syncContainerAndStorageMetadata() {
-//
-//
-//
-//            return CompletableFuture.completedFuture(null);
-//        }
 
     }
 }
