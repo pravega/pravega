@@ -147,14 +147,16 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
-        readerGroupManager.createReaderGroup(READER_GROUP_1, ReaderGroupConfig.builder()
+        boolean createRG1 = readerGroupManager.createReaderGroup(READER_GROUP_1, ReaderGroupConfig.builder()
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .disableAutomaticCheckpoints()
                 .stream(Stream.of(SCOPE, STREAM)).build());
-        readerGroupManager.createReaderGroup(READER_GROUP_2, ReaderGroupConfig.builder()
+        assertTrue("Reader group 1 is not created", createRG1);
+        boolean createRG2 = readerGroupManager.createReaderGroup(READER_GROUP_2, ReaderGroupConfig.builder()
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .disableAutomaticCheckpoints()
                 .stream(Stream.of(SCOPE, STREAM)).build());
+        assertTrue("Reader group 2 is not created", createRG2);
 
         ReaderGroup readerGroup1 = readerGroupManager.getReaderGroup(READER_GROUP_1);
         ReaderGroup readerGroup2 = readerGroupManager.getReaderGroup(READER_GROUP_2);
