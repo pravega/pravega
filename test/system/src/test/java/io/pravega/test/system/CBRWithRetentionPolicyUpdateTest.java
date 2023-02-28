@@ -188,7 +188,7 @@ public class CBRWithRetentionPolicyUpdateTest extends AbstractReadWriteTest {
         readerGroup1.resetReaderGroup(nonSubscriberReaderGroupConfig);
         ReaderGroupConfig.StreamDataRetention readerGroupRetentionType = controller.getReaderGroupConfig(SCOPE, READER_GROUP_1).join().getRetentionType();
         assertEquals(ReaderGroupConfig.StreamDataRetention.NONE, readerGroupRetentionType);
-        assertEquals(0, controller.listSubscribers(SCOPE, STREAM).join());
+        assertEquals(0, controller.listSubscribers(SCOPE, STREAM).join().size());
 
         // Fill 5 more events to the stream.
         for (int i = 1; i <= 5; i++) {
