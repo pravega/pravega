@@ -29,7 +29,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import javax.annotation.concurrent.GuardedBy;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -44,10 +43,6 @@ import org.apache.curator.framework.state.ConnectionState;
 public class BucketManagerLeader implements LeaderSelectorListener {
 
     private final BucketStore bucketStore;
-    private final Object lock = new Object();
-    // The pravega cluster which this controller manages.
-    @GuardedBy("lock")
-    private Cluster pravegaServiceCluster = null;
     // ReusableLatch to notify the leader thread to trigger a redistribution.
     private final ReusableLatch controllerChange = new ReusableLatch();
 
@@ -106,9 +101,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
         controllerChange.release();
 
         // Start cluster monitor.
-        synchronized (lock) {
-            pravegaServiceCluster = new ClusterZKImpl(client, ClusterType.CONTROLLER);
-        }
+        Cluster pravegaServiceCluster = new ClusterZKImpl(client, ClusterType.CONTROLLER);
 
         // Add listener to track controller changes on the monitored pravega cluster.
         pravegaServiceCluster.addListener((type, controller) -> {
@@ -146,24 +139,20 @@ public class BucketManagerLeader implements LeaderSelectorListener {
                 // Clear all events that has been received until this point since this will be included in the current
                 // distribution operation.
                 controllerChange.reset();
-                triggerDistribution();
+                triggerDistribution(pravegaServiceCluster);
             } catch (InterruptedException e) {
                 log.warn("{}: Leadership interrupted, releasing monitor thread.", serviceType);
                 Thread.currentThread().interrupt();
                 // Stop watching the pravega cluster.
-                synchronized (lock) {
-                    pravegaServiceCluster.close();
-                }
+                pravegaServiceCluster.close();
+
                 throw e;
             } catch (Exception e) {
                 // We will not release leadership if in suspended mode.
                 if (!suspended.get()) {
                     log.warn("{}: Failed to perform distribution, relinquishing leadership.", serviceType);
-
                     // Stop watching the pravega cluster.
-                    synchronized (lock) {
-                        pravegaServiceCluster.close();
-                    }
+                    pravegaServiceCluster.close();
                     throw e;
                 }
             }
@@ -187,16 +176,16 @@ public class BucketManagerLeader implements LeaderSelectorListener {
      * This method will distribute the bucket among available controller instances and update the bucket to controller
      * mapping on the znode path. Using this znode path all controller instances can fetch the controller to bucket
      * mapping.
+     * @param pravegaServiceCluster Cluster having the controllers information.
+     *
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    private void triggerDistribution() throws ExecutionException, InterruptedException {
+    private void triggerDistribution(final Cluster pravegaServiceCluster) throws ExecutionException, InterruptedException {
         //Get current controller instances.
-        Set<String> currentControllers;
-        synchronized (lock) {
-            currentControllers = pravegaServiceCluster.getClusterMembers().stream().map(controller ->
+        Set<String> currentControllers = pravegaServiceCluster.getClusterMembers().stream().map(controller ->
                     controller.getHostId()).collect(Collectors.toSet());
-        }
+
         //Read the current mapping from the bucket store and write back the update after distribution.
         bucketStore.getBucketControllerMap(serviceType)
                    .thenApply(currentControllerMapping -> bucketDistributor.distribute(currentControllerMapping,
