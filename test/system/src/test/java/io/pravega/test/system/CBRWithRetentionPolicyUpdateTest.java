@@ -25,7 +25,6 @@ import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
@@ -51,7 +50,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -209,7 +207,7 @@ public class CBRWithRetentionPolicyUpdateTest extends AbstractReadWriteTest {
         readerGroup1.resetReaderGroup(readerGroupConfig);
         readerGroupRetentionType = controller.getReaderGroupConfig(SCOPE, READER_GROUP_1).join().getRetentionType();
         assertEquals(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT, readerGroupRetentionType);
-        assertEquals(1, controller.listSubscribers(SCOPE, STREAM).join());
+        assertEquals(1, controller.listSubscribers(SCOPE, STREAM).join().size());
 
         // Recreates the reader
         reader1 = clientFactory.createReader(READER_GROUP_1 + "-" + 1, READER_GROUP_1, new JavaSerializer<>(),
