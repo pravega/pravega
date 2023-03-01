@@ -65,7 +65,7 @@ public interface RevisionedStreamClient<T> extends AutoCloseable {
      * @throws TruncatedDataException If the data at start no longer exists because it has been
      *             truncated. IE: It is below {@link #fetchOldestRevision()}
      */
-    public Iterator<Entry<Revision, T>> readRange(Revision startRevision, Revision endRevision);
+    public Iterator<Entry<Revision, T>> readRange(Revision startRevision, Revision endRevision) throws TruncatedDataException;
     /**
      * If the supplied revision is the latest revision in the stream write the provided value and return the new revision.
      * If the supplied revision is not the latest, nothing will occur and null will be returned.

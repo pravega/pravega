@@ -157,12 +157,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             long startOffset = startRevision.asImpl().getOffsetInSegment();
             SegmentInfo segmentInfo = Futures.getThrowingException(meta.getSegmentInfo());
             long endOffset = endRevision.asImpl().getOffsetInSegment();
-            long writeOffset = segmentInfo.getWriteOffset();
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", startRevision, segmentInfo));
-            }
-            if (endOffset > writeOffset) {
-                throw new IllegalStateException("endOffset: " + endOffset + " is grater than currentWriteOffset: " +  writeOffset);
             }
             if (startOffset == endOffset) {
                 log.debug("No new updates to be read from revision {}", endRevision);
