@@ -160,13 +160,6 @@ public class ZooKeeperBucketManager extends BucketManager {
         } catch (Exception e) {
             throw StoreException.create(StoreException.Type.UNKNOWN, e, "Unable to start node cache listener.");
         }
-        manageBuckets().whenComplete((r, e) -> {
-            if (e == null) {
-                log.debug("{}: Manage buckets completed successfully.", getServiceType());
-            } else {
-                log.error("{}: Manage buckets completes with exception.", getServiceType(), e);
-            }
-        });
     }
 
     @Override
