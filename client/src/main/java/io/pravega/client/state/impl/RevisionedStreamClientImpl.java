@@ -149,6 +149,31 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             return new StreamIterator(startOffset, endOffset);
         }
     }
+
+    @Override
+    public Iterator<Entry<Revision, T>> readRange(Revision startRevision, Revision endRevision) {
+        log.trace("Read segment {} from revision {} to revision {}", segment, startRevision, endRevision);
+        synchronized (lock) {
+            long startOffset = startRevision.asImpl().getOffsetInSegment();
+            SegmentInfo segmentInfo = Futures.getThrowingException(meta.getSegmentInfo());
+            long endOffset = endRevision.asImpl().getOffsetInSegment();
+            long writeOffset = segmentInfo.getWriteOffset();
+            if (startOffset < segmentInfo.getStartingOffset()) {
+                throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", startRevision, segmentInfo));
+            }
+            if (endOffset > writeOffset) {
+                throw new IllegalStateException("endOffset: " + endOffset + " is grater than currentWriteOffset: " +  writeOffset);
+            }
+            if (startOffset == endOffset) {
+                log.debug("No new updates to be read from revision {}", endRevision);
+            }
+            if (startOffset > endOffset) {
+                throw new IllegalStateException("startOffset: " + startOffset + " is grater than endOffset: " +  endOffset);
+            }
+            log.debug("Creating iterator from {} until {} for segment {} ", startOffset, endOffset, segment);
+            return new StreamIterator(startOffset, endOffset);
+        }
+    }
     
     @Override
     public Revision fetchLatestRevision() {
