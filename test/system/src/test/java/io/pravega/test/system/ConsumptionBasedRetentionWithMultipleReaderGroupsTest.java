@@ -317,6 +317,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                 .disableAutomaticCheckpoints().stream(Stream.of(SCOPE_1, STREAM_1)).build();
 
         assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(READER_GROUP_3, readerGroupConfig));
+        assertEquals(1, controller.listSubscribers(SCOPE_1, STREAM_1).join().size());
 
         @Cleanup
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP_3);
