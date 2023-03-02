@@ -156,7 +156,7 @@ public class SynchronizerTest {
                 private int endPos = endRevision.asImpl().getEventAtOffset();
                 @Override
                 public Entry<Revision, UpdateOrInit<RevisionedImpl>> next() {
-                    if(!hasNext()) {
+                    if (!hasNext()) {
                         throw new NoSuchElementException();
                     }
                     UpdateOrInit<RevisionedImpl> value;

@@ -131,6 +131,7 @@ public class RevisionedStreamClientTest {
         assertEquals("d", iter.next().getValue());
         assertFalse(iter.hasNext());
     }
+
     @Test
     public void testReadRange() throws Exception {
         String scope = "scope";
