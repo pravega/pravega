@@ -132,7 +132,7 @@ public class RevisionedStreamClientTest {
         assertFalse(iter.hasNext());
     }
     @Test
-    public void testReadrange() throws Exception {
+    public void testReadRange() throws Exception {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);

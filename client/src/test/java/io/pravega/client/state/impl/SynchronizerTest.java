@@ -48,6 +48,7 @@ import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -151,23 +152,27 @@ public class SynchronizerTest {
         @Override
         public Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> readRange(Revision startRevision, Revision endRevision) {
             return new Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>>() {
-                private int pos = startRevision.asImpl().getEventAtOffset();
+                private int startPos = startRevision.asImpl().getEventAtOffset();
+                private int endPos = endRevision.asImpl().getEventAtOffset();
                 @Override
                 public Entry<Revision, UpdateOrInit<RevisionedImpl>> next() {
+                    if(!hasNext()) {
+                        throw new NoSuchElementException();
+                    }
                     UpdateOrInit<RevisionedImpl> value;
-                    RevisionImpl revision = new RevisionImpl(segment, pos, pos);
-                    if (pos == 0) {
+                    RevisionImpl revision = new RevisionImpl(segment, startPos, startPos);
+                    if (startPos == 0) {
                         value = new UpdateOrInit<>(init);
                     } else {
-                        value = new UpdateOrInit<>(Collections.singletonList(updates[pos - 1]));
+                        value = new UpdateOrInit<>(Collections.singletonList(updates[startPos - 1]));
                     }
-                    pos++;
+                    startPos++;
                     return new AbstractMap.SimpleImmutableEntry<>(revision, value);
                 }
 
                 @Override
                 public boolean hasNext() {
-                    return pos <= visableLength;
+                    return startPos <= endPos;
                 }
             };
         }
