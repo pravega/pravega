@@ -23,6 +23,7 @@ import io.pravega.common.security.JKSHelper;
 import io.pravega.common.security.ZKTLSUtils;
 import java.io.File;
 import java.io.IOException;
+import java.util.Random;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,6 +38,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.bookie.Bookie;
+import org.apache.bookkeeper.bookie.BookieException;
 import org.apache.bookkeeper.bookie.BookieImpl;
 import org.apache.bookkeeper.bookie.LedgerDirsManager;
 import org.apache.bookkeeper.bookie.LedgerStorage;
@@ -91,6 +93,8 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final HashMap<Integer, File> ledgerDirs = new HashMap<>();
     private final AtomicReference<Thread> cleanup = new AtomicReference<>();
 
+    private final int retries = 10;
+    private static final int MAX_PORT_COUNT = 28233;
     //endregion
 
     //region AutoCloseable Implementation
@@ -295,11 +299,36 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
         log.info("Starting Bookie at port " + bkPort);
         BookieResources resources = new ResourceBuilder(conf).build();
-        Bookie bookie = createBookie(resources);
+        Bookie bookie = getBookie(resources);
         val bs = new BookieServer(conf, bookie, org.apache.bookkeeper.stats.NullStatsLogger.INSTANCE, UnpooledByteBufAllocator.DEFAULT,
                 new UncleanShutdownDetectionImpl(resources.getLedgerDirsManager()));
         bs.start();
         return new BookieServerAndResources(bs, resources);
+    }
+
+    private Bookie getBookie(BookieResources resources) throws Exception {
+        int count = 1;
+        Bookie bookie = null;
+        while (count < retries) {
+            try {
+                log.info("GetBookie with retry value of :"+count);
+                bookie = createBookie(resources);
+                return bookie;
+            }
+            catch (Exception e) {
+                if (++count >= retries) {
+                    throw new BookieException(1) {
+                        @Override
+                        public String getMessage(int code) {
+                            return super.getMessage(code);
+                        }
+                    };
+                } else {
+                    resources.getConf().setBookiePort(new Random().nextInt(MAX_PORT_COUNT));
+                }
+            }
+        }
+        return bookie;
     }
 
     private Bookie createBookie(BookieResources resources) throws Exception {
