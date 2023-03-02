@@ -58,7 +58,6 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -316,7 +315,6 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                 .builder()
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .disableAutomaticCheckpoints().stream(Stream.of(SCOPE_1, STREAM_1)).build();
-        readerGroupConfig = ReaderGroupConfig.cloneConfig(readerGroupConfig, UUID.randomUUID(), 0L);
 
         assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(READER_GROUP_3, readerGroupConfig));
 
