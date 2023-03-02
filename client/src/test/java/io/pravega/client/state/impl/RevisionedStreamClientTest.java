@@ -160,8 +160,10 @@ public class RevisionedStreamClientTest {
         assertEquals("a", iterA.next().getValue());
         assertEquals("b", iterA.next().getValue());
         assertThrows(NoSuchElementException.class, () -> iterA.next().getValue());
+        // Will return an empty Entry for the same revision
         Iterator<Entry<Revision, String>> iterB = client.readRange(r0, r0);
         assertFalse(iterB.hasNext());
+        // Checking the condition when endRevision is passed at the place of the startRevision
         assertThrows(IllegalStateException.class, () -> client.readRange(rb, r0));
     }
 
