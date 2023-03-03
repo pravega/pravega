@@ -166,11 +166,11 @@ public class RevisionedStreamClientTest {
         assertFalse(iterB.hasNext());
         // Checking the condition when endRevision is passed at the place of the startRevision
         assertThrows(IllegalStateException.class, () -> client.readRange(rb, r0));
-        // Validating the case when stream already truncated and start revision didn't exist.   
+        // Validating the case when stream already truncated and start revision didn't exist.
         Revision rc = client.fetchLatestRevision();
         client.truncateToRevision(rb);
         assertEquals(rb, client.fetchOldestRevision());
-        assertThrows(TruncatedDataException.class, () -> client.readRange(ra , rc));
+        assertThrows(TruncatedDataException.class, () -> client.readRange(ra, rc));
     }
 
 
