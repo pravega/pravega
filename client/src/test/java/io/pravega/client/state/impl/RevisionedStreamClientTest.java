@@ -152,6 +152,7 @@ public class RevisionedStreamClientTest {
 
         Revision r0 = client.fetchOldestRevision();
         client.writeUnconditionally("a");
+        Revision ra = client.fetchLatestRevision();
         client.writeUnconditionally("b");
         Revision rb = client.fetchLatestRevision();
         client.writeUnconditionally("c");
@@ -165,6 +166,11 @@ public class RevisionedStreamClientTest {
         assertFalse(iterB.hasNext());
         // Checking the condition when endRevision is passed at the place of the startRevision
         assertThrows(IllegalStateException.class, () -> client.readRange(rb, r0));
+        // Validating the case when stream already truncated and start revision didn't exist.   
+        Revision rc = client.fetchLatestRevision();
+        client.truncateToRevision(rb);
+        assertEquals(rb, client.fetchOldestRevision());
+        assertThrows(TruncatedDataException.class, () -> client.readRange(ra , rc));
     }
 
 
