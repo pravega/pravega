@@ -23,6 +23,7 @@ import io.pravega.common.security.JKSHelper;
 import io.pravega.common.security.ZKTLSUtils;
 import java.io.File;
 import java.io.IOException;
+import java.net.BindException;
 import java.util.Random;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -77,6 +78,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public static final String PROPERTY_LEDGERS_DIR = "ledgersDir"; // File System path to store ledger data.
 
     private static final String LOOPBACK_ADDRESS = "127.0.0.1";
+    private static final int MAX_PORT_COUNT = 28233;
     private final boolean startZk;
     private final int zkPort;
     private final String ledgersPath;
@@ -94,7 +96,6 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final AtomicReference<Thread> cleanup = new AtomicReference<>();
 
     private final int retries = 10;
-    private static final int MAX_PORT_COUNT = 28233;
     //endregion
 
     //region AutoCloseable Implementation
@@ -299,24 +300,16 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
         log.info("Starting Bookie at port " + bkPort);
         BookieResources resources = new ResourceBuilder(conf).build();
-        Bookie bookie = getBookie(resources);
+        Bookie bookie = createBookie(resources);
         val bs = new BookieServer(conf, bookie, org.apache.bookkeeper.stats.NullStatsLogger.INSTANCE, UnpooledByteBufAllocator.DEFAULT,
                 new UncleanShutdownDetectionImpl(resources.getLedgerDirsManager()));
-        bs.start();
-        return new BookieServerAndResources(bs, resources);
-    }
-
-    private Bookie getBookie(BookieResources resources) throws Exception {
-        int count = 1;
-        Bookie bookie = null;
+        int count = 0;
         while (count < retries) {
             try {
-                log.info("GetBookie with retry value of :"+count);
-                bookie = createBookie(resources);
-                return bookie;
-            }
-            catch (Exception e) {
-                if (++count >= retries) {
+                log.info("Starting bookie with retry value of :" + count);
+                bs.start();
+            } catch (BindException e) {
+                if ( ++count >= retries ) {
                     throw new BookieException(1) {
                         @Override
                         public String getMessage(int code) {
@@ -328,7 +321,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
                 }
             }
         }
-        return bookie;
+        return new BookieServerAndResources(bs, resources);
     }
 
     private Bookie createBookie(BookieResources resources) throws Exception {
