@@ -263,8 +263,8 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     }
 
     private BookieServerAndResources runBookieWithRetry(int bkPort) throws Exception {
-        int count =0;
-        boolean retry =true;
+        int count = 0;
+        boolean retry = true;
         BookieServerAndResources bookieServerAndResources = null;
         while (count < retries && retry) {
             try {
