@@ -258,8 +258,35 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private void runBookies() throws Exception {
         log.info("Starting Bookie(s) ...");
         for (int bkPort : this.bookiePorts) {
-            this.servers.add(runBookie(bkPort));
+            this.servers.add(runBookieWithRetry(bkPort));
         }
+    }
+
+    private BookieServerAndResources runBookieWithRetry(int bkPort) throws Exception {
+        int count =0;
+        boolean retry =true;
+        BookieServerAndResources bookieServerAndResources = null;
+        while (count < retries && retry) {
+            try {
+                log.info("Starting bookie with retry value of :" + count);
+                bookieServerAndResources = runBookie(bkPort);
+                retry = false;
+            } catch (BindException e) {
+                if ( ++count >= retries ) {
+                    e.printStackTrace();
+                    throw new BookieException(1) {
+                        @Override
+                        public String getMessage(int code) {
+                            return super.getMessage(code);
+                        }
+                    };
+                } else {
+                    bkPort = new Random().nextInt(MAX_PORT_COUNT);
+                    log.info("New port to start the test: " + bkPort);
+                }
+            }
+        }
+        return bookieServerAndResources;
     }
 
     private BookieServerAndResources runBookie(int bkPort) throws Exception {
@@ -303,24 +330,8 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         Bookie bookie = createBookie(resources);
         val bs = new BookieServer(conf, bookie, org.apache.bookkeeper.stats.NullStatsLogger.INSTANCE, UnpooledByteBufAllocator.DEFAULT,
                 new UncleanShutdownDetectionImpl(resources.getLedgerDirsManager()));
-        int count = 0;
-        while (count < retries) {
-            try {
-                log.info("Starting bookie with retry value of :" + count);
-                bs.start();
-            } catch (BindException e) {
-                if ( ++count >= retries ) {
-                    throw new BookieException(1) {
-                        @Override
-                        public String getMessage(int code) {
-                            return super.getMessage(code);
-                        }
-                    };
-                } else {
-                    resources.getConf().setBookiePort(new Random().nextInt(MAX_PORT_COUNT));
-                }
-            }
-        }
+        bs.start();
+
         return new BookieServerAndResources(bs, resources);
     }
 
