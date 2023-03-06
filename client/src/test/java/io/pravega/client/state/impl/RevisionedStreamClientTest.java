@@ -132,7 +132,7 @@ public class RevisionedStreamClientTest {
         assertFalse(iter.hasNext());
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void testReadRange() throws Exception {
         String scope = "scope";
         String stream = "stream";
