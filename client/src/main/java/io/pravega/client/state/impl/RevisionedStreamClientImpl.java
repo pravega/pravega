@@ -16,6 +16,7 @@
 package io.pravega.client.state.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
@@ -152,6 +153,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public Iterator<Entry<Revision, T>> readRange(Revision startRevision, Revision endRevision) {
+        Preconditions.checkNotNull(startRevision);
+        Preconditions.checkNotNull(endRevision);
         log.trace("Read segment {} from revision {} to revision {}", segment, startRevision, endRevision);
         synchronized (lock) {
             long startOffset = startRevision.asImpl().getOffsetInSegment();
@@ -161,7 +164,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", startRevision, segmentInfo));
             }
             if (startOffset == endOffset) {
-                log.debug("No new updates to be read from revision {}", endRevision);
+                log.debug("No new updates to be read from revision {}", startOffset);
             }
             if (startOffset > endOffset) {
                 throw new IllegalStateException("startOffset: " + startOffset + " is grater than endOffset: " +  endOffset);
