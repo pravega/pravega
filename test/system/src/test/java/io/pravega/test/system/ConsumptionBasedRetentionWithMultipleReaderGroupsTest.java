@@ -83,7 +83,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private static final int MIN_SIZE_IN_STREAM = 90;
     private static final ScalingPolicy SCALING_POLICY = ScalingPolicy.fixed(1);
     private static final RetentionPolicy RETENTION_POLICY_BY_SIZE = RetentionPolicy.bySizeBytes(MIN_SIZE_IN_STREAM, MAX_SIZE_IN_STREAM);
-    private static final StreamConfiguration streamConfiguration = StreamConfiguration.builder().scalingPolicy(SCALING_POLICY).retentionPolicy(RETENTION_POLICY_BY_SIZE).build();
+    private static final StreamConfiguration STREAM_CONFIGURATION = StreamConfiguration.builder().scalingPolicy(SCALING_POLICY).retentionPolicy(RETENTION_POLICY_BY_SIZE).build();
     private static final ReaderGroupConfig READER_GROUP_CONFIG = ReaderGroupConfig.builder()
                                                                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                                                                 .disableAutomaticCheckpoints()
@@ -135,7 +135,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     @Test
     public void multipleSubscriberCBRTest() throws Exception {
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
-        createScopeAndStream(SCOPE, STREAM, streamConfiguration);
+        createScopeAndStream(SCOPE, STREAM, STREAM_CONFIGURATION);
 
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
@@ -234,10 +234,11 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                 5000, 3 * 60 * 1000L);
 
     }
+
     @Test
     public void updateRetentionPolicyForCBRTest() throws Exception {
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
-        createScopeAndStream(SCOPE_1, STREAM_1, streamConfiguration);
+        createScopeAndStream(SCOPE_1, STREAM_1, STREAM_CONFIGURATION);
 
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE_1, clientConfig);
@@ -336,22 +337,19 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                 5000, 3 * 60 * 1000L);
     }
 
-    private void createScopeAndStream(String scope, String stream, StreamConfiguration streamConfiguration)
-    {
+    private void createScopeAndStream(String scope, String stream, StreamConfiguration streamConfiguration) {
         assertTrue("Creating scope", streamManager.createScope(scope));
         assertTrue("Creating stream", streamManager.createStream(scope, stream, streamConfiguration));
     }
 
-    private void writingEventsToStream(int numberOfEvents, EventStreamWriter<String> writer, String scope, String stream)
-    {
+    private void writingEventsToStream(int numberOfEvents, EventStreamWriter<String> writer, String scope, String stream) {
         for (int i = 0; i < numberOfEvents; i++) {
             log.info("Writing event to {}/{}", scope, stream);
             writer.writeEvent(SIZE_30_EVENT).join();
         }
     }
 
-    private void readingEventsFromStream(int numberOfEvents, EventStreamReader<String> reader)
-    {
+    private void readingEventsFromStream(int numberOfEvents, EventStreamReader<String> reader) {
         EventRead<String> read;
         for (int i = 0; i < numberOfEvents; i++) {
             read = reader.readNextEvent(READ_TIMEOUT);
@@ -359,8 +357,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         }
     }
 
-    private Map<Stream, StreamCut> generateStreamCuts(ReaderGroup readerGroup, EventStreamReader<String> reader)
-    {
+    private Map<Stream, StreamCut> generateStreamCuts(ReaderGroup readerGroup, EventStreamReader<String> reader) {
         CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(streamCutExecutor);
         // Wait for 5 seconds to force reader group state update. This will allow for the silent
         // checkpoint event generated as part of generateStreamCuts to be picked and processed.
