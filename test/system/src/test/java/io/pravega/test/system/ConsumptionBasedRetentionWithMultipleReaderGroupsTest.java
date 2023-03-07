@@ -137,7 +137,8 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     @Test
     public void multipleSubscriberCBRTest() throws Exception {
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
-        createScopeAndStream(SCOPE, STREAM, STREAM_CONFIGURATION);
+        assertTrue("Creating scope", streamManager.createScope(SCOPE));
+        assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, STREAM_CONFIGURATION));
 
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
@@ -241,8 +242,9 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     @Test
     public void updateRetentionPolicyForCBRTest() throws Exception {
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
-        createScopeAndStream(SCOPE_1, STREAM_1, STREAM_CONFIGURATION);
-        createScopeAndStream(SCOPE_1, STREAM_2, TIME_BASED_RETENTION_STREAM_CONFIGURATION);
+        assertTrue("Creating scope", streamManager.createScope(SCOPE_1));
+        assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM_1, STREAM_CONFIGURATION));
+        assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM_2, TIME_BASED_RETENTION_STREAM_CONFIGURATION));
 
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE_1, clientConfig);
@@ -380,10 +382,6 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                 new StreamImpl(SCOPE_1, STREAM_2), 0L).join().values().stream().anyMatch(off -> off == 390));
     }
 
-    private void createScopeAndStream(String scope, String stream, StreamConfiguration streamConfiguration) {
-        assertTrue("Creating scope", streamManager.createScope(scope));
-        assertTrue("Creating stream", streamManager.createStream(scope, stream, streamConfiguration));
-    }
 
     private void writingEventsToStream(int numberOfEvents, EventStreamWriter<String> writer, String scope, String stream) {
         for (int i = 0; i < numberOfEvents; i++) {
