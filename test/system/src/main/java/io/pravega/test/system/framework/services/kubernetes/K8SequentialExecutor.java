@@ -37,6 +37,8 @@ import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -145,8 +147,12 @@ public class K8SequentialExecutor implements TestExecutor {
                 ))
                 .restartPolicy("Never"));
         if (Utils.TLS_AND_AUTH_ENABLED) {
-            pod.getSpec().getVolumes().add(new V1Volume().name("tls-cert").secret(new V1SecretVolumeSource().secretName(Utils.TLS_SECRET_NAME)));
-            pod.getSpec().getContainers().get(0).addVolumeMountsItem(new V1VolumeMount().mountPath(Utils.TLS_MOUNT_PATH).name("tls-secret"));
+            List<V1Volume> volumes = new ArrayList<>(pod.getSpec().getVolumes());
+            volumes.add(new V1Volume().name("tls-cert").secret(new V1SecretVolumeSource().secretName(Utils.TLS_SECRET_NAME)));
+            pod.getSpec().setVolumes(volumes);
+            List<V1VolumeMount> volumeMounts = new ArrayList<>(pod.getSpec().getContainers().get(0).getVolumeMounts());
+            volumeMounts.add(new V1VolumeMount().mountPath(Utils.TLS_MOUNT_PATH).name("tls-cert"));
+            pod.getSpec().getContainers().get(0).setVolumeMounts(volumeMounts);
         }
         return pod;
     }
