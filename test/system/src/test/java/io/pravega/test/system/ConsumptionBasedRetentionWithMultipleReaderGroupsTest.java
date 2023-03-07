@@ -261,38 +261,38 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_1, clientConfig);
         ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(SCOPE_1, STREAM_1, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
-        ReaderGroupConfig readerGroupConfig_2 = getReaderGroupConfig(SCOPE_1, STREAM_2, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
+        ReaderGroupConfig readerGroupConfig2 = getReaderGroupConfig(SCOPE_1, STREAM_2, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
 
         assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(READER_GROUP_3, readerGroupConfig));
-        assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(READER_GROUP_4, readerGroupConfig_2));
+        assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(READER_GROUP_4, readerGroupConfig2));
         assertEquals(1, controller.listSubscribers(SCOPE_1, STREAM_1).join().size());
         assertEquals(1, controller.listSubscribers(SCOPE_1, STREAM_2).join().size());
 
         @Cleanup
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP_3);
         @Cleanup
-        ReaderGroup readerGroup_2 = readerGroupManager.getReaderGroup(READER_GROUP_4);
+        ReaderGroup readerGroup2 = readerGroupManager.getReaderGroup(READER_GROUP_4);
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(READER_GROUP_3 + "-" + 1,
                 READER_GROUP_3, new JavaSerializer<>(), readerConfig);
         @Cleanup
-        EventStreamReader<String> reader_2 = clientFactory.createReader(READER_GROUP_4 + "-" + 1,
+        EventStreamReader<String> reader2 = clientFactory.createReader(READER_GROUP_4 + "-" + 1,
                 READER_GROUP_4, new JavaSerializer<>(), readerConfig);
 
         // Read three events with reader.
         readingEventsFromStream(3, reader);
-        // Read five events with reader_2.
-        readingEventsFromStream(5, reader_2);
+        // Read five events with reader2.
+        readingEventsFromStream(5, reader2);
 
         log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_3, SCOPE_1, STREAM_1);
         Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup, reader);
         log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_4, SCOPE_1, STREAM_2);
-        Map<Stream, StreamCut> streamCuts_2 = generateStreamCuts(readerGroup_2, reader_2);
+        Map<Stream, StreamCut> streamCuts2 = generateStreamCuts(readerGroup2, reader2);
 
         log.info("{} updating its retention stream-cut to {}", READER_GROUP_3, streamCuts);
         readerGroup.updateRetentionStreamCut(streamCuts);
-        log.info("{} updating its retention stream-cut to {}", READER_GROUP_4, streamCuts_2);
-        readerGroup_2.updateRetentionStreamCut(streamCuts_2);
+        log.info("{} updating its retention stream-cut to {}", READER_GROUP_4, streamCuts2);
+        readerGroup2.updateRetentionStreamCut(streamCuts2);
 
         // Retention set has one stream cut at 0/210
         // READER_GROUP_3 updated stream cut at 0/90
@@ -308,10 +308,10 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                 new StreamImpl(SCOPE_1, STREAM_2), 0L).join().values().stream().anyMatch(off -> off == 0));
 
         ReaderGroupConfig nonSubscriberReaderGroupConfig = getReaderGroupConfig(SCOPE_1, STREAM_1, ReaderGroupConfig.StreamDataRetention.NONE);
-        ReaderGroupConfig nonSubscriberReaderGroupConfig_2 = getReaderGroupConfig(SCOPE_1, STREAM_2, ReaderGroupConfig.StreamDataRetention.NONE);
+        ReaderGroupConfig nonSubscriberReaderGroupConfig2 = getReaderGroupConfig(SCOPE_1, STREAM_2, ReaderGroupConfig.StreamDataRetention.NONE);
         //Changing the readergroup from subscriber to non-subscriber
         readerGroup.resetReaderGroup(nonSubscriberReaderGroupConfig);
-        readerGroup_2.resetReaderGroup(nonSubscriberReaderGroupConfig_2);
+        readerGroup2.resetReaderGroup(nonSubscriberReaderGroupConfig2);
         assertEquals(0, controller.listSubscribers(SCOPE_1, STREAM_1).join().size());
         assertEquals(0, controller.listSubscribers(SCOPE_1, STREAM_2).join().size());
 
@@ -334,14 +334,14 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
         //Changing the readergroup from non-subscriber to subscriber again
         readerGroup.resetReaderGroup(readerGroupConfig);
-        readerGroup_2.resetReaderGroup(readerGroupConfig_2);
+        readerGroup2.resetReaderGroup(readerGroupConfig2);
         assertEquals(1, controller.listSubscribers(SCOPE_1, STREAM_1).join().size());
         assertEquals(1, controller.listSubscribers(SCOPE_1, STREAM_2).join().size());
 
         // Recreates the reader
         reader = clientFactory.createReader(READER_GROUP_3 + "-" + 1, READER_GROUP_3, new JavaSerializer<>(),
                 ReaderConfig.builder().build());
-        reader_2 = clientFactory.createReader(READER_GROUP_4 + "-" + 1, READER_GROUP_4, new JavaSerializer<>(),
+        reader2 = clientFactory.createReader(READER_GROUP_4 + "-" + 1, READER_GROUP_4, new JavaSerializer<>(),
                 ReaderConfig.builder().build());
 
         // fill stream with 3 events
@@ -351,7 +351,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
         //Read 3 events with reader from the segment offset
         readingEventsFromStream(3, reader);
-        readingEventsFromStream(3, reader_2);
+        readingEventsFromStream(3, reader2);
 
         log.info("{} generating 2nd stream-cuts for {}/{}", READER_GROUP_3, SCOPE_1, STREAM_1);
         streamCuts = generateStreamCuts(readerGroup, reader);
@@ -359,9 +359,9 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         readerGroup.updateRetentionStreamCut(streamCuts);
 
         log.info("{} generating 2nd stream-cuts for {}/{}", READER_GROUP_4, SCOPE_1, STREAM_2);
-        streamCuts_2 = generateStreamCuts(readerGroup_2, reader_2);
-        log.info("{} updating its retention stream-cut to {}", READER_GROUP_4, streamCuts_2);
-        readerGroup_2.updateRetentionStreamCut(streamCuts_2);
+        streamCuts2 = generateStreamCuts(readerGroup2, reader2);
+        log.info("{} updating its retention stream-cut to {}", READER_GROUP_4, streamCuts2);
+        readerGroup2.updateRetentionStreamCut(streamCuts2);
 
         // Retention set has two stream cut at 0/360, 0/450
         // READER_GROUP_3 updated stream cut at 0/300, Subscriber lower bound is 0/300
