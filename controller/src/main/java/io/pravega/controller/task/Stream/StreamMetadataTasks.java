@@ -120,6 +120,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -144,6 +145,14 @@ public class StreamMetadataTasks extends TaskBase {
     private static final int SCOPE_DELETION_MAX_RETRIES = 10;
     private static final long READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES = 4 * 1024 * 1024; // 4MB
     private final AtomicLong retentionFrequencyMillis;
+
+    private boolean GLOBAL_RETENTION_POLICY = false;
+
+    private String RETENTION_TYPE = null;
+
+    private int MIN_RETENTION_VALUE = 0;
+
+    private int MAX_RETENTION_VALUE = 0;
 
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
@@ -204,6 +213,10 @@ public class StreamMetadataTasks extends TaskBase {
         this.retentionFrequencyMillis = new AtomicLong(Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis());
         this.retentionClock = new AtomicReference<>(System::currentTimeMillis);
         this.eventHelperFuture = new CompletableFuture<>();
+        this.MIN_RETENTION_VALUE = Config.RETENTION_MIN_VALUE;
+        this.MAX_RETENTION_VALUE = Config.RETENTION_MAX_VALUE;
+        this.GLOBAL_RETENTION_POLICY = Config.GLOBAL_RETENTION_POLICY;
+        this.RETENTION_TYPE = Config.RETENTION_TYPE;
         this.setReady();
     }
 
@@ -775,11 +788,36 @@ public class StreamMetadataTasks extends TaskBase {
                                                                      long createTimestamp, long requestId) {
         log.debug(requestId, "createStream with resource called.");
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
+        if (config.getRetentionPolicy()==null && this.GLOBAL_RETENTION_POLICY) {
+            createRetentionPolicy(config);
+        }
 
-            return execute(
+        return execute(
                     new Resource(scope, stream),
                     new Serializable[]{scope, stream, config, createTimestamp, requestId},
                     () -> createStreamBody(scope, stream, config, createTimestamp, context));
+    }
+
+    private void createRetentionPolicy(StreamConfiguration config) {
+        Preconditions.checkArgument(this.MAX_RETENTION_VALUE > 0, "Max retention value must be > 0.");
+        RetentionPolicy retentionPolicy = null;
+        if (this.RETENTION_TYPE.equalsIgnoreCase("time")) {
+            if (this.MIN_RETENTION_VALUE > 0) {
+                retentionPolicy = RetentionPolicy.builder()
+                        .retentionType(RetentionPolicy.RetentionType.TIME)
+                        .retentionParam(this.MIN_RETENTION_VALUE)
+                        .retentionMax(this.MAX_RETENTION_VALUE).build();
+            } else {
+                retentionPolicy = RetentionPolicy.builder()
+                        .retentionType(RetentionPolicy.RetentionType.TIME)
+                        .retentionMax(this.MAX_RETENTION_VALUE).build();
+            }
+        } else if (this.RETENTION_TYPE.equalsIgnoreCase("size")) {
+            retentionPolicy = RetentionPolicy.builder()
+                    .retentionType(RetentionPolicy.RetentionType.SIZE)
+                    .retentionMax(this.MAX_RETENTION_VALUE).build();
+        }
+        config.toBuilder().retentionPolicy(retentionPolicy).build();
     }
 
     /**
