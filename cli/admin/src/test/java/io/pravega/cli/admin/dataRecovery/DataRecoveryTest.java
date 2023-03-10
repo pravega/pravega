@@ -64,7 +64,6 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.utils.LocalServiceStarter;
 import lombok.Cleanup;
 import lombok.NonNull;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.io.FileUtils;
@@ -91,8 +90,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,10 +97,10 @@ import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.apache.commons.io.FileUtils.copyFile;
 
 /**
  * Tests Data recovery commands.
@@ -1691,11 +1688,11 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                     .collect(Collectors.toList());
         }
         //copy to {metadataChunksDir}
-        for( Path path : filtered ){
+        for ( Path path : filtered ) {
             FileUtils.copyFileToDirectory(path.toFile(), metadataChunksDir);
         }
         // Command under test
-//        TestUtils.executeCommand("data-recovery recover-from-storage " + this.baseDir.getAbsolutePath() + "/_system/containers" + " all", STATE.get());
+        //TestUtils.executeCommand("data-recovery recover-from-storage " + this.baseDir.getAbsolutePath() + "/_system/containers" + " all", STATE.get());
         TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + " all", STATE.get());
 
         // Start a new segment store and controller
