@@ -18,6 +18,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.netty.buffer.UnpooledByteBufAllocator;
+import io.pravega.common.Exceptions;
 import io.pravega.common.io.filesystem.FileOperations;
 import io.pravega.common.security.JKSHelper;
 import io.pravega.common.security.ZKTLSUtils;
@@ -50,13 +51,18 @@ import org.apache.bookkeeper.meta.LedgerManager;
 import org.apache.bookkeeper.meta.LedgerManagerFactory;
 import org.apache.bookkeeper.meta.MetadataBookieDriver;
 import org.apache.bookkeeper.meta.NullMetadataBookieDriver;
+import org.apache.bookkeeper.meta.exceptions.MetadataException;
 import org.apache.bookkeeper.proto.BookieServer;
 import org.apache.bookkeeper.proto.SimpleBookieServiceInfoProvider;
+import org.apache.bookkeeper.replication.ReplicationException;
 import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.tls.SecurityException;
 import org.apache.bookkeeper.util.DiskChecker;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
+import org.apache.commons.configuration.ConfigurationException;
 import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.ZooDefs;
 
 /**
@@ -255,14 +261,14 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         zkc.create(znodePath.toString(), new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
     }
 
-    private void runBookies() throws Exception {
+    private void runBookies() throws IOException {
         log.info("Starting Bookie(s) ...");
         for (int bkPort : this.bookiePorts) {
             this.servers.add(runBookieWithRetry(bkPort));
         }
     }
 
-    private BookieServerAndResources runBookieWithRetry(int bkPort) throws Exception {
+    private BookieServerAndResources runBookieWithRetry(int bkPort) throws IOException {
         int count = 0;
         boolean retry = true;
         BookieServerAndResources bookieServerAndResources = null;
@@ -273,13 +279,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
                 retry = false;
             } catch (BindException e) {
                 if ( ++count >= retries ) {
-                    e.printStackTrace();
-                    throw new BookieException(1) {
-                        @Override
-                        public String getMessage(int code) {
-                            return super.getMessage(code);
-                        }
-                    };
+                    throw new RuntimeException(e);
                 } else {
                     bkPort = new Random().nextInt(MAX_PORT_COUNT);
                     log.info("New port to start the test: " + bkPort);
@@ -289,7 +289,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         return bookieServerAndResources;
     }
 
-    private BookieServerAndResources runBookie(int bkPort) throws Exception {
+    private BookieServerAndResources runBookie(int bkPort) throws IOException {
         // Attempt to reuse an existing data directory. This is useful in case of stops & restarts, when we want to preserve
         // already committed data.
         File journalDir = this.journalDirs.getOrDefault(bkPort, null);
@@ -326,25 +326,37 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         }
 
         log.info("Starting Bookie at port " + bkPort);
-        BookieResources resources = new ResourceBuilder(conf).build();
-        Bookie bookie = createBookie(resources);
-        val bs = new BookieServer(conf, bookie, org.apache.bookkeeper.stats.NullStatsLogger.INSTANCE, UnpooledByteBufAllocator.DEFAULT,
-                new UncleanShutdownDetectionImpl(resources.getLedgerDirsManager()));
-        bs.start();
-
-        return new BookieServerAndResources(bs, resources);
+        BookieResources resources = null;
+        resources = new ResourceBuilder(conf).build();
+        Bookie bookie = null;
+        bookie = createBookie(resources);
+        BookieServer bs = null;
+        try {
+            bs = new BookieServer(conf, bookie, NullStatsLogger.INSTANCE, UnpooledByteBufAllocator.DEFAULT,
+                    new UncleanShutdownDetectionImpl(resources.getLedgerDirsManager()));
+        } catch (SecurityException | InterruptedException | BookieException | KeeperException |
+                 ReplicationException.CompatibilityException | ReplicationException.UnavailableException e) {
+            throw new RuntimeException(e);
+        }
+        BookieServer finalBs = bs;
+        Exceptions.handleInterrupted( () -> finalBs.start());
+        return new BookieServerAndResources(finalBs, resources);
     }
 
-    private Bookie createBookie(BookieResources resources) throws Exception {
-        return new BookieImpl(resources.conf,
-                resources.registrationManager,
-                resources.storage,
-                resources.diskChecker,
-                resources.ledgerDirsManager,
-                resources.indexDirsManager,
-                NullStatsLogger.INSTANCE,
-                UnpooledByteBufAllocator.DEFAULT,
-                new SimpleBookieServiceInfoProvider(resources.conf));
+    private Bookie createBookie(BookieResources resources) {
+        try {
+            return new BookieImpl(resources.conf,
+                    resources.registrationManager,
+                    resources.storage,
+                    resources.diskChecker,
+                    resources.ledgerDirsManager,
+                    resources.indexDirsManager,
+                    NullStatsLogger.INSTANCE,
+                    UnpooledByteBufAllocator.DEFAULT,
+                    new SimpleBookieServiceInfoProvider(resources.conf));
+        } catch (IOException | InterruptedException | BookieException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void setupTempDir(File dir) throws IOException {
@@ -475,29 +487,55 @@ public class BookKeeperServiceRunner implements AutoCloseable {
             this.conf = conf;
         }
 
-        BookieResources build() throws Exception {
+        BookieResources build() {
             if (metadataBookieDriver == null) {
-                if (conf.getMetadataServiceUri() == null) {
-                    metadataBookieDriver = new NullMetadataBookieDriver();
-                } else {
-                    metadataBookieDriver = org.apache.bookkeeper.bookie.BookieResources.createMetadataDriver(conf, NullStatsLogger.INSTANCE);
+                try {
+                    if (conf.getMetadataServiceUri() == null) {
+                        metadataBookieDriver = new NullMetadataBookieDriver();
+                    } else {
+                        metadataBookieDriver = org.apache.bookkeeper.bookie.BookieResources.createMetadataDriver(conf, NullStatsLogger.INSTANCE);
+                    }
+                } catch (ConfigurationException e) {
+                    throw new RuntimeException(e);
+                } catch (BookieException e) {
+                    throw new RuntimeException(e);
                 }
             }
             if (registrationManager == null) {
                 registrationManager = metadataBookieDriver.createRegistrationManager();
             }
-            LedgerManagerFactory ledgerManagerFactory = metadataBookieDriver.getLedgerManagerFactory();
+            LedgerManagerFactory ledgerManagerFactory = null;
+            try {
+                ledgerManagerFactory = metadataBookieDriver.getLedgerManagerFactory();
+            } catch (MetadataException e) {
+                throw new RuntimeException(e);
+            }
             LedgerManager ledgerManager = ledgerManagerFactory.newLedgerManager();
 
             DiskChecker diskChecker = org.apache.bookkeeper.bookie.BookieResources.createDiskChecker(conf);
-            LedgerDirsManager ledgerDirsManager = org.apache.bookkeeper.bookie.BookieResources.createLedgerDirsManager(
-                    conf, diskChecker, NullStatsLogger.INSTANCE);
-            LedgerDirsManager indexDirsManager = org.apache.bookkeeper.bookie.BookieResources.createIndexDirsManager(
-                    conf, diskChecker, NullStatsLogger.INSTANCE, ledgerDirsManager);
+            LedgerDirsManager ledgerDirsManager = null;
+            try {
+                ledgerDirsManager = org.apache.bookkeeper.bookie.BookieResources.createLedgerDirsManager(
+                        conf, diskChecker, NullStatsLogger.INSTANCE);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            LedgerDirsManager indexDirsManager = null;
+            try {
+                indexDirsManager = org.apache.bookkeeper.bookie.BookieResources.createIndexDirsManager(
+                        conf, diskChecker, NullStatsLogger.INSTANCE, ledgerDirsManager);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
 
-            LedgerStorage storage = org.apache.bookkeeper.bookie.BookieResources.createLedgerStorage(
-                    conf, ledgerManager, ledgerDirsManager, indexDirsManager,
-                    NullStatsLogger.INSTANCE, UnpooledByteBufAllocator.DEFAULT);
+            LedgerStorage storage = null;
+            try {
+                storage = org.apache.bookkeeper.bookie.BookieResources.createLedgerStorage(
+                        conf, ledgerManager, ledgerDirsManager, indexDirsManager,
+                        NullStatsLogger.INSTANCE, UnpooledByteBufAllocator.DEFAULT);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
 
             return new BookieResources(conf,
                     metadataBookieDriver,
