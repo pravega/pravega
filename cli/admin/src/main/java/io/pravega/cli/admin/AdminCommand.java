@@ -49,6 +49,7 @@ import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewReaderInfo
 import io.pravega.cli.admin.dataRecovery.DurableLogInspectCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
 import io.pravega.cli.admin.dataRecovery.DurableDataLogRepairCommand;
+import io.pravega.cli.admin.dataRecovery.RecoverFromStorageCommand;
 import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
 import io.pravega.cli.admin.dataRecovery.TableSegmentRecoveryCommand;
 import io.pravega.cli.admin.password.PasswordFileCreatorCommand;
@@ -378,6 +379,7 @@ public abstract class AdminCommand {
                         .put(BookKeeperLogReconcileCommand::descriptor, BookKeeperLogReconcileCommand::new)
                         .put(BookKeeperListAllLedgersCommand::descriptor, BookKeeperListAllLedgersCommand::new)
                         .put(ContainerRecoverCommand::descriptor, ContainerRecoverCommand::new)
+                        .put(RecoverFromStorageCommand::descriptor, RecoverFromStorageCommand::new)
                         .put(ContainerContinuousRecoveryCommand::descriptor, ContainerContinuousRecoveryCommand::new)
                         .put(ControllerListScopesCommand::descriptor, ControllerListScopesCommand::new)
                         .put(ControllerDescribeScopeCommand::descriptor, ControllerDescribeScopeCommand::new)

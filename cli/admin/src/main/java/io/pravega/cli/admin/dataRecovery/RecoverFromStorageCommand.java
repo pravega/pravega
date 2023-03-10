@@ -71,6 +71,7 @@ import lombok.val;
 import org.apache.commons.lang.math.NumberUtils;
 
 import java.io.File;
+import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -141,7 +142,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      * A comparator to sort the segment chunks based on Epoch first and
      * then the offset.
      */
-    private static class FileComparator implements Comparator<File> {
+    private static class FileComparator implements Comparator<File>, Serializable {
         @Override
         public int compare(File f1, File f2) {
             String[] file1 = f1.getName().split(EPOCH_SPLITTER);
@@ -163,7 +164,9 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         String tableSegmentDataChunksPath = getArg(0);
         String container = getArg(1);
 
-        Preconditions.checkArgument(container.toLowerCase().equals("all"), "Container argument should either be ALL/all or a container id.");
+        if (!NumberUtils.isNumber(container)) {
+            Preconditions.checkArgument(container.toLowerCase().equals("all"), "Container argument should either be ALL/all or a container id.");
+        }
         @Cleanup
         Context context = createContext(executorService);
         @Cleanup
@@ -224,8 +227,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             if (firstRun) {
                 firstRun = !firstRun;
             }
-            for (String segment : metadataSegments.keySet()) {
-                List<File> chunks = metadataSegments.get(segment);
+            for (Map.Entry<String, List<File>> segmentEntries : metadataSegments.entrySet()) {
+                List<File> chunks = segmentEntries.getValue();
                 chunks.sort(new FileComparator());
                 setEpochforContainer(chunks.get(chunks.size() - 1), containerId, containersToEpoch);
                 if (chunks.get(0).getName().contains("storage")) {
@@ -298,7 +301,9 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
     private void deleteJournalsOf(int containerId) {
         File dir = new File(tier2Root + containersPath);
+        assert dir != null;
         File[] files = dir.listFiles();
+        assert files != null;
         for (File file : files) {
             if (file.getName().contains("container" + String.valueOf(containerId))) {
                 file.delete();
