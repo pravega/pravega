@@ -32,6 +32,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
@@ -41,6 +42,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ByteBufferSerializer;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.Insert;
@@ -52,28 +54,34 @@ import io.pravega.client.tables.Remove;
 import io.pravega.client.tables.TableKey;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Test;
 
+import java.io.Serializable;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /**
  * CompatibilityChecker class is exercising all APIs we have in Pravega Samples.
@@ -85,8 +93,15 @@ public class CompatibilityChecker {
     private final static int NUM_EVENTS = 10;
     private static final int TEST_MAX_STREAMS = 10;
     private static final int TEST_MAX_KEYS = 10;
+    private static final int TOTAL_EVENTS = 2400;
+    private static final int READ_TIMEOUT = 5 * 1000;
+    private static final int CUT_SIZE = 400;
     private static final PaddedStringSerializer USERNAME_SERIALIZER = new PaddedStringSerializer(64);
     private static final UTF8StringSerializer SERIALIZER = new UTF8StringSerializer();
+    private final ScheduledExecutorService streamCutExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "streamCutExecutor");
+    private final ScheduledExecutorService readerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(4, "readerPool");
+    private final ScheduledExecutorService chkPointExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "chkPointExecutor");
+
     private URI controllerURI;
     private StreamManager streamManager;
     private StreamConfiguration streamConfig;
@@ -542,6 +557,252 @@ public class CompatibilityChecker {
         assertEquals("Read count should be equal to write count", NUM_EVENTS, readCount);
     }
 
+    private void writeEvents(EventStreamClientFactory clientFactory, String streamName, int totalEvents, int initialPoint) {
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        for (int i = initialPoint; i < totalEvents + initialPoint; i++) {
+            writer.writeEvent(String.format("%03d", i)).join(); // this ensures the event size is constant.
+            log.debug("Writing event: {} to stream {}.", streamName + i, streamName);
+        }
+        log.info("Writer {} finished writing {} events.", writer, totalEvents - initialPoint);
+    }
+
+    private <T extends Serializable> List<Map <Stream, StreamCut>> getStreamCutSlices(ReaderGroup readerGroup,
+                                                                                      int totalEvents, EventStreamReader<T> reader1) {
+        final AtomicReference<EventStreamReader<T>> reader = new AtomicReference<>();
+        final AtomicReference<CompletableFuture<Map<Stream, StreamCut>>> streamCutFuture = new AtomicReference<>(CompletableFuture.completedFuture(null));
+        reader.set(reader1);
+        final List<CompletableFuture<Map<Stream, StreamCut>>> streamCutFutureList = new ArrayList<>();
+        final AtomicInteger validEvents = new AtomicInteger();
+
+        Futures.loop(
+                () -> validEvents.get() < totalEvents,
+                () -> CompletableFuture.runAsync(() -> {
+                    try {
+                        EventRead<T> event = reader.get().readNextEvent(READ_TIMEOUT);
+                        if (event.getEvent() != null) {
+                            log.info("Await and verify if the last StreamCut generation completed successfully {}",
+                                    Futures.await(streamCutFuture.get(), 10_000));
+                            assertTrue("StreamCut generation did not complete", Futures.await(streamCutFuture.get(), 10_000));
+                            validEvents.incrementAndGet();
+                            log.debug("Read event result in getStreamCutSlices: {}. Valid events: {}.", event.getEvent(), validEvents);
+                            // Get a StreamCut each defined number of events.
+                            if (validEvents.get() % CUT_SIZE == 0 && validEvents.get() > 0) {
+                                CompletableFuture<Map<Stream, StreamCut>> streamCutsFuture =
+                                        readerGroup.generateStreamCuts(streamCutExecutor);
+                                streamCutFuture.set(streamCutsFuture);
+                                // wait for 5 seconds to force reader group state update, so that we can ensure StreamCut for every
+                                // CUT_SIZE number of events.
+                                Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
+                                log.info("Adding a StreamCut positioned at event {}", validEvents);
+                                streamCutFutureList.add(streamCutsFuture);
+                            }
+                        } else {
+                            log.warn("Read unexpected null event at {}.", validEvents);
+                        }
+                    } catch (ReinitializationRequiredException e) {
+                        log.warn("Reinitialization of readers required.", e);
+                    }
+                }, executor),
+                executor).join();
+        reader.get().close();
+
+        // Now return all the streamCuts generated.
+        return Futures.getAndHandleExceptions(Futures.allOfWithResults(streamCutFutureList), t -> {
+            log.error("StreamCut generation did not complete", t);
+            throw new AssertionError("StreamCut generation did not complete", t);
+        });
+    }
+    private List<CompletableFuture<Integer>> readAllEvents(ReaderGroupManager rgMgr, EventStreamClientFactory clientFactory, String rGroupId,
+                                                           int readerCount) {
+        return IntStream.range(0, readerCount)
+                .mapToObj(i -> CompletableFuture.supplyAsync(() -> createReaderAndReadEvents(rgMgr, clientFactory, rGroupId, i),
+                        readerExecutor))
+                .collect(Collectors.toList());
+
+    }
+    private <T extends Serializable> int createReaderAndReadEvents(ReaderGroupManager rgMgr, EventStreamClientFactory clientFactory,
+                                                                   String rGroupId, int readerIndex) {
+        // create a reader.
+        EventStreamReader<T> reader = clientFactory.createReader(rGroupId + "-" + readerIndex, rGroupId, new JavaSerializer<>(),
+                ReaderConfig.builder().build());
+        EventRead<T> event = null;
+        int validEvents = 0;
+        AtomicBoolean sealedSegmentUpdated = new AtomicBoolean(false);
+        try {
+            do {
+                try {
+                    event = reader.readNextEvent(READ_TIMEOUT);
+                    log.debug("Read event result in readEvents: {}.", event.getEvent());
+                    if (event.getEvent() == null && !event.isCheckpoint() && !sealedSegmentUpdated.get()) {
+                        // initiate a checkpoint to ensure all sealed segments are acquired by the reader.
+                        ReaderGroup readerGroup = rgMgr.getReaderGroup(rGroupId);
+                        readerGroup.initiateCheckpoint("chkPoint", chkPointExecutor)
+                                .whenComplete((checkpoint, t) -> {
+                                    if (t != null) {
+                                        log.error("Checkpoint operation failed", t);
+                                    } else {
+                                        log.info("Checkpoint {} completed", checkpoint);
+                                        sealedSegmentUpdated.set(true);
+                                    }
+                                });
+                    }
+                    if (event.getEvent() != null) {
+                        validEvents++;
+                    }
+                } catch (ReinitializationRequiredException e) {
+                    log.error("Reinitialization Exception while reading event using readerId: {}", reader, e);
+                    fail("Reinitialization Exception is not expected");
+                }
+            } while (event.getEvent() != null || event.isCheckpoint() || !sealedSegmentUpdated.get());
+        } finally {
+            reader.close();
+        }
+        return validEvents;
+    }
+
+    /**
+     * Check that all the stream slices represented by consecutive StreamCut pairs can be read correctly.
+     */
+    private void readSliceBySliceAndVerify(ReaderGroupManager manager, EventStreamClientFactory clientFactory, int parallelSegments,
+                                           List<Map<Stream, StreamCut>> streamSlices, String scope, String streamOne, String streamTwo) {
+        int readEvents;
+        for (int i = 1; i < streamSlices.size(); i++) {
+            log.debug("Reading events between starting StreamCut {} and ending StreamCut {}", streamSlices.get(i-1), streamSlices.get(i));
+            ReaderGroupConfig configBuilder = ReaderGroupConfig.builder().stream(Stream.of(scope, streamOne))
+                    .stream(Stream.of(scope, streamTwo))
+                    .startingStreamCuts(streamSlices.get(i - 1))
+                    .endingStreamCuts(streamSlices.get(i)).build();
+
+            // Create a new reader group per stream cut slice and read in parallel only events within the cut.
+            final String readerGroupId = getRandomID();
+            manager.createReaderGroup(readerGroupId, configBuilder);
+            readEvents = readAllEvents(manager, clientFactory, readerGroupId, parallelSegments).stream()
+                    .map(CompletableFuture::join)
+                    .reduce(Integer::sum).get();
+            log.debug("Read events by group {}: {}.", readerGroupId, readEvents);
+            assertEquals("Expected events read: ", CUT_SIZE, readEvents);
+        }
+    }
+
+    /**
+     * This method performs slices in streams of non-consecutive StreamCuts. For instance, say that we generate 5 cuts
+     * in this order: C1, C2, C3, C4, C5. We then read slices of a stream formed like this:
+     *
+     * [C1, C3), [C1, C4), [C1, C5)
+     * [C2, C4), [C2, C5)
+     * [C3, C5)
+     *
+     * Note that all the consecutive slices have been previously tested, so we avoid them to shorten test execution.
+     * Moreover, take into account that a increase in the number of slices greatly lengthen execution time.
+     *
+     * @param manager Group manager for this scope.
+     * @param clientFactory Client factory to instantiate new readers.
+     * @param parallelSegments Number of parallel segments that indicates the number of parallel readers to instantiate.
+     * @param streamSlices StreamCuts lists to be combined and tested via bounded processing.
+     */
+    private void combineSlicesAndVerify(ReaderGroupManager manager, EventStreamClientFactory clientFactory, int parallelSegments,
+                                        List<Map<Stream, StreamCut>> streamSlices, String scope, String streamOne, String streamTwo) {
+
+        for (int i = 0; i < streamSlices.size() - 1; i++) {
+            List<Map<Stream, StreamCut>> combinationSlices = new ArrayList<>(streamSlices).subList(i, streamSlices.size());
+            ReaderGroupConfig.ReaderGroupConfigBuilder configBuilder = ReaderGroupConfig.builder()
+                    .stream(Stream.of(scope, streamOne))
+                    .stream(Stream.of(scope, streamTwo))
+                    .startingStreamCuts(combinationSlices.remove(0));
+
+            // Remove the contiguous StreamCut to the starting one, as the slice [CN, CN+1) has been already tested.
+            combinationSlices.remove(0);
+
+            // The minimum slice we are going to test is twice the size of CUT_SIZE.
+            int readEvents, combinationCutSize = 2;
+            for (Map<Stream, StreamCut> endingPoint : combinationSlices) {
+                configBuilder = configBuilder.endingStreamCuts(endingPoint);
+
+                // Create a new reader group per stream cut slice and read in parallel only events within the cut.
+                final String readerGroupId =  getRandomID();
+                manager.createReaderGroup(readerGroupId, configBuilder.build());
+                log.debug("Reading events between starting StreamCut {} and ending StreamCut {}",
+                        configBuilder.build().getStartingStreamCuts(), endingPoint);
+                readEvents = readAllEvents(manager, clientFactory, readerGroupId, parallelSegments).stream()
+                        .map(CompletableFuture::join)
+                        .reduce(Integer::sum).get();
+                log.debug("Read events by group {}: {}.", readerGroupId, readEvents);
+                assertEquals("Expected events read: ", combinationCutSize * CUT_SIZE, readEvents);
+                combinationCutSize++;
+            }
+        }
+    }
+
+    /**
+     * This test verifies the correct operation of readers using StreamCuts. Concretely, the test creates two streams
+     * with different number of segments and it writes some events (TOTAL_EVENTS / 2) in them. Then, the test creates a
+     * list of StreamCuts that encompasses both streams every CUT_SIZE events. The test asserts that new groups of
+     * readers can be initialized at these sequential StreamCut intervals and that only CUT_SIZE events are read. Also,
+     * the test checks the correctness of different combinations of StreamCuts that have not been sequentially created.
+     * After creating StreamCuts and tests the correctness of reads, the test also checks resetting a reader group to a
+     * specific initial read point. The previous process is repeated twice: before and after scaling streams, to test if
+     * StreamCuts work correctly under scaling events (thus writing TOTAL_EVENTS). Finally, this test checks reading
+     * different StreamCut combinations in both streams for all events (encompassing events before and after scaling).
+     */
+    private void checkStreamCuts(){
+        String scopeName = "streamCuts-test-scope";
+        String streamOne = "streamCuts-test-streamOne";
+        String streamTwo = "streamCuts-test-streamTwo";
+        streamManager.createScope(scopeName);
+        streamManager.createStream(scopeName, streamOne, streamConfig);
+        streamManager.createStream(scopeName, streamTwo, streamConfig);
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+
+        String readerGroupId = getRandomID();
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                                                                .stream(Stream.of(scopeName, streamOne))
+                                                                .stream(Stream.of(scopeName, streamTwo)).build();
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
+        readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
+        @Cleanup
+        EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
+
+        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupId);
+
+        // Perform write of events, slice by slice StreamCuts test and combinations StreamCuts test.
+        log.info("Write, slice by slice and combinations test before scaling.");
+        final int parallelism = 3;
+        // First, write half of total events before scaling (1/4 in each Stream).
+        writeEvents(clientFactory, streamOne, TOTAL_EVENTS / 4, 0);
+        writeEvents(clientFactory, streamTwo, TOTAL_EVENTS / 4, 0);
+        log.info("Finished writing events to streams.");
+
+        Map<Stream, StreamCut> initialPosition = new HashMap<>(readerGroup.getStreamCuts());
+        log.info("Creating StreamCuts from: {}.", initialPosition);
+        // Get StreamCuts for each slice from both Streams at the same time (may be different in each execution).
+        List<Map<Stream, StreamCut>> streamSlices = getStreamCutSlices(readerGroup, TOTAL_EVENTS / 2, reader);
+        streamSlices.add(0, initialPosition);
+        log.info("Finished creating StreamCuts {}.", streamSlices);
+
+        // Ensure that reader groups can correctly read slice by slice from different Streams.
+        readSliceBySliceAndVerify(readerGroupManager, clientFactory, parallelism, streamSlices, scopeName, streamOne, streamTwo);
+        log.info("Finished checking sequentially slice by slice.");
+
+        // Perform different combinations of StreamCuts and verify that read event boundaries are still correct.
+        combineSlicesAndVerify(readerGroupManager, clientFactory, parallelism, streamSlices, scopeName, streamOne, streamTwo);
+        log.info("Finished checking StreamCut combinations.");
+        // Test that a reader group can be reset correctly.
+        ReaderGroupConfig firstSliceConfig = ReaderGroupConfig.builder()
+                .stream(Stream.of(scopeName, streamOne))
+                .stream(Stream.of(scopeName, streamTwo))
+                .startingStreamCuts(initialPosition)
+                .endingStreamCuts(streamSlices.get(streamSlices.size() - 1)).build();
+        readerGroup.resetReaderGroup(firstSliceConfig);
+        log.info("Resetting existing reader group {} to stream cut {}.", readerGroupId, initialPosition);
+        final int readEvents = readAllEvents(readerGroupManager, clientFactory, readerGroup.getGroupName(), parallelism
+        ).stream().map(CompletableFuture::join).reduce(Integer::sum).get();
+        assertEquals("Expected read events: ", TOTAL_EVENTS / 2, readEvents);
+    }
+
     @Data
     private static class PaddedStringSerializer {
         private final int maxLength;
@@ -577,6 +838,7 @@ public class CompatibilityChecker {
         compatibilityChecker.checkKeyValueTable();
         compatibilityChecker.checkWriteAndReadLargeEvent();
         compatibilityChecker.checkStreamTags();
+        compatibilityChecker.checkStreamCuts();
         System.exit(0);
     }
 }
