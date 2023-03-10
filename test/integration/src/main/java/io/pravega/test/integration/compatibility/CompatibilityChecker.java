@@ -746,9 +746,8 @@ public class CompatibilityChecker {
      * readers can be initialized at these sequential StreamCut intervals and that only CUT_SIZE events are read. Also,
      * the test checks the correctness of different combinations of StreamCuts that have not been sequentially created.
      * After creating StreamCuts and tests the correctness of reads, the test also checks resetting a reader group to a
-     * specific initial read point. The previous process is repeated twice: before and after scaling streams, to test if
-     * StreamCuts work correctly under scaling events (thus writing TOTAL_EVENTS). Finally, this test checks reading
-     * different StreamCut combinations in both streams for all events (encompassing events before and after scaling).
+     * specific initial read point. Finally, this test checks reading different StreamCut combinations in both streams for
+     * all events.
      */
     private void checkStreamCuts(){
         String scopeName = "streamCuts-test-scope";
