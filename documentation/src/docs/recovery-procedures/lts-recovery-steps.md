@@ -15,19 +15,23 @@ limitations under the License.
 -->
 
 # LTS Recovery
-The following procedure describes how we can recover LTS in case of data corruption.
+The following procedure describes offline method of doing the LTS recovery. The offline method of doing the LTS recovery requires the admin to manually copy metadata chunk files to some directory.
+
+The offline method currently only supports filesystem storage type
 
 ## Prerequisites
 Having pravega installed with data generated on it. 
 
 ## Steps
 * ## Executing the ltsrecovery.sh script
-    ```
-    ./ltsrecovery --install
-    ```
-    This script will create a recover pod which mounts the same LTS as **pravega** and uninstalls **pravega**, **pravega-operator**, **bookkeeper**, **bookkeeper-operator**, **zookeeper** and **zookeeper-operator**.
+  ```
+  ./ltsrecovery --install
+  ```
+  This script will create a recovery pod and has the LTS directory mounted inside it, and it will uninstall **pravega**, **pravega-operator**, **bookkeeper**, **bookkeeper-operator**, **zookeeper** and **zookeeper-operator**.
 
-    Before proceeding further, make sure the script executed successfully and uninstalled all the services mentioned above.
+  Before proceeding further, make sure the script executed successfully and uninstalled all the services mentioned above.
+
+  The ltsrecovery script will only work where helm is used to install pravega.
 * ## Copy metadata
     ### Exec into the recovery pod
     ```
@@ -58,29 +62,9 @@ Having pravega installed with data generated on it.
     ./bin/pravega-admin
     ```
     ### Configure admin cli
-    Configure the admin cli with below properties by providing appropriate values.
-    ```
-    config set cli.store.metadata.backend=segmentstore
-    config set bookkeeper.zk.connect.uri=<zk client IP>:2181
-    config set pravegaservice.storage.impl.name=FILESYSTEM
-    config set pravegaservice.zk.connect.uri=<zk client IP>:2181
-    config set cli.channel.tls=false
-    config set cli.credentials.username=admin
-    config set cli.credentials.pwd=1111_aaaa
-    config set pravegaservice.admin.gateway.port=9999
-    config set cli.trustStore.location=conf/ca-cert.crt
-    config set cli.channel.auth=true
-    config set cli.trustStore.access.token.ttl.seconds=600
-    config set bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
-    config set pravegaservice.clusterName=pravega/pravega
-    config set cli.controller.connect.rest.uri=localhost:9091
-    config set cli.controller.connect.grpc.uri=localhost:9090
-    config set pravegaservice.container.count=8
-    config set hdfs.connect.uri=localhost:8020
-    config set filesystem.root=<Location of the tier2>
-    ```
+    Make sure that the admin cli is configured properly before starting the recovery.
     ### Start recovery
-    To start the recovery you need to use the below command to the admin cli console.
+    To start the recovery, please execute the below command in the admin cli console.
     ```
     data-recovery recover-from-storage /<Location of the downloaded metadata> all
     ```
