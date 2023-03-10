@@ -37,6 +37,8 @@ kubectl exec -it recovery -- sh
 /mnt/tier2 is the tier2 location.
 ```
 cd /mnt/tier2/_system/containers
+```
+```
 cp metadata_* storage_metadata_* /<Location of the downloaded metadata>
 ```
 
@@ -51,6 +53,8 @@ kubectl exec -it recovery -- sh
 ### Run admin cli
 ```
 cd /opt/pravega
+```
+```
 ./bin/pravega-admin
 ```
 ### Configure admin cli
