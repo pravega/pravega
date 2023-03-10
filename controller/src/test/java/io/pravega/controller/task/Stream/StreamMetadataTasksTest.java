@@ -1101,6 +1101,26 @@ public abstract class StreamMetadataTasksTest {
         doCallRealMethod().when(streamStorePartialMock).listSubscribers(any(), any(), any(), any());
     }
 
+    @Test
+    public void testGlobalRetention() throws ExecutionException, InterruptedException {
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
+                .build();
+        assertNull(configuration.getRetentionPolicy());
+        streamMetadataTasks.setGlobalRetentionValues(true, 1L, 2L, "time");
+        streamMetadataTasks.createStreamRetryOnLockFailure(SCOPE, stream1, configuration, System.currentTimeMillis(), 10, 0L).get();
+        assertEquals(configuration.getRetentionPolicy().getRetentionType(), RetentionPolicy.RetentionType.TIME);
+        streamMetadataTasks.setGlobalRetentionValues(true, 0, 2L, "time");
+        streamMetadataTasks.createStreamRetryOnLockFailure(SCOPE, stream1, configuration, System.currentTimeMillis(), 10, 0L).get();
+        assertEquals(configuration.getRetentionPolicy().getRetentionType(), RetentionPolicy.RetentionType.TIME);
+        streamMetadataTasks.setGlobalRetentionValues(true, 1L, 2L, "size");
+        streamMetadataTasks.createStreamRetryOnLockFailure(SCOPE, stream1, configuration, System.currentTimeMillis(), 10, 0L).get();
+        assertEquals(configuration.getRetentionPolicy().getRetentionType(), RetentionPolicy.RetentionType.SIZE);
+        streamMetadataTasks.setGlobalRetentionValues(true, 0, 2L, "size");
+        streamMetadataTasks.createStreamRetryOnLockFailure(SCOPE, stream1, configuration, System.currentTimeMillis(), 10, 0L).get();
+        assertEquals(configuration.getRetentionPolicy().getRetentionType(), RetentionPolicy.RetentionType.SIZE);
+    }
+
     @Test(timeout = 30000)
     public void sizeBasedRetentionStreamTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);

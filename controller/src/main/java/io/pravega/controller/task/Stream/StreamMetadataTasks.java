@@ -145,13 +145,17 @@ public class StreamMetadataTasks extends TaskBase {
     private static final long READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES = 4 * 1024 * 1024; // 4MB
     private final AtomicLong retentionFrequencyMillis;
 
-    private final boolean globalRetentionPolicy;
+    @VisibleForTesting
+    private final AtomicBoolean globalRetentionPolicy;
 
-    private final String retentionType;
+    @VisibleForTesting
+    private final AtomicReference<String>  retentionType;
 
-    private final int minRetentionValue;
+    @VisibleForTesting
+    private final AtomicLong minRetentionValue;
 
-    private final int maxRetentionValue;
+    @VisibleForTesting
+    private final AtomicLong maxRetentionValue;
 
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
@@ -212,10 +216,10 @@ public class StreamMetadataTasks extends TaskBase {
         this.retentionFrequencyMillis = new AtomicLong(Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis());
         this.retentionClock = new AtomicReference<>(System::currentTimeMillis);
         this.eventHelperFuture = new CompletableFuture<>();
-        this.minRetentionValue = Config.RETENTION_MIN_VALUE;
-        this.maxRetentionValue = Config.RETENTION_MAX_VALUE;
-        this.globalRetentionPolicy = Config.GLOBAL_RETENTION_POLICY;
-        this.retentionType = Config.RETENTION_TYPE;
+        this.minRetentionValue = new AtomicLong(Config.RETENTION_MIN_VALUE);
+        this.maxRetentionValue = new AtomicLong(Config.RETENTION_MAX_VALUE);
+        this.globalRetentionPolicy = new AtomicBoolean(Config.GLOBAL_RETENTION_POLICY);
+        this.retentionType = new AtomicReference<>(Config.RETENTION_TYPE);
         this.setReady();
     }
 
@@ -787,10 +791,9 @@ public class StreamMetadataTasks extends TaskBase {
                                                                      long createTimestamp, long requestId) {
         log.debug(requestId, "createStream with resource called.");
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        if (config.getRetentionPolicy() == null && this.globalRetentionPolicy) {
+        if (config.getRetentionPolicy() == null && this.globalRetentionPolicy.get()) {
             createRetentionPolicy(config);
         }
-
         return execute(
                     new Resource(scope, stream),
                     new Serializable[]{scope, stream, config, createTimestamp, requestId},
@@ -798,23 +801,21 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private void createRetentionPolicy(StreamConfiguration config) {
-        Preconditions.checkArgument(this.maxRetentionValue > 0, "Max retention value must be > 0.");
+        Preconditions.checkArgument(this.maxRetentionValue.get() > 0, "Max retention value must be > 0.");
         RetentionPolicy retentionPolicy = null;
-        if (this.retentionType.equalsIgnoreCase("time")) {
-            if (this.minRetentionValue > 0) {
-                retentionPolicy = RetentionPolicy.builder()
-                        .retentionType(RetentionPolicy.RetentionType.TIME)
-                        .retentionParam(this.minRetentionValue)
-                        .retentionMax(this.maxRetentionValue).build();
+        if (this.retentionType.get().equalsIgnoreCase("time")) {
+            if (this.minRetentionValue.get() > 0) {
+                retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(this.minRetentionValue.get()),
+                        Duration.ofHours(this.maxRetentionValue.get()));
             } else {
-                retentionPolicy = RetentionPolicy.builder()
-                        .retentionType(RetentionPolicy.RetentionType.TIME)
-                        .retentionMax(this.maxRetentionValue).build();
+                retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(this.maxRetentionValue.get()));
             }
-        } else if (this.retentionType.equalsIgnoreCase("size")) {
-            retentionPolicy = RetentionPolicy.builder()
-                    .retentionType(RetentionPolicy.RetentionType.SIZE)
-                    .retentionMax(this.maxRetentionValue).build();
+        } else if (this.retentionType.get().equalsIgnoreCase("size")) {
+            if (this.minRetentionValue.get() > 0) {
+                retentionPolicy = RetentionPolicy.bySizeBytes(this.minRetentionValue.get(), this.maxRetentionValue.get());
+            } else {
+                retentionPolicy = RetentionPolicy.bySizeBytes(this.maxRetentionValue.get());
+            }
         }
         config.toBuilder().retentionPolicy(retentionPolicy).build();
     }
@@ -2175,6 +2176,14 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     void setRetentionFrequencyMillis(long timeoutMillis) {
         retentionFrequencyMillis.set(timeoutMillis);
+    }
+
+    @VisibleForTesting
+    void setGlobalRetentionValues(boolean globalPolicy, long minValue, long maxValue, String type) {
+        globalRetentionPolicy.set(globalPolicy);
+        retentionType.set(type);
+        minRetentionValue.set(minValue);
+        maxRetentionValue.set(maxValue);
     }
 
     @VisibleForTesting
