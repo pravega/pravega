@@ -32,6 +32,12 @@ import java.util.List;
 
 public class TableSegmentUtils {
 
+    /**
+     * Retrieve Pravega Operations from chunk files.
+     * @param chunkFiles Chunks list of chunk files to be parsed.
+     * @return List of Pravega operations.
+     * @throws IOException if any exception while parsing raw chunk files.
+     */
     public static List<TableSegmentUtils.TableSegmentOperation>  getOperationsFromChunks(List<File> chunkFiles) throws IOException {
         byte[] partialEntryFromLastChunk = null;
         int unprocessedBytesFromLastChunk = 0;
@@ -45,6 +51,12 @@ public class TableSegmentUtils {
         return tableSegmentOperations;
     }
 
+    /**
+     * Retrieve Pravega Operations from raw bytes.
+     * @param byteArraySegments byte arrays to be parsed and converted to Operations.
+     * @return List of Pravega operations
+     * @throws IOException if any exception while parsing raw chunk files.
+     */
     public static List<TableSegmentUtils.TableSegmentOperation> getOperationsFromBytes(List<ByteArraySegment> byteArraySegments) throws IOException {
         byte[] partialEntryFromLastChunk = null;
         List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations = new ArrayList<>();
