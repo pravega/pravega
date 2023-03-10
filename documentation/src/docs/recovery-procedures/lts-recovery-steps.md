@@ -21,7 +21,7 @@ The following procedure describes how we can recover LTS in case of data corrupt
 Having pravega installed with data generated on it. 
 
 ## Steps
-### Executing the ltsrecovery.sh script
+## Executing the ltsrecovery.sh script
 ```
 ./ltsrecovery --install
 ```
