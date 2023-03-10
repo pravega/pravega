@@ -39,7 +39,7 @@ kubectl exec -it recovery -- sh
 cd /mnt/tier2/_system/containers
 ```
 ```
-cp metadata_* storage_metadata_* /<Location of the downloaded metadata>
+cp metadata_* storage_metadata_* /<Location where the metadata will be downloaded>
 ```
 
 ## Install the below services
