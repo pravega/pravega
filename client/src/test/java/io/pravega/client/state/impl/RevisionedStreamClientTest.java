@@ -58,6 +58,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
@@ -130,6 +131,48 @@ public class RevisionedStreamClientTest {
         assertEquals("d", iter.next().getValue());
         assertFalse(iter.hasNext());
     }
+
+    @Test(timeout = 30000L)
+    public void testReadRange() throws Exception {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
+        RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
+
+        Revision r0 = client.fetchOldestRevision();
+        client.writeUnconditionally("a");
+        Revision ra = client.fetchLatestRevision();
+        client.writeUnconditionally("b");
+        Revision rb = client.fetchLatestRevision();
+        client.writeUnconditionally("c");
+        Iterator<Entry<Revision, String>> iterA = client.readRange(r0, rb);
+        assertTrue(iterA.hasNext());
+        assertEquals("a", iterA.next().getValue());
+        assertEquals("b", iterA.next().getValue());
+        assertThrows(NoSuchElementException.class, () -> iterA.next().getValue());
+        // Will return an empty Entry for the same revision
+        Iterator<Entry<Revision, String>> iterB = client.readRange(r0, r0);
+        assertFalse(iterB.hasNext());
+        // Checking the condition when endRevision is passed at the place of the startRevision
+        assertThrows(IllegalStateException.class, () -> client.readRange(rb, r0));
+        // Validating the case when stream already truncated and start revision didn't exist.
+        Revision rc = client.fetchLatestRevision();
+        client.truncateToRevision(rb);
+        assertEquals(rb, client.fetchOldestRevision());
+        assertThrows(TruncatedDataException.class, () -> client.readRange(ra, rc));
+    }
+
 
     @Test
     public void testConditionalWrite() {

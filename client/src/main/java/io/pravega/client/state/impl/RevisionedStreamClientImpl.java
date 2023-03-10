@@ -16,6 +16,7 @@
 package io.pravega.client.state.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
@@ -144,6 +145,29 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             }
             if (startOffset == endOffset) {
                 log.debug("No new updates to be read from revision {}", revision);
+            }
+            log.debug("Creating iterator from {} until {} for segment {} ", startOffset, endOffset, segment);
+            return new StreamIterator(startOffset, endOffset);
+        }
+    }
+
+    @Override
+    public Iterator<Entry<Revision, T>> readRange(Revision startRevision, Revision endRevision) {
+        Preconditions.checkNotNull(startRevision);
+        Preconditions.checkNotNull(endRevision);
+        log.trace("Read segment {} from revision {} to revision {}", segment, startRevision, endRevision);
+        synchronized (lock) {
+            long startOffset = startRevision.asImpl().getOffsetInSegment();
+            SegmentInfo segmentInfo = Futures.getThrowingException(meta.getSegmentInfo());
+            long endOffset = endRevision.asImpl().getOffsetInSegment();
+            if (startOffset < segmentInfo.getStartingOffset()) {
+                throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", startRevision, segmentInfo));
+            }
+            if (startOffset == endOffset) {
+                log.debug("No new updates to be read from revision {}", startOffset);
+            }
+            if (startOffset > endOffset) {
+                throw new IllegalStateException("startOffset: " + startOffset + " is grater than endOffset: " +  endOffset);
             }
             log.debug("Creating iterator from {} until {} for segment {} ", startOffset, endOffset, segment);
             return new StreamIterator(startOffset, endOffset);
