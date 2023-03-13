@@ -145,16 +145,12 @@ public class StreamMetadataTasks extends TaskBase {
     private static final long READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES = 4 * 1024 * 1024; // 4MB
     private final AtomicLong retentionFrequencyMillis;
 
-    @VisibleForTesting
     private final AtomicBoolean globalRetentionPolicy;
 
-    @VisibleForTesting
     private final AtomicReference<String>  retentionType;
 
-    @VisibleForTesting
     private final AtomicLong minRetentionValue;
 
-    @VisibleForTesting
     private final AtomicLong maxRetentionValue;
 
     private final StreamMetadataStore streamMetadataStore;
@@ -792,32 +788,33 @@ public class StreamMetadataTasks extends TaskBase {
         log.debug(requestId, "createStream with resource called.");
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
         if (config.getRetentionPolicy() == null && this.globalRetentionPolicy.get()) {
-            createRetentionPolicy(config);
+            config = createRetentionPolicy(config);
         }
+        final StreamConfiguration  streamConfig = config;
         return execute(
                     new Resource(scope, stream),
-                    new Serializable[]{scope, stream, config, createTimestamp, requestId},
-                    () -> createStreamBody(scope, stream, config, createTimestamp, context));
+                    new Serializable[]{scope, stream, streamConfig, createTimestamp, requestId},
+                    () -> createStreamBody(scope, stream, streamConfig, createTimestamp, context));
     }
 
-    private void createRetentionPolicy(StreamConfiguration config) {
-        Preconditions.checkArgument(this.maxRetentionValue.get() > 0, "Max retention value must be > 0.");
+    private StreamConfiguration createRetentionPolicy(StreamConfiguration config) {
+        Preconditions.checkArgument(this.minRetentionValue.get() > 0, "Min retention value must be > 0.");
         RetentionPolicy retentionPolicy = null;
         if (this.retentionType.get().equalsIgnoreCase("time")) {
-            if (this.minRetentionValue.get() > 0) {
+            if (this.maxRetentionValue.get() > 0) {
                 retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(this.minRetentionValue.get()),
-                        Duration.ofHours(this.maxRetentionValue.get()));
+                        Duration.ofMinutes(this.maxRetentionValue.get()));
             } else {
-                retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(this.maxRetentionValue.get()));
+                retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(this.minRetentionValue.get()));
             }
         } else if (this.retentionType.get().equalsIgnoreCase("size")) {
-            if (this.minRetentionValue.get() > 0) {
+            if (this.maxRetentionValue.get() > 0) {
                 retentionPolicy = RetentionPolicy.bySizeBytes(this.minRetentionValue.get(), this.maxRetentionValue.get());
             } else {
-                retentionPolicy = RetentionPolicy.bySizeBytes(this.maxRetentionValue.get());
+                retentionPolicy = RetentionPolicy.bySizeBytes(this.minRetentionValue.get());
             }
         }
-        config.toBuilder().retentionPolicy(retentionPolicy).build();
+        return config.toBuilder().retentionPolicy(retentionPolicy).build();
     }
 
     /**

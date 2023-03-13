@@ -1101,24 +1101,55 @@ public abstract class StreamMetadataTasksTest {
         doCallRealMethod().when(streamStorePartialMock).listSubscribers(any(), any(), any(), any());
     }
 
-    @Test
-    public void testGlobalRetention() throws ExecutionException, InterruptedException {
+    @Test(timeout = 20000)
+    public void testGlobalRetention() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .build();
         assertNull(configuration.getRetentionPolicy());
-        streamMetadataTasks.setGlobalRetentionValues(true, 1L, 2L, "time");
-        streamMetadataTasks.createStreamRetryOnLockFailure(SCOPE, stream1, configuration, System.currentTimeMillis(), 10, 0L).get();
-        assertEquals(configuration.getRetentionPolicy().getRetentionType(), RetentionPolicy.RetentionType.TIME);
-        streamMetadataTasks.setGlobalRetentionValues(true, 0, 2L, "time");
-        streamMetadataTasks.createStreamRetryOnLockFailure(SCOPE, stream1, configuration, System.currentTimeMillis(), 10, 0L).get();
-        assertEquals(configuration.getRetentionPolicy().getRetentionType(), RetentionPolicy.RetentionType.TIME);
-        streamMetadataTasks.setGlobalRetentionValues(true, 1L, 2L, "size");
-        streamMetadataTasks.createStreamRetryOnLockFailure(SCOPE, stream1, configuration, System.currentTimeMillis(), 10, 0L).get();
-        assertEquals(configuration.getRetentionPolicy().getRetentionType(), RetentionPolicy.RetentionType.SIZE);
-        streamMetadataTasks.setGlobalRetentionValues(true, 0, 2L, "size");
-        streamMetadataTasks.createStreamRetryOnLockFailure(SCOPE, stream1, configuration, System.currentTimeMillis(), 10, 0L).get();
-        assertEquals(configuration.getRetentionPolicy().getRetentionType(), RetentionPolicy.RetentionType.SIZE);
+        TaskMetadataStore taskMetadataStore = spy(TaskStoreFactory.createZKStore(zkClient, executor));
+        @Cleanup
+        StreamMetadataTasks metadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore, taskMetadataStore,
+                SegmentHelperMock.getSegmentHelperMock(), executor, "host",
+                new GrpcAuthHelper(authEnabled, "key", 300));
+
+        metadataTask.setGlobalRetentionValues(true, 1L, 2L, "time");
+        metadataTask.createStreamRetryOnLockFailure(SCOPE, "testStream1", configuration, System.currentTimeMillis(), 10, 0L).get();
+        StreamConfiguration streamConfig = streamStorePartialMock.getConfiguration(SCOPE, "testStream1", null, executor).get();
+
+        assertEquals(streamConfig.getRetentionPolicy().getRetentionType(), RetentionPolicy.RetentionType.TIME);
+        assertEquals(streamConfig.getRetentionPolicy().getRetentionParam(), Duration.ofMinutes(1L).toMillis());
+        assertEquals(streamConfig.getRetentionPolicy().getRetentionMax(), Duration.ofMinutes(2L).toMillis());
+
+        metadataTask.setGlobalRetentionValues(true, 1L, 0L, "time");
+        metadataTask.createStreamRetryOnLockFailure(SCOPE, "testStream2", configuration, System.currentTimeMillis(), 10, 0L).get();
+        streamConfig = streamStorePartialMock.getConfiguration(SCOPE, "testStream2", null, executor).get();
+
+        assertEquals(streamConfig.getRetentionPolicy().getRetentionType(), RetentionPolicy.RetentionType.TIME);
+        assertEquals(streamConfig.getRetentionPolicy().getRetentionParam(), Duration.ofMinutes(1L).toMillis());
+        assertEquals(streamConfig.getRetentionPolicy().getRetentionMax(), Long.MAX_VALUE);
+
+        metadataTask.setGlobalRetentionValues(true, 1000L, 2000L, "size");
+        metadataTask.createStreamRetryOnLockFailure(SCOPE, "testStream3", configuration, System.currentTimeMillis(), 10, 0L).get();
+        streamConfig = streamStorePartialMock.getConfiguration(SCOPE, "testStream3", null, executor).get();
+
+        assertEquals(streamConfig.getRetentionPolicy().getRetentionType(), RetentionPolicy.RetentionType.SIZE);
+        assertEquals(streamConfig.getRetentionPolicy().getRetentionParam(), 1000);
+        assertEquals(streamConfig.getRetentionPolicy().getRetentionMax(), 2000);
+
+        metadataTask.setGlobalRetentionValues(true, 1000L, 0L, "size");
+        metadataTask.createStreamRetryOnLockFailure(SCOPE, "testStream4", configuration, System.currentTimeMillis(), 10, 0L).get();
+        streamConfig = streamStorePartialMock.getConfiguration(SCOPE, "testStream4", null, executor).get();
+
+        assertEquals(streamConfig.getRetentionPolicy().getRetentionType(), RetentionPolicy.RetentionType.SIZE);
+        assertEquals(streamConfig.getRetentionPolicy().getRetentionParam(), 1000);
+        assertEquals(streamConfig.getRetentionPolicy().getRetentionMax(), Long.MAX_VALUE);
+
+        metadataTask.setGlobalRetentionValues(false, 0L, 0L, "");
+        metadataTask.createStreamRetryOnLockFailure(SCOPE, "testStream5", configuration, System.currentTimeMillis(), 10, 0L).get();
+        streamConfig = streamStorePartialMock.getConfiguration(SCOPE, "testStream5", null, executor).get();
+
+        assertNull(streamConfig.getRetentionPolicy());
     }
 
     @Test(timeout = 30000)
