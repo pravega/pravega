@@ -19,6 +19,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
@@ -34,6 +36,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -60,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -79,6 +83,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private static final String READER_GROUP_3 = "testCBR1ReaderGroup1" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP_4 = "timeBasedRetentionReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String SIZE_30_EVENT = "data of size 30";
+    private static final long CLOCK_ADVANCE_INTERVAL = 5 * 1000000000L;
 
     private static final int READ_TIMEOUT = 1000;
     private static final int MAX_SIZE_IN_STREAM = 180;
@@ -141,7 +146,9 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, STREAM_CONFIGURATION));
 
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -159,25 +166,26 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
         ReaderGroup readerGroup1 = readerGroupManager.getReaderGroup(READER_GROUP_1);
         ReaderGroup readerGroup2 = readerGroupManager.getReaderGroup(READER_GROUP_2);
+        AtomicLong clock = new AtomicLong();
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader(READER_GROUP_1 + "-" + 1,
-                READER_GROUP_1, new JavaSerializer<>(), readerConfig);
+                READER_GROUP_1, new JavaSerializer<>(), readerConfig, clock::get, clock::get);
         @Cleanup
         EventStreamReader<String> reader2 = clientFactory.createReader(READER_GROUP_2 + "-" + 1,
-                READER_GROUP_2, new JavaSerializer<>(), readerConfig);
+                READER_GROUP_2, new JavaSerializer<>(), readerConfig, clock::get, clock::get);
 
         // Read three events with reader1.
         readingEventsFromStream(3, reader1);
 
         log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_1, SCOPE, STREAM);
-        Map<Stream, StreamCut> streamCuts1 = generateStreamCuts(readerGroup1, reader1);
+        Map<Stream, StreamCut> streamCuts1 = generateStreamCuts(readerGroup1, reader1, clock);
         log.info("{} generated 1st Stream cut at -> {}", READER_GROUP_1, streamCuts1);
 
         // Read four events with reader2.
         readingEventsFromStream(4, reader2);
 
         log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_2, SCOPE, STREAM);
-        Map<Stream, StreamCut> streamCuts2 = generateStreamCuts(readerGroup2, reader2);
+        Map<Stream, StreamCut> streamCuts2 = generateStreamCuts(readerGroup2, reader2, clock);
         log.info("{} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts1);
         readerGroup1.updateRetentionStreamCut(streamCuts1);
         log.info("{} updating its retention stream-cut to {}", READER_GROUP_2, streamCuts2);
@@ -201,11 +209,11 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         readingEventsFromStream(5, reader2);
 
         log.info("{} generating 2nd stream-cuts for {}/{}", READER_GROUP_1, SCOPE, STREAM);
-        streamCuts1 = generateStreamCuts(readerGroup1, reader1);
+        streamCuts1 = generateStreamCuts(readerGroup1, reader1, clock);
         log.info("{} generated 2nd Stream cut at -> {}", READER_GROUP_1, streamCuts1);
 
         log.info("{} generating 2nd stream-cuts for {}/{}", READER_GROUP_2, SCOPE, STREAM);
-        streamCuts2 = generateStreamCuts(readerGroup2, reader2);
+        streamCuts2 = generateStreamCuts(readerGroup2, reader2, clock);
 
         log.info("{} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts1);
         readerGroup1.updateRetentionStreamCut(streamCuts1);
@@ -247,7 +255,9 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM_2, TIME_BASED_RETENTION_STREAM_CONFIGURATION));
 
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE_1, clientConfig);
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_1, controller, connectionFactory);
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM_1, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -274,12 +284,13 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP_3);
         @Cleanup
         ReaderGroup readerGroup2 = readerGroupManager.getReaderGroup(READER_GROUP_4);
+        AtomicLong clock = new AtomicLong();
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(READER_GROUP_3 + "-" + 1,
-                READER_GROUP_3, new JavaSerializer<>(), readerConfig);
+                READER_GROUP_3, new JavaSerializer<>(), readerConfig, clock::get, clock::get);
         @Cleanup
         EventStreamReader<String> reader2 = clientFactory.createReader(READER_GROUP_4 + "-" + 1,
-                READER_GROUP_4, new JavaSerializer<>(), readerConfig);
+                READER_GROUP_4, new JavaSerializer<>(), readerConfig, clock::get, clock::get);
 
         // Read three events with reader.
         readingEventsFromStream(3, reader);
@@ -287,9 +298,9 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         readingEventsFromStream(5, reader2);
 
         log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_3, SCOPE_1, STREAM_1);
-        Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup, reader);
+        Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup, reader, clock);
         log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_4, SCOPE_1, STREAM_2);
-        Map<Stream, StreamCut> streamCuts2 = generateStreamCuts(readerGroup2, reader2);
+        Map<Stream, StreamCut> streamCuts2 = generateStreamCuts(readerGroup2, reader2, clock);
 
         log.info("{} updating its retention stream-cut to {}", READER_GROUP_3, streamCuts);
         readerGroup.updateRetentionStreamCut(streamCuts);
@@ -342,9 +353,9 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
         // Recreates the reader
         reader = clientFactory.createReader(READER_GROUP_3 + "-" + 1, READER_GROUP_3, new JavaSerializer<>(),
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().build(), clock::get, clock::get);
         reader2 = clientFactory.createReader(READER_GROUP_4 + "-" + 1, READER_GROUP_4, new JavaSerializer<>(),
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().build(), clock::get, clock::get);
 
         // fill stream with 3 events
         writingEventsToStream(3, writer, SCOPE_1, STREAM_1);
@@ -356,12 +367,12 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         readingEventsFromStream(3, reader2);
 
         log.info("{} generating 2nd stream-cuts for {}/{}", READER_GROUP_3, SCOPE_1, STREAM_1);
-        streamCuts = generateStreamCuts(readerGroup, reader);
+        streamCuts = generateStreamCuts(readerGroup, reader, clock);
         log.info("{} updating its retention stream-cut to {}", READER_GROUP_3, streamCuts);
         readerGroup.updateRetentionStreamCut(streamCuts);
 
         log.info("{} generating 2nd stream-cuts for {}/{}", READER_GROUP_4, SCOPE_1, STREAM_2);
-        streamCuts2 = generateStreamCuts(readerGroup2, reader2);
+        streamCuts2 = generateStreamCuts(readerGroup2, reader2, clock);
         log.info("{} updating its retention stream-cut to {}", READER_GROUP_4, streamCuts2);
         readerGroup2.updateRetentionStreamCut(streamCuts2);
 
@@ -398,11 +409,9 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         }
     }
 
-    private Map<Stream, StreamCut> generateStreamCuts(ReaderGroup readerGroup, EventStreamReader<String> reader) {
+    private Map<Stream, StreamCut> generateStreamCuts(ReaderGroup readerGroup, EventStreamReader<String> reader, AtomicLong clock) {
         CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(streamCutExecutor);
-        // Wait for 5 seconds to force reader group state update. This will allow for the silent
-        // checkpoint event generated as part of generateStreamCuts to be picked and processed.
-        Futures.delayedFuture(Duration.ofSeconds(5), executor).join();
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         EventRead<String> read = reader.readNextEvent(READ_TIMEOUT);
         assertEquals("data of size 30", read.getEvent());
         assertTrue("Stream-cut generation did not complete for reader group", Futures.await(futureCuts, 10000));
