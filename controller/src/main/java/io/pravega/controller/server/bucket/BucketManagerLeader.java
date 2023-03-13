@@ -20,7 +20,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.controller.store.stream.BucketStore;
 import java.time.Duration;
@@ -166,17 +165,17 @@ public class BucketManagerLeader implements LeaderSelectorListener {
      * -- Clubs multiple host events into one to reduce redistribution operations. For example:
      *      Fresh cluster start, cluster/multi-host/host restarts, etc.
      */
-    private void waitForReDistribute() throws InterruptedException, ExecutionException {
+    private void waitForReDistribute() throws InterruptedException {
         log.info("{}: Waiting for {} seconds before attempting to distribute.", serviceType,
                 minBucketRedistributionIntervalInSeconds.getSeconds());
-        Futures.delayedFuture(minBucketRedistributionIntervalInSeconds, executorService).get();
+        Thread.sleep(minBucketRedistributionIntervalInSeconds.toMillis());
     }
 
     /**
      * This method will distribute the bucket among available controller instances and update the bucket to controller
      * mapping on the znode path. Using this znode path all controller instances can fetch the controller to bucket
      * mapping.
-     * @param pravegaServiceCluster Cluster having the controllers information.
+     * @param pravegaServiceCluster Cluster having the controller's information.
      *
      * @throws ExecutionException
      * @throws InterruptedException
