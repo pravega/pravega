@@ -18,12 +18,15 @@ package io.pravega.test.integration.compatibility;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
+import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.byteStream.ByteStreamReader;
+import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -82,6 +85,7 @@ import java.util.stream.IntStream;
 import static com.google.common.collect.Lists.newArrayList;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static io.pravega.test.common.AssertExtensions.fail;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -572,7 +576,7 @@ public class CompatibilityChecker {
         log.info("Writer {} finished writing {} events.", writer, totalEvents - initialPoint);
     }
 
-    private <T extends Serializable> List<Map <Stream, StreamCut>> getStreamCutSlices(ReaderGroup readerGroup,
+    private <T extends Serializable> List<Map<Stream, StreamCut>> getStreamCutSlices(ReaderGroup readerGroup,
                                                                                       int totalEvents, EventStreamReader<T> reader1) {
         final AtomicReference<EventStreamReader<T>> reader = new AtomicReference<>();
         final AtomicReference<CompletableFuture<Map<Stream, StreamCut>>> streamCutFuture = new AtomicReference<>(CompletableFuture.completedFuture(null));
@@ -618,6 +622,7 @@ public class CompatibilityChecker {
             throw new AssertionError("StreamCut generation did not complete", t);
         });
     }
+
     private List<CompletableFuture<Integer>> readAllEvents(ReaderGroupManager rgMgr, EventStreamClientFactory clientFactory, String rGroupId,
                                                            int readerCount) {
         return IntStream.range(0, readerCount)
@@ -626,6 +631,7 @@ public class CompatibilityChecker {
                 .collect(Collectors.toList());
 
     }
+
     private <T extends Serializable> int createReaderAndReadEvents(ReaderGroupManager rgMgr, EventStreamClientFactory clientFactory,
                                                                    String rGroupId, int readerIndex) {
         // create a reader.
@@ -749,7 +755,7 @@ public class CompatibilityChecker {
      * specific initial read point. Finally, this test checks reading different StreamCut combinations in both streams for
      * all events.
      */
-    private void checkStreamCuts(){
+    private void checkStreamCuts() {
         String scopeName = "streamCuts-test-scope";
         String streamOne = "streamCuts-test-streamOne";
         String streamTwo = "streamCuts-test-streamTwo";
@@ -804,6 +810,50 @@ public class CompatibilityChecker {
         final int readEvents = readAllEvents(readerGroupManager, clientFactory, readerGroup.getGroupName(), parallelism
         ).stream().map(CompletableFuture::join).reduce(Integer::sum).get();
         assertEquals("Expected read events: ", TOTAL_EVENTS / 2, readEvents);
+    }
+
+    /**
+     * This method tests the functionality of reading and writing bytes to a stream using the ByteStreamClientFactory.
+     * It creates a new scope and stream with the provided names and tests the ability to write a byte array to the stream,
+     * read the bytes from the stream, and truncate data before a specified offset.
+     * @throws Exception if there are any issues with creating or accessing the stream or if any of the tests fail.
+     */
+    @Test(timeout = 5000)
+    public void checkByteStreamReadWrite() throws Exception {
+        String scopeName = "byte-readwrite-test-scope";
+        String streamName = "byte-readwrite-test-stream";
+
+        createScopeAndStream(scopeName, streamName);
+        @Cleanup
+        ByteStreamClientFactory clientFactory = ByteStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        @Cleanup
+        ByteStreamWriter writer = clientFactory.createByteStreamWriter(streamName);
+        byte[] value = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        int headOffset = 0;
+        writer.write(value);
+        writer.flush();
+        @Cleanup
+        ByteStreamReader reader = clientFactory.createByteStreamReader(streamName);
+        for (int i = 0; i < 10; i++) {
+            assertEquals(i, reader.read());
+        }
+        assertEquals(headOffset, reader.fetchHeadOffset());
+        assertEquals(value.length, reader.fetchTailOffset());
+        headOffset = 3;
+        writer.truncateDataBefore(headOffset);
+        writer.write(value);
+        writer.flush();
+        assertEquals(headOffset, reader.fetchHeadOffset());
+        assertEquals(value.length * 2, reader.fetchTailOffset());
+        byte[] read = new byte[5];
+        assertEquals(5, reader.read(read));
+        assertArrayEquals(new byte[] { 0, 1, 2, 3, 4 }, read);
+        assertEquals(2, reader.read(read, 2, 2));
+        assertArrayEquals(new byte[] { 0, 1, 5, 6, 4 }, read);
+        assertEquals(3, reader.read(read, 2, 3));
+        assertArrayEquals(new byte[] { 0, 1, 7, 8, 9 }, read);
+        assertEquals(-1, reader.read(read, 2, 3));
+        assertArrayEquals(new byte[] { 0, 1, 7, 8, 9 }, read);
     }
 
     @Data
