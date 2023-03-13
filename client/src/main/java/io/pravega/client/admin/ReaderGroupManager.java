@@ -77,7 +77,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @return True if ReaderGroup was created.
      * @throws ConfigMismatchException If the reader group already exists with a different configuration. Use {@link ReaderGroup#resetReaderGroup} to change
      * the reader group configuration.
-     * @throws ObjectClosedException If the ReaderGroupManager is closed and if reused the instance for further calls.
+     * @throws ObjectClosedException If the already closed ReaderGroupManager is used for further calls.
      */
     boolean createReaderGroup(String groupName, ReaderGroupConfig config) throws ConfigMismatchException, ObjectClosedException;
     
@@ -87,7 +87,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * them and they will encounter exceptions.
      * 
      * @param groupName The group to be deleted.
-     * @throws ObjectClosedException If the ReaderGroupManager is closed and if reused the instance for further calls.
+     * @throws ObjectClosedException If the already closed ReaderGroupManager is used for further calls.
      */
     void deleteReaderGroup(String groupName) throws ObjectClosedException;
     
@@ -97,7 +97,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @param groupName The name of the group
      * @return Reader group with the given name
      * @throws ReaderGroupNotFoundException If the reader group does not exist.
-     * @throws ObjectClosedException If the ReaderGroupManager is closed and if reused the instance for further calls.
+     * @throws ObjectClosedException If the already closed ReaderGroupManager is used for further calls.
      */
     ReaderGroup getReaderGroup(String groupName) throws ReaderGroupNotFoundException, ObjectClosedException;
     
