@@ -36,6 +36,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.shared.NameUtils;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import lombok.Cleanup;
@@ -272,6 +273,15 @@ public class ReaderGroupManagerImplTest {
         ConnectionPoolImpl cp = (ConnectionPoolImpl) factory.getConnectionPool();
         assertEquals(1, cp.getClientConfig().getMaxConnectionsPerSegmentStore());
         assertEquals(config.isEnableTls(), cp.getClientConfig().isEnableTls());
+    }
+
+    @Test(expected = ObjectClosedException.class)
+    public void testWhenExecutorIsUnavailable() {
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenThrow(new InvalidStreamException("invalid RG stream"));
+        when(pool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
+        when(clientFactory.getConnectionPool().getInternalExecutor().isShutdown()).thenReturn(true);
+        readerGroupManager.getReaderGroup(GROUP_NAME);
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {

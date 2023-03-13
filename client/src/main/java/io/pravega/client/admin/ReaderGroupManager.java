@@ -24,6 +24,7 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Serializer;
+import io.pravega.common.ObjectClosedException;
 import lombok.val;
 
 import java.net.URI;
@@ -76,8 +77,9 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @return True if ReaderGroup was created.
      * @throws ConfigMismatchException If the reader group already exists with a different configuration. Use {@link ReaderGroup#resetReaderGroup} to change
      * the reader group configuration.
+     * @throws ObjectClosedException If the ReaderGroupManager is closed and if reused the instance for further calls.
      */
-    boolean createReaderGroup(String groupName, ReaderGroupConfig config) throws ConfigMismatchException;
+    boolean createReaderGroup(String groupName, ReaderGroupConfig config) throws ConfigMismatchException, ObjectClosedException;
     
     /**
      * Deletes a reader group, removing any state associated with it. There should be no reader left
@@ -85,8 +87,9 @@ public interface ReaderGroupManager extends AutoCloseable {
      * them and they will encounter exceptions.
      * 
      * @param groupName The group to be deleted.
+     * @throws ObjectClosedException If the ReaderGroupManager is closed and if reused the instance for further calls.
      */
-    void deleteReaderGroup(String groupName);
+    void deleteReaderGroup(String groupName) throws ObjectClosedException;
     
     /**
      * Returns the requested reader group.
@@ -94,8 +97,9 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @param groupName The name of the group
      * @return Reader group with the given name
      * @throws ReaderGroupNotFoundException If the reader group does not exist.
+     * @throws ObjectClosedException If the ReaderGroupManager is closed and if reused the instance for further calls.
      */
-    ReaderGroup getReaderGroup(String groupName) throws ReaderGroupNotFoundException;
+    ReaderGroup getReaderGroup(String groupName) throws ReaderGroupNotFoundException, ObjectClosedException;
     
     /**
      * Close this manager class. This will close any connections created through it.
