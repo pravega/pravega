@@ -19,7 +19,7 @@ The following procedure describes offline method of doing the LTS recovery. The 
 
 The offline method currently only supports filesystem storage type.
 
-The major inspiration for this recovery procedure has been #7011. The way this recovery
+The major inspiration for this recovery procedure has been [#7011](https://github.com/pravega/pravega/issues/7011). The way this recovery
 procedure works is by trying to restore the metadata state(state of all Segments in Pravega)
 stored in Tier-2 Segment Chunks, by parsing these raw Chunk files. This recovery procedure 
 assumes full Tier-1 loss, and as such the Tier-1 tail data or the latest updates to the system as lost.
