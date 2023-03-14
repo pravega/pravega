@@ -191,7 +191,7 @@ public class ContainerRecoveryUtils {
             Set<String> metadataSegments = new HashSet<>();
             Futures.exceptionallyExpecting(keyIterator.forEachRemaining(k ->
                     metadataSegments.addAll(k.getEntries().stream()
-                            .map(entry -> entry.getKey().toString())
+                            .map(entry -> new String(entry.getKey().getCopy()))
                             .collect(Collectors.toSet())), executorService),
                     ex -> ex instanceof StreamSegmentNotExistsException, null).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
