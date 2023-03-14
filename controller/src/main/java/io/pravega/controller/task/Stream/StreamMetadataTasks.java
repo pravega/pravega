@@ -25,6 +25,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.RetentionPolicy;
+import io.pravega.client.stream.RetentionPolicy.RetentionType;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -147,7 +148,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private final AtomicBoolean globalRetentionPolicy;
 
-    private final AtomicReference<String>  retentionType;
+    private final AtomicReference<RetentionType>  retentionType;
 
     private final AtomicLong minRetentionValue;
 
@@ -800,14 +801,14 @@ public class StreamMetadataTasks extends TaskBase {
     private StreamConfiguration createRetentionPolicy(StreamConfiguration config) {
         Preconditions.checkArgument(this.minRetentionValue.get() > 0, "Min retention value must be > 0.");
         RetentionPolicy retentionPolicy = null;
-        if (this.retentionType.get().equalsIgnoreCase("time")) {
+        if (this.retentionType.get() == RetentionPolicy.RetentionType.TIME) {
             if (this.maxRetentionValue.get() > 0) {
                 retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(this.minRetentionValue.get()),
                         Duration.ofMinutes(this.maxRetentionValue.get()));
             } else {
                 retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(this.minRetentionValue.get()));
             }
-        } else if (this.retentionType.get().equalsIgnoreCase("size")) {
+        } else if (this.retentionType.get() == RetentionPolicy.RetentionType.SIZE) {
             if (this.maxRetentionValue.get() > 0) {
                 retentionPolicy = RetentionPolicy.bySizeBytes(this.minRetentionValue.get(), this.maxRetentionValue.get());
             } else {
@@ -2176,7 +2177,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     @VisibleForTesting
-    void setGlobalRetentionValues(boolean globalPolicy, long minValue, long maxValue, String type) {
+    void setGlobalRetentionValues(boolean globalPolicy, long minValue, long maxValue, RetentionType type) {
         globalRetentionPolicy.set(globalPolicy);
         retentionType.set(type);
         minRetentionValue.set(minValue);
