@@ -25,8 +25,20 @@ import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.Revision;
+import io.pravega.client.state.RevisionedStreamClient;
+import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -41,11 +53,14 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TimeWindow;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ByteBufferSerializer;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.Insert;
@@ -55,9 +70,13 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.Put;
 import io.pravega.client.tables.Remove;
 import io.pravega.client.tables.TableKey;
+import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.watermarks.Watermark;
+import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -68,16 +87,21 @@ import java.io.Serializable;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -109,6 +133,7 @@ public class CompatibilityChecker {
     private final ScheduledExecutorService streamCutExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "streamCutExecutor");
     private final ScheduledExecutorService readerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(4, "readerPool");
     private final ScheduledExecutorService chkPointExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "chkPointExecutor");
+    private final AtomicLong timer = new AtomicLong();
 
     private URI controllerURI;
     private StreamManager streamManager;
@@ -116,8 +141,14 @@ public class CompatibilityChecker {
     private KeyValueTableManager keyValueTableManager;
     private ScheduledExecutorService executor;
 
+    private Controller controller;
+    private ConnectionPool connectionPool;
+    private ClientConfig clientConfig;
     private void setUp(String uri) {
         controllerURI = URI.create(uri);
+        clientConfig = ClientConfig.builder().controllerURI(controllerURI).build();
+        connectionPool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(), connectionPool.getInternalExecutor());
         streamManager = StreamManager.create(controllerURI);
         streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         keyValueTableManager = KeyValueTableManager.create(controllerURI);
@@ -819,7 +850,7 @@ public class CompatibilityChecker {
      * @throws Exception if there are any issues with creating or accessing the stream or if any of the tests fail.
      */
     @Test(timeout = 5000)
-    public void checkByteStreamReadWrite() throws Exception {
+    private void checkByteStreamReadWrite() throws Exception {
         String scopeName = "byte-readwrite-test-scope";
         String streamName = "byte-readwrite-test-stream";
 
@@ -856,6 +887,180 @@ public class CompatibilityChecker {
         assertArrayEquals(new byte[] { 0, 1, 7, 8, 9 }, read);
     }
 
+    private CompletableFuture<Void> writeSomeEvents(EventStreamWriter<Long> writer, AtomicBoolean stopFlag) {
+        AtomicInteger count = new AtomicInteger(0);
+        AtomicLong currentTime = new AtomicLong();
+        return Futures.loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
+            currentTime.set(timer.incrementAndGet());
+            return writer.writeEvent(count.toString(), currentTime.get())
+                    .thenAccept(v -> {
+                        if (count.incrementAndGet() % 3 == 0) {
+                            writer.noteTime(currentTime.get());
+                        }
+                    });
+        }, 1000L, executor), executor);
+    }
+
+    private void scale(Controller controller, Stream stream, StreamConfiguration configuration) {
+        // perform several scales
+        int numOfSegments = configuration.getScalingPolicy().getMinNumSegments();
+        double delta = 1.0 / numOfSegments;
+        for (long segmentNumber = 0; segmentNumber < numOfSegments - 1; segmentNumber++) {
+            double rangeLow = segmentNumber * delta;
+            double rangeHigh = (segmentNumber + 1) * delta;
+            double rangeMid = (rangeHigh + rangeLow) / 2;
+
+            Map<Double, Double> map = new HashMap<>();
+            map.put(rangeLow, rangeMid);
+            map.put(rangeMid, rangeHigh);
+            controller.scaleStream(stream, Collections.singletonList(segmentNumber), map, executor).getFuture().join();
+        }
+    }
+
+    private void fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks, AtomicBoolean stop) throws Exception {
+        AtomicReference<Revision> revision = new AtomicReference<>(watermarkReader.fetchOldestRevision());
+
+        Futures.loop(() -> !stop.get(), () -> Futures.delayedTask(() -> {
+            Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
+            if (marks.hasNext()) {
+                Map.Entry<Revision, Watermark> next = marks.next();
+                watermarks.add(next.getValue());
+                revision.set(next.getKey());
+            }
+            return null;
+        }, Duration.ofSeconds(5), executor), executor);
+    }
+
+    /**
+     * This method validate the watermark feature of a stream.
+     * The method does the following:
+     *  1. Creates a stream with a fixed scaling policy of 5 partitions, and creates two writers for the stream.
+     *  2. Writes events to the stream using the two writers concurrently.
+     *  3. Scales the stream several times to generate complex positions.
+     *  4. Fetches the watermarks from the stream and adds them to a queue.
+     *  5. Verifies that at least two watermarks have been fetched from the stream within 100 seconds.
+     *  6. Stops writing events to the stream.
+     *  7. Reads events from the stream using the first and second watermarks fetched, and verifies that all events are below the watermark bounds.
+     */
+    @Test(timeout = 120000)
+    private void checkWatermark() throws Exception {
+        String scope = "scope";
+        String stream = "watermarkTest";
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(clientConfig);
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, stream, config);
+
+        Stream streamObj = Stream.of(scope, stream);
+
+        // create 2 writers
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+        JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<Long> writer1 = clientFactory.createEventWriter(stream, javaSerializer,
+                EventWriterConfig.builder().build());
+        @Cleanup
+        EventStreamWriter<Long> writer2 = clientFactory.createEventWriter(stream, javaSerializer,
+                EventWriterConfig.builder().build());
+
+        AtomicBoolean stopFlag = new AtomicBoolean(false);
+        // write events
+        CompletableFuture<Void> writer1Future = writeSomeEvents(writer1, stopFlag);
+        CompletableFuture<Void> writer2Future = writeSomeEvents(writer2, stopFlag);
+
+        // scale the stream several times so that we get complex positions
+        scale(controller, streamObj, config);
+
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        @Cleanup
+        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scope,
+                new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
+                        connectionFactory.getInternalExecutor()),
+                connectionFactory);
+
+        String markStream = NameUtils.getMarkStreamForStream(stream);
+        @Cleanup
+        RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
+                new WatermarkSerializer(),
+                SynchronizerConfig.builder().build());
+
+        LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
+        fetchWatermarks(watermarkReader, watermarks, stopFlag);
+
+        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
+
+        stopFlag.set(true);
+
+        writer1Future.join();
+        writer2Future.join();
+
+        // read events from the stream
+        @Cleanup
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory);
+
+        Watermark watermark0 = watermarks.take();
+        Watermark watermark1 = watermarks.take();
+        assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
+        assertTrue(watermark1.getLowerTimeBound() <= watermark1.getUpperTimeBound());
+        assertTrue(watermark0.getLowerTimeBound() < watermark1.getLowerTimeBound());
+
+        Map<Segment, Long> positionMap0 = watermark0.getStreamCut().entrySet().stream().collect(
+                Collectors.toMap(x -> new Segment(scope, stream, x.getKey().getSegmentId()), Map.Entry::getValue));
+        Map<Segment, Long> positionMap1 = watermark1.getStreamCut().entrySet().stream().collect(
+                Collectors.toMap(x -> new Segment(scope, stream, x.getKey().getSegmentId()), Map.Entry::getValue));
+
+        StreamCut streamCutFirst = new StreamCutImpl(streamObj, positionMap0);
+        StreamCut streamCutSecond = new StreamCutImpl(streamObj, positionMap1);
+        Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(streamObj, streamCutFirst);
+        Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(streamObj, streamCutSecond);
+
+        // read from stream cut of first watermark
+        String readerGroup = "watermarkTest-group";
+        readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
+                .startingStreamCuts(firstMarkStreamCut)
+                .endingStreamCuts(secondMarkStreamCut)
+                .disableAutomaticCheckpoints()
+                .build());
+
+        @Cleanup
+        final EventStreamReader<Long> reader = clientFactory.createReader("myreader",
+                readerGroup,
+                javaSerializer,
+                ReaderConfig.builder().build());
+
+        EventRead<Long> event = reader.readNextEvent(10000L);
+        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
+        while (event.getEvent() != null && currentTimeWindow.getLowerTimeBound() == null && currentTimeWindow.getUpperTimeBound() == null) {
+            event = reader.readNextEvent(10000L);
+            currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
+        }
+
+        assertNotNull(currentTimeWindow.getUpperTimeBound());
+
+        // read all events and verify that all events are below the bounds
+        while (event.getEvent() != null) {
+            Long time = event.getEvent();
+            log.info("timewindow = {} event = {}", currentTimeWindow, time);
+            assertTrue(currentTimeWindow.getLowerTimeBound() == null || time >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(currentTimeWindow.getUpperTimeBound() == null || time <= currentTimeWindow.getUpperTimeBound());
+
+            TimeWindow nextTimeWindow = reader.getCurrentTimeWindow(streamObj);
+            assertTrue(currentTimeWindow.getLowerTimeBound() == null || nextTimeWindow.getLowerTimeBound() >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(currentTimeWindow.getUpperTimeBound() == null || nextTimeWindow.getUpperTimeBound() >= currentTimeWindow.getUpperTimeBound());
+            currentTimeWindow = nextTimeWindow;
+
+            event = reader.readNextEvent(10000L);
+            if (event.isCheckpoint()) {
+                event = reader.readNextEvent(10000L);
+            }
+        }
+
+        assertNotNull(currentTimeWindow.getLowerTimeBound());
+    }
+
     @Data
     private static class PaddedStringSerializer {
         private final int maxLength;
@@ -873,7 +1078,7 @@ public class CompatibilityChecker {
 
     }
 
-    public static void main(String[] args) throws DeleteScopeFailedException, TxnFailedException {
+    public static void main(String[] args) throws Exception {
         String uri = System.getProperty("controllerUri");
         if (uri == null) {
             log.error("Input correct controller URI (e.g., \"tcp://localhost:9090\")");
@@ -892,6 +1097,7 @@ public class CompatibilityChecker {
         compatibilityChecker.checkWriteAndReadLargeEvent();
         compatibilityChecker.checkStreamTags();
         compatibilityChecker.checkStreamCuts();
+        compatibilityChecker.checkWatermark();
         System.exit(0);
     }
 }
