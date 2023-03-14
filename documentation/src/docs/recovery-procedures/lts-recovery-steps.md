@@ -17,7 +17,17 @@ limitations under the License.
 # LTS Recovery
 The following procedure describes offline method of doing the LTS recovery. The offline method of doing the LTS recovery requires the admin to manually copy metadata chunk files to some directory.
 
-The offline method currently only supports filesystem storage type
+The offline method currently only supports filesystem storage type.
+
+The major inspiration for this recovery procedure has been #7011. The way this recovery
+procedure works is by trying to restore the metadata state(state of all Segments in Pravega)
+stored in Tier-2 Segment Chunks, by parsing these raw Chunk files. This recovery procedure 
+assumes full Tier-1 loss, and as such the Tier-1 tail data or the latest updates to the system as lost.
+The aim of this recovery procedure is to get Pravega functional again after performing the recovery procedure,
+to allow clients to resume their operations. Some cases where the recovery procedure
+might be useful are ZooKeeper becoming dysfunctional or Bookkeeper disk corruptions etc, where we 
+intend to start Pravega off the data that exists in Tier-2.
+The following section describes how to perform the recovery steps.
 
 ## Prerequisites
 Having pravega installed with data generated on it. 

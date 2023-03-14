@@ -423,6 +423,10 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
             if (operation instanceof TableSegmentUtils.PutOperation) {
                 MetadataStore.SegmentInfo segmentInfo = SERIALIZER.deserialize(new ByteArraySegment(unversionedEntry.getValue().getCopy()).getReader());
+                if ( segmentInfo.getProperties().getName().contains(NameUtils.getStorageMetadataSegmentName(container.getId()))) {
+                    // reset storage_metadata segment to have 0 storageLength to avoid storage Length error in {@link SegmentAggregator@initialize} method.
+                    segmentInfo = resetStorageSegment(segmentInfo);
+                }
                 //reset Segment ID to "NO_STREAM_SEGMENT_ID" to avoid segment id conflicts with some segments that get created when container starts
                 // up immediately after recovery.
                 ByteArraySegment segment = SERIALIZER.serialize(resetSegmentID(segmentInfo));
@@ -432,6 +436,17 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
             }
         }
+    }
+
+    private MetadataStore.SegmentInfo resetStorageSegment(MetadataStore.SegmentInfo segmentInfo) {
+        StreamSegmentInformation segmentInformation = StreamSegmentInformation.builder()
+                .name(segmentInfo.getProperties().getName())
+                .attributes(segmentInfo.getProperties().getAttributes())
+                .build();
+        return MetadataStore.SegmentInfo.builder()
+                .properties(segmentInformation)
+                .segmentId(segmentInfo.getSegmentId())
+                .build();
     }
 
     private MetadataStore.SegmentInfo resetSegmentID(MetadataStore.SegmentInfo segmentInfo) {
@@ -453,7 +468,6 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private void writeEntriesToStorageMetadata(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
         output("Writing entries to storage metadata");
         ContainerTableExtension tableExtension = container.getExtension(ContainerTableExtension.class);
-        HashSet<String> deletedKeys = new HashSet<>();
         for (TableSegmentUtils.TableSegmentOperation operation : tableSegmentOperations) {
             TableSegmentEntry entry = operation.getContents();
             TableEntry unversionedEntry = TableEntry.unversioned(new ByteBufWrapper(entry.getKey().getKey()), new ByteBufWrapper(entry.getValue()));
