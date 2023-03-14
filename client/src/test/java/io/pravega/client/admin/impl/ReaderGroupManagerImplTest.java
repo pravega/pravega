@@ -116,6 +116,8 @@ public class ReaderGroupManagerImplTest {
                 .thenReturn(CompletableFuture.completedFuture(expectedConfig));
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
+        when(pool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
+        when(clientFactory.getConnectionPool().getInternalExecutor().isShutdown()).thenReturn(false);
         // Create a ReaderGroup
         boolean created = readerGroupManager.createReaderGroup(GROUP_NAME, config);
         assertTrue(created);
@@ -133,7 +135,8 @@ public class ReaderGroupManagerImplTest {
         ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
         when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
                 .thenReturn(CompletableFuture.completedFuture(expectedConfig));
-
+        when(pool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
+        when(clientFactory.getConnectionPool().getInternalExecutor().isShutdown()).thenReturn(false);
         // Create a ReaderGroup
         ReaderGroupConfig newConfig = ReaderGroupConfig.builder()
                                                        .stream(createStream("s1"), createStreamCut("s1", 2))
@@ -166,6 +169,8 @@ public class ReaderGroupManagerImplTest {
         ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 1L);
         when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
                 .thenReturn(CompletableFuture.completedFuture(expectedConfig));
+        when(pool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
+        when(clientFactory.getConnectionPool().getInternalExecutor().isShutdown()).thenReturn(false);
         // Create a ReaderGroup
         boolean created = readerGroupManager.createReaderGroup(GROUP_NAME, config);
         assertFalse(created);
@@ -188,6 +193,8 @@ public class ReaderGroupManagerImplTest {
         when(synchronizer.getState()).thenReturn(state);
         when(state.getConfig()).thenReturn(config);
         when(controller.deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId())).thenReturn(CompletableFuture.completedFuture(true));
+        when(pool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
+        when(clientFactory.getConnectionPool().getInternalExecutor().isShutdown()).thenReturn(false);
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
         verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId());
@@ -205,6 +212,8 @@ public class ReaderGroupManagerImplTest {
         when(controller.getReaderGroupConfig(SCOPE, GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(config));
         when(controller.deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId()))
                 .thenReturn(CompletableFuture.completedFuture(true));
+        when(pool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
+        when(clientFactory.getConnectionPool().getInternalExecutor().isShutdown()).thenReturn(false);
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
@@ -230,6 +239,8 @@ public class ReaderGroupManagerImplTest {
                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
         when(controller.deleteReaderGroup(anyString(), anyString(), any(UUID.class)))
                 .thenReturn(CompletableFuture.completedFuture(true));
+        when(pool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
+        when(clientFactory.getConnectionPool().getInternalExecutor().isShutdown()).thenReturn(false);
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
@@ -257,6 +268,8 @@ public class ReaderGroupManagerImplTest {
                 .thenReturn(CompletableFuture.completedFuture(true));
         when(controller.deleteStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME)))
                 .thenReturn(CompletableFuture.completedFuture(true));
+        when(pool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
+        when(clientFactory.getConnectionPool().getInternalExecutor().isShutdown()).thenReturn(false);
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
