@@ -604,6 +604,299 @@ public class CompatibilityChecker {
         assertEquals("Read count should be equal to write count", NUM_EVENTS, readCount);
     }
 
+    /**
+     * This test verifies the correct operation of readers using StreamCuts. Concretely, the test creates two streams
+     * with different number of segments and it writes some events (TOTAL_EVENTS / 2) in them. Then, the test creates a
+     * list of StreamCuts that encompasses both streams every CUT_SIZE events. The test asserts that new groups of
+     * readers can be initialized at these sequential StreamCut intervals and that only CUT_SIZE events are read. Also,
+     * the test checks the correctness of different combinations of StreamCuts that have not been sequentially created.
+     * After creating StreamCuts and tests the correctness of reads, the test also checks resetting a reader group to a
+     * specific initial read point. Finally, this test checks reading different StreamCut combinations in both streams for
+     * all events.
+     */
+    private void checkStreamCuts() {
+        String scopeName = "streamCuts-test-scope";
+        String streamOne = "streamCuts-test-streamOne";
+        String streamTwo = "streamCuts-test-streamTwo";
+        createScopeAndStream(scopeName, streamOne, streamConfig);
+        streamManager.createStream(scopeName, streamTwo, streamConfig);
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, clientConfig);
+
+        String readerGroupId = getRandomID();
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                                                                .stream(Stream.of(scopeName, streamOne))
+                                                                .stream(Stream.of(scopeName, streamTwo)).build();
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
+        readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
+        @Cleanup
+        EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
+
+        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupId);
+
+        // Perform write of events, slice by slice StreamCuts test and combinations StreamCuts test.
+        log.info("Write, slice by slice and combinations test before scaling.");
+        final int parallelism = 3;
+        // First, write half of total events before scaling (1/4 in each Stream).
+        writeEvents(clientFactory, streamOne, TOTAL_EVENTS / 4, 0);
+        writeEvents(clientFactory, streamTwo, TOTAL_EVENTS / 4, 0);
+        log.info("Finished writing events to streams.");
+
+        Map<Stream, StreamCut> initialPosition = new HashMap<>(readerGroup.getStreamCuts());
+        log.info("Creating StreamCuts from: {}.", initialPosition);
+        // Get StreamCuts for each slice from both Streams at the same time (may be different in each execution).
+        List<Map<Stream, StreamCut>> streamSlices = getStreamCutSlices(readerGroup, TOTAL_EVENTS / 2, reader);
+        streamSlices.add(0, initialPosition);
+        log.info("Finished creating StreamCuts {}.", streamSlices);
+
+        // Ensure that reader groups can correctly read slice by slice from different Streams.
+        readSliceBySliceAndVerify(readerGroupManager, clientFactory, parallelism, streamSlices, scopeName, streamOne, streamTwo);
+        log.info("Finished checking sequentially slice by slice.");
+
+        // Perform different combinations of StreamCuts and verify that read event boundaries are still correct.
+        combineSlicesAndVerify(readerGroupManager, clientFactory, parallelism, streamSlices, scopeName, streamOne, streamTwo);
+        log.info("Finished checking StreamCut combinations.");
+        // Test that a reader group can be reset correctly.
+        ReaderGroupConfig firstSliceConfig = ReaderGroupConfig.builder()
+                .stream(Stream.of(scopeName, streamOne))
+                .stream(Stream.of(scopeName, streamTwo))
+                .startingStreamCuts(initialPosition)
+                .endingStreamCuts(streamSlices.get(streamSlices.size() - 1)).build();
+        readerGroup.resetReaderGroup(firstSliceConfig);
+        log.info("Resetting existing reader group {} to stream cut {}.", readerGroupId, initialPosition);
+        final int readEvents = readAllEvents(readerGroupManager, clientFactory, readerGroup.getGroupName(), parallelism
+        ).stream().map(CompletableFuture::join).reduce(Integer::sum).get();
+        assertEquals("Expected read events: ", TOTAL_EVENTS / 2, readEvents);
+    }
+
+    /**
+     * This method tests the functionality of reading and writing bytes to a stream using the ByteStreamClientFactory.
+     * It creates a new scope and stream with the provided names and tests the ability to write a byte array to the stream,
+     * read the bytes from the stream, and truncate data before a specified offset.
+     * @throws Exception if there are any issues with creating or accessing the stream or if any of the tests fail.
+     */
+    private void checkByteStreamReadWrite() throws Exception {
+        String scopeName = "byte-readwrite-test-scope";
+        String streamName = "byte-readwrite-test-stream";
+
+        createScopeAndStream(scopeName, streamName);
+        @Cleanup
+        ByteStreamClientFactory clientFactory = ByteStreamClientFactory.withScope(scopeName, clientConfig);
+        @Cleanup
+        ByteStreamWriter writer = clientFactory.createByteStreamWriter(streamName);
+        byte[] value = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        int headOffset = 0;
+        writer.write(value);
+        writer.flush();
+        @Cleanup
+        ByteStreamReader reader = clientFactory.createByteStreamReader(streamName);
+        for (int i = 0; i < 10; i++) {
+            assertEquals(i, reader.read());
+        }
+        assertEquals(headOffset, reader.fetchHeadOffset());
+        assertEquals(value.length, reader.fetchTailOffset());
+        headOffset = 3;
+        writer.truncateDataBefore(headOffset);
+        writer.write(value);
+        writer.flush();
+        assertEquals(headOffset, reader.fetchHeadOffset());
+        assertEquals(value.length * 2, reader.fetchTailOffset());
+        byte[] read = new byte[5];
+        assertEquals(5, reader.read(read));
+        assertArrayEquals(new byte[] { 0, 1, 2, 3, 4 }, read);
+        assertEquals(2, reader.read(read, 2, 2));
+        assertArrayEquals(new byte[] { 0, 1, 5, 6, 4 }, read);
+        assertEquals(3, reader.read(read, 2, 3));
+        assertArrayEquals(new byte[] { 0, 1, 7, 8, 9 }, read);
+        assertArrayEquals(new byte[] { 0, 1, 7, 8, 9 }, read);
+
+    }
+
+    /**
+     * This method validate the watermark feature of a stream.
+     * The method does the following:
+     *  1. Creates a stream with a fixed scaling policy of 5 partitions, and creates two writers for the stream.
+     *  2. Writes events to the stream using the two writers concurrently.
+     *  3. Scales the stream several times to generate complex positions.
+     *  4. Fetches the watermarks from the stream and adds them to a queue.
+     *  5. Verifies that at least two watermarks have been fetched from the stream within 100 seconds.
+     *  6. Stops writing events to the stream.
+     *  7. Reads events from the stream using the first and second watermarks fetched, and verifies that all events are below the watermark bounds.
+     */
+    @Test(timeout = 120000)
+    private void checkWatermark() throws Exception {
+        String scope = "scope";
+        String stream = "watermarkTest";
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
+        createScopeAndStream(scope, stream, config);
+
+        Stream streamObj = Stream.of(scope, stream);
+
+        // create 2 writers
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+        JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<Long> writer1 = clientFactory.createEventWriter(stream, javaSerializer,
+                EventWriterConfig.builder().build());
+        @Cleanup
+        EventStreamWriter<Long> writer2 = clientFactory.createEventWriter(stream, javaSerializer,
+                EventWriterConfig.builder().build());
+
+        AtomicBoolean stopFlag = new AtomicBoolean(false);
+        // write events
+        CompletableFuture<Void> writer1Future = writeEventAsync(writer1, stopFlag);
+        CompletableFuture<Void> writer2Future = writeEventAsync(writer2, stopFlag);
+
+        // scale the stream several times so that we get complex positions
+        scale(controller, streamObj, config);
+
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        @Cleanup
+        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scope,
+                new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
+                        connectionFactory.getInternalExecutor()),
+                connectionFactory);
+
+        String markStream = NameUtils.getMarkStreamForStream(stream);
+        @Cleanup
+        RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
+                new WatermarkSerializer(),
+                SynchronizerConfig.builder().build());
+
+        LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
+        fetchWatermarks(watermarkReader, watermarks, stopFlag);
+
+        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
+
+        stopFlag.set(true);
+
+        writer1Future.join();
+        writer2Future.join();
+
+        // read events from the stream
+        @Cleanup
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory);
+
+        Watermark watermark0 = watermarks.take();
+        Watermark watermark1 = watermarks.take();
+        assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
+        assertTrue(watermark1.getLowerTimeBound() <= watermark1.getUpperTimeBound());
+        assertTrue(watermark0.getLowerTimeBound() < watermark1.getLowerTimeBound());
+
+        Map<Segment, Long> positionMap0 = watermark0.getStreamCut().entrySet().stream().collect(
+                Collectors.toMap(x -> new Segment(scope, stream, x.getKey().getSegmentId()), Map.Entry::getValue));
+        Map<Segment, Long> positionMap1 = watermark1.getStreamCut().entrySet().stream().collect(
+                Collectors.toMap(x -> new Segment(scope, stream, x.getKey().getSegmentId()), Map.Entry::getValue));
+
+        StreamCut streamCutFirst = new StreamCutImpl(streamObj, positionMap0);
+        StreamCut streamCutSecond = new StreamCutImpl(streamObj, positionMap1);
+        Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(streamObj, streamCutFirst);
+        Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(streamObj, streamCutSecond);
+
+        // read from stream cut of first watermark
+        String readerGroup = "watermarkTest-group";
+        readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
+                .startingStreamCuts(firstMarkStreamCut)
+                .endingStreamCuts(secondMarkStreamCut)
+                .disableAutomaticCheckpoints()
+                .build());
+
+        @Cleanup
+        final EventStreamReader<Long> reader = clientFactory.createReader("myreader",
+                readerGroup,
+                javaSerializer,
+                ReaderConfig.builder().build());
+
+        EventRead<Long> event = reader.readNextEvent(10000L);
+        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
+        while (event.getEvent() != null && currentTimeWindow.getLowerTimeBound() == null && currentTimeWindow.getUpperTimeBound() == null) {
+            event = reader.readNextEvent(10000L);
+            currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
+        }
+
+        assertNotNull(currentTimeWindow.getUpperTimeBound());
+
+        // read all events and verify that all events are below the bounds
+        while (event.getEvent() != null) {
+            Long time = event.getEvent();
+            log.info("timewindow = {} event = {}", currentTimeWindow, time);
+            assertTrue(currentTimeWindow.getLowerTimeBound() == null || time >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(currentTimeWindow.getUpperTimeBound() == null || time <= currentTimeWindow.getUpperTimeBound());
+
+            TimeWindow nextTimeWindow = reader.getCurrentTimeWindow(streamObj);
+            assertTrue(currentTimeWindow.getLowerTimeBound() == null || nextTimeWindow.getLowerTimeBound() >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(currentTimeWindow.getUpperTimeBound() == null || nextTimeWindow.getUpperTimeBound() >= currentTimeWindow.getUpperTimeBound());
+            currentTimeWindow = nextTimeWindow;
+
+            event = reader.readNextEvent(10000L);
+            if (event.isCheckpoint()) {
+                event = reader.readNextEvent(10000L);
+            }
+        }
+
+        assertNotNull(currentTimeWindow.getLowerTimeBound());
+    }
+
+
+    /**
+     * This method tests the ability of a batch reader to read events from a stream.
+     * It creates a scope and stream, writes events to the stream, and uses the BatchClientFactory
+     * to read events from the stream's segments. It then checks the number of events read against
+     * the total number of events written.
+     * The code also scales the stream, writes more events, and reads from the stream again to ensure
+     * the batch reader can handle scaling.
+     */
+    @Test(timeout = 120000)
+    private void checkBatchClient() throws Exception {
+        String scope = "batch-test-scope";
+        String streamName = "batch-test-stream";
+        StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build();
+        createScopeAndStream(scope, streamName, streamConfig);
+        Stream stream = Stream.of(scope, streamName);
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+        writeEvents(clientFactory, streamName, NUM_EVENTS, 0);
+        @Cleanup
+        val batchClientFactory = BatchClientFactory.withScope(scope, clientConfig);
+        ArrayList<SegmentRange> segments = new ArrayList<>();
+        Iterator<SegmentRange> iterator =  batchClientFactory.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator();
+
+        while (iterator.hasNext()) {
+            segments.add(iterator.next());
+        }
+        int totalReadEvents = readFromSegments(batchClientFactory, segments);
+        assertEquals(totalReadEvents, NUM_EVENTS);
+
+        scale(controller, stream, streamConfig);
+        writeEvents(clientFactory, streamName, NUM_EVENTS, 0);
+        ArrayList<SegmentRange> segmentsAfterScale = new ArrayList<>();
+
+        iterator = batchClientFactory.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator();
+
+        while (iterator.hasNext()) {
+            segmentsAfterScale.add(iterator.next());
+        }
+        totalReadEvents = readFromSegments(batchClientFactory, segments);
+        assertEquals(totalReadEvents, NUM_EVENTS);
+    }
+
+    private CompletableFuture<Void> writeEventAsync(EventStreamWriter<Long> writer, AtomicBoolean stopFlag) {
+        AtomicInteger count = new AtomicInteger(0);
+        AtomicLong currentTime = new AtomicLong();
+        return Futures.loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
+            currentTime.set(timer.incrementAndGet());
+            return writer.writeEvent(count.toString(), currentTime.get())
+                    .thenAccept(v -> {
+                        if (count.incrementAndGet() % 3 == 0) {
+                            writer.noteTime(currentTime.get());
+                        }
+                    });
+        }, 1000L, executor), executor);
+    }
+
     private void writeEvents(EventStreamClientFactory clientFactory, String streamName, int totalEvents, int initialPoint) {
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
@@ -616,7 +909,7 @@ public class CompatibilityChecker {
     }
 
     private <T extends Serializable> List<Map<Stream, StreamCut>> getStreamCutSlices(ReaderGroup readerGroup,
-                                                                                      int totalEvents, EventStreamReader<T> reader1) {
+                                                                                     int totalEvents, EventStreamReader<T> reader1) {
         final AtomicReference<EventStreamReader<T>> reader = new AtomicReference<>();
         final AtomicReference<CompletableFuture<Map<Stream, StreamCut>>> streamCutFuture = new AtomicReference<>(CompletableFuture.completedFuture(null));
         reader.set(reader1);
@@ -662,6 +955,36 @@ public class CompatibilityChecker {
         });
     }
 
+    private void scale(Controller controller, Stream stream, StreamConfiguration configuration) {
+        // perform several scales
+        int numOfSegments = configuration.getScalingPolicy().getMinNumSegments();
+        double delta = 1.0 / numOfSegments;
+        for (long segmentNumber = 0; segmentNumber < numOfSegments - 1; segmentNumber++) {
+            double rangeLow = segmentNumber * delta;
+            double rangeHigh = (segmentNumber + 1) * delta;
+            double rangeMid = (rangeHigh + rangeLow) / 2;
+
+            Map<Double, Double> map = new HashMap<>();
+            map.put(rangeLow, rangeMid);
+            map.put(rangeMid, rangeHigh);
+            controller.scaleStream(stream, Collections.singletonList(segmentNumber), map, executor).getFuture().join();
+        }
+    }
+
+    private void fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks, AtomicBoolean stop) throws Exception {
+        AtomicReference<Revision> revision = new AtomicReference<>(watermarkReader.fetchOldestRevision());
+
+        Futures.loop(() -> !stop.get(), () -> Futures.delayedTask(() -> {
+            Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
+            if (marks.hasNext()) {
+                Map.Entry<Revision, Watermark> next = marks.next();
+                watermarks.add(next.getValue());
+                revision.set(next.getKey());
+            }
+            return null;
+        }, Duration.ofSeconds(5), executor), executor);
+    }
+    
     private List<CompletableFuture<Integer>> readAllEvents(ReaderGroupManager rgMgr, EventStreamClientFactory clientFactory, String rGroupId,
                                                            int readerCount) {
         return IntStream.range(0, readerCount)
@@ -784,286 +1107,6 @@ public class CompatibilityChecker {
         }
     }
 
-    /**
-     * This test verifies the correct operation of readers using StreamCuts. Concretely, the test creates two streams
-     * with different number of segments and it writes some events (TOTAL_EVENTS / 2) in them. Then, the test creates a
-     * list of StreamCuts that encompasses both streams every CUT_SIZE events. The test asserts that new groups of
-     * readers can be initialized at these sequential StreamCut intervals and that only CUT_SIZE events are read. Also,
-     * the test checks the correctness of different combinations of StreamCuts that have not been sequentially created.
-     * After creating StreamCuts and tests the correctness of reads, the test also checks resetting a reader group to a
-     * specific initial read point. Finally, this test checks reading different StreamCut combinations in both streams for
-     * all events.
-     */
-    private void checkStreamCuts() {
-        String scopeName = "streamCuts-test-scope";
-        String streamOne = "streamCuts-test-streamOne";
-        String streamTwo = "streamCuts-test-streamTwo";
-        createScopeAndStream(scopeName, streamOne, streamConfig);
-        streamManager.createStream(scopeName, streamTwo, streamConfig);
-        @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, clientConfig);
-
-        String readerGroupId = getRandomID();
-        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
-                                                                .stream(Stream.of(scopeName, streamOne))
-                                                                .stream(Stream.of(scopeName, streamTwo)).build();
-        @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, controllerURI);
-        readerGroupManager.createReaderGroup(readerGroupId, readerGroupConfig);
-        @Cleanup
-        EventStreamReader<String> reader =  clientFactory.createReader("reader-1", readerGroupId, new UTF8StringSerializer(), ReaderConfig.builder().build());
-
-        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupId);
-
-        // Perform write of events, slice by slice StreamCuts test and combinations StreamCuts test.
-        log.info("Write, slice by slice and combinations test before scaling.");
-        final int parallelism = 3;
-        // First, write half of total events before scaling (1/4 in each Stream).
-        writeEvents(clientFactory, streamOne, TOTAL_EVENTS / 4, 0);
-        writeEvents(clientFactory, streamTwo, TOTAL_EVENTS / 4, 0);
-        log.info("Finished writing events to streams.");
-
-        Map<Stream, StreamCut> initialPosition = new HashMap<>(readerGroup.getStreamCuts());
-        log.info("Creating StreamCuts from: {}.", initialPosition);
-        // Get StreamCuts for each slice from both Streams at the same time (may be different in each execution).
-        List<Map<Stream, StreamCut>> streamSlices = getStreamCutSlices(readerGroup, TOTAL_EVENTS / 2, reader);
-        streamSlices.add(0, initialPosition);
-        log.info("Finished creating StreamCuts {}.", streamSlices);
-
-        // Ensure that reader groups can correctly read slice by slice from different Streams.
-        readSliceBySliceAndVerify(readerGroupManager, clientFactory, parallelism, streamSlices, scopeName, streamOne, streamTwo);
-        log.info("Finished checking sequentially slice by slice.");
-
-        // Perform different combinations of StreamCuts and verify that read event boundaries are still correct.
-        combineSlicesAndVerify(readerGroupManager, clientFactory, parallelism, streamSlices, scopeName, streamOne, streamTwo);
-        log.info("Finished checking StreamCut combinations.");
-        // Test that a reader group can be reset correctly.
-        ReaderGroupConfig firstSliceConfig = ReaderGroupConfig.builder()
-                .stream(Stream.of(scopeName, streamOne))
-                .stream(Stream.of(scopeName, streamTwo))
-                .startingStreamCuts(initialPosition)
-                .endingStreamCuts(streamSlices.get(streamSlices.size() - 1)).build();
-        readerGroup.resetReaderGroup(firstSliceConfig);
-        log.info("Resetting existing reader group {} to stream cut {}.", readerGroupId, initialPosition);
-        final int readEvents = readAllEvents(readerGroupManager, clientFactory, readerGroup.getGroupName(), parallelism
-        ).stream().map(CompletableFuture::join).reduce(Integer::sum).get();
-        assertEquals("Expected read events: ", TOTAL_EVENTS / 2, readEvents);
-    }
-
-    /**
-     * This method tests the functionality of reading and writing bytes to a stream using the ByteStreamClientFactory.
-     * It creates a new scope and stream with the provided names and tests the ability to write a byte array to the stream,
-     * read the bytes from the stream, and truncate data before a specified offset.
-     * @throws Exception if there are any issues with creating or accessing the stream or if any of the tests fail.
-     */
-    private void checkByteStreamReadWrite() throws Exception {
-        String scopeName = "byte-readwrite-test-scope";
-        String streamName = "byte-readwrite-test-stream";
-
-        createScopeAndStream(scopeName, streamName);
-        @Cleanup
-        ByteStreamClientFactory clientFactory = ByteStreamClientFactory.withScope(scopeName, clientConfig);
-        @Cleanup
-        ByteStreamWriter writer = clientFactory.createByteStreamWriter(streamName);
-        byte[] value = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-        int headOffset = 0;
-        writer.write(value);
-        writer.flush();
-        @Cleanup
-        ByteStreamReader reader = clientFactory.createByteStreamReader(streamName);
-        for (int i = 0; i < 10; i++) {
-            assertEquals(i, reader.read());
-        }
-        assertEquals(headOffset, reader.fetchHeadOffset());
-        assertEquals(value.length, reader.fetchTailOffset());
-        headOffset = 3;
-        writer.truncateDataBefore(headOffset);
-        writer.write(value);
-        writer.flush();
-        assertEquals(headOffset, reader.fetchHeadOffset());
-        assertEquals(value.length * 2, reader.fetchTailOffset());
-        byte[] read = new byte[5];
-        assertEquals(5, reader.read(read));
-        assertArrayEquals(new byte[] { 0, 1, 2, 3, 4 }, read);
-        assertEquals(2, reader.read(read, 2, 2));
-        assertArrayEquals(new byte[] { 0, 1, 5, 6, 4 }, read);
-        assertEquals(3, reader.read(read, 2, 3));
-        assertArrayEquals(new byte[] { 0, 1, 7, 8, 9 }, read);
-        assertArrayEquals(new byte[] { 0, 1, 7, 8, 9 }, read);
-
-    }
-
-    private CompletableFuture<Void> writeSomeEvents(EventStreamWriter<Long> writer, AtomicBoolean stopFlag) {
-        AtomicInteger count = new AtomicInteger(0);
-        AtomicLong currentTime = new AtomicLong();
-        return Futures.loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
-            currentTime.set(timer.incrementAndGet());
-            return writer.writeEvent(count.toString(), currentTime.get())
-                    .thenAccept(v -> {
-                        if (count.incrementAndGet() % 3 == 0) {
-                            writer.noteTime(currentTime.get());
-                        }
-                    });
-        }, 1000L, executor), executor);
-    }
-
-    private void scale(Controller controller, Stream stream, StreamConfiguration configuration) {
-        // perform several scales
-        int numOfSegments = configuration.getScalingPolicy().getMinNumSegments();
-        double delta = 1.0 / numOfSegments;
-        for (long segmentNumber = 0; segmentNumber < numOfSegments - 1; segmentNumber++) {
-            double rangeLow = segmentNumber * delta;
-            double rangeHigh = (segmentNumber + 1) * delta;
-            double rangeMid = (rangeHigh + rangeLow) / 2;
-
-            Map<Double, Double> map = new HashMap<>();
-            map.put(rangeLow, rangeMid);
-            map.put(rangeMid, rangeHigh);
-            controller.scaleStream(stream, Collections.singletonList(segmentNumber), map, executor).getFuture().join();
-        }
-    }
-
-    private void fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks, AtomicBoolean stop) throws Exception {
-        AtomicReference<Revision> revision = new AtomicReference<>(watermarkReader.fetchOldestRevision());
-
-        Futures.loop(() -> !stop.get(), () -> Futures.delayedTask(() -> {
-            Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
-            if (marks.hasNext()) {
-                Map.Entry<Revision, Watermark> next = marks.next();
-                watermarks.add(next.getValue());
-                revision.set(next.getKey());
-            }
-            return null;
-        }, Duration.ofSeconds(5), executor), executor);
-    }
-
-    /**
-     * This method validate the watermark feature of a stream.
-     * The method does the following:
-     *  1. Creates a stream with a fixed scaling policy of 5 partitions, and creates two writers for the stream.
-     *  2. Writes events to the stream using the two writers concurrently.
-     *  3. Scales the stream several times to generate complex positions.
-     *  4. Fetches the watermarks from the stream and adds them to a queue.
-     *  5. Verifies that at least two watermarks have been fetched from the stream within 100 seconds.
-     *  6. Stops writing events to the stream.
-     *  7. Reads events from the stream using the first and second watermarks fetched, and verifies that all events are below the watermark bounds.
-     */
-    @Test(timeout = 120000)
-    private void checkWatermark() throws Exception {
-        String scope = "scope";
-        String stream = "watermarkTest";
-        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
-        createScopeAndStream(scope, stream, config);
-
-        Stream streamObj = Stream.of(scope, stream);
-
-        // create 2 writers
-        @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
-        JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
-        @Cleanup
-        EventStreamWriter<Long> writer1 = clientFactory.createEventWriter(stream, javaSerializer,
-                EventWriterConfig.builder().build());
-        @Cleanup
-        EventStreamWriter<Long> writer2 = clientFactory.createEventWriter(stream, javaSerializer,
-                EventWriterConfig.builder().build());
-
-        AtomicBoolean stopFlag = new AtomicBoolean(false);
-        // write events
-        CompletableFuture<Void> writer1Future = writeSomeEvents(writer1, stopFlag);
-        CompletableFuture<Void> writer2Future = writeSomeEvents(writer2, stopFlag);
-
-        // scale the stream several times so that we get complex positions
-        scale(controller, streamObj, config);
-
-        @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
-        @Cleanup
-        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scope,
-                new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
-                        connectionFactory.getInternalExecutor()),
-                connectionFactory);
-
-        String markStream = NameUtils.getMarkStreamForStream(stream);
-        @Cleanup
-        RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
-                new WatermarkSerializer(),
-                SynchronizerConfig.builder().build());
-
-        LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
-        fetchWatermarks(watermarkReader, watermarks, stopFlag);
-
-        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
-
-        stopFlag.set(true);
-
-        writer1Future.join();
-        writer2Future.join();
-
-        // read events from the stream
-        @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory);
-
-        Watermark watermark0 = watermarks.take();
-        Watermark watermark1 = watermarks.take();
-        assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
-        assertTrue(watermark1.getLowerTimeBound() <= watermark1.getUpperTimeBound());
-        assertTrue(watermark0.getLowerTimeBound() < watermark1.getLowerTimeBound());
-
-        Map<Segment, Long> positionMap0 = watermark0.getStreamCut().entrySet().stream().collect(
-                Collectors.toMap(x -> new Segment(scope, stream, x.getKey().getSegmentId()), Map.Entry::getValue));
-        Map<Segment, Long> positionMap1 = watermark1.getStreamCut().entrySet().stream().collect(
-                Collectors.toMap(x -> new Segment(scope, stream, x.getKey().getSegmentId()), Map.Entry::getValue));
-
-        StreamCut streamCutFirst = new StreamCutImpl(streamObj, positionMap0);
-        StreamCut streamCutSecond = new StreamCutImpl(streamObj, positionMap1);
-        Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(streamObj, streamCutFirst);
-        Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(streamObj, streamCutSecond);
-
-        // read from stream cut of first watermark
-        String readerGroup = "watermarkTest-group";
-        readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
-                .startingStreamCuts(firstMarkStreamCut)
-                .endingStreamCuts(secondMarkStreamCut)
-                .disableAutomaticCheckpoints()
-                .build());
-
-        @Cleanup
-        final EventStreamReader<Long> reader = clientFactory.createReader("myreader",
-                readerGroup,
-                javaSerializer,
-                ReaderConfig.builder().build());
-
-        EventRead<Long> event = reader.readNextEvent(10000L);
-        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
-        while (event.getEvent() != null && currentTimeWindow.getLowerTimeBound() == null && currentTimeWindow.getUpperTimeBound() == null) {
-            event = reader.readNextEvent(10000L);
-            currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
-        }
-
-        assertNotNull(currentTimeWindow.getUpperTimeBound());
-
-        // read all events and verify that all events are below the bounds
-        while (event.getEvent() != null) {
-            Long time = event.getEvent();
-            log.info("timewindow = {} event = {}", currentTimeWindow, time);
-            assertTrue(currentTimeWindow.getLowerTimeBound() == null || time >= currentTimeWindow.getLowerTimeBound());
-            assertTrue(currentTimeWindow.getUpperTimeBound() == null || time <= currentTimeWindow.getUpperTimeBound());
-
-            TimeWindow nextTimeWindow = reader.getCurrentTimeWindow(streamObj);
-            assertTrue(currentTimeWindow.getLowerTimeBound() == null || nextTimeWindow.getLowerTimeBound() >= currentTimeWindow.getLowerTimeBound());
-            assertTrue(currentTimeWindow.getUpperTimeBound() == null || nextTimeWindow.getUpperTimeBound() >= currentTimeWindow.getUpperTimeBound());
-            currentTimeWindow = nextTimeWindow;
-
-            event = reader.readNextEvent(10000L);
-            if (event.isCheckpoint()) {
-                event = reader.readNextEvent(10000L);
-            }
-        }
-
-        assertNotNull(currentTimeWindow.getLowerTimeBound());
-    }
-
     private int readFromSegments(BatchClientFactory batchClient, List<SegmentRange> segments) throws Exception {
         UTF8StringSerializer serializer = new UTF8StringSerializer();
         int count = segments
@@ -1083,48 +1126,6 @@ public class CompatibilityChecker {
                     return numEvents;
                 }).sum();
         return count;
-    }
-
-    /**
-     * This method tests the ability of a batch reader to read events from a stream.
-     * It creates a scope and stream, writes events to the stream, and uses the BatchClientFactory
-     * to read events from the stream's segments. It then checks the number of events read against
-     * the total number of events written.
-     * The code also scales the stream, writes more events, and reads from the stream again to ensure
-     * the batch reader can handle scaling.
-     */
-    @Test(timeout = 120000)
-    private void checkBatchClient() throws Exception {
-        String scope = "batch-test-scope";
-        String streamName = "batch-test-stream";
-        StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build();
-        createScopeAndStream(scope, streamName, streamConfig);
-        Stream stream = Stream.of(scope, streamName);
-        @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
-        writeEvents(clientFactory, streamName, NUM_EVENTS, 0);
-        @Cleanup
-        val batchClientFactory = BatchClientFactory.withScope(scope, clientConfig);
-        ArrayList<SegmentRange> segments = new ArrayList<>();
-        Iterator<SegmentRange> iterator =  batchClientFactory.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator();
-
-        while (iterator.hasNext()) {
-            segments.add(iterator.next());
-        }
-        int totalReadEvents = readFromSegments(batchClientFactory, segments);
-        assertEquals(totalReadEvents, NUM_EVENTS);
-
-        scale(controller, stream, streamConfig);
-        writeEvents(clientFactory, streamName, NUM_EVENTS, 0);
-        ArrayList<SegmentRange> segmentsAfterScale = new ArrayList<>();
-
-        iterator = batchClientFactory.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator();
-
-        while (iterator.hasNext()) {
-            segmentsAfterScale.add(iterator.next());
-        }
-        totalReadEvents = readFromSegments(batchClientFactory, segments);
-        assertEquals(totalReadEvents, NUM_EVENTS);
     }
 
     @Data
