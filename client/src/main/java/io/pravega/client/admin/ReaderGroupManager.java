@@ -79,7 +79,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * the reader group configuration.
      * @throws ObjectClosedException If the already closed ReaderGroupManager is used for further calls.
      */
-    boolean createReaderGroup(String groupName, ReaderGroupConfig config) throws ConfigMismatchException, ObjectClosedException;
+    boolean createReaderGroup(String groupName, ReaderGroupConfig config) throws ConfigMismatchException;
     
     /**
      * Deletes a reader group, removing any state associated with it. There should be no reader left
@@ -89,7 +89,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @param groupName The group to be deleted.
      * @throws ObjectClosedException If the already closed ReaderGroupManager is used for further calls.
      */
-    void deleteReaderGroup(String groupName) throws ObjectClosedException;
+    void deleteReaderGroup(String groupName);
     
     /**
      * Returns the requested reader group.
@@ -99,7 +99,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @throws ReaderGroupNotFoundException If the reader group does not exist.
      * @throws ObjectClosedException If the already closed ReaderGroupManager is used for further calls.
      */
-    ReaderGroup getReaderGroup(String groupName) throws ReaderGroupNotFoundException, ObjectClosedException;
+    ReaderGroup getReaderGroup(String groupName) throws ReaderGroupNotFoundException;
     
     /**
      * Close this manager class. This will close any connections created through it.
