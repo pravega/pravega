@@ -984,7 +984,7 @@ public class CompatibilityChecker {
             return null;
         }, Duration.ofSeconds(5), executor), executor);
     }
-    
+
     private List<CompletableFuture<Integer>> readAllEvents(ReaderGroupManager rgMgr, EventStreamClientFactory clientFactory, String rGroupId,
                                                            int readerCount) {
         return IntStream.range(0, readerCount)
@@ -1061,11 +1061,9 @@ public class CompatibilityChecker {
     /**
      * This method performs slices in streams of non-consecutive StreamCuts. For instance, say that we generate 5 cuts
      * in this order: C1, C2, C3, C4, C5. We then read slices of a stream formed like this:
-     *
      * [C1, C3), [C1, C4), [C1, C5)
      * [C2, C4), [C2, C5)
      * [C3, C5)
-     *
      * Note that all the consecutive slices have been previously tested, so we avoid them to shorten test execution.
      * Moreover, take into account that a increase in the number of slices greatly lengthen execution time.
      *
@@ -1131,6 +1129,7 @@ public class CompatibilityChecker {
     @Data
     private static class PaddedStringSerializer {
         private final int maxLength;
+        
         ByteBuffer serialize(String s) {
             Preconditions.checkArgument(s.length() <= maxLength);
             s = Strings.padStart(s, this.maxLength, ' ');
