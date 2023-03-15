@@ -51,6 +51,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.tables.EntrySerializer;
 import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
 import io.pravega.segmentstore.storage.DurableDataLog;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
@@ -1645,6 +1646,15 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId++);
+
+        FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
+                .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
+                .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
+                .build();
+        // 100kb rollover size so that there are multiple chunks created. Helps with unit test coverage.
+        ChunkedSegmentStorageConfig storageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().storageMetadataRollingPolicy(new SegmentRollingPolicy(100L * 1000L)).build();
+        this.storageFactory = new FileSystemSimpleStorageFactory(storageConfig, adapterConfig, executorService());
+
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
         String streamName = "testLTSRecoveryCommand";
 
@@ -1681,6 +1691,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner2.getBookKeeperRunner().getLedgerPath());
         pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner2.getBookKeeperRunner().getLogMetaNamespace());
         pravegaProperties.setProperty("pravegaservice.clusterName", pravegaRunner2.getBookKeeperRunner().getBaseNamespace());
+        pravegaProperties.setProperty("writer.flush.attributes.threshold", "1");
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
         // Copy Metadata and Storage Metadata chunks to separate directory

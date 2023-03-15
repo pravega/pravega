@@ -103,9 +103,9 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private static final BaseMetadataStore.TransactionData.TransactionDataSerializer SLTS_SERIALIZER = new BaseMetadataStore.TransactionData.TransactionDataSerializer();
     private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig.builder().build();
     private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig.builder().with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60).build();
-    private static final WriterConfig WRITER_CONFIG = WriterConfig.builder().build();
     private static final int RETRY_ATTEMPT = 10;
     private static final String ALL_CONTAINERS = "all";
+    private final WriterConfig writerConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(WriterConfig::builder);
     private final ScheduledExecutorService executorService = getCommandArgs().getState().getExecutor();
     private final int containerCount;
     private final StorageFactory storageFactory;
@@ -319,7 +319,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      */
     private void reconcileStorageSegment(DebugStreamSegmentContainer container) throws Exception {
         Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), executorService, true, TIMEOUT );
-        Set<String> segments = segmentsByContainer.get(container.getId());
+            Set<String> segments = segmentsByContainer.get(container.getId());
         ContainerTableExtension extension = container.getExtension(ContainerTableExtension.class);
 
         for (String segment : segments) {
@@ -365,22 +365,6 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 TableEntry unversionedEntry = TableEntry.unversioned(segmentEntry.get(0).getKey().getKey(), SERIALIZER.serialize(sereializedContainerSegment));
                 extension.put(NameUtils.getMetadataSegmentName(container.getId()), Collections.singletonList(unversionedEntry), TIMEOUT).join();
             }
-        }
-    }
-
-    /**
-     * Utility method to list keys in container metadata.
-     * @param container container whose storage_metadata keys need to be listed
-     */
-    private void listKeysinStorage(DebugStreamSegmentContainer container) {
-        try {
-            Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), executorService, true, TIMEOUT);
-            output("segments retrieved from storage");
-            for (Set<String> segs : segmentsByContainer.values()) {
-                segs.forEach(seg -> output(seg));
-            }
-        } catch (Exception e) {
-            output("exception while fetching all segments in storage %s ", e);
         }
     }
 
@@ -499,7 +483,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     }
 
     // Creates the environment for debug segment container
-    private static Context createContext(ScheduledExecutorService scheduledExecutorService) {
+    private Context createContext(ScheduledExecutorService scheduledExecutorService) {
         return new Context(scheduledExecutorService);
     }
 
@@ -575,7 +559,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         }
     }
 
-    private static class Context implements AutoCloseable {
+    private class Context implements AutoCloseable {
         @Getter
         public final ReadIndexFactory readIndexFactory;
         @Getter
@@ -590,7 +574,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, scheduledExecutorService);
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
             this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
-            this.writerFactory = new StorageWriterFactory(WRITER_CONFIG, scheduledExecutorService);
+            this.writerFactory = new StorageWriterFactory(writerConfig, scheduledExecutorService);
         }
 
         public SegmentContainerFactory.CreateExtensions getDefaultExtensions() {
