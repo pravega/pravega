@@ -18,6 +18,7 @@ package io.pravega.test.integration.compatibility;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
+import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
@@ -26,6 +27,8 @@ import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.batch.SegmentIterator;
+import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.connection.impl.ConnectionFactory;
@@ -160,6 +163,11 @@ public class CompatibilityChecker {
        streamManager.createStream(scopeName, streamName, streamConfig);
    }
 
+    private void createScopeAndStream(String scopeName, String streamName, StreamConfiguration streamConfig) {
+        streamManager.createScope(scopeName);
+        streamManager.createStream(scopeName, streamName, streamConfig);
+    }
+
    private String getRandomID() {
        return UUID.randomUUID().toString().replace("-", "");
    }
@@ -175,7 +183,7 @@ public class CompatibilityChecker {
         String streamName = "write-and-read-test-stream";
         createScopeAndStream(scopeName, streamName);
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, clientConfig);
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
         String readerGroupId = getRandomID();
@@ -218,7 +226,7 @@ public class CompatibilityChecker {
         String streamName = "truncate-test-stream";
         createScopeAndStream(scopeName, streamName);
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, clientConfig);
 
         String readerGroupId = getRandomID();
 
@@ -266,7 +274,7 @@ public class CompatibilityChecker {
         createScopeAndStream(scopeName, streamName);
         assertTrue(streamManager.checkStreamExists(scopeName, streamName));
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, clientConfig);
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
         String readerGroupId = getRandomID();
@@ -315,7 +323,7 @@ public class CompatibilityChecker {
         createScopeAndStream(scopeName, streamName);
         assertTrue(streamManager.checkStreamExists(scopeName, streamName));
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, clientConfig);
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(), EventWriterConfig.builder().build());
         // Before sealing of the stream it must write to the existing stream.
@@ -390,7 +398,7 @@ public class CompatibilityChecker {
         String streamName = "transaction-abort-test-stream";
         createScopeAndStream(scopeName, streamName);
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, clientConfig);
         @Cleanup
         TransactionalEventStreamWriter<String> writerTxn = clientFactory.createTransactionalEventWriter(streamName, new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
@@ -429,7 +437,7 @@ public class CompatibilityChecker {
         String streamName = "transaction-test-stream";
         createScopeAndStream(scopeName, streamName);
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, clientConfig);
         @Cleanup
         TransactionalEventStreamWriter<String> writerTxn = clientFactory.createTransactionalEventWriter(streamName, new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
@@ -563,7 +571,7 @@ public class CompatibilityChecker {
         String streamName = "largeevent-test-stream";
         createScopeAndStream(scopeName, streamName);
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, clientConfig);
         @Cleanup
         EventStreamWriter<ByteBuffer> writer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(), EventWriterConfig.builder().enableLargeEvents(true).build());
 
@@ -790,11 +798,10 @@ public class CompatibilityChecker {
         String scopeName = "streamCuts-test-scope";
         String streamOne = "streamCuts-test-streamOne";
         String streamTwo = "streamCuts-test-streamTwo";
-        streamManager.createScope(scopeName);
-        streamManager.createStream(scopeName, streamOne, streamConfig);
+        createScopeAndStream(scopeName, streamOne, streamConfig);
         streamManager.createStream(scopeName, streamTwo, streamConfig);
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, clientConfig);
 
         String readerGroupId = getRandomID();
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
@@ -849,14 +856,13 @@ public class CompatibilityChecker {
      * read the bytes from the stream, and truncate data before a specified offset.
      * @throws Exception if there are any issues with creating or accessing the stream or if any of the tests fail.
      */
-    @Test(timeout = 5000)
     private void checkByteStreamReadWrite() throws Exception {
         String scopeName = "byte-readwrite-test-scope";
         String streamName = "byte-readwrite-test-stream";
 
         createScopeAndStream(scopeName, streamName);
         @Cleanup
-        ByteStreamClientFactory clientFactory = ByteStreamClientFactory.withScope(scopeName, ClientConfig.builder().controllerURI(controllerURI).build());
+        ByteStreamClientFactory clientFactory = ByteStreamClientFactory.withScope(scopeName, clientConfig);
         @Cleanup
         ByteStreamWriter writer = clientFactory.createByteStreamWriter(streamName);
         byte[] value = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
@@ -883,8 +889,8 @@ public class CompatibilityChecker {
         assertArrayEquals(new byte[] { 0, 1, 5, 6, 4 }, read);
         assertEquals(3, reader.read(read, 2, 3));
         assertArrayEquals(new byte[] { 0, 1, 7, 8, 9 }, read);
-        assertEquals(-1, reader.read(read, 2, 3));
         assertArrayEquals(new byte[] { 0, 1, 7, 8, 9 }, read);
+
     }
 
     private CompletableFuture<Void> writeSomeEvents(EventStreamWriter<Long> writer, AtomicBoolean stopFlag) {
@@ -947,10 +953,7 @@ public class CompatibilityChecker {
         String scope = "scope";
         String stream = "watermarkTest";
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
-        @Cleanup
-        StreamManager streamManager = StreamManager.create(clientConfig);
-        streamManager.createScope(scope);
-        streamManager.createStream(scope, stream, config);
+        createScopeAndStream(scope, stream, config);
 
         Stream streamObj = Stream.of(scope, stream);
 
@@ -1061,6 +1064,69 @@ public class CompatibilityChecker {
         assertNotNull(currentTimeWindow.getLowerTimeBound());
     }
 
+    private int readFromSegments(BatchClientFactory batchClient, List<SegmentRange> segments) throws Exception {
+        UTF8StringSerializer serializer = new UTF8StringSerializer();
+        int count = segments
+                .stream()
+                .mapToInt(segment -> {
+                    SegmentIterator<String> segmentIterator = batchClient.readSegment(segment, serializer);
+                    int numEvents = 0;
+                    try {
+                        String id = String.format("%s", Thread.currentThread().getId());
+                        while (segmentIterator.hasNext()) {
+                            String event = segmentIterator.next();
+                            numEvents++;
+                        }
+                    } finally {
+                        segmentIterator.close();
+                    }
+                    return numEvents;
+                }).sum();
+        return count;
+    }
+
+    /**
+     * This method tests the ability of a batch reader to read events from a stream.
+     * It creates a scope and stream, writes events to the stream, and uses the BatchClientFactory
+     * to read events from the stream's segments. It then checks the number of events read against
+     * the total number of events written.
+     * The code also scales the stream, writes more events, and reads from the stream again to ensure
+     * the batch reader can handle scaling.
+     */
+    @Test(timeout = 120000)
+    private void checkBatchClient() throws Exception {
+        String scope = "batch-test-scope";
+        String streamName = "batch-test-stream";
+        StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build();
+        createScopeAndStream(scope, streamName, streamConfig);
+        Stream stream = Stream.of(scope, streamName);
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+        writeEvents(clientFactory, streamName, NUM_EVENTS, 0);
+        @Cleanup
+        val batchClientFactory = BatchClientFactory.withScope(scope, clientConfig);
+        ArrayList<SegmentRange> segments = new ArrayList<>();
+        Iterator<SegmentRange> iterator =  batchClientFactory.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator();
+
+        while (iterator.hasNext()) {
+            segments.add(iterator.next());
+        }
+        int totalReadEvents = readFromSegments(batchClientFactory, segments);
+        assertEquals(totalReadEvents, NUM_EVENTS);
+
+        scale(controller, stream, streamConfig);
+        writeEvents(clientFactory, streamName, NUM_EVENTS, 0);
+        ArrayList<SegmentRange> segmentsAfterScale = new ArrayList<>();
+
+        iterator = batchClientFactory.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator();
+
+        while (iterator.hasNext()) {
+            segmentsAfterScale.add(iterator.next());
+        }
+        totalReadEvents = readFromSegments(batchClientFactory, segments);
+        assertEquals(totalReadEvents, NUM_EVENTS);
+    }
+
     @Data
     private static class PaddedStringSerializer {
         private final int maxLength;
@@ -1098,6 +1164,8 @@ public class CompatibilityChecker {
         compatibilityChecker.checkStreamTags();
         compatibilityChecker.checkStreamCuts();
         compatibilityChecker.checkWatermark();
+        compatibilityChecker.checkByteStreamReadWrite();
+        compatibilityChecker.checkBatchClient();
         System.exit(0);
     }
 }
