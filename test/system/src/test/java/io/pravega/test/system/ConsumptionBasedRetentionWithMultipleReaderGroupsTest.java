@@ -393,7 +393,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
 
     private void writingEventsToStream(int numberOfEvents, EventStreamWriter<String> writer, String scope, String stream) {
-        for (int i = 0; i < numberOfEvents; i++) {
+        for (int event = 0; event < numberOfEvents; event++) {
             log.info("Writing event to {}/{}", scope, stream);
             writer.writeEvent(SIZE_30_EVENT).join();
         }
@@ -401,9 +401,9 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
     private void readingEventsFromStream(int numberOfEvents, EventStreamReader<String> reader) {
         EventRead<String> read;
-        for (int i = 0; i < numberOfEvents; i++) {
+        for (int event = 0; event < numberOfEvents; event++) {
             read = reader.readNextEvent(READ_TIMEOUT);
-            assertEquals("data of size 30", read.getEvent());
+            assertEquals(SIZE_30_EVENT, read.getEvent());
         }
     }
 
@@ -411,7 +411,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(streamCutExecutor);
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         EventRead<String> read = reader.readNextEvent(READ_TIMEOUT);
-        assertEquals("data of size 30", read.getEvent());
+        assertEquals(SIZE_30_EVENT, read.getEvent());
         assertTrue("Stream-cut generation did not complete for reader group", Futures.await(futureCuts, 10000));
         return futureCuts.join();
     }
