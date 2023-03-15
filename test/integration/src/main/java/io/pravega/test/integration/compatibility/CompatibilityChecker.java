@@ -1130,7 +1130,6 @@ public class CompatibilityChecker {
     @Data
     private static class PaddedStringSerializer {
         private final int maxLength;
-
         ByteBuffer serialize(String s) {
             Preconditions.checkArgument(s.length() <= maxLength);
             s = Strings.padStart(s, this.maxLength, ' ');
