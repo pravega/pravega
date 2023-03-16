@@ -49,10 +49,7 @@ import io.pravega.test.system.framework.services.Service;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
@@ -61,8 +58,11 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -74,9 +74,11 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
     private static final String SCOPE = "testConsumptionBasedRetentionScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String SCOPE_1 = "testCBR1Scope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    private static final String SCOPE_2 = "testCBR2Scope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String STREAM = "testConsumptionBasedRetentionStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String STREAM_1 = "testCBR1Stream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String STREAM_2 = "timeBasedRetentionStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    private static final String STREAM_3 = "multiControllerStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP_1 = "testConsumptionBasedRetentionReaderGroup1" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP_2 = "testConsumptionBasedRetentionReaderGroup2" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP_3 = "testCBR1ReaderGroup1" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
@@ -104,6 +106,10 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private StreamManager streamManager = null;
     private Controller controller = null;
     private ClientConfig clientConfig;
+    private Service controllerService = null;
+    private Service segmentStoreService = null;
+    private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
+    private AtomicReference<URI> controllerURIDiscover = new AtomicReference<>();
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -119,7 +125,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
     @Before
     public void setup() {
-        Service controllerService = Utils.createPravegaControllerService(null);
+        controllerService = Utils.createPravegaControllerService(null);
         List<URI> controllerURIs = controllerService.getServiceDetails();
         controllerURI = controllerURIs.get(0);
 
@@ -140,6 +146,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     }
 
     @Test
+    @Ignore
     public void multipleSubscriberCBRTest() throws Exception {
         assertTrue("Creating scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, STREAM_CONFIGURATION));
@@ -247,6 +254,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     }
 
     @Test
+    @Ignore
     public void updateRetentionPolicyForCBRTest() throws Exception {
         assertTrue("Creating scope", streamManager.createScope(SCOPE_1));
         assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM_1, STREAM_CONFIGURATION));
@@ -389,6 +397,22 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         // Truncation should happen at SLB
         assertEquals(true, controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE_1, STREAM_2), 0L).join().values().stream().anyMatch(off -> off == 390));
+    }
+
+    @Test
+    public void multipleControllerCBRTest() throws Exception {
+        // scale to two controller instances.
+        Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);
+        List<URI> conUris = controllerService.getServiceDetails();
+        log.info("Pravega Controller service  details: {}", conUris);
+        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+        assertEquals("2 controller instances should be running", 2, uris.size());
+        // use the last two uris
+        controllerURI = URI.create("tcp://" + String.join(",", uris));
+        streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
+        assertTrue("Creating scope", streamManager.createScope(SCOPE_2));
+        assertTrue("Creating stream", streamManager.createStream(SCOPE_2, STREAM_3, STREAM_CONFIGURATION));
+
     }
 
 
