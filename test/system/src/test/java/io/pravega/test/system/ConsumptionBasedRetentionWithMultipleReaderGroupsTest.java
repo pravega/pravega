@@ -401,18 +401,60 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
     @Test
     public void multipleControllerCBRTest() throws Exception {
-        // scale to two controller instances.
-        Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);
+        // scale to three controller instances.
+        Futures.getAndHandleExceptions(controllerService.scaleService(3), ExecutionException::new);
         List<URI> conUris = controllerService.getServiceDetails();
         log.info("Pravega Controller service  details: {}", conUris);
         final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-        assertEquals("2 controller instances should be running", 2, uris.size());
+        assertEquals("3 controller instances should be running", 3, uris.size());
         // use the last two uris
         controllerURI = URI.create("tcp://" + String.join(",", uris));
-        streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
+        clientConfig = Utils.buildClientConfig(controllerURI);
+        controller = new ControllerImpl(ControllerImplConfig.builder()
+                .clientConfig(clientConfig)
+                .maxBackoffMillis(5000).build(), executor);
+        streamManager = StreamManager.create(clientConfig);
         assertTrue("Creating scope", streamManager.createScope(SCOPE_2));
         assertTrue("Creating stream", streamManager.createStream(SCOPE_2, STREAM_3, STREAM_CONFIGURATION));
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_2, controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM_3, new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        // Write 7 events to the stream_1.
+        writingEventsToStream(8, writer, SCOPE_2, STREAM_3);
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_2, clientConfig);
+        ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(SCOPE_2, STREAM_3, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
 
+        assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(READER_GROUP_1, readerGroupConfig));
+        assertEquals(1, controller.listSubscribers(SCOPE_2, STREAM_3).join().size());
+
+        @Cleanup
+        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP_1);
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(READER_GROUP_1 + "-" + 1,
+                READER_GROUP_1, new JavaSerializer<>(), readerConfig, clock::get, clock::get);
+        // Read three events with reader.
+        readingEventsFromStream(4, reader);
+
+        log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_1, SCOPE_2, STREAM_3);
+        Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup, reader, clock);
+
+        log.info("{} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts);
+        readerGroup.updateRetentionStreamCut(streamCuts);
+
+        // Retention set has one stream cut at 0/240
+        // READER_GROUP_1 updated stream cut at 0/120
+        // Subscriber lower bound is 0/120, truncation should happen at this point
+        // The timeout is set to 2 minutes a little longer than the retention period which is set to 1 minutes
+        // in order to confirm that the retention has taken place.
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 90.", true, () -> controller.getSegmentsAtTime(
+                        new StreamImpl(SCOPE_1, STREAM_1), 0L).join().values().stream().anyMatch(off -> off == 120),
+                5000, 2 * 60 * 1000L);
     }
 
 
