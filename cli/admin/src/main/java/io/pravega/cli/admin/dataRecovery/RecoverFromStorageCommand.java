@@ -93,7 +93,7 @@ import java.util.stream.Collectors;
 public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private static final Duration TIMEOUT = Duration.ofMillis(300 * 1000);
     private static final String ATTRIBUTE_SUFFIX = "$attributes.index";
-    private static final String EVENT_PROCESSEOR_SEGMENT = "event_processor_GC"; // _system/containers/event_processor_GC.queue.3_3
+    private static final String EVENT_PROCESSEOR_SEGMENT = "event_processor_GC";
     private static final String EPOCH_SPLITTER = ".E-";
     private static final String OFFSET_SPLITTER = "O-";
     private static final DurableLogConfig DURABLE_LOG_CONFIG = DurableLogConfig.builder().with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10000).with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 50000).with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 1024 * 1024 * 1024L).build();
@@ -210,7 +210,9 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      */
     private void recoverFromStorage(int containerId, File[] allFiles, Context context, DurableDataLogFactory dataLogFactory ) throws Exception {
         File[] potentialFiles = getContainerMetadataChunkFiles(allFiles, containerId);
-        deleteJournalsOf(containerId);
+        // Rename the Journal files. Recreating the metadata as part of the recovery will create
+        // new Journals.
+        renameJournalsOf(containerId);
         //create debug segment container
         DebugStreamSegmentContainer debugStreamSegmentContainer = createDebugSegmentContainer(context, containerId, dataLogFactory);
         output("-----------------DebugSegment container %d initialized--------------", containerId);
@@ -218,15 +220,11 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         Map<String, List<File>> metadataSegments = segregateMetadataSegments(potentialFiles);
         Preconditions.checkState(metadataSegments.size() == 2, "Only MetadataSegment and Storage MetadataSegment chunks should be present");
         List<File> storageChunks = null;
-        boolean firstRun = true;
         int attempts = 0;
 
         ChunkValidator chunkValidator = new ChunkValidator(debugStreamSegmentContainer);
         Map<Integer, Long> containersToEpoch = new HashMap<>();
-        while (firstRun || (!chunkValidator.validate() /*&& attempts < RETRY_ATTEMPT*/)) {
-            if (firstRun) {
-                firstRun = !firstRun;
-            }
+        do {
             for (Map.Entry<String, List<File>> segmentEntries : metadataSegments.entrySet()) {
                 List<File> chunks = segmentEntries.getValue();
                 chunks.sort(new FileComparator());
@@ -246,7 +244,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             output("Flushing to storage");
             flushToStorage(debugStreamSegmentContainer);
             attempts++;
-        }
+        } while (!chunkValidator.validate() /*&& attempts < RETRY_ATTEMPT */);
         output("Reconciling container and storage metadata segments");
         reconcileStorageSegment(debugStreamSegmentContainer);
         overrideLogMetadataWithEpoch(containersToEpoch, dataLogFactory);
@@ -290,6 +288,10 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         return Long.parseLong(chunkParts[chunkParts.length - 1].split("-")[0]);
     }
 
+    /**
+     * Helper method to skip/filter out any Attribute Chunks in the
+     * set of Container or Storage Metadata Chunk files.
+     */
     private File[] getContainerMetadataChunkFiles(File[] allFiles, int containerId) {
         List<File> filteredFiles =  Arrays.stream(allFiles)
                 .filter(File::isFile)
@@ -299,14 +301,17 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         return filteredFiles.toArray(new File[filteredFiles.size()]);
     }
 
-    private void deleteJournalsOf(int containerId) {
+    /**
+     * Renames Journal files.
+     */
+    private void renameJournalsOf(int containerId) {
         File dir = new File(tier2Root + containersPath);
         assert dir != null;
         File[] files = dir.listFiles();
         assert files != null;
         for (File file : files) {
-            if (file.getName().contains("container" + String.valueOf(containerId))) {
-                file.delete();
+            if (file.getName().startsWith("_sysjournal") && file.getName().contains("container" + String.valueOf(containerId))) {
+                file.renameTo(new File(file.getAbsolutePath().toString() + ".backup"));
             }
         }
     }
@@ -319,7 +324,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      */
     private void reconcileStorageSegment(DebugStreamSegmentContainer container) throws Exception {
         Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), executorService, true, TIMEOUT );
-            Set<String> segments = segmentsByContainer.get(container.getId());
+        Set<String> segments = segmentsByContainer.get(container.getId());
         ContainerTableExtension extension = container.getExtension(ContainerTableExtension.class);
 
         for (String segment : segments) {
@@ -358,11 +363,11 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                         .attributes(attribs)
                         .build();
 
-                MetadataStore.SegmentInfo sereializedContainerSegment = MetadataStore.SegmentInfo.builder()
+                MetadataStore.SegmentInfo serializedContainerSegment = MetadataStore.SegmentInfo.builder()
                         .segmentId(segmentInfo.getSegmentId())
                         .properties(segmentProperties)
                         .build();
-                TableEntry unversionedEntry = TableEntry.unversioned(segmentEntry.get(0).getKey().getKey(), SERIALIZER.serialize(sereializedContainerSegment));
+                TableEntry unversionedEntry = TableEntry.unversioned(segmentEntry.get(0).getKey().getKey(), SERIALIZER.serialize(serializedContainerSegment));
                 extension.put(NameUtils.getMetadataSegmentName(container.getId()), Collections.singletonList(unversionedEntry), TIMEOUT).join();
             }
         }
@@ -422,6 +427,9 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         }
     }
 
+    /**
+     *  Resets the Storage segment
+     */
     private MetadataStore.SegmentInfo resetStorageSegment(MetadataStore.SegmentInfo segmentInfo) {
         StreamSegmentInformation segmentInformation = StreamSegmentInformation.builder()
                 .name(segmentInfo.getProperties().getName())
@@ -468,6 +476,14 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     }
 
     private boolean allowSegment(String segmentName) {
+        // Not recovering/backing up below segments to allow recovery to work.
+        // If we come up with alternative ways of handling below issues we can avoid skipping these segments.
+        // 1. scaleGroup: scaleGroup segment stores ReaderGroup state. If this segment is recovered
+        //    it restores all old ReaderGroup state having readers assigned to segments we want to read from.
+        //    As a result reads get indefinitely blocked.
+        // 2. Recovering EVENT_PROCESSOR_SEGMENT leads to length mismatch issues between container and storage
+        //    metadata as EVENT_PROCESSOR_SEGMENTS are created by default when container starts and then as part
+        //    of recovery, when container comes up we update the lenghts in the metadata.
         if (segmentName.contains("scaleGroup") || segmentName.contains(EVENT_PROCESSEOR_SEGMENT)) {
             return false;
         }
@@ -592,4 +608,5 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             this.cacheStorage.close();
         }
     }
+
 }

@@ -33,6 +33,9 @@ public class TableSegmentUtils {
 
     /**
      * Retrieve Pravega Operations from chunk files.
+     * NOTE: This method is the driver for parsing the raw bytes in Segment chunk files and converting them to Put/Delete Table Entries.
+     * Caller of this method has to make sure that the Chunk files passed to this method are sorted
+     * in the correct order based on their epoch and offsets.
      * @param chunkFiles Chunks list of chunk files to be parsed.
      * @return List of Pravega operations.
      * @throws IOException if any exception while parsing raw chunk files.
@@ -50,6 +53,12 @@ public class TableSegmentUtils {
         return tableSegmentOperations;
     }
 
+    /**
+     * Scans the bytes read from Segment chunk files using a windowed approach.
+     * Scans one byte at a time assuming its the start of Table Entry,
+     * If a valid Table Entry is found, moves the window by the size of the Table Entry found.
+     * @return Returns unprocessed bytes to caller, to be used as part of the next window to scan.
+     */
     private static int scanAllEntriesInTableSegmentChunks(ByteArraySegment byteArraySegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) {
         EntrySerializer serializer = new EntrySerializer();
         int processedBytes = 0;
@@ -79,10 +88,13 @@ public class TableSegmentUtils {
                 //outputError("Exception while processing data. Unprocessed bytes: " + unprocessedBytesFromLastChunk, e);
             }
         }
-
         return unprocessedBytesFromLastChunk;
     }
 
+    /**
+     * Calls the actual Files api to read the bytes from Segment Chunk files.
+     * Also takes into account any partial bytes from the last operation of the caller.
+     */
     private static byte[] getBytesToProcess(byte[] partialEntryFromLastChunk, File f) throws IOException {
         byte[] bytesToProcess;
         if (partialEntryFromLastChunk != null && partialEntryFromLastChunk.length > 0) {
@@ -100,12 +112,20 @@ public class TableSegmentUtils {
         protected TableSegmentEntry contents;
     }
 
+    /**
+     * Class to represent a Put Operation for the
+     * derived TableEntry from parsing Chunk data.
+     */
     public static class PutOperation extends TableSegmentUtils.TableSegmentOperation {
         protected PutOperation(TableSegmentEntry contents) {
             this.contents = contents;
         }
     }
 
+    /**
+     * Class to represent a Delete Operation for the
+     * derived TableEntry from parsing Chunk data.
+     */
     public static class DeleteOperation extends TableSegmentUtils.TableSegmentOperation {
         protected DeleteOperation(TableSegmentEntry contents) {
             this.contents = contents;
