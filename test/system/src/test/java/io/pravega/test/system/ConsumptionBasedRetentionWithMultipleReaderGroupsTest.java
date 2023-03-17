@@ -452,8 +452,8 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         // Subscriber lower bound is 0/120, truncation should happen at this point
         // The timeout is set to 2 minutes a little longer than the retention period which is set to 1 minutes
         // in order to confirm that the retention has taken place.
-        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 90.", true, () -> controller.getSegmentsAtTime(
-                        new StreamImpl(SCOPE_1, STREAM_1), 0L).join().values().stream().anyMatch(off -> off == 120),
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 120.", true, () -> controller.getSegmentsAtTime(
+                        new StreamImpl(SCOPE_2, STREAM_3), 0L).join().values().stream().anyMatch(off -> off == 120),
                 5000, 2 * 60 * 1000L);
     }
 
