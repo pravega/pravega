@@ -40,7 +40,7 @@ public class TableSegmentUtils {
      * @return List of Pravega operations.
      * @throws IOException if any exception while parsing raw chunk files.
      */
-    public static List<TableSegmentUtils.TableSegmentOperation>  getOperationsFromChunks(List<File> chunkFiles) throws IOException {
+    public static List<TableSegmentUtils.TableSegmentOperation> getOperationsFromChunks(List<File> chunkFiles) throws IOException {
         byte[] partialEntryFromLastChunk = null;
         int unprocessedBytesFromLastChunk = 0;
         List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations = new ArrayList<>();
@@ -79,13 +79,9 @@ public class TableSegmentUtils {
                 Preconditions.checkState(unprocessedBytesFromLastChunk < totalEntryLength, "Some bytes are missing to process.");
                 unprocessedBytesFromLastChunk = 0;
                 processedBytes += totalEntryLength;
-                if (tableSegmentOperations.size() % 100 == 0) {
-                //output("Progress of scanning data chunk: " + ((processedBytes * 100.0) / byteArraySegment.getLength()));
-                }
             } catch (IOException | RuntimeException e) {
                 processedBytes++;
                 unprocessedBytesFromLastChunk++;
-                //outputError("Exception while processing data. Unprocessed bytes: " + unprocessedBytesFromLastChunk, e);
             }
         }
         return unprocessedBytesFromLastChunk;

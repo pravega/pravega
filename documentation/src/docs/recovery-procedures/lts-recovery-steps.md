@@ -15,17 +15,18 @@ limitations under the License.
 -->
 
 # LTS Recovery
-The following procedure describes offline method of doing the LTS recovery. The offline method of doing the LTS recovery requires the admin to manually copy metadata chunk files to some directory.
+The following procedure describes offline method of doing the LTS recovery. 
+The offline method of recovering Pravega from the data in LTS requires the admin to manually copy metadata chunk files to some directory.
 
 The offline method currently only supports filesystem storage type.
 
-The major inspiration for this recovery procedure has been [#7011](https://github.com/pravega/pravega/issues/7011). The way this recovery
+The major inspiration for this recovery procedure has been [#7011] (https://github.com/pravega/pravega/issues/7011). The way this recovery
 procedure works is by trying to restore the metadata state(state of all Segments in Pravega)
 stored in Tier-2 Segment Chunks, by parsing these raw Chunk files. This recovery procedure 
 assumes full Tier-1 loss, and as such the Tier-1 tail data or the latest updates to the system as lost.
 The aim of this recovery procedure is to get Pravega functional again after performing the recovery procedure,
 to allow clients to resume their operations. Some cases where the recovery procedure
-might be useful are ZooKeeper becoming dysfunctional or Bookkeeper disk corruptions etc, where we 
+might be useful are ZooKeeper becoming dysfunctional,Bookkeeper disk corruptions etc. In these cases, we 
 intend to start Pravega off the data that exists in Tier-2.
 The following section describes how to perform the recovery steps.
 
@@ -41,14 +42,14 @@ Having pravega installed with data generated on it.
 
   Before proceeding further, make sure the script executed successfully and uninstalled all the services mentioned above.
 
-  The ltsrecovery script will only work where helm is used to install pravega.
+  This recovery script will only work where `helm` is used to install Pravega.
 * ## Copy metadata
     ### Exec into the recovery pod
     ```
     kubectl exec -it recovery -- sh
     ```
     ### Create a folder outside tier2 where we are going to download the metadata from tier2.
-    /mnt/tier2 is the tier2 location.
+    `/mnt/tier2` is the tier2 location.
     ```
     cd /mnt/tier2/_system/containers
     ```

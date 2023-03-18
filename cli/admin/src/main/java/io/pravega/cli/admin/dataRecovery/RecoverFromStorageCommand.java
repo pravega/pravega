@@ -1,12 +1,12 @@
 /**
  * Copyright Pravega Authors.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -88,15 +88,26 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * Loads the storage instance, recovers all segments from there.
+ * This command helps restore the metadata state in Pravega
+ * by reading the Segment Chunk files that are provided as an input
+ * to this command.As such this command can be used to help recover/restore
+ * Pravega from a given Tier-2 mount. More details about the command
+ * and its usage can be found at:
+ * <a href="https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/lts-recovery-steps.md"/>
  */
 public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private static final Duration TIMEOUT = Duration.ofMillis(300 * 1000);
     private static final String ATTRIBUTE_SUFFIX = "$attributes.index";
+    private static final String STORAGE_METADATA = "storage_metadata";
+    private static final String SYSJOURNAL_PREFIX = "_sysjournal";
+    private static final String SYSJOURNAL_CONTAINER = "container";
+    private static final String SYSJOURNAL_BACKUP_EXTENSION = ".backup";
+
     private static final String EVENT_PROCESSEOR_SEGMENT = "event_processor_GC";
     private static final String EPOCH_SPLITTER = ".E-";
     private static final String OFFSET_SPLITTER = "O-";
-    private static final DurableLogConfig DURABLE_LOG_CONFIG = DurableLogConfig.builder().with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10000).with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 50000).with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 1024 * 1024 * 1024L).build();
+    private static final String CHUNK_FIELD_SEPARATOR = "-";
+    private static final DurableLogConfig DURABLE_LOG_CONFIG = DurableLogConfig.builder().build();
     private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().build();
     private static final long NO_STREAM_SEGMENT_ID = Long.MIN_VALUE;
     private static final MetadataStore.SegmentInfo.SegmentInfoSerializer SERIALIZER = new MetadataStore.SegmentInfo.SegmentInfoSerializer();
@@ -125,6 +136,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
     /**
      * Creates a DebugSegmentContainer.
+     *
      * @param context Context containing all config for execution of the test.
      * @param containerId Container ID of the container to be created.
      * @param dataLogFactory DurableDatalog factory implementation.
@@ -147,8 +159,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         public int compare(File f1, File f2) {
             String[] file1 = f1.getName().split(EPOCH_SPLITTER);
             String[] file2 = f2.getName().split(EPOCH_SPLITTER);
-            String file1Epoch = file1[file1.length - 1].split("-")[0];
-            String file2Epoch = file2[file2.length - 1].split("-")[0];
+            String file1Epoch = file1[file1.length - 1].split(CHUNK_FIELD_SEPARATOR)[0];
+            String file2Epoch = file2[file2.length - 1].split(CHUNK_FIELD_SEPARATOR)[0];
             if (Long.parseLong(file1Epoch) != Long.parseLong(file2Epoch)) {
                 return Long.valueOf(file1Epoch).compareTo(Long.valueOf(file2Epoch));
             }
@@ -166,6 +178,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
         if (!NumberUtils.isNumber(container)) {
             Preconditions.checkArgument(container.toLowerCase().equals("all"), "Container argument should either be ALL/all or a container id.");
+        } else {
+            Preconditions.checkArgument(Integer.parseInt(container) < this.containerCount, "This container id does not exist. There are %s containers present", this.containerCount);
         }
         @Cleanup
         Context context = createContext(executorService);
@@ -185,10 +199,10 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         int endContainer = containerId + 1;
         if (container.equalsIgnoreCase(ALL_CONTAINERS)) {
             containerId = 0;
-            endContainer = getServiceConfig().getContainerCount();
+            endContainer = this.containerCount;
         }
 
-        while ( containerId < endContainer ) {
+        while (containerId < endContainer) {
             recoverFromStorage(containerId, allFiles, context, dataLogFactory);
             containerId++;
         }
@@ -202,13 +216,14 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      * 4. Validates all chunks are written.
      * 5. Reconciles segments between storage_metdadata and container_metadata with storage_metadata as truth.
      * 6. Overrides DurabaleDataLog Metadata with the highest epoch seen.
+     *
      * @param containerId Id of the container to be created.
      * @param allFiles all chunk files to be parsed.
      * @param context Context holding config.
      * @param dataLogFactory Factory of DurabeleDataLog to be created.
      * @throws Exception
      */
-    private void recoverFromStorage(int containerId, File[] allFiles, Context context, DurableDataLogFactory dataLogFactory ) throws Exception {
+    private void recoverFromStorage(int containerId, File[] allFiles, Context context, DurableDataLogFactory dataLogFactory) throws Exception {
         File[] potentialFiles = getContainerMetadataChunkFiles(allFiles, containerId);
         // Rename the Journal files. Recreating the metadata as part of the recovery will create
         // new Journals.
@@ -229,7 +244,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 List<File> chunks = segmentEntries.getValue();
                 chunks.sort(new FileComparator());
                 setEpochforContainer(chunks.get(chunks.size() - 1), containerId, containersToEpoch);
-                if (chunks.get(0).getName().contains("storage")) {
+                if (chunks.get(0).getName().contains(STORAGE_METADATA)) {
                     storageChunks = chunks;
                     continue;
                 }
@@ -244,7 +259,10 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             output("Flushing to storage");
             flushToStorage(debugStreamSegmentContainer);
             attempts++;
-        } while (!chunkValidator.validate() /*&& attempts < RETRY_ATTEMPT */);
+        } while (!chunkValidator.validate() && attempts < RETRY_ATTEMPT);
+        if (attempts >= RETRY_ATTEMPT) {
+            throw new RuntimeException(String.format("There was an error recovering container %s. Please check the logs for more details", containerId));
+        }
         output("Reconciling container and storage metadata segments");
         reconcileStorageSegment(debugStreamSegmentContainer);
         overrideLogMetadataWithEpoch(containersToEpoch, dataLogFactory);
@@ -255,6 +273,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
     /**
      * Overrides the given DurableDataLog metadata with provided epoch.
+     *
      * @param containersToEpoch Map of all containers to their highest epoch.
      * @param durableDataLogFactory Factory used to create DurabelDataLog
      */
@@ -268,6 +287,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
     /**
      * Method to set the highest epoch seen while parsing metadata chunks.
+     *
      * @param chunk Chunk to extract epoch from.
      * @param containerId Container ID of the the container being recovered.
      * @param containersToEpoch Map to hold highest epoch for all containers.
@@ -275,7 +295,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private void setEpochforContainer(File chunk, int containerId, Map<Integer, Long> containersToEpoch) {
         long epoch = getEpochFromChunk(chunk);
         long epochAlreadyPresent = containersToEpoch.getOrDefault(containerId, Long.valueOf(1));
-        if ( epoch > epochAlreadyPresent ) {
+        if (epoch > epochAlreadyPresent) {
             containersToEpoch.put(containerId, epoch);
         }
     }
@@ -285,7 +305,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      */
     private long getEpochFromChunk(File chunk) {
         String[] chunkParts = chunk.getName().split(EPOCH_SPLITTER);
-        return Long.parseLong(chunkParts[chunkParts.length - 1].split("-")[0]);
+        return Long.parseLong(chunkParts[chunkParts.length - 1].split(CHUNK_FIELD_SEPARATOR)[0]);
     }
 
     /**
@@ -310,8 +330,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         File[] files = dir.listFiles();
         assert files != null;
         for (File file : files) {
-            if (file.getName().startsWith("_sysjournal") && file.getName().contains("container" + String.valueOf(containerId))) {
-                file.renameTo(new File(file.getAbsolutePath().toString() + ".backup"));
+            if (file.getName().startsWith(SYSJOURNAL_PREFIX) && file.getName().contains(SYSJOURNAL_CONTAINER + containerId)) {
+                file.renameTo(new File(file.getAbsolutePath().toString() + SYSJOURNAL_BACKUP_EXTENSION));
             }
         }
     }
@@ -319,6 +339,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     /**
      * Reconciles  all segment metadata in a container, taking Storage_Metadata
      * as source of truth.
+     *
      * @param container
      * @throws Exception
      */
@@ -392,6 +413,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     /**
      * Writes all the parsed TableSegment operations from raw chunks into container_metadata of the debug
      * segment container.
+     *
      * @param container Container whose container_metadata table segment is populated.
      * @param tableSegment name of container metadata segment.
      * @param tableSegmentOperations Operations parsed from raw chunk bytes for container metadata.
@@ -452,6 +474,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     /**
      * Writes all the parsed TableSegment operations from raw chunks into storage_metadata of the debug
      * segment container.
+     *
      * @param container Container whose storage_metadata table segment is populated.
      * @param tableSegment name of container metadata segment.
      * @param tableSegmentOperations Operations parsed from storage metadata raw chunk file bytes for container metadata.
@@ -542,6 +565,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         /**
          * Follow the linked list of chunks that make up a segment
          * and check if each of the chunks are present in the metadata.
+         *
          * @param segment Segment whose chunks need to be checked for presence.
          * @return True if all chunks of a segment are found in metadata, false otherwise.
          * @throws Exception
@@ -563,7 +587,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 }
                 if (storageMetadata instanceof SegmentMetadata) {
                     SegmentMetadata segmentMetadata = (SegmentMetadata) storageMetadata;
-                    if (segmentMetadata.getFirstChunk() != null && !segmentMetadata.getFirstChunk().equalsIgnoreCase("null")) {
+                    if (segmentMetadata.isActive() && segmentMetadata.getFirstChunk() != null && !segmentMetadata.getFirstChunk().equalsIgnoreCase("null")) {
                         return validateSegment(segmentMetadata.getFirstChunk());
                     }
                 }

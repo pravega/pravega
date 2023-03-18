@@ -1636,7 +1636,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
     /**
      * Tests LTS recovery command.
-     * @throws Exception    In case of any exception thrown while execution.
+     *
+     * @throws Exception In case of any exception thrown while execution.
      */
     @Test
     public void testLTSRecoveryCommand() throws Exception {
@@ -1674,12 +1675,12 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         pravegaRunner.shutDownSegmentStoreRunner(); // Shutdown SegmentStore
         pravegaRunner.shutDownBookKeeperRunner(); // Shutdown BookKeeper & ZooKeeper
 
-        // start a new BookKeeper and ZooKeeper.
+        // Start a new BookKeeper and ZooKeeper.
         pravegaRunner.close();
         LocalServiceStarter.PravegaRunner pravegaRunner2 = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner2.startBookKeeperRunner(instanceId++);
 
-        // set pravega properties for the test
+        // Set pravega properties for the test
         STATE.set(new AdminCommandState());
         Properties pravegaProperties = new Properties();
         pravegaProperties.setProperty("pravegaservice.container.count", "1");
@@ -1701,12 +1702,13 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
             filtered = pathStream.filter(path -> path.toFile().getName().startsWith("metadata_") || path.toFile().getName().startsWith("storage_metadata_"))
                     .collect(Collectors.toList());
         }
-        //copy to {metadataChunksDir}
+        // Copy to metadataChunksDir
         for ( Path path : filtered ) {
             FileUtils.moveFileToDirectory(path.toFile(), metadataChunksDir, false);
         }
         // Command under test
         TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + " all", STATE.get());
+        AssertExtensions.assertThrows("Container out of range ", () -> TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + "81", STATE.get()), ex -> ex instanceof IllegalArgumentException);
 
     }
 
