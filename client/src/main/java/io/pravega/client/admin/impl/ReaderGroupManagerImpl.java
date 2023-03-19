@@ -39,6 +39,7 @@ import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.common.Exceptions;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
 import java.io.IOException;
@@ -87,7 +88,8 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     }
 
     @Override
-    public boolean createReaderGroup(String groupName, ReaderGroupConfig config) throws ConfigMismatchException {
+    public boolean createReaderGroup(String groupName, ReaderGroupConfig config) throws ConfigMismatchException, ObjectClosedException {
+        isExecutorAvailable();
         log.info("Creating reader group: {} for streams: {} with configuration: {}", groupName,
                 Arrays.toString(config.getStartingStreamCuts().keySet().toArray()), config);
         NameUtils.validateReaderGroupName(groupName);
@@ -113,7 +115,8 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     }
 
     @Override
-    public void deleteReaderGroup(String groupName) {
+    public void deleteReaderGroup(String groupName) throws ObjectClosedException {
+        isExecutorAvailable();
         UUID readerGroupId = null;
         ReaderGroupConfig syncConfig = null;
         try {
@@ -152,7 +155,8 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     }
 
     @Override
-    public ReaderGroup getReaderGroup(String groupName) throws ReaderGroupNotFoundException {
+    public ReaderGroup getReaderGroup(String groupName) throws ReaderGroupNotFoundException, ObjectClosedException {
+        isExecutorAvailable();
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
 
         try {
@@ -167,7 +171,14 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     public void close() {
         clientFactory.close();
     }
-    
+
+    private void isExecutorAvailable() {
+        if (this.clientFactory.getConnectionPool().getInternalExecutor().isShutdown() || this.clientFactory.getConnectionPool().getInternalExecutor().isTerminated()) {
+            log.error("Executor is closed, can not process further calls");
+            throw new ObjectClosedException(this.clientFactory.getConnectionPool().getInternalExecutor());
+        }
+    }
+
     @VisibleForTesting
     public static class ReaderGroupStateInitSerializer implements Serializer<InitialUpdate<ReaderGroupState>> {
         private final ReaderGroupState.ReaderGroupInitSerializer serializer = new ReaderGroupState.ReaderGroupInitSerializer();
