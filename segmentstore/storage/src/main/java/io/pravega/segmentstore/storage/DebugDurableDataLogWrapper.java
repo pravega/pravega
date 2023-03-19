@@ -48,6 +48,7 @@ public interface DebugDurableDataLogWrapper extends AutoCloseable {
     /**
      * Allows to override the epoch of the current DurableDataLog Metadata. This method has been introduced
      * to help with cluster recoveries. (not to be used otherwise).
+     *
      * @param epoch The epoch to override in the Log Metadata.
      * @throws DurableDataLogException any Exception while overriding the metadata.
      */

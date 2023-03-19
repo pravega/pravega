@@ -1664,10 +1664,12 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
             // Write events to the streams.
             TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
+        TestUtils.deleteScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName);
         pravegaRunner.shutDownControllerRunner(); // Shut down the controller
 
         // Flush all Tier 1 to LTS
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.getSegmentStoreRunner().getServiceBuilder());
+
         for (int containerId = 0; containerId < containerCount; containerId++) {
             componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
         }
@@ -1709,7 +1711,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Command under test
         TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + " all", STATE.get());
         AssertExtensions.assertThrows("Container out of range ", () -> TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + "81", STATE.get()), ex -> ex instanceof IllegalArgumentException);
-
     }
 
 

@@ -225,13 +225,12 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      */
     private void recoverFromStorage(int containerId, File[] allFiles, Context context, DurableDataLogFactory dataLogFactory) throws Exception {
         File[] potentialFiles = getContainerMetadataChunkFiles(allFiles, containerId);
-        // Rename the Journal files. Recreating the metadata as part of the recovery will create
-        // new Journals.
+        // Rename the Journal files. Recreating the metadata as part of the recovery will create new Journals
         renameJournalsOf(containerId);
-        //create debug segment container
+        // Create debug segment container
         DebugStreamSegmentContainer debugStreamSegmentContainer = createDebugSegmentContainer(context, containerId, dataLogFactory);
         output("-----------------DebugSegment container %d initialized--------------", containerId);
-        // segregate the metadata and storage metadata chunks
+        // Segregate the metadata and storage metadata chunks
         Map<String, List<File>> metadataSegments = segregateMetadataSegments(potentialFiles);
         Preconditions.checkState(metadataSegments.size() == 2, "Only MetadataSegment and Storage MetadataSegment chunks should be present");
         List<File> storageChunks = null;
@@ -251,11 +250,11 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations = TableSegmentUtils.getOperationsFromChunks(chunks);
                 writeEntriesToContainerMetadata(debugStreamSegmentContainer, NameUtils.getMetadataSegmentName(containerId), tableSegmentOperations);
             }
-            //write storage entries in the end after container entries (to avoid length mismatch).
+            // Write storage entries in the end after container entries (to avoid length mismatch).
             if (storageChunks != null) {
                 writeEntriesToStorageMetadata(debugStreamSegmentContainer, NameUtils.getStorageMetadataSegmentName(containerId), TableSegmentUtils.getOperationsFromChunks(storageChunks));
             }
-            //flush to storage
+            // Flush to storage
             output("Flushing to storage");
             flushToStorage(debugStreamSegmentContainer);
             attempts++;
@@ -373,7 +372,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                         attribs.put(TableAttributes.INDEX_OFFSET, storageSegment.getLength());
                     }
                 }
-                // use the data from storage for this segment and "put" it in container Metadata
+                // Use the data from storage for this segment and "put" it in container Metadata
                 StreamSegmentInformation segmentProperties = StreamSegmentInformation.builder()
                         .name(segmentInfo.getProperties().getName())
                         .startOffset(storageSegment.getStartOffset())
@@ -435,11 +434,10 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             if (operation instanceof TableSegmentUtils.PutOperation) {
                 MetadataStore.SegmentInfo segmentInfo = SERIALIZER.deserialize(new ByteArraySegment(unversionedEntry.getValue().getCopy()).getReader());
                 if ( segmentInfo.getProperties().getName().contains(NameUtils.getStorageMetadataSegmentName(container.getId()))) {
-                    // reset storage_metadata segment to have 0 storageLength to avoid storage Length error in {@link SegmentAggregator@initialize} method.
+                    // Reset storage_metadata segment to have 0 storageLength to avoid storage Length error in {@link SegmentAggregator@initialize} method.
                     segmentInfo = resetStorageSegment(segmentInfo);
                 }
-                //reset Segment ID to "NO_STREAM_SEGMENT_ID" to avoid segment id conflicts with some segments that get created when container starts
-                // up immediately after recovery.
+                // Reset Segment ID to "NO_STREAM_SEGMENT_ID" to avoid segment id conflicts with some segments that get created when container starts up immediately after recovery.
                 ByteArraySegment segment = SERIALIZER.serialize(resetSegmentID(segmentInfo));
                 unversionedEntry = TableEntry.unversioned(unversionedEntry.getKey().getKey(), segment );
                 tableExtension.put(tableSegment, Collections.singletonList(unversionedEntry), TIMEOUT).join();

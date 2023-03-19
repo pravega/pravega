@@ -265,6 +265,7 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
 
     /**
      * Gets the current log metadata and overrides the epoch in it with the passed epoch.
+     *
      * @param epoch Epoch to be overridden
      * @throws DurableDataLogException thrown in case of issues persisting the metadata.
      */
