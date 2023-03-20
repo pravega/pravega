@@ -459,10 +459,8 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                         new StreamImpl(SCOPE_2, STREAM_3), 0L).join().values().stream().anyMatch(off -> off == 30),
                 5000, 2 * 60 * 1000L);
 
-        // Read next event.
-        readingEventsFromStream(1, reader);
-
-        log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_1, SCOPE_2, STREAM_3);
+        log.info("{} generating 2nd stream-cuts for {}/{}", READER_GROUP_1, SCOPE_2, STREAM_3);
+        // Reader has already read next event during previous generateStreamCuts method call
         streamCuts = generateStreamCuts(readerGroup, reader, clock);
 
         log.info("{} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts);
