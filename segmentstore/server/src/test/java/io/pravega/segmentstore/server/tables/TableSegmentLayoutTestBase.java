@@ -29,7 +29,7 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -388,7 +388,7 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
 
         // Verify we have had at least one compaction during this test. This may happen in the background, so give it
         // some time to execute.
-        TestUtils.await(() -> 0 < IndexReader.getCompactionOffset(context.segment().getInfo()), 10, TIMEOUT.toMillis());
+        CommonUtils.await(() -> 0 < IndexReader.getCompactionOffset(context.segment().getInfo()), 10, TIMEOUT.toMillis());
         AssertExtensions.assertGreaterThan("No truncation occurred", 0, context.segment().getInfo().getStartOffset());
 
         // Finally, remove all data and delete the segment.

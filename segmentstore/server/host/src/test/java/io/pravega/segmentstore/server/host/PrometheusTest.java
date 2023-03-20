@@ -22,7 +22,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.SerializedClassRunner;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
@@ -52,7 +52,7 @@ public class PrometheusTest {
 
     @Before
     public void setup() throws Exception {
-        this.restPort = TestUtils.getAvailableListenPort();
+        this.restPort = CommonUtils.getAvailableListenPort();
         zkTestServer = new TestingServerStarter().start();
         String zkUrl = zkTestServer.getConnectString();
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig

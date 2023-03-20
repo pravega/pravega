@@ -35,7 +35,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -81,7 +81,7 @@ public class PravegaAuthManagerTest {
             RESTServerConfig config = RESTServerConfigImpl.builder()
                     .authorizationEnabled(true)
                     .userPasswordFile(PWD_AUTH_HANDLER_FILE.getAbsolutePath())
-                    .port(TestUtils.getAvailableListenPort())
+                    .port(CommonUtils.getAvailableListenPort())
                     .host("localhost")
                     .build();
 

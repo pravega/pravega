@@ -52,7 +52,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.LeakDetectorTestSuite;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import lombok.Cleanup;
 
 public class AppendReconnectTest extends LeakDetectorTestSuite {
@@ -73,7 +73,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
     @Test(timeout = 30000)
     public void reconnectOnSegmentClient() throws Exception {
         String endpoint = "localhost";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         byte[] payload = "Hello world\n".getBytes();
         String scope = "scope";
         String stream = "stream";
@@ -116,7 +116,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
     @Test(timeout = 30000)
     public void reconnectThroughConditionalClient() throws Exception {
         String endpoint = "localhost";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         byte[] payload = "Hello world\n".getBytes();
         String scope = "scope";
         String stream = "stream";

@@ -22,7 +22,7 @@ import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.shared.rest.security.AuthHandlerManager;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -50,7 +50,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
                                                                       .userPasswordFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)
                                                                       .port(1000)
                                                                       .build());
-        ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
+        ServerBuilder<?> server = ServerBuilder.forPort(CommonUtils.getAvailableListenPort());
         GrpcAuthHelper.registerInterceptors(authManager.getHandlerMap(), server);
         super.setup();
     }

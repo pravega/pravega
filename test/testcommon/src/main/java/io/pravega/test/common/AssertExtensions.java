@@ -15,6 +15,7 @@
  */
 package io.pravega.test.common;
 
+import io.pravega.common.util.CommonUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
@@ -65,7 +66,7 @@ public class AssertExtensions {
     private static <T> void assertEventuallyEquals(T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
         T result = null;
         try {
-            result = TestUtils.awaitEvaluateExpr(expected, eval, checkIntervalMillis, timeoutMillis);
+            result = CommonUtils.awaitEvaluateExpr(expected, eval, checkIntervalMillis, timeoutMillis);
         } catch (TimeoutException e) {
             throw e;
         }
@@ -99,7 +100,7 @@ public class AssertExtensions {
      */
     public static void assertEventuallyThrows(Class<? extends Exception> type, RunnableWithException run, int checkIntervalMillis, long timeoutMillis) throws Exception {
         try {
-        TestUtils.awaitException(() -> {
+        CommonUtils.awaitException(() -> {
                 try {
                     run.run();
                     Assert.fail("No exception thrown where: " + type.getName() + " was expected");

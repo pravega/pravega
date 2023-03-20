@@ -43,7 +43,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -165,7 +165,7 @@ public class PravegaConnectionListenerTest {
 
     @Test
     public void testStartListening() {
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         PravegaConnectionListener listener = new PravegaConnectionListener(false, port,
                 mock(StreamSegmentStore.class), mock(TableStore.class), NoOpScheduledExecutor.get());
         listener.startListening();
@@ -207,7 +207,7 @@ public class PravegaConnectionListenerTest {
         @Cleanup
         HealthServiceManager healthServiceManager = new HealthServiceManager(Duration.ofSeconds(2));
         healthServiceManager.start();
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(false, false, "localhost",
                 port, mock(StreamSegmentStore.class), mock(TableStore.class), SegmentStatsRecorder.noOp(),

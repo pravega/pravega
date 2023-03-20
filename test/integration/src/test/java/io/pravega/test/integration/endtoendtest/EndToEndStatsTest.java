@@ -38,7 +38,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import java.time.Duration;
@@ -61,9 +61,9 @@ import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 @Slf4j
 public class EndToEndStatsTest {
 
-    private final int controllerPort = TestUtils.getAvailableListenPort();
+    private final int controllerPort = CommonUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
-    private final int servicePort = TestUtils.getAvailableListenPort();
+    private final int servicePort = CommonUtils.getAvailableListenPort();
     private final int containerCount = 4;
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;

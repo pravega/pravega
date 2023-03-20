@@ -16,7 +16,7 @@
 package io.pravega.storage.s3;
 
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import java.util.UUID;
@@ -36,7 +36,7 @@ public class S3TestContext {
 
     public S3TestContext() {
         try {
-            this.port = TestUtils.getAvailableListenPort();
+            this.port = CommonUtils.getAvailableListenPort();
             this.configUri = "https://localhost";
             String bucketName = "test-bucket";
             String prefix = BUCKET_NAME_PREFIX + UUID.randomUUID();

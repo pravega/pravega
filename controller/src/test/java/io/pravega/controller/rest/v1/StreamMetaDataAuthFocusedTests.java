@@ -41,7 +41,7 @@ import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -189,11 +189,11 @@ public class StreamMetaDataAuthFocusedTests {
                 .userPasswordFile(passwordHandlerInputFile.getAbsolutePath())
                 .port(1000)
                 .build());
-        ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
+        ServerBuilder<?> server = ServerBuilder.forPort(CommonUtils.getAvailableListenPort());
         GrpcAuthHelper.registerInterceptors(authManager.getHandlerMap(), server);
 
         mockControllerService = mock(ControllerService.class);
-        serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
+        serverConfig = RESTServerConfigImpl.builder().host("localhost").port(CommonUtils.getAvailableListenPort()).build();
         LocalController controller = new LocalController(mockControllerService, false, "");
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                   .controllerURI(URI.create("tcp://localhost"))
@@ -653,7 +653,7 @@ public class StreamMetaDataAuthFocusedTests {
 
     private Invocation.Builder invocationBuilder(String resourceUri, String username, String password) {
         MultivaluedMap<String, Object> map = new MultivaluedHashMap<>();
-        map.addAll(HttpHeaders.AUTHORIZATION, TestUtils.basicAuthToken(username, password));
+        map.addAll(HttpHeaders.AUTHORIZATION, CommonUtils.basicAuthToken(username, password));
         return client.target(resourceUri).request().headers(map);
     }
 

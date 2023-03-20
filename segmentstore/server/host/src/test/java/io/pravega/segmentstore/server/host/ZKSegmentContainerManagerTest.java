@@ -20,7 +20,7 @@ import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.IOException;
@@ -58,7 +58,7 @@ public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
     private final static int RETRY_SLEEP_MS = 100;
     private final static int MAX_RETRY = 5;
     private final static int MAX_PARALLEL_CONTAINER_STARTS = 2;
-    private static final int PORT = TestUtils.getAvailableListenPort();
+    private static final int PORT = CommonUtils.getAvailableListenPort();
     private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT, null);
     private final static String PATH = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
     private String zkUrl;

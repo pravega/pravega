@@ -30,7 +30,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.Controller
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
@@ -67,9 +67,9 @@ public class ControllerImplLBTest {
 
     @Before
     public void setup() throws IOException {
-        final int serverPort1 = TestUtils.getAvailableListenPort();
-        final int serverPort2 = TestUtils.getAvailableListenPort();
-        final int serverPort3 = TestUtils.getAvailableListenPort();
+        final int serverPort1 = CommonUtils.getAvailableListenPort();
+        final int serverPort2 = CommonUtils.getAvailableListenPort();
+        final int serverPort3 = CommonUtils.getAvailableListenPort();
 
         // Setup fake servers for simulating multiple controllers with discovery info.
         ControllerServiceImplBase fakeServerImpl1 = new ControllerServiceImplBase() {

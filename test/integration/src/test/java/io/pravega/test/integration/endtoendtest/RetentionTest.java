@@ -37,7 +37,7 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import lombok.Cleanup;
@@ -77,9 +77,9 @@ public class RetentionTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
-        controllerPort = TestUtils.getAvailableListenPort();
+        controllerPort = CommonUtils.getAvailableListenPort();
         controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
-        int servicePort = TestUtils.getAvailableListenPort();
+        int servicePort = CommonUtils.getAvailableListenPort();
         server = new PravegaConnectionListener(false, servicePort, store, tableStore, this.serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 

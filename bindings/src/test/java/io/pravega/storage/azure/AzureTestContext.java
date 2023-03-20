@@ -16,7 +16,7 @@
 package io.pravega.storage.azure;
 
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 
 import java.util.UUID;
 
@@ -35,7 +35,7 @@ public class AzureTestContext {
 
     public AzureTestContext() throws Exception {
         try {
-            this.port = TestUtils.getAvailableListenPort();
+            this.port = CommonUtils.getAvailableListenPort();
             this.configUri = "https://localhost";
             String prefix = CONTAINER_NAME_PREFIX + UUID.randomUUID();
             adapterConfig = getLocalAzureStorageConfig(prefix);

@@ -21,7 +21,7 @@ import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperatio
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.util.LinkedList;
 import lombok.val;
 import org.junit.Assert;
@@ -108,7 +108,7 @@ public class WriterStateTests {
         s.setLastReadSequenceNumber(100);
         Assert.assertFalse(r2.isDone());
         s.recordFlushComplete(new WriterFlushResult().withFlushedBytes(1));
-        TestUtils.await(r2::isDone, 5, 30000);
+        CommonUtils.await(r2::isDone, 5, 30000);
         Assert.assertTrue("Unexpected result when something was flushed.", r2.join());
         Assert.assertFalse("Expecting force flush flag to be cleared.", s.isForceFlush());
 
@@ -118,7 +118,7 @@ public class WriterStateTests {
         Assert.assertTrue("Expecting force flush flag to be set.", s.isForceFlush());
         s.setLastReadSequenceNumber(201);
         s.recordFlushComplete(new WriterFlushResult());
-        TestUtils.await(r3::isDone, 5, 30000);
+        CommonUtils.await(r3::isDone, 5, 30000);
         Assert.assertFalse("Unexpected result when nothing was flushed.", r3.join());
         Assert.assertFalse("Expecting force flush flag to be cleared.", s.isForceFlush());
     }

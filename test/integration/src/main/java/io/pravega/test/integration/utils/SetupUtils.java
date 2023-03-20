@@ -45,7 +45,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 
 import java.net.URI;
@@ -87,12 +87,12 @@ public final class SetupUtils {
     // The test Scope name.
     @Getter
     private final String scope = "scope";
-    private final int controllerRPCPort = TestUtils.getAvailableListenPort();
-    private final int controllerRESTPort = TestUtils.getAvailableListenPort();
+    private final int controllerRPCPort = CommonUtils.getAvailableListenPort();
+    private final int controllerRESTPort = CommonUtils.getAvailableListenPort();
     @Getter
-    private final int servicePort = TestUtils.getAvailableListenPort();
+    private final int servicePort = CommonUtils.getAvailableListenPort();
     @Getter
-    private final int adminPort = TestUtils.getAvailableListenPort();
+    private final int adminPort = CommonUtils.getAvailableListenPort();
     private ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder();
 
     /**

@@ -16,7 +16,7 @@
 package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.AbstractHealthContributor;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -90,7 +90,7 @@ public class TestHealthContributors {
     }
 
     public static void awaitHealthContributor(HealthServiceManager service, String id) throws TimeoutException {
-        TestUtils.await(() -> {
+        CommonUtils.await(() -> {
                     Health health = null;
                     try {
                         health = service.getEndpoint().getHealth(id);

@@ -36,7 +36,7 @@ import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 
 import java.nio.charset.StandardCharsets;
@@ -778,7 +778,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Issue the first request. We intend to time it out.
         val getBucketOffset1 = index.getBucketOffsets(context.segment, hashes, context.timer);
-        TestUtils.await(() -> timeoutFuture.get() != null, 5, TIMEOUT.toMillis());
+        CommonUtils.await(() -> timeoutFuture.get() != null, 5, TIMEOUT.toMillis());
 
         // Time-out the call.
         timeoutCallback.get().call();
@@ -788,7 +788,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof TimeoutException);
 
         // Wait for the future to be unregistered before continuing.
-        TestUtils.await(timeoutFuture.get()::isDone, 5, TIMEOUT.toMillis());
+        CommonUtils.await(timeoutFuture.get()::isDone, 5, TIMEOUT.toMillis());
 
         // Verify that a new operation will be unblocked if we notify that the recovery completed successfully.
         timeoutFuture.set(null);
@@ -796,7 +796,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val getBucketOffset2 = index.getBucketOffsets(context.segment, hashes, context.timer);
 
         // Wait for the timeout future to be registered. We'll verify if it gets cancelled next.
-        TestUtils.await(() -> timeoutFuture.get() != null, 5, TIMEOUT.toMillis());
+        CommonUtils.await(() -> timeoutFuture.get() != null, 5, TIMEOUT.toMillis());
         index.notifyIndexOffsetChanged(context.segment.getSegmentId(), context.segment.getInfo().getLength(), 0);
         val result1 = getBucketOffset2.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val expected1 = new HashMap<UUID, Long>();

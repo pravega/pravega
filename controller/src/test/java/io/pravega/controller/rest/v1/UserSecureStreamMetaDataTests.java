@@ -16,7 +16,7 @@
 package io.pravega.controller.rest.v1;
 
 import io.pravega.controller.server.rest.generated.model.ScopesList;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.HttpHeaders;
@@ -30,7 +30,7 @@ public class UserSecureStreamMetaDataTests extends SecureStreamMetaDataTests {
     @Override
     protected Invocation.Builder addAuthHeaders(Invocation.Builder request) {
         MultivaluedMap<String, Object> map = new MultivaluedHashMap<>();
-        map.addAll(HttpHeaders.AUTHORIZATION, TestUtils.basicAuthToken("user1", "1111_aaaa"));
+        map.addAll(HttpHeaders.AUTHORIZATION, CommonUtils.basicAuthToken("user1", "1111_aaaa"));
         return request.headers(map);
     }
 

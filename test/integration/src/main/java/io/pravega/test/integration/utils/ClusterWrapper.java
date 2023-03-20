@@ -29,7 +29,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
 import lombok.AllArgsConstructor;
@@ -66,11 +66,11 @@ public class ClusterWrapper implements AutoCloseable {
 
     @Getter
     @Builder.Default
-    private int controllerPort = TestUtils.getAvailableListenPort();
+    private int controllerPort = CommonUtils.getAvailableListenPort();
 
     @Getter
     @Builder.Default
-    private int segmentStorePort = TestUtils.getAvailableListenPort();
+    private int segmentStorePort = CommonUtils.getAvailableListenPort();
 
     /**
      * Represents the port on which the Controller REST API listens.
@@ -159,7 +159,7 @@ public class ClusterWrapper implements AutoCloseable {
             this.passwordAuthHandlerEntries = Arrays.asList(defaultAuthHandlerEntry());
         }
         if (this.controllerRestEnabled && this.controllerRestPort <= 0) {
-            this.controllerRestPort = TestUtils.getAvailableListenPort();
+            this.controllerRestPort = CommonUtils.getAvailableListenPort();
         }
         startZookeeper();
         log.info("Started Zookeeper");

@@ -103,7 +103,7 @@ import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -1414,7 +1414,7 @@ public class ControllerImplTest {
             }
         };
 
-        serverPort = TestUtils.getAvailableListenPort();
+        serverPort = CommonUtils.getAvailableListenPort();
         serverBuilder = NettyServerBuilder.forPort(serverPort)
                                           .addService(testServerImpl);
         if (testSecure) {
@@ -1500,7 +1500,7 @@ public class ControllerImplTest {
     @Test
     public void testKeepAliveWithServer() throws Exception {
         // Verify that the same RPC with permissible keepalive time succeeds.
-        int serverPort2 = TestUtils.getAvailableListenPort();
+        int serverPort2 = CommonUtils.getAvailableListenPort();
         NettyServerBuilder testServerBuilder = NettyServerBuilder.forPort(serverPort2)
                                                                  .addService(testServerImpl)
                                                                  .permitKeepAliveTime(KEEP_ALIVE_TEST_PERMIT_TIME_MILLIS, TimeUnit.MILLISECONDS);

@@ -20,6 +20,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.segmentstore.storage.DataLogCorruptedException;
@@ -32,25 +33,6 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Setter;
 import lombok.SneakyThrows;
@@ -73,6 +55,25 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
@@ -104,10 +105,10 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
         secureBk.set(secure);
         String testId = Long.toHexString(System.nanoTime());
-        int zkPort = TestUtils.getAvailableListenPort();
+        int zkPort = CommonUtils.getAvailableListenPort();
         val bookiePorts = new ArrayList<Integer>();
         for (int i = 0; i < BOOKIE_COUNT; i++) {
-            bookiePorts.add(TestUtils.getAvailableListenPort());
+            bookiePorts.add(CommonUtils.getAvailableListenPort());
         }
 
         String ledgersPath = "/pravega/bookkeeper/ledgers/" + testId;
@@ -188,7 +189,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     public void testFactoryInitialize() {
         BookKeeperConfig bkConfig = BookKeeperConfig
                 .builder()
-                .with(BookKeeperConfig.ZK_ADDRESS, "127.0.0.1:" + TestUtils.getAvailableListenPort())
+                .with(BookKeeperConfig.ZK_ADDRESS, "127.0.0.1:" + CommonUtils.getAvailableListenPort())
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * 10) // Very frequent rollovers.
                 .with(BookKeeperConfig.ZK_METADATA_PATH, this.zkClient.get().getNamespace())
                 .build();

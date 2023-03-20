@@ -32,7 +32,7 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
 import org.junit.Test;
@@ -50,7 +50,7 @@ public class AutoCheckpointTest {
         String streamName = "abc";
         String readerName = "reader";
         String readerGroup = "group";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world: ";
         String scope = "Scope1";
         @Cleanup
@@ -103,7 +103,7 @@ public class AutoCheckpointTest {
         String endpoint = "localhost";
         String streamName = "abc";
         String readerGroup = "group";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world: ";
         String scope = "Scope1";
         @Cleanup

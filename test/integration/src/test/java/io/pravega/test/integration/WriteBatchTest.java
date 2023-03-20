@@ -44,7 +44,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import java.util.ArrayList;
@@ -87,9 +87,9 @@ public class WriteBatchTest {
     @Before
     public void setup() throws Exception {
 
-        final int controllerPort = TestUtils.getAvailableListenPort();
+        final int controllerPort = CommonUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
-        final int servicePort = TestUtils.getAvailableListenPort();
+        final int servicePort = CommonUtils.getAvailableListenPort();
         final int containerCount = 4;
 
         // 1. Start ZK

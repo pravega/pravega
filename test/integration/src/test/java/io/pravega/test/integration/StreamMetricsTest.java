@@ -48,7 +48,7 @@ import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.SerializedClassRunner;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import java.net.URI;
@@ -94,9 +94,9 @@ public class StreamMetricsTest {
 
     @Before
     public void setup() throws Exception {
-        controllerPort = TestUtils.getAvailableListenPort();
+        controllerPort = CommonUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
-        final int servicePort = TestUtils.getAvailableListenPort();
+        final int servicePort = CommonUtils.getAvailableListenPort();
         final int containerCount = 4;
 
         // 1. Start Metrics service

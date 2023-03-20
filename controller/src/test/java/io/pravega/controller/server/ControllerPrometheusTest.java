@@ -31,7 +31,7 @@ import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.test.common.SerializedClassRunner;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Rule;
@@ -64,8 +64,8 @@ public class ControllerPrometheusTest {
     protected final int grpcPort;
 
     public ControllerPrometheusTest() {
-        this.grpcPort = TestUtils.getAvailableListenPort();
-        this.restPort = TestUtils.getAvailableListenPort();
+        this.grpcPort = CommonUtils.getAvailableListenPort();
+        this.restPort = CommonUtils.getAvailableListenPort();
         this.storeClientConfig = StoreClientConfigImpl.withInMemoryClient();
         this.storeClient = StoreClientFactory.createStoreClient(storeClientConfig);
     }

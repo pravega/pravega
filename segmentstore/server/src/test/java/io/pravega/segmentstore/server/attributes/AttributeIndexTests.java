@@ -45,7 +45,7 @@ import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -337,7 +337,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
             // Update the value. The cache insertion should fail because of the exception above.
             val pointer2 = idx.update(Collections.singletonMap(attributeId, finalValue), TIMEOUT).join();
-            TestUtils.await(() -> context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join().getStartOffset() > pointer1, 5, TIMEOUT.toMillis());
+            CommonUtils.await(() -> context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join().getStartOffset() > pointer1, 5, TIMEOUT.toMillis());
 
             Assert.assertTrue(insertInvoked.get());
             AssertExtensions.assertGreaterThan("", pointer1, pointer2);
@@ -724,7 +724,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         checkIndex(idx, expectedValues);
         checkIndex(idx, expectedValues);
         Assert.assertEquals("Not expecting caching to be disabled yet.", 1, readCount.get());
-        TestUtils.await(() -> idx.getPendingReadCount() == 0, 5, TIMEOUT.toMillis()); // Let the pending read index clear before proceeding.
+        CommonUtils.await(() -> idx.getPendingReadCount() == 0, 5, TIMEOUT.toMillis()); // Let the pending read index clear before proceeding.
 
         // Set the non-essential-only flag.
         anythingRemoved = idx.updateGenerations(newGen, newGen, true);
@@ -740,7 +740,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         // Disable the non-essential-only flag.
         anythingRemoved = idx.updateGenerations(newGen, newGen, false);
-        TestUtils.await(() -> idx.getPendingReadCount() == 0, 5, TIMEOUT.toMillis()); // Let the pending read index clear before proceeding.
+        CommonUtils.await(() -> idx.getPendingReadCount() == 0, 5, TIMEOUT.toMillis()); // Let the pending read index clear before proceeding.
         Assert.assertFalse("Not expecting anything to be evicted (essential=false).", anythingRemoved);
         checkIndex(idx, expectedValues);
         checkIndex(idx, expectedValues); // Do it twice to check that the cache has been properly re-enabled.

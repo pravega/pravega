@@ -13,7 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.test.common;
+package io.pravega.common.util;
+
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -26,14 +29,12 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Utility class for Tests.
  */
 @Slf4j
-public class TestUtils {
+public class CommonUtils {
     // Linux uses ports from range 32768 - 61000.
     private static final int BASE_PORT = 32768;
     private static final int MAX_PORT_COUNT = 28233;

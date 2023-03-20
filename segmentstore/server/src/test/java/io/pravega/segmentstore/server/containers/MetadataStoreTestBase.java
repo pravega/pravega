@@ -41,7 +41,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -762,7 +762,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         // Should complete successfully.
         context.getMetadataStore().createSegment(validTransientSegment, SegmentType.TRANSIENT_SEGMENT, new ArrayList<>(), TIMEOUT).get();
         // Make sure our Transient Segment name maps to a valid Segment ID.
-        TestUtils.await(() -> {
+        CommonUtils.await(() -> {
             return context.getMetadata().getStreamSegmentId(validTransientSegment, false) != ContainerMetadata.NO_STREAM_SEGMENT_ID;
         }, 1000, TIMEOUT.toMillis());
         // Attempt to create a Transient Segment with an ill-formatted name.

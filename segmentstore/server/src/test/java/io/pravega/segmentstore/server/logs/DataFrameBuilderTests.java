@@ -23,7 +23,7 @@ import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.IOException;
 import java.time.Duration;
@@ -123,7 +123,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
                 }
             }
             // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            TestUtils.await(() -> commitFrames.size() >= order.size(), 20, TIMEOUT.toMillis());
+            CommonUtils.await(() -> commitFrames.size() >= order.size(), 20, TIMEOUT.toMillis());
 
             List<DataFrame.DataFrameEntryIterator> frames = dataLog.getAllEntries(readItem ->
                     DataFrame.read(readItem.getPayload(), readItem.getLength(), readItem.getAddress()));
@@ -192,7 +192,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
 
                 b.close();
             } catch (ObjectClosedException ex) {
-                TestUtils.await(() -> b.failureCause() != null, 20, TIMEOUT.toMillis());
+                CommonUtils.await(() -> b.failureCause() != null, 20, TIMEOUT.toMillis());
 
                 // If DataFrameBuilder is closed, then we must have had an exception thrown via the callback before.
                 Assert.assertNotNull("DataFrameBuilder is closed, yet failure cause is not set yet.", b.failureCause());
@@ -200,7 +200,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             }
         }
 
-        TestUtils.await(() -> successCommits.size() >= attemptCount.get(), 20, TIMEOUT.toMillis());
+        CommonUtils.await(() -> successCommits.size() >= attemptCount.get(), 20, TIMEOUT.toMillis());
 
         // Read all committed items.
         @Cleanup
@@ -257,7 +257,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             b.flush();
 
             // Wait for all the frames commit callbacks to be invoked.
-            TestUtils.await(() -> commitFrames.size() >= 1, 20, TIMEOUT.toMillis());
+            CommonUtils.await(() -> commitFrames.size() >= 1, 20, TIMEOUT.toMillis());
 
             // Check the correctness of the commit callback (after closing the builder).
             Assert.assertEquals("Exactly one Data Frame was expected so far.", 1, commitFrames.size());
@@ -293,7 +293,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             // Wait for all the frames commit callbacks to be invoked. Even though the DataFrameBuilder waits (upon close)
             // for the OrderedItemProcessor to finish, there are other callbacks chained that need to be completed (such
             // as the one collecting frames in the list above).
-            TestUtils.await(() -> commitFrames.size() >= order.size(), delayMillis, TIMEOUT.toMillis());
+            CommonUtils.await(() -> commitFrames.size() >= order.size(), delayMillis, TIMEOUT.toMillis());
 
             // It is quite likely that acks will arrive out of order. The DataFrameBuilder has no responsibility for
             // rearrangement; that should be done by its user.

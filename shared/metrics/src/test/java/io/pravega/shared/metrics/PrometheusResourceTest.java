@@ -20,7 +20,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.pravega.test.common.SerializedClassRunner;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.glassfish.grizzly.http.server.HttpServer;
@@ -88,7 +88,7 @@ public class PrometheusResourceTest {
 
         ResourceConfig rc = ResourceConfig.forApplication(new PrometheusApplication(statsProvider));
         URI baseUri = UriBuilder.fromUri("http://localhost/")
-                .port(TestUtils.getAvailableListenPort())
+                .port(CommonUtils.getAvailableListenPort())
                 .build();
 
         @Cleanup("shutdown")

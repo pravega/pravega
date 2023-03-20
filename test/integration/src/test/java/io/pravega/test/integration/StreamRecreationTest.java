@@ -38,7 +38,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import java.net.URI;
@@ -57,10 +57,10 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class StreamRecreationTest {
 
-    private final int controllerPort = TestUtils.getAvailableListenPort();
+    private final int controllerPort = CommonUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
     private final URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
-    private final int servicePort = TestUtils.getAvailableListenPort();
+    private final int servicePort = CommonUtils.getAvailableListenPort();
     private final int containerCount = 4;
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;

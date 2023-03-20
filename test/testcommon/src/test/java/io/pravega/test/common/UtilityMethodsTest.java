@@ -17,7 +17,7 @@ package io.pravega.test.common;
 
 import lombok.Cleanup;
 import org.junit.Test;
-
+import io.pravega.common.util.CommonUtils;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -45,7 +45,7 @@ public class UtilityMethodsTest {
     @Test(timeout = 10000)
     public void getAvailableListenPortTest() throws InterruptedException, ExecutionException {
         final int threadCount = 5;
-        Callable<Integer> task = () -> TestUtils.getAvailableListenPort();
+        Callable<Integer> task = () -> CommonUtils.getAvailableListenPort();
         List<Callable<Integer>> tasks = Collections.nCopies(threadCount, task);
         @Cleanup("shutdownNow")
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);

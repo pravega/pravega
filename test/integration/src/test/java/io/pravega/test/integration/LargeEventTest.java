@@ -57,7 +57,7 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.LeakDetectorTestSuite;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import lombok.Cleanup;
@@ -106,8 +106,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
     private static final int CLOSE_WRITE_COUNT = 2;
     private static final String SCOPE_NAME = "scope";
 
-    private final int servicePort = TestUtils.getAvailableListenPort();
-    private final int controllerPort = TestUtils.getAvailableListenPort();
+    private final int servicePort = CommonUtils.getAvailableListenPort();
+    private final int controllerPort = CommonUtils.getAvailableListenPort();
 
     private TableStore tableStore;
     private StreamSegmentStore store;
@@ -458,7 +458,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
             Futures.allOf(writers).get();
 
             // Wait for the scale event.
-            TestUtils.await(() -> !latch.get(), 200, 2000);
+            CommonUtils.await(() -> !latch.get(), 200, 2000);
             // Create a ReaderGroup.
             createReaderGroup(readerGroupName, readerGroupManager, streamName);
             // Create Readers.

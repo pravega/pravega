@@ -61,7 +61,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.shared.NameUtils;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -204,7 +204,7 @@ public class StreamMetaDataTests {
     @Before
     public void setup() throws Exception {
         mockControllerService = mock(ControllerService.class);
-        serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
+        serverConfig = RESTServerConfigImpl.builder().host("localhost").port(CommonUtils.getAvailableListenPort()).build();
         LocalController controller = new LocalController(mockControllerService, false, "");
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                         .controllerURI(URI.create("tcp://localhost"))

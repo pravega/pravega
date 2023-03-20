@@ -59,7 +59,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.SerializedClassRunner;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -1545,7 +1545,7 @@ public class PravegaRequestProcessorTest {
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, 1)
                         .with(ServiceConfig.THREAD_POOL_SIZE, 3)
-                        .with(ServiceConfig.LISTENING_PORT, TestUtils.getAvailableListenPort()))
+                        .with(ServiceConfig.LISTENING_PORT, CommonUtils.getAvailableListenPort()))
                 .build();
     }
 
