@@ -407,7 +407,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         log.info("Pravega Controller service  details: {}", conUris);
         final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
         assertEquals("3 controller instances should be running", 3, uris.size());
-        // use the last two uris
+        // use the last three uris
         controllerURI = URI.create("tcp://" + String.join(",", uris));
         clientConfig = Utils.buildClientConfig(controllerURI);
         controller = new ControllerImpl(ControllerImplConfig.builder()
@@ -423,8 +423,8 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM_3, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
-        // Write 7 events to the stream_1.
-        writingEventsToStream(8, writer, SCOPE_2, STREAM_3);
+        // Write three event.
+        writingEventsToStream(3, writer, SCOPE_2, STREAM_3);
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_2, clientConfig);
         ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(SCOPE_2, STREAM_3, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
@@ -438,8 +438,8 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(READER_GROUP_1 + "-" + 1,
                 READER_GROUP_1, new JavaSerializer<>(), readerConfig, clock::get, clock::get);
-        // Read three events with reader.
-        readingEventsFromStream(4, reader);
+        // Read one event with reader.
+        readingEventsFromStream(1, reader);
 
         log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_1, SCOPE_2, STREAM_3);
         Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup, reader, clock);
@@ -447,13 +447,34 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         log.info("{} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts);
         readerGroup.updateRetentionStreamCut(streamCuts);
 
-        // Retention set has one stream cut at 0/240
-        // READER_GROUP_1 updated stream cut at 0/120
-        // Subscriber lower bound is 0/120, truncation should happen at this point
+        // Write two more events.
+        writingEventsToStream(2, writer, SCOPE_2, STREAM_3);
+
+        // Retention set has one stream cut at 0/150
+        // READER_GROUP_1 updated stream cut at 0/30
+        // Subscriber lower bound is 0/30, truncation should happen at this point
         // The timeout is set to 2 minutes a little longer than the retention period which is set to 1 minutes
         // in order to confirm that the retention has taken place.
-        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 120.", true, () -> controller.getSegmentsAtTime(
-                        new StreamImpl(SCOPE_2, STREAM_3), 0L).join().values().stream().anyMatch(off -> off == 120),
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 30.", true, () -> controller.getSegmentsAtTime(
+                        new StreamImpl(SCOPE_2, STREAM_3), 0L).join().values().stream().anyMatch(off -> off == 30),
+                5000, 2 * 60 * 1000L);
+
+        // Read next event.
+        readingEventsFromStream(1, reader);
+
+        log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_1, SCOPE_2, STREAM_3);
+        streamCuts = generateStreamCuts(readerGroup, reader, clock);
+
+        log.info("{} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts);
+        readerGroup.updateRetentionStreamCut(streamCuts);
+
+        // Retention set has one stream cut at 0/150
+        // READER_GROUP_1 updated stream cut at 0/60
+        // Subscriber lower bound is 0/30, truncation should happen at this point
+        // The timeout is set to 2 minutes a little longer than the retention period which is set to 1 minutes
+        // in order to confirm that the retention has taken place.
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 60.", true, () -> controller.getSegmentsAtTime(
+                        new StreamImpl(SCOPE_2, STREAM_3), 0L).join().values().stream().anyMatch(off -> off == 60),
                 5000, 2 * 60 * 1000L);
     }
 
