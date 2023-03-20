@@ -23,7 +23,19 @@ import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.Checkpoint;
+import io.pravega.client.stream.EventRead;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.RetentionPolicy;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -38,7 +50,10 @@ import io.pravega.test.system.framework.services.Service;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
@@ -53,7 +68,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 
 
@@ -96,9 +113,6 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private Controller controller = null;
     private ClientConfig clientConfig;
     private Service controllerService = null;
-    private Service segmentStoreService = null;
-    private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
-    private AtomicReference<URI> controllerURIDiscover = new AtomicReference<>();
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -135,7 +149,6 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     }
 
     @Test
-    @Ignore
     public void multipleSubscriberCBRTest() throws Exception {
         assertTrue("Creating scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, STREAM_CONFIGURATION));
@@ -243,7 +256,6 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     }
 
     @Test
-    @Ignore
     public void updateRetentionPolicyForCBRTest() throws Exception {
         assertTrue("Creating scope", streamManager.createScope(SCOPE_1));
         assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM_1, STREAM_CONFIGURATION));
@@ -392,16 +404,16 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     public void multipleControllerCBRTest() throws Exception {
         // scale to three controller instances.
         Futures.getAndHandleExceptions(controllerService.scaleService(3), ExecutionException::new);
-        List<URI> conUris = controllerService.getServiceDetails();
-        log.info("Pravega Controller service  details: {}", conUris);
-        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+        List<URI> controllerUris = controllerService.getServiceDetails();
+        log.info("Pravega Controller service  details: {}", controllerUris);
+        final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
         assertEquals("3 controller instances should be running", 3, uris.size());
         // use the last three uris
         controllerURI = URI.create("tcp://" + String.join(",", uris));
         clientConfig = Utils.buildClientConfig(controllerURI);
         controller = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(clientConfig)
-                .maxBackoffMillis(5000).build(), executor);
+                    .clientConfig(clientConfig)
+                    .maxBackoffMillis(5000).build(), executor);
         streamManager = StreamManager.create(clientConfig);
         assertTrue("Creating scope", streamManager.createScope(SCOPE_2));
         assertTrue("Creating stream", streamManager.createStream(SCOPE_2, STREAM_3, STREAM_CONFIGURATION));
@@ -416,7 +428,6 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         writingEventsToStream(3, writer, SCOPE_2, STREAM_3);
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_2, clientConfig);
-        //ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(SCOPE_2, STREAM_3, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
         ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(SCOPE_2, STREAM_3, ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT);
 
         assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(READER_GROUP_1, readerGroupConfig));
@@ -431,19 +442,8 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         // Read one event with reader.
         readingEventsFromStream(1, reader);
 
-        /*log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_1, SCOPE_2, STREAM_3);
-        Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup, reader, clock);
-
-        log.info("{} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts);
-        readerGroup.updateRetentionStreamCut(streamCuts);*/
-        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("Checkpoint", executor);
-        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        assertFalse(checkpoint.isDone());
+        CompletableFuture<Checkpoint> checkpoint = initiateCheckPoint("Checkpoint", readerGroup, reader, clock);
         EventRead<String> read = reader.readNextEvent(60000);
-        assertTrue(read.isCheckpoint());
-        assertEquals("Checkpoint", read.getCheckpointName());
-        assertNull(read.getEvent());
-        read = reader.readNextEvent(60000);
         log.info("Reading next event after checkpoint {}", read.getEvent());
         Checkpoint cpResult = checkpoint.join();
         assertTrue(checkpoint.isDone());
@@ -460,22 +460,10 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                         new StreamImpl(SCOPE_2, STREAM_3), 0L).join().values().stream().anyMatch(off -> off == 30),
                 5000, 2 * 60 * 1000L);
 
-        /*log.info("{} generating 2nd stream-cuts for {}/{}", READER_GROUP_1, SCOPE_2, STREAM_3);
-        // Reader has already read next event during previous generateStreamCuts method call
-        streamCuts = generateStreamCuts(readerGroup, reader, clock);
-
-        log.info("{} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts);
-        readerGroup.updateRetentionStreamCut(streamCuts);*/
-        checkpoint = readerGroup.initiateCheckpoint("Checkpoint2", executor);
-        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        assertFalse(checkpoint.isDone());
-        read = reader.readNextEvent(60000);
-        assertTrue(read.isCheckpoint());
-        assertEquals("Checkpoint2", read.getCheckpointName());
-        assertNull(read.getEvent());
+        checkpoint = initiateCheckPoint("Checkpoint2", readerGroup, reader, clock);
         read = reader.readNextEvent(60000);
         log.info("Reading next event after checkpoint {}", read.getEvent());
-        Checkpoint cpResult2 = checkpoint.join();
+        cpResult = checkpoint.join();
         assertTrue(checkpoint.isDone());
 
         // Retention set has one stream cut at 0/150
@@ -531,5 +519,16 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                     break;
             }
             return readerGroupConfig;
+        }
+
+        private CompletableFuture<Checkpoint> initiateCheckPoint(String checkPointName, ReaderGroup readerGroup, EventStreamReader<String> reader, AtomicLong clock) {
+            CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint(checkPointName, executor);
+            clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+            assertFalse(checkpoint.isDone());
+            EventRead<String> read = reader.readNextEvent(60000);
+            assertTrue(read.isCheckpoint());
+            assertEquals(checkPointName, read.getCheckpointName());
+            assertNull(read.getEvent());
+            return checkpoint;
         }
 }
