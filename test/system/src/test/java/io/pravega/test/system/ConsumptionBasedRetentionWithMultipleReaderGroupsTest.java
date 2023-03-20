@@ -23,18 +23,7 @@ import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.stream.EventRead;
-import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ReaderConfig;
-import io.pravega.client.stream.ReaderGroup;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.RetentionPolicy;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -64,8 +53,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
+import static org.junit.Assert.assertNull;
 
 
 @Slf4j
@@ -427,7 +416,8 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         writingEventsToStream(3, writer, SCOPE_2, STREAM_3);
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_2, clientConfig);
-        ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(SCOPE_2, STREAM_3, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
+        //ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(SCOPE_2, STREAM_3, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
+        ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(SCOPE_2, STREAM_3, ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT);
 
         assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(READER_GROUP_1, readerGroupConfig));
         assertEquals(1, controller.listSubscribers(SCOPE_2, STREAM_3).join().size());
@@ -441,11 +431,22 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         // Read one event with reader.
         readingEventsFromStream(1, reader);
 
-        log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_1, SCOPE_2, STREAM_3);
+        /*log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_1, SCOPE_2, STREAM_3);
         Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup, reader, clock);
 
         log.info("{} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts);
-        readerGroup.updateRetentionStreamCut(streamCuts);
+        readerGroup.updateRetentionStreamCut(streamCuts);*/
+        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("Checkpoint", executor);
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        assertFalse(checkpoint.isDone());
+        EventRead<String> read = reader.readNextEvent(60000);
+        assertTrue(read.isCheckpoint());
+        assertEquals("Checkpoint", read.getCheckpointName());
+        assertNull(read.getEvent());
+        read = reader.readNextEvent(60000);
+        log.info("Reading next event after checkpoint {}", read.getEvent());
+        Checkpoint cpResult = checkpoint.join();
+        assertTrue(checkpoint.isDone());
 
         // Write two more events.
         writingEventsToStream(2, writer, SCOPE_2, STREAM_3);
@@ -459,12 +460,23 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                         new StreamImpl(SCOPE_2, STREAM_3), 0L).join().values().stream().anyMatch(off -> off == 30),
                 5000, 2 * 60 * 1000L);
 
-        log.info("{} generating 2nd stream-cuts for {}/{}", READER_GROUP_1, SCOPE_2, STREAM_3);
+        /*log.info("{} generating 2nd stream-cuts for {}/{}", READER_GROUP_1, SCOPE_2, STREAM_3);
         // Reader has already read next event during previous generateStreamCuts method call
         streamCuts = generateStreamCuts(readerGroup, reader, clock);
 
         log.info("{} updating its retention stream-cut to {}", READER_GROUP_1, streamCuts);
-        readerGroup.updateRetentionStreamCut(streamCuts);
+        readerGroup.updateRetentionStreamCut(streamCuts);*/
+        checkpoint = readerGroup.initiateCheckpoint("Checkpoint2", executor);
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        assertFalse(checkpoint.isDone());
+        read = reader.readNextEvent(60000);
+        assertTrue(read.isCheckpoint());
+        assertEquals("Checkpoint2", read.getCheckpointName());
+        assertNull(read.getEvent());
+        read = reader.readNextEvent(60000);
+        log.info("Reading next event after checkpoint {}", read.getEvent());
+        Checkpoint cpResult2 = checkpoint.join();
+        assertTrue(checkpoint.isDone());
 
         // Retention set has one stream cut at 0/150
         // READER_GROUP_1 updated stream cut at 0/60
@@ -501,10 +513,23 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         return futureCuts.join();
     }
 
-    private ReaderGroupConfig getReaderGroupConfig(String scope, String stream, ReaderGroupConfig.StreamDataRetention type) {
-        return ReaderGroupConfig.builder()
-                .retentionType(type)
-                .disableAutomaticCheckpoints()
-                .stream(Stream.of(scope, stream)).build();
-    }
+        private ReaderGroupConfig getReaderGroupConfig(String scope, String stream, ReaderGroupConfig.StreamDataRetention type) {
+            ReaderGroupConfig readerGroupConfig = null;
+            switch (type) {
+                case MANUAL_RELEASE_AT_USER_STREAMCUT:
+                case NONE:
+                    readerGroupConfig = ReaderGroupConfig.builder()
+                                        .retentionType(type)
+                                        .disableAutomaticCheckpoints()
+                                        .stream(Stream.of(scope, stream)).build();
+                    break;
+
+                case AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT:
+                    readerGroupConfig = ReaderGroupConfig.builder()
+                                        .retentionType(type)
+                                        .stream(Stream.of(scope, stream)).build();
+                    break;
+            }
+            return readerGroupConfig;
+        }
 }
