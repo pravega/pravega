@@ -277,6 +277,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
                 bookieServerAndResources = runBookie(bkPort);
                 retry = false;
             } catch (BindException e) {
+                log.error("Exception occurred: " + e.getMessage());
                 if ( ++count >= retries ) {
                     throw new RuntimeException(e);
                 } else {
