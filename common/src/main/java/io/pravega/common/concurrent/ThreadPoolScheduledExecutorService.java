@@ -177,6 +177,11 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
             this.scheduledTimeNanos = unit.toNanos(delay) + System.nanoTime();
             this.task = task;
             this.future = new CompletableFuture<R>();
+            if(task instanceof ScheduleLoop){
+                 // keep the reference of the first scheduled task
+                ScheduleLoop loop = (ScheduleLoop) task;
+                loop.currentTask.set(this);
+            }
         }
         
         private ScheduledRunnable(Callable<R> task, long scheduledTimeNanos) {
@@ -279,7 +284,7 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
         final AtomicBoolean canceled = new AtomicBoolean(false);
         final CompletableFuture<Void> shutdownFuture = new CompletableFuture<>();
         final AtomicReference<ScheduledFuture<Void>> scheduledFuture = new AtomicReference<ScheduledFuture<Void>>();
-
+        final AtomicReference<ScheduledRunnable<?>> currentTask = new AtomicReference<>();
         @Override
         public Void call() {
             if (!canceled.get()) {
@@ -319,6 +324,10 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
         public boolean cancel(boolean mayInterruptIfRunning) {
             if (canceled.getAndSet(true)) {
                 return false;
+            }
+            ScheduledRunnable<?> task = this.currentTask.get();
+            if (task != null) {
+                ThreadPoolScheduledExecutorService.this.cancel(task);
             }
             ScheduledFuture<Void> future = scheduledFuture.get();
             if (future != null) {
