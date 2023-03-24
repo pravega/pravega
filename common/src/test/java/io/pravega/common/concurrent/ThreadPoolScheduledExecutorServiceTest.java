@@ -248,6 +248,27 @@ public class ThreadPoolScheduledExecutorServiceTest {
         assertTrue(pool.shutdownNow().isEmpty());
         assertTrue(pool.awaitTermination(1, SECONDS));
     }
+
+    @Test(timeout = 10000)
+    public void testCancelRecurringWithInitialDelay() throws Exception {
+        ThreadPoolScheduledExecutorService pool = createPool(1);
+        AtomicInteger count = new AtomicInteger(0);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        // schedule a loop task with big initial delay
+        ScheduledFuture<?> future = pool.scheduleAtFixedRate(() -> {
+            count.incrementAndGet();
+        }, 10, 2, SECONDS);
+        assertFalse(future.isCancelled());
+        assertFalse(future.isDone());
+        assertTrue(future.cancel(false));
+        AssertExtensions.assertThrows(CancellationException.class, () -> future.get());
+        assertTrue(future.isCancelled());
+        assertTrue(future.isDone());
+        assertEquals(0, count.get());
+        assertTrue(pool.getQueue().isEmpty());
+        assertTrue(pool.shutdownNow().isEmpty());
+        assertTrue(pool.awaitTermination(1, SECONDS));
+    }
     
     @Test(timeout = 10000)
     public void testShutdownWithRecurring() throws Exception {
