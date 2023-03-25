@@ -90,7 +90,7 @@ import java.util.stream.Collectors;
 /**
  * This command helps restore the metadata state in Pravega
  * by reading the Segment Chunk files that are provided as an input
- * to this command.As such this command can be used to help recover/restore
+ * to this command. As such this command can be used to help recover/restore
  * Pravega from a given Tier-2 mount. More details about the command
  * and its usage can be found at:
  * <a href="https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/lts-recovery-steps.md"/>
@@ -101,8 +101,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private static final String STORAGE_METADATA = "storage_metadata";
     private static final String SYSJOURNAL_PREFIX = "_sysjournal";
     private static final String SYSJOURNAL_CONTAINER = "container";
+    private static final String RG_SCALE_GROUP = "scaleGroup";
     private static final String SYSJOURNAL_BACKUP_EXTENSION = ".backup";
-
     private static final String EVENT_PROCESSEOR_SEGMENT = "event_processor_GC";
     private static final String EPOCH_SPLITTER = ".E-";
     private static final String OFFSET_SPLITTER = "O-";
@@ -229,7 +229,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         renameJournalsOf(containerId);
         // Create debug segment container
         DebugStreamSegmentContainer debugStreamSegmentContainer = createDebugSegmentContainer(context, containerId, dataLogFactory);
-        output("-----------------DebugSegment container %d initialized--------------", containerId);
+        output("-----------------Debug Segment container %d initialized--------------", containerId);
         // Segregate the metadata and storage metadata chunks
         Map<String, List<File>> metadataSegments = segregateMetadataSegments(potentialFiles);
         Preconditions.checkState(metadataSegments.size() == 2, "Only MetadataSegment and Storage MetadataSegment chunks should be present");
@@ -259,6 +259,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             flushToStorage(debugStreamSegmentContainer);
             attempts++;
         } while (!chunkValidator.validate() && attempts < RETRY_ATTEMPT);
+        
         if (attempts >= RETRY_ATTEMPT) {
             throw new RuntimeException(String.format("There was an error recovering container %s. Please check the logs for more details", containerId));
         }
@@ -505,7 +506,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         // 2. Recovering EVENT_PROCESSOR_SEGMENT leads to length mismatch issues between container and storage
         //    metadata as EVENT_PROCESSOR_SEGMENTS are created by default when container starts and then as part
         //    of recovery, when container comes up we update the lenghts in the metadata.
-        if (segmentName.contains("scaleGroup") || segmentName.contains(EVENT_PROCESSEOR_SEGMENT)) {
+        if (segmentName.contains(RG_SCALE_GROUP) || segmentName.contains(EVENT_PROCESSEOR_SEGMENT)) {
             return false;
         }
         return true;
