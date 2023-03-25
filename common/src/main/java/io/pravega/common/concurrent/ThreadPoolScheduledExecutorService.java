@@ -177,7 +177,7 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
             this.scheduledTimeNanos = unit.toNanos(delay) + System.nanoTime();
             this.task = task;
             this.future = new CompletableFuture<R>();
-            if(task instanceof ScheduleLoop){
+            if (task instanceof ScheduleLoop) {
                 ScheduleLoop loop = (ScheduleLoop) task;
                 loop.currentTask.set(this);
             }
