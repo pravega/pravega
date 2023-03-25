@@ -253,8 +253,6 @@ public class ThreadPoolScheduledExecutorServiceTest {
     public void testCancelRecurringWithInitialDelay() throws Exception {
         ThreadPoolScheduledExecutorService pool = createPool(1);
         AtomicInteger count = new AtomicInteger(0);
-        AtomicReference<Exception> error = new AtomicReference<>();
-        // schedule a loop task with big initial delay
         ScheduledFuture<?> future = pool.scheduleAtFixedRate(() -> {
             count.incrementAndGet();
         }, 10, 2, SECONDS);

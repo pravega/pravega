@@ -178,7 +178,6 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
             this.task = task;
             this.future = new CompletableFuture<R>();
             if(task instanceof ScheduleLoop){
-                 // keep the reference of the first scheduled task
                 ScheduleLoop loop = (ScheduleLoop) task;
                 loop.currentTask.set(this);
             }
