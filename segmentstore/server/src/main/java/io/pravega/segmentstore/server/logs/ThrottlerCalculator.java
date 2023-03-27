@@ -23,12 +23,14 @@ import io.pravega.segmentstore.storage.WriteSettings;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.Singular;
+import lombok.val;
 
 /**
  * Helper class that provides methods for calculating various OperationProcessor delays, to be used for batching operations
@@ -266,6 +268,52 @@ class ThrottlerCalculator {
         }
     }
 
+
+    /**
+     * Calculates the amount of time to wait before adding more requests to the queue in order to relieve pressure
+     * from the DurableDataLog. This is based on static information from the DurableDataLog's {@link WriteSettings} and dynamic
+     * information from its {@link QueueStats}.
+     *
+     * Throttle is applied  when total outstanding bytes is more than set limit.
+     * The value of throttle is linearly proportional to percentage of excess outstanding bytes with respected to max limit
+     * Max throttle value is capped at maxDelayMillis.
+     *
+     */
+    private static class DurableDataLogOutstandingBytesThrottler extends Throttler {
+        private final int maxOutstandingBytes;
+        private final int baseDelay;
+        private final Supplier<QueueStats> getQueueStats;
+
+        DurableDataLogOutstandingBytesThrottler(@NonNull WriteSettings writeSettings, @NonNull Supplier<QueueStats> getQueueStats, int maxDelayMillis) {
+            this.maxOutstandingBytes = writeSettings.getMaxOutstandingBytes();
+            this.baseDelay = maxDelayMillis;
+            this.getQueueStats = getQueueStats;
+        }
+
+        @Override
+        boolean isThrottlingRequired() {
+            QueueStats stats = this.getQueueStats.get();
+            return stats.getTotalLength() > this.maxOutstandingBytes;
+        }
+
+        @Override
+        int getDelayMillis() {
+            if (isThrottlingRequired()) {
+                QueueStats stats = this.getQueueStats.get();
+                val excess = stats.getTotalLength() - this.maxOutstandingBytes;
+                return Math.min(this.baseDelay, (int) Math.ceil(1.0 * excess * this.baseDelay / this.maxOutstandingBytes));
+            }
+
+            return 0;
+        }
+
+        @Override
+        ThrottlerName getName() {
+            return ThrottlerName.DurableDataLogLimit;
+        }
+    }
+
+
     /**
      * Calculates the amount of time to wait before processing more operations from the queue in order to relieve pressure
      * from the OperationLog. This is based solely on the number of operations accumulated in the OperationLog.
@@ -341,6 +389,11 @@ class ThrottlerCalculator {
             return throttler(new DurableDataLogThrottler(writeSettings, getQueueStats, maxDelayMillis));
         }
 
+        ThrottlerCalculatorBuilder durableDataLogOutstandingRequestsThrottler(WriteSettings writeSettings, Supplier<QueueStats> getQueueStats,
+                                                           int maxDelayMillis) {
+            return throttler(new DurableDataLogOutstandingBytesThrottler(writeSettings, getQueueStats, maxDelayMillis));
+        }
+
         ThrottlerCalculatorBuilder operationLogThrottler(Supplier<Integer> getDurableLogSize, int maxDelayMillis,
                                                          int operationLogMaxSize, int operationLogTargetSize) {
             return throttler(new OperationLogThrottler(getDurableLogSize, maxDelayMillis, operationLogMaxSize, operationLogTargetSize));
@@ -412,7 +465,11 @@ class ThrottlerCalculator {
         /**
          * Throttling is required due to excessive accumulated Operations in OperationLog (not yet truncated).
          */
-        OperationLog(true);
+        OperationLog(true),
+        /**
+         * Throttling is required when DurableDataLog's in-flight queue has total data in excess of set size limit.
+         */
+        DurableDataLogLimit(true);
 
         @Getter
         private final boolean interruptible;
