@@ -153,11 +153,13 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws ExecutionException{
         streamManager.close();
         controller.close();
         ExecutorServiceHelpers.shutdown(executor);
         ExecutorServiceHelpers.shutdown(streamCutExecutor);
+        Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreService.scaleService(1), ExecutionException::new);
     }
 
     @Test
@@ -415,18 +417,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     @Test
     public void multipleControllerCBRTest() throws Exception {
         // scale to three controller instances.
-        Futures.getAndHandleExceptions(controllerService.scaleService(3), ExecutionException::new);
-        List<URI> controllerUris = controllerService.getServiceDetails();
-        log.info("Pravega Controller service  details: {}", controllerUris);
-          final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-        assertEquals("3 controller instances should be running", 3, uris.size());
-        // use the last three uris
-        controllerURI = URI.create("tcp://" + String.join(",", uris));
-        clientConfig = Utils.buildClientConfig(controllerURI);
-        controller = new ControllerImpl(ControllerImplConfig.builder()
-                    .clientConfig(clientConfig)
-                    .maxBackoffMillis(5000).build(), executor);
-        streamManager = StreamManager.create(clientConfig);
+        scaleAndUpdateControllerURI(3);
         assertTrue("Creating scope", streamManager.createScope(SCOPE_2));
         assertTrue("Creating stream", streamManager.createStream(SCOPE_2, STREAM_3, STREAM_CONFIGURATION));
         @Cleanup
@@ -491,19 +482,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     @Test
     public void testCBRwithControllerAndSegmentStoreFailover() throws Exception {
 
-        Futures.getAndHandleExceptions(controllerService.scaleService(3), ExecutionException::new);
-        List<URI> controllerUris = controllerService.getServiceDetails();
-        log.info("Pravega Controller service  details: {}", controllerUris);
-        List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-        assertEquals("3 controller instances should be running", 3, uris.size());
-        // use the last three uris
-        controllerURI = URI.create(TCP + String.join(",", uris));
-        clientConfig = Utils.buildClientConfig(controllerURI);
-        controller = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(clientConfig)
-                .maxBackoffMillis(5000).build(), executor);
-        streamManager = StreamManager.create(clientConfig);
-
+        scaleAndUpdateControllerURI(3);
         Futures.getAndHandleExceptions(segmentStoreService.scaleService(2), ExecutionException::new);
         log.info("Successfully stopped instance of segment store service");
 
@@ -540,26 +519,14 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         log.info("{} updating its retention stream-cut to {}", READER_GROUP_5, streamCuts);
         readerGroup.updateRetentionStreamCut(streamCuts);
 
-        Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
-        log.info("Successfully scaled down controller instance to 1");
+        //Controller Failover
+        scaleAndUpdateControllerURI(1);
+        log.info("Successfully scaled down segment store to 1 instance");
+        //SegmentStore Failover
         Futures.getAndHandleExceptions(segmentStoreService.scaleService(1), ExecutionException::new);
         log.info("Successfully scaled down segment store to 1 instance");
 
-        controllerUris = controllerService.getServiceDetails();
-        uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-        log.info("Pravega filtered Controller uris: {}", uris);
-        assertEquals("1 controller instances should be running", 1, uris.size());
-
-
-        controllerURI = URI.create(TCP + String.join(",", uris));
-        ClientConfig clientConf = Utils.buildClientConfig(controllerURI);
-        @Cleanup
-        final Controller controller2 = new ControllerImpl(
-                ControllerImplConfig.builder()
-                        .clientConfig(clientConf)
-                        .build(), executor);
-
-        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 60.", true, () -> controller2.getSegmentsAtTime(
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 60.", true, () -> controller.getSegmentsAtTime(
                         new StreamImpl(SCOPE_3, STREAM_4), 0L).join().values().stream().anyMatch(off -> off == 60),
                 5000,  2 * 60 * 1000L);
     }
@@ -618,5 +585,19 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
             assertEquals(checkPointName, read.getCheckpointName());
             assertNull(read.getEvent());
             return checkpoint;
+        }
+
+        private void scaleAndUpdateControllerURI(int instanceCount) throws Exception {
+            Futures.getAndHandleExceptions(controllerService.scaleService(instanceCount), ExecutionException::new);
+            List<URI> controllerUris = controllerService.getServiceDetails();
+            log.info("Pravega Controller service  details: {}", controllerUris);
+            List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+            assertEquals(instanceCount + " controller instances should be running", instanceCount, uris.size());
+            controllerURI = URI.create(TCP + String.join(",", uris));
+            clientConfig = Utils.buildClientConfig(controllerURI);
+            controller = new ControllerImpl(ControllerImplConfig.builder()
+                    .clientConfig(clientConfig)
+                    .maxBackoffMillis(5000).build(), executor);
+            streamManager = StreamManager.create(clientConfig);
         }
 }
