@@ -120,7 +120,8 @@ nav:
     - 'Recovery Procedures':
       - 'Corrupted Table Segment Index': 'recovery-procedures/table-segment-recovery.md'
       - 'Recover from Table Segment Pre-Index Full': 'recovery-procedures/table-segment-recover-pre-index-full.md'
-      - 'Safely Enable Durable Data Logs': 'recovery-procedures/enable-durable-data-log.md' 
+      - 'Safely Enable Durable Data Logs': 'recovery-procedures/enable-durable-data-log.md'
+      - 'Recover Pravega from LTS': 'recovery-procedures/lts-recovery-steps.md'
   - Contributing:
     - 'Coding guildelines': 'contributing.md'
     - 'Pravega Roadmap': 'roadmap.md'
