@@ -521,7 +521,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
         //Controller Failover
         scaleAndUpdateControllerURI(1);
-        log.info("Successfully scaled down segment store to 1 instance");
+        log.info("Successfully scaled down controller to 1 instance");
         //SegmentStore Failover
         Futures.getAndHandleExceptions(segmentStoreService.scaleService(1), ExecutionException::new);
         log.info("Successfully scaled down segment store to 1 instance");
