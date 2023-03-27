@@ -80,14 +80,17 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private static final String SCOPE = "testConsumptionBasedRetentionScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String SCOPE_1 = "testCBR1Scope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String SCOPE_2 = "testCBR2Scope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    private static final String SCOPE_3 = "testCBR3Scope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String STREAM = "testConsumptionBasedRetentionStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String STREAM_1 = "testCBR1Stream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String STREAM_2 = "timeBasedRetentionStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String STREAM_3 = "multiControllerStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    private static final String STREAM_4 = "testControllerFailOverStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP_1 = "testConsumptionBasedRetentionReaderGroup1" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP_2 = "testConsumptionBasedRetentionReaderGroup2" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP_3 = "testCBR1ReaderGroup1" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP_4 = "timeBasedRetentionReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    private static final String READER_GROUP_5 = "testControllerFailOverReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String SIZE_30_EVENT = "data of size 30";
     private static final long CLOCK_ADVANCE_INTERVAL = 5 * 1000000000L;
 
@@ -112,6 +115,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private Controller controller = null;
     private ClientConfig clientConfig;
     private Service controllerService = null;
+    private Service segmentStoreService = null;
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -127,16 +131,25 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
     @Before
     public void setup() {
-        controllerService = Utils.createPravegaControllerService(null);
-        List<URI> controllerURIs = controllerService.getServiceDetails();
-        controllerURI = controllerURIs.get(0);
-
+        Service zkService = Utils.createZookeeperService();
+        assertTrue(zkService.isRunning());
+        List<URI> zkUris = zkService.getServiceDetails();
+        log.info("zookeeper service details: {}", zkUris);
+        controllerService = Utils.createPravegaControllerService(zkUris.get(0));
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
+        }
+        List<URI> controllerUris = controllerService.getServiceDetails();
+        // Fetch all the RPC endpoints and construct the client URIs.
+        List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+        controllerURI = URI.create(TCP + String.join(",", uris));
         clientConfig = Utils.buildClientConfig(controllerURI);
-
         controller = new ControllerImpl(ControllerImplConfig.builder()
                 .clientConfig(clientConfig)
                 .maxBackoffMillis(5000).build(), executor);
         streamManager = StreamManager.create(clientConfig);
+
+        segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerURI);
     }
 
     @After
@@ -405,7 +418,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         Futures.getAndHandleExceptions(controllerService.scaleService(3), ExecutionException::new);
         List<URI> controllerUris = controllerService.getServiceDetails();
         log.info("Pravega Controller service  details: {}", controllerUris);
-        final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+          final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
         assertEquals("3 controller instances should be running", 3, uris.size());
         // use the last three uris
         controllerURI = URI.create("tcp://" + String.join(",", uris));
@@ -473,6 +486,82 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 60.", true, () -> controller.getSegmentsAtTime(
                         new StreamImpl(SCOPE_2, STREAM_3), 0L).join().values().stream().anyMatch(off -> off == 60),
                 5000, 2 * 60 * 1000L);
+    }
+
+    @Test
+    public void testCBRwithControllerAndSegmentStoreFailover() throws Exception {
+
+        Futures.getAndHandleExceptions(controllerService.scaleService(3), ExecutionException::new);
+        List<URI> controllerUris = controllerService.getServiceDetails();
+        log.info("Pravega Controller service  details: {}", controllerUris);
+        List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+        assertEquals("3 controller instances should be running", 3, uris.size());
+        // use the last three uris
+        controllerURI = URI.create(TCP + String.join(",", uris));
+        clientConfig = Utils.buildClientConfig(controllerURI);
+        controller = new ControllerImpl(ControllerImplConfig.builder()
+                .clientConfig(clientConfig)
+                .maxBackoffMillis(5000).build(), executor);
+        streamManager = StreamManager.create(clientConfig);
+
+        Futures.getAndHandleExceptions(segmentStoreService.scaleService(2), ExecutionException::new);
+        log.info("Successfully stopped instance of segment store service");
+
+        assertTrue("Creating scope", streamManager.createScope(SCOPE_3));
+        assertTrue("Creating stream", streamManager.createStream(SCOPE_3, STREAM_4, STREAM_CONFIGURATION));
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_3, controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM_4, new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        // Write six event.
+        writingEventsToStream(6, writer, SCOPE_3, STREAM_4);
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_3, clientConfig);
+        ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(SCOPE_3, STREAM_4, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
+
+        assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(READER_GROUP_5, readerGroupConfig));
+        assertEquals(1, controller.listSubscribers(SCOPE_3, STREAM_4).join().size());
+
+        @Cleanup
+        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP_5);
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(READER_GROUP_5 + "-" + 1,
+                READER_GROUP_5, new JavaSerializer<>(), readerConfig, clock::get, clock::get);
+        // Read two event with reader.
+        readingEventsFromStream(2, reader);
+
+        log.info("{} generating 1st stream-cuts for {}/{}", READER_GROUP_5, SCOPE_3, STREAM_4);
+        Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup, reader, clock);
+
+        log.info("{} updating its retention stream-cut to {}", READER_GROUP_5, streamCuts);
+        readerGroup.updateRetentionStreamCut(streamCuts);
+
+        Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
+        log.info("Successfully scaled down controller instance to 1");
+        Futures.getAndHandleExceptions(segmentStoreService.scaleService(1), ExecutionException::new);
+        log.info("Successfully scaled down segment store to 1 instance");
+
+        controllerUris = controllerService.getServiceDetails();
+        uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+        log.info("Pravega filtered Controller uris: {}", uris);
+        assertEquals("1 controller instances should be running", 1, uris.size());
+
+
+        controllerURI = URI.create(TCP + String.join(",", uris));
+        ClientConfig clientConf = Utils.buildClientConfig(controllerURI);
+        @Cleanup
+        final Controller controller2 = new ControllerImpl(
+                ControllerImplConfig.builder()
+                        .clientConfig(clientConf)
+                        .build(), executor);
+
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 60.", true, () -> controller2.getSegmentsAtTime(
+                        new StreamImpl(SCOPE_3, STREAM_4), 0L).join().values().stream().anyMatch(off -> off == 60),
+                5000,  2 * 60 * 1000L);
     }
 
 
