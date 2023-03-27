@@ -115,8 +115,9 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig.builder().build();
     private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig.builder().with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60).build();
     private static final int RETRY_ATTEMPT = 10;
+    private static final int CONTAINER_CLOSE_WAIT_TIME_MILLIS = 5000;
     private static final String ALL_CONTAINERS = "all";
-    private final WriterConfig writerConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(WriterConfig::builder);
+    private final WriterConfig writerConfig = WriterConfig.builder().with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, 1).build(); // flush attributes immediately
     private final ScheduledExecutorService executorService = getCommandArgs().getState().getExecutor();
     private final int containerCount;
     private final StorageFactory storageFactory;
@@ -259,7 +260,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             flushToStorage(debugStreamSegmentContainer);
             attempts++;
         } while (!chunkValidator.validate() && attempts < RETRY_ATTEMPT);
-        
+
         if (attempts >= RETRY_ATTEMPT) {
             throw new RuntimeException(String.format("There was an error recovering container %s. Please check the logs for more details", containerId));
         }
@@ -268,7 +269,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         overrideLogMetadataWithEpoch(containersToEpoch, dataLogFactory);
         output("----------------Stopping DebugSegmentContainer %d----------------", containerId);
         debugStreamSegmentContainer.close();
-        Thread.sleep(5000);
+        Thread.sleep(CONTAINER_CLOSE_WAIT_TIME_MILLIS);
     }
 
     /**
