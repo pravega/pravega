@@ -29,11 +29,15 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.Map;
 import lombok.Cleanup;
+
 import org.junit.Test;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class StreamCutTest {
 
@@ -107,6 +111,23 @@ public class StreamCutTest {
         final byte[] bufV0 = new StreamCutSerializerV0().serialize(sc.asImpl()).array();
         // deserialize it using current version 1 serialization and ensure compatibility.
         assertEquals(sc, new StreamCutImpl.StreamCutSerializer().deserialize(bufV0));
+    }
+
+    @Test
+    public void compareToNullThrowsNullPointerException() {
+        ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
+                .build();
+        StreamCutImpl sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
+        boolean exceptionCaught = false;
+        try {
+            sc.compareTo(null);
+        } catch (Exception e) {
+            assertThat(e, instanceOf(NullPointerException.class));
+            exceptionCaught = true;
+        }
+        assertTrue("NullPointerException not caught", exceptionCaught);
     }
 
     private byte[] serialize(StreamCut sc) throws IOException {
