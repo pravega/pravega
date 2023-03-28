@@ -153,7 +153,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     }
 
     @After
-    public void tearDown() throws ExecutionException{
+    public void tearDown() throws ExecutionException {
         streamManager.close();
         controller.close();
         ExecutorServiceHelpers.shutdown(executor);
@@ -471,7 +471,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
         // Retention set has one stream cut at 0/150
         // READER_GROUP_1 updated stream cut at 0/60
-        // Subscriber lower bound is 0/30, truncation should happen at this point
+        // Subscriber lower bound is 0/60, truncation should happen at this point
         // The timeout is set to 2 minutes a little longer than the retention period which is set to 1 minutes
         // in order to confirm that the retention has taken place.
         AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 60.", true, () -> controller.getSegmentsAtTime(
