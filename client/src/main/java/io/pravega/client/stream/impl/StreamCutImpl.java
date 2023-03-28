@@ -39,6 +39,7 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -269,8 +270,8 @@ public final class StreamCutImpl extends StreamCutInternal {
                     return 0;
                 }).boxed().collect(Collectors.toList());
 
-        Set<Segment> ourSegments = Set.copyOf(positions.keySet());
-        Set<Segment> theirSegments = Set.copyOf(otherPositions.keySet());
+        Set<Segment> ourSegments = new HashSet<Segment>(positions.keySet());
+        Set<Segment> theirSegments = new HashSet<Segment>(otherPositions.keySet());
         ourSegments.removeAll(otherPositions.keySet());
         theirSegments.removeAll(positions.keySet());
         Set<List<Segment>> products = Sets.cartesianProduct(ourSegments, theirSegments);
