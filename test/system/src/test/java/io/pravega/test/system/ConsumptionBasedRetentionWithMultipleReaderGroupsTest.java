@@ -446,7 +446,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         readingEventsFromStream(1, reader);
 
         CompletableFuture<Checkpoint> checkpoint = initiateCheckPoint("Checkpoint", readerGroup, reader, clock);
-        EventRead<String> read = reader.readNextEvent(60000);
+        EventRead<String> read = reader.readNextEvent(READ_TIMEOUT);
         log.info("Reading next event after checkpoint {}", read.getEvent());
         Checkpoint cpResult = checkpoint.join();
         assertTrue(checkpoint.isDone());
@@ -464,7 +464,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                 5000, 2 * 60 * 1000L);
 
         checkpoint = initiateCheckPoint("Checkpoint2", readerGroup, reader, clock);
-        read = reader.readNextEvent(60000);
+        read = reader.readNextEvent(READ_TIMEOUT);
         log.info("Reading next event after checkpoint {}", read.getEvent());
         cpResult = checkpoint.join();
         assertTrue(checkpoint.isDone());
@@ -580,7 +580,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
             CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint(checkPointName, executor);
             clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
             assertFalse(checkpoint.isDone());
-            EventRead<String> read = reader.readNextEvent(60000);
+            EventRead<String> read = reader.readNextEvent(READ_TIMEOUT);
             assertTrue(read.isCheckpoint());
             assertEquals(checkPointName, read.getCheckpointName());
             assertNull(read.getEvent());
