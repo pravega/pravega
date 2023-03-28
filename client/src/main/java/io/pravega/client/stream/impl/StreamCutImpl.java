@@ -49,6 +49,7 @@ import java.util.stream.IntStream;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.val;
 
@@ -242,7 +243,7 @@ public final class StreamCutImpl extends StreamCutInternal {
     }
 
     @Override
-    public int compareTo(StreamCut o) {
+    public int compareTo(@NonNull StreamCut o) {
         Preconditions.checkArgument(stream.getScope().compareTo(o.asImpl().getStream().getScope()) == 0,
                 "StreamCuts must be in the same Scope.");
         Preconditions.checkArgument(stream.getStreamName().compareTo(o.asImpl().getStream().getStreamName()) == 0,
