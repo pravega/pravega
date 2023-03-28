@@ -58,6 +58,11 @@ public interface StreamCut extends Serializable, Comparable<StreamCut> {
         private Object readResolve() {
             return UNBOUNDED;
         }
+
+        @Override
+        public int compareTo(StreamCut o) {
+            return 0;
+        }
     };
     
     /**
