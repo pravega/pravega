@@ -26,7 +26,7 @@ import java.nio.ByteBuffer;
  * and is responsible for keyspace 0-0.5 then other segments covering the range 0.5-1.0 will also be
  * included.)
  */
-public interface StreamCut extends Serializable {
+public interface StreamCut extends Serializable, Comparable<StreamCut> {
 
     /**
      * This is used represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
