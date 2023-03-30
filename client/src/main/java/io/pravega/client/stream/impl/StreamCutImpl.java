@@ -249,9 +249,15 @@ public final class StreamCutImpl extends StreamCutInternal {
         Preconditions.checkArgument(stream.getStreamName().compareTo(o.asImpl().getStream().getStreamName()) == 0,
                 "StreamCuts must be for the same Stream.");
 
+        // Unbounded is greater than everything
+        if (o == (StreamCut.UNBOUNDED)) {
+            return -1;
+        }
+
         final Map<Segment, Long> otherPositions = o.asImpl().getPositions();
+
         //check offsets for overlapping segments.
-        // TODO check UNBOUNDED, check non-comparable (overlapping) case
+        // TODO check UNBOUNDED, check non-comparable (unmatches AND overlapping) case
         List<Integer> comparisons = (ArrayList<Integer>) positions.keySet()
                 .stream()
                 .filter(otherPositions::containsKey)
@@ -271,17 +277,30 @@ public final class StreamCutImpl extends StreamCutInternal {
                     return 0;
                 }).boxed().collect(Collectors.toList());
 
-        Set<Segment> ourSegments = new HashSet<Segment>(positions.keySet());
-        Set<Segment> theirSegments = new HashSet<Segment>(otherPositions.keySet());
+        Set<Segment> ourSegments = new HashSet<>(positions.keySet());
+        Set<Segment> theirSegments = new HashSet<>(otherPositions.keySet());
+
+        // If true we have unmatched number segments
+        if (ourSegments.size() != theirSegments.size()) {
+            // invalid comparison, even if streamcuts are named the same, if they are unmatched (or overlapping) then they
+            // can be considered to be different streams, and we cant compare streamcuts from diff streams
+            // if one side is empty, it violates pravega's successor predecessor rules (sclaing events)
+            throw new RuntimeException("StreamCuts containing unmatched segment IDs cannot be compared - Considered to " +
+                    "be different streams");
+        }
+
         ourSegments.removeAll(otherPositions.keySet());
         theirSegments.removeAll(positions.keySet());
+
         Set<List<Segment>> products = Sets.cartesianProduct(ourSegments, theirSegments);
+
         for (List<Segment> product : products) {
             if (product.get(0).getSegmentId() < product.get(1).getSegmentId())
                 comparisons.add(-1);
             if (product.get(0).getSegmentId() > product.get(1).getSegmentId())
                 comparisons.add(1);
         }
+
 
         boolean hasPositive = false, hasNegative = false;
         for (Integer comparison : comparisons) {
@@ -294,5 +313,4 @@ public final class StreamCutImpl extends StreamCutInternal {
 
         return 0;
     }
-
 }

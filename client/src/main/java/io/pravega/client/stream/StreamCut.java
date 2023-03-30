@@ -61,8 +61,8 @@ public interface StreamCut extends Serializable, Comparable<StreamCut> {
 
         @Override
         public int compareTo(StreamCut o) {
-            return 0;
-        }
+            return 1;
+        } // Greater than everything
     };
     
     /**
