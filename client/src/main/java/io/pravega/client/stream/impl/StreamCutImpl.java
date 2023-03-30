@@ -32,8 +32,6 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ToStringUtils;
 import io.pravega.shared.NameUtils;
 
-import static java.util.stream.Collectors.summarizingLong;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
@@ -43,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Builder;
@@ -51,7 +48,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 import lombok.SneakyThrows;
-import lombok.val;
 
 import static io.pravega.common.util.ToStringUtils.compressToBase64;
 import static io.pravega.common.util.ToStringUtils.decompressFromBase64;
