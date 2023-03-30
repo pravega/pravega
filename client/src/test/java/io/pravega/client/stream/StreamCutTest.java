@@ -31,6 +31,7 @@ import java.util.Map;
 import lombok.Cleanup;
 
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -143,44 +144,84 @@ public class StreamCutTest {
     }
 
     @Test
-    public void compareToLargerStreamCutOnlyAdvancingSegmentIDs() {
+    public void compareToStreamCutWithDifferentScopeName() {
+        ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scopeOne", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scopeOne", "stream", computeSegmentId(2, 1)), 20L)
+                .build();
+
+        ImmutableMap<Segment, Long> segmentOffsetMap2 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scopeTwo", "stream", computeSegmentId(1, 1)), 30L)
+                .put(new Segment("scopeTwo", "stream", computeSegmentId(2, 1)), 40L)
+                .build();
+
+        StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scopeOne", "stream"), segmentOffsetMap);
+        StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scopeTwo", "stream"), segmentOffsetMap2);
+
+        Assertions.assertThrows(IllegalArgumentException.class, () -> sc1.compareTo(sc2));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> sc2.compareTo(sc1));
+    }
+
+    @Test
+    public void compareToStreamCutWithDifferentStreamName() {
+        ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "streamOne", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "streamOne", computeSegmentId(2, 1)), 20L)
+                .build();
+
+        ImmutableMap<Segment, Long> segmentOffsetMap2 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "streamTwo", computeSegmentId(1, 1)), 30L)
+                .put(new Segment("scope", "streamTwo", computeSegmentId(2, 1)), 40L)
+                .build();
+
+        StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "streamOne"), segmentOffsetMap);
+        StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "streamTwo"), segmentOffsetMap2);
+
+        Assertions.assertThrows(IllegalArgumentException.class, () -> sc1.compareTo(sc2));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> sc2.compareTo(sc1));
+    }
+
+    @Test
+    public void compareToStreamCutWithMDifferentStreamScopeName() {
+        ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scopeOne", "streamOne", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scopeOne", "streamOne", computeSegmentId(2, 1)), 20L)
+                .build();
+
+        ImmutableMap<Segment, Long> segmentOffsetMap2 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scopeTwo", "streamTwo", computeSegmentId(1, 1)), 30L)
+                .put(new Segment("scopeTwo", "streamTwo", computeSegmentId(2, 1)), 40L)
+                .build();
+
+        StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scopeOne", "streamOne"), segmentOffsetMap);
+        StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scopeTwo", "streamTwo"), segmentOffsetMap2);
+
+        Assertions.assertThrows(IllegalArgumentException.class, () -> sc1.compareTo(sc2));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> sc2.compareTo(sc1));
+    }
+
+    @Test
+    public void compareToStreamCutOnlyAdvancingSegmentIDs() {
         ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
                 .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
                 .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
                 .build();
 
+        // Greater Epochs advance segment IDs
         ImmutableMap<Segment, Long> segmentOffsetMap2 = ImmutableMap.<Segment, Long>builder()
-                .put(new Segment("scope", "stream", computeSegmentId(3, 1)), 10L)
-                .put(new Segment("scope", "stream", computeSegmentId(4, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(1, 2)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 2)), 20L)
                 .build();
 
-        StreamCutImpl sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
+        StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
         StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
 
-        assertEquals(sc.compareTo(sc2), -1);
+        assertEquals(sc1.compareTo(sc2), -1);
+        assertEquals(sc2.compareTo(sc1), 1);
     }
 
     @Test
-    public void compareToSmallerStreamCutOnlyAdvancingSegmentIDs() {
-        ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
-                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
-                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
-                .build();
-        
-        ImmutableMap<Segment, Long> segmentOffsetMap2 = ImmutableMap.<Segment, Long>builder()
-                .put(new Segment("scope", "stream", computeSegmentId(3, 1)), 10L)
-                .put(new Segment("scope", "stream", computeSegmentId(4, 1)), 20L)
-                .build();
-
-        StreamCutImpl sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
-        StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
-
-        assertEquals(sc2.compareTo(sc), 1);
-    }
-
-
-    @Test
-    public void compareToLargerStreamCutOnlyAdvancingOffsets() {
+    public void compareToStreamCutOnlyAdvancingOffsets() {
         ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
                 .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
                 .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
@@ -191,30 +232,109 @@ public class StreamCutTest {
                 .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 40L)
                 .build();
 
-        StreamCutImpl sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
+        StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
         StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
 
-        assertEquals(sc.compareTo(sc2), -1);
+        assertEquals(sc1.compareTo(sc2), -1);
+        assertEquals(sc2.compareTo(sc1), 1);
     }
 
     @Test
-    public void compareToSmallerStreamCutOnlyAdvancingOffsets() {
+    public void compareToUnbounded() {
         ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
                 .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
                 .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
                 .build();
 
-        ImmutableMap<Segment, Long> segmentOffsetMap2 = ImmutableMap.<Segment, Long>builder()
-                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 30L)
-                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 40L)
+        StreamCutImpl sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
+
+        assertEquals(sc.compareTo(StreamCut.UNBOUNDED), -1);
+    }
+
+    @Test
+    public void unboundedCompareTo() {
+        ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
                 .build();
 
         StreamCutImpl sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
-        StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
-
-        assertEquals(sc2.compareTo(sc), 1);
+        assertEquals(StreamCut.UNBOUNDED.compareTo((sc)), 1);
     }
 
+    @Test
+    public void compareToStreamCutWithDifferentNumberOfSegments() {
+        ImmutableMap<Segment, Long> segmentOffsetMap1 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
+                .build();
+
+        ImmutableMap<Segment, Long> segmentOffsetMap2 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(3, 2)), 30L)
+                .put(new Segment("scope", "stream", computeSegmentId(4, 2)), 40L)
+                .put(new Segment("scope", "stream", computeSegmentId(5, 2)), 50L)
+                .build();
+
+        StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap1);
+        StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
+
+        boolean exceptionCaught = false;
+        try {
+            sc1.compareTo(sc2);
+        } catch (Exception e) {
+            assertThat(e, instanceOf(RuntimeException.class));
+            exceptionCaught = true;
+        }
+        assertTrue("RuntimeException not caught", exceptionCaught);
+    }
+
+    @Test
+    public void compareToStreamCutWithOverLappingSegments() {
+        ImmutableMap<Segment, Long> segmentOffsetMap1 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(3, 1)), 30L)
+                .put(new Segment("scope", "stream", computeSegmentId(4, 1)), 40L)
+                .build();
+
+        ImmutableMap<Segment, Long> segmentOffsetMap2 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(3, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(4, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(5, 2)), 30L)
+                .put(new Segment("scope", "stream", computeSegmentId(6, 2)), 40L)
+                .build();
+
+        StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap1);
+        StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
+
+        boolean exceptionCaught = false;
+        try {
+            sc1.compareTo(sc2);
+        } catch (Exception e) {
+            assertThat(e, instanceOf(RuntimeException.class));
+            exceptionCaught = true;
+        }
+        assertTrue("RuntimeException not caught", exceptionCaught);
+    }
+
+    @Test
+    public void compareToStreamCutWithDifferentEpochs() {
+        ImmutableMap<Segment, Long> segmentOffsetMap1 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
+                .build();
+
+        ImmutableMap<Segment, Long> segmentOffsetMap2 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 2)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 2)), 20L)
+                .build();
+
+        StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap1);
+        StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
+
+        assertEquals(sc1.compareTo(sc2), -1);
+        assertEquals(sc2.compareTo(sc1), 1);
+    }
 
     private byte[] serialize(StreamCut sc) throws IOException {
         @Cleanup
