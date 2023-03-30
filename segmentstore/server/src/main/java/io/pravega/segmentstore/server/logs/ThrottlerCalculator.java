@@ -280,12 +280,14 @@ class ThrottlerCalculator {
      *
      */
     private static class DurableDataLogOutstandingBytesThrottler extends Throttler {
+        private final double thresholdPercentage;
         private final int maxOutstandingBytes;
         private final int baseDelay;
         private final Supplier<QueueStats> getQueueStats;
 
         DurableDataLogOutstandingBytesThrottler(@NonNull WriteSettings writeSettings, @NonNull Supplier<QueueStats> getQueueStats, int maxDelayMillis) {
             this.maxOutstandingBytes = writeSettings.getMaxOutstandingBytes();
+            this.thresholdPercentage = writeSettings.getThrottleThreshold();
             this.baseDelay = maxDelayMillis;
             this.getQueueStats = getQueueStats;
         }
@@ -293,15 +295,17 @@ class ThrottlerCalculator {
         @Override
         boolean isThrottlingRequired() {
             QueueStats stats = this.getQueueStats.get();
-            return stats.getTotalLength() > this.maxOutstandingBytes;
+            return stats.getTotalLength() > this.thresholdPercentage * this.maxOutstandingBytes;
         }
 
         @Override
         int getDelayMillis() {
             if (isThrottlingRequired()) {
                 QueueStats stats = this.getQueueStats.get();
-                val excess = stats.getTotalLength() - this.maxOutstandingBytes;
-                return Math.min(this.baseDelay, (int) Math.ceil(1.0 * excess * this.baseDelay / this.maxOutstandingBytes));
+                val threshold = this.thresholdPercentage * this.maxOutstandingBytes;
+                val scaleFactor = 1 / (this.maxOutstandingBytes - threshold);
+                val excess = stats.getTotalLength() - threshold;
+                return Math.min(this.baseDelay, (int) Math.ceil(excess * scaleFactor * this.baseDelay));
             }
 
             return 0;
@@ -389,8 +393,8 @@ class ThrottlerCalculator {
             return throttler(new DurableDataLogThrottler(writeSettings, getQueueStats, maxDelayMillis));
         }
 
-        ThrottlerCalculatorBuilder durableDataLogOutstandingRequestsThrottler(WriteSettings writeSettings, Supplier<QueueStats> getQueueStats,
-                                                           int maxDelayMillis) {
+        ThrottlerCalculatorBuilder durableDataLogOutstandingBytesThrottler(WriteSettings writeSettings, Supplier<QueueStats> getQueueStats,
+                                                                           int maxDelayMillis) {
             return throttler(new DurableDataLogOutstandingBytesThrottler(writeSettings, getQueueStats, maxDelayMillis));
         }
 

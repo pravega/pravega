@@ -144,23 +144,26 @@ public class ThrottlerCalculatorTests {
     public void testDurableDataOutStandingBytes() {
         val maxWriteSize = 12345;
         val maxQueueCount = 123;
+
         val maxOutstandingBytes = maxWriteSize * maxQueueCount;
         val minThrottleThreshold = (int) (maxOutstandingBytes * ThrottlerPolicy.DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION / maxWriteSize);
         val writeSettings = new WriteSettings(maxWriteSize, Duration.ofMillis(1234), maxOutstandingBytes);
+        val limit = (int) writeSettings.getThrottleThreshold() * maxOutstandingBytes;
         val thresholdMillis = (int) (writeSettings.getMaxWriteTimeout().toMillis() * ThrottlerPolicy.DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
         val queueStats = new AtomicReference<QueueStats>(null);
         val tc = ThrottlerCalculator.builder()
                 .maxDelayMillis(DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue())
-                .durableDataLogOutstandingRequestsThrottler(writeSettings, queueStats::get, DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue())
+                .durableDataLogOutstandingBytesThrottler(writeSettings, queueStats::get, DurableLogConfig.MAX_DELAY_MILLIS.getDefaultValue())
                 .build();
         val noThrottling = new QueueStats[]{
-                createStats(1, maxOutstandingBytes - 1, thresholdMillis - 1),
-                createStats(minThrottleThreshold + 1, maxOutstandingBytes -1, thresholdMillis),
-                createStats(1, maxOutstandingBytes, thresholdMillis - 1)};
+                createStats(1, limit - 1, thresholdMillis - 1),
+                createStats(minThrottleThreshold + 1, limit -1, thresholdMillis),
+                createStats(1, limit, thresholdMillis - 1)};
         val gradualThrottling = new QueueStats[]{
-                createStats(1, (int) Math.floor(1.5 * maxOutstandingBytes), thresholdMillis - 1),
-                createStats(1, (int) Math.floor(1.75 * maxOutstandingBytes), thresholdMillis - 1)};
+                createStats(1, (int) Math.ceil(0.93 * maxOutstandingBytes), thresholdMillis - 1),
+                createStats(1, (int) Math.ceil(0.96 * maxOutstandingBytes), thresholdMillis - 1)};
         val maxThrottling = new QueueStats[]{
+                createStats(1, maxOutstandingBytes + 1, thresholdMillis - 1),
                 createStats(1, 2 * maxOutstandingBytes, thresholdMillis - 1),
                 createStats(1, 3 * maxOutstandingBytes,  thresholdMillis - 1)};
 
