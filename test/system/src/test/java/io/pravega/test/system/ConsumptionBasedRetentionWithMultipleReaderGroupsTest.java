@@ -496,7 +496,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
-        // Write six event.
+        // Write six events.
         writingEventsToStream(6, writer, scope, stream);
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
@@ -511,7 +511,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(readerGroupNmae + "-" + 1,
                 readerGroupNmae, new JavaSerializer<>(), readerConfig, clock::get, clock::get);
-        // Read two event with reader.
+        // Read two events with reader.
         readingEventsFromStream(2, reader);
 
         log.info("{} generating 1st stream-cuts for {}/{}", readerGroupNmae, scope, stream);
