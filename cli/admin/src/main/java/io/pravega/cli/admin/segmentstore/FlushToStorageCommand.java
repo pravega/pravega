@@ -17,11 +17,16 @@ package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
+import io.pravega.cli.admin.utils.ZKHelper;
+import io.pravega.common.cluster.Host;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -32,7 +37,7 @@ import static java.lang.Integer.parseInt;
  */
 public class FlushToStorageCommand extends ContainerCommand {
 
-    private static final int REQUEST_TIMEOUT_SECONDS = 30;
+    private static final int REQUEST_TIMEOUT_SECONDS = 60 * 5;
     private static final String ALL_CONTAINERS = "all";
 
     /**
@@ -46,10 +51,9 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     @Override
     public void execute() throws Exception {
-        ensureArgCount(2);
+        ensureArgCount(1);
 
         final String containerId = getArg(0);
-        final String segmentStoreHost = getArg(1);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
@@ -57,16 +61,16 @@ public class FlushToStorageCommand extends ContainerCommand {
         if (containerId.equalsIgnoreCase(ALL_CONTAINERS)) {
             int containerCount = getServiceConfig().getContainerCount();
             for (int id = 0; id < containerCount; id++) {
-                flushContainerToStorage(adminSegmentHelper, id, segmentStoreHost);
+                flushContainerToStorage(adminSegmentHelper, id);
             }
         } else {
-            flushContainerToStorage(adminSegmentHelper, parseInt(containerId), segmentStoreHost);
+            flushContainerToStorage(adminSegmentHelper, parseInt(containerId));
         }
     }
 
-    private void flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId, String segmentStoreHost) throws Exception {
+    private void flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId) throws Exception {
         CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(containerId,
-                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
+                new PravegaNodeUri(getHosts().get(containerId), getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
         reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         output("Flushed the Segment Container with containerId %d to Storage.", containerId);
     }
@@ -74,7 +78,28 @@ public class FlushToStorageCommand extends ContainerCommand {
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "flush-to-storage", "Persist the given Segment Container into Storage.",
                 new ArgDescriptor("container-id", "The container Id of the Segment Container that needs to be persisted, " +
-                        "if given as \"all\" all the containers will be persisted."),
-                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
+                        "if given as \"all\" all the containers will be persisted."));
+    }
+
+    private Map<Integer, String> getHosts() {
+        Map<Host, Set<Integer>> hostMap = null;
+        try {
+            @Cleanup
+            ZKHelper zkStoreHelper = ZKHelper.create(getServiceConfig().getZkURL(), getServiceConfig().getClusterName());
+            hostMap = zkStoreHelper.getCurrentHostMap();
+        } catch (Exception e) {
+            System.err.println("Exception accessing to Zookeeper cluster metadata: " + e.getMessage());
+            throw new RuntimeException("Error getting segment store hosts for containers.");
+        }
+
+        Map<Integer, String> containerHostMap = new HashMap<>();
+        for (Map.Entry<Host, Set<Integer>> entry: hostMap.entrySet()) {
+            String ipAddr = entry.getKey().getIpAddr();
+            Set<Integer> containerIds = entry.getValue();
+            for (Integer containerId : containerIds) {
+                containerHostMap.put(containerId, ipAddr);
+            }
+        }
+        return containerHostMap;
     }
 }
