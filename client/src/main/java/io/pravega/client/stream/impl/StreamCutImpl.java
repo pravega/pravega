@@ -254,24 +254,25 @@ public final class StreamCutImpl extends StreamCutInternal {
 
         //check offsets for overlapping segments.
         // TODO check UNBOUNDED, check non-comparable (unmatches AND overlapping) case
-        List<Integer> comparisons = (ArrayList<Integer>) positions.keySet()
+        List<Segment> matchingSegments = positions.keySet()
                 .stream()
                 .filter(otherPositions::containsKey)
-                .mapToInt(s -> {
-                    if (positions.get(s) == -1) {
-                        if (otherPositions.get(s) == -1) {
-                            return 0;
-                        }
-                        return -1;
-                    }
-                    if (positions.get(s) < otherPositions.get(s)) {
-                        return -1;
-                    }
-                    if (positions.get(s) > otherPositions.get(s)) {
-                        return 1;
-                    }
-                    return 0;
-                }).boxed().collect(Collectors.toList());
+                .collect(Collectors.toList());
+
+        boolean hasPositive = false, hasNegative = false;
+        for (Segment s : matchingSegments) {
+            if (positions.get(s) == -1) {
+                if (otherPositions.get(s) != -1) {
+                    hasNegative = true;
+                }
+            }
+            if (positions.get(s) < otherPositions.get(s)) {
+                hasNegative = true;
+            }
+            if (positions.get(s) > otherPositions.get(s)) {
+                hasPositive = true;
+            }
+        }
 
         Set<Segment> ourSegments = new HashSet<>(positions.keySet());
         Set<Segment> theirSegments = new HashSet<>(otherPositions.keySet());
@@ -291,19 +292,15 @@ public final class StreamCutImpl extends StreamCutInternal {
         Set<List<Segment>> products = Sets.cartesianProduct(ourSegments, theirSegments);
 
         for (List<Segment> product : products) {
-            if (product.get(0).getSegmentId() < product.get(1).getSegmentId())
-                comparisons.add(-1);
-            if (product.get(0).getSegmentId() > product.get(1).getSegmentId())
-                comparisons.add(1);
+            if (product.get(0).getSegmentId() < product.get(1).getSegmentId()) {
+                hasNegative = true;
+            }
+            if (product.get(0).getSegmentId() > product.get(1).getSegmentId()) {
+                hasPositive = true;
+            }
         }
 
-
-        boolean hasPositive = false, hasNegative = false;
-        for (Integer comparison : comparisons) {
-            if (comparison > 0) hasPositive = true;
-            if (comparison < 0) hasNegative = true;
-        }
-        if (hasPositive && hasNegative) throw new RuntimeException("Overlapping Segments");
+        if (hasPositive && hasNegative) throw new RuntimeException("Overlapping StreamCuts");
         if (hasPositive && !hasNegative) return +1;
         if (hasNegative && !hasPositive) return -1;
 
