@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.netty.buffer.UnpooledByteBufAllocator;
@@ -267,7 +268,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         }
     }
 
-    private BookieServerAndResources runBookieWithRetry(int bkPort) throws IOException {
+    protected BookieServerAndResources runBookieWithRetry(int bkPort) throws IOException {
         int count = 0;
         boolean retry = true;
         BookieServerAndResources bookieServerAndResources = null;
@@ -289,7 +290,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         return bookieServerAndResources;
     }
 
-    private BookieServerAndResources runBookie(int bkPort) throws IOException {
+    protected BookieServerAndResources runBookie(int bkPort) throws IOException {
         // Attempt to reuse an existing data directory. This is useful in case of stops & restarts, when we want to preserve
         // already committed data.
         File journalDir = this.journalDirs.getOrDefault(bkPort, null);
@@ -331,16 +332,25 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         Bookie bookie = null;
         bookie = createBookie(resources);
         BookieServer bs = null;
-        try {
-            bs = new BookieServer(conf, bookie, NullStatsLogger.INSTANCE, UnpooledByteBufAllocator.DEFAULT,
-                    new UncleanShutdownDetectionImpl(resources.getLedgerDirsManager()));
-        } catch (SecurityException | InterruptedException | BookieException | KeeperException |
-                 ReplicationException.CompatibilityException | ReplicationException.UnavailableException e) {
-            throw new RuntimeException(e);
-        }
+        bs = getBookieServer(conf, resources.getLedgerDirsManager(), bookie);
         BookieServer finalBs = bs;
         Exceptions.handleInterrupted( () -> finalBs.start());
         return new BookieServerAndResources(finalBs, resources);
+    }
+
+    @VisibleForTesting
+    protected static BookieServer getBookieServer(ServerConfiguration conf, LedgerDirsManager ledgerDirsManager, Bookie bookie) throws IOException {
+        System.out.println("Inside getBookieServer");
+        BookieServer bs;
+        try {
+            bs = new BookieServer(conf, bookie, NullStatsLogger.INSTANCE, UnpooledByteBufAllocator.DEFAULT,
+                    new UncleanShutdownDetectionImpl(ledgerDirsManager));
+        } catch (SecurityException | InterruptedException | BookieException | KeeperException |
+                 ReplicationException.CompatibilityException | ReplicationException.UnavailableException e) {
+            log.error("Exception while creating BookieServer: " + e.getMessage());
+            throw new RuntimeException(e);
+        }
+        return bs;
     }
 
     private Bookie createBookie(BookieResources resources) {
