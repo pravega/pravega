@@ -141,7 +141,7 @@ public class StreamCutTest {
                 .build();
 
         StreamCutImpl sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
-        assertEquals(sc.compareTo(sc), 0);
+        assertEquals(0, sc.compareTo(sc));
     }
 
     @Test
@@ -183,7 +183,7 @@ public class StreamCutTest {
     }
 
     @Test
-    public void compareToStreamCutWithMDifferentStreamScopeName() {
+    public void compareToStreamCutWithDifferentStreamScopeName() {
         ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
                 .put(new Segment("scopeOne", "streamOne", computeSegmentId(1, 1)), 10L)
                 .put(new Segment("scopeOne", "streamOne", computeSegmentId(2, 1)), 20L)
@@ -217,8 +217,8 @@ public class StreamCutTest {
         StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
         StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
 
-        assertEquals(sc1.compareTo(sc2), -1);
-        assertEquals(sc2.compareTo(sc1), 1);
+        assertEquals(-1, sc1.compareTo(sc2));
+        assertEquals(1, sc2.compareTo(sc1));
     }
 
     @Test
@@ -236,8 +236,8 @@ public class StreamCutTest {
         StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
         StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
 
-        assertEquals(sc1.compareTo(sc2), -1);
-        assertEquals(sc2.compareTo(sc1), 1);
+        assertEquals(-1, sc1.compareTo(sc2));
+        assertEquals(1, sc2.compareTo(sc1));
     }
 
     @Test
@@ -283,7 +283,65 @@ public class StreamCutTest {
     }
 
     @Test
-    public void compareToStreamCutWithDifferentNumberOfSegments() {
+    public void compareToEqualStreamCutWithNegativeOne() {
+        ImmutableMap<Segment, Long> segmentOffsetMap1 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(3, 1)), 30L)
+                .put(new Segment("scope", "stream", computeSegmentId(4, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(5, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(8, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(9, 2)), 60L)
+                .put(new Segment("scope", "stream", computeSegmentId(10, 2)), -1L)
+                .build();
+        ImmutableMap<Segment, Long> segmentOffsetMap2 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(3, 1)), 30L)
+                .put(new Segment("scope", "stream", computeSegmentId(4, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(5, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(8, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(9, 2)), 60L)
+                .put(new Segment("scope", "stream", computeSegmentId(10, 2)), -1L)
+                .build();
+
+        StreamCut sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap1);
+        StreamCut sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
+
+        assertEquals(0, sc1.compareTo(sc2));
+    }
+
+    @Test
+    public void compareToLesserStreamCutWithNegativeOne() {
+        ImmutableMap<Segment, Long> segmentOffsetMap1 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(3, 1)), 30L)
+                .put(new Segment("scope", "stream", computeSegmentId(4, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(5, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(8, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(9, 2)), 60L)
+                .put(new Segment("scope", "stream", computeSegmentId(10, 2)), -1L)
+                .build();
+        ImmutableMap<Segment, Long> segmentOffsetMap2 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(3, 1)), 30L)
+                .put(new Segment("scope", "stream", computeSegmentId(4, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(5, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(8, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(9, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(10, 2)), -1L)
+                .build();
+
+        StreamCut sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap1);
+        StreamCut sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
+
+        assertEquals(1, sc1.compareTo(sc2));
+    }
+
+    @Test
+    public void compareToStreamCutWithDifferentNumberOfSegmentsAdvancingIdAndEpoch () {
         ImmutableMap<Segment, Long> segmentOffsetMap1 = ImmutableMap.<Segment, Long>builder()
                 .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
                 .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
@@ -293,6 +351,25 @@ public class StreamCutTest {
                 .put(new Segment("scope", "stream", computeSegmentId(3, 2)), 30L)
                 .put(new Segment("scope", "stream", computeSegmentId(4, 2)), 40L)
                 .put(new Segment("scope", "stream", computeSegmentId(5, 2)), 50L)
+                .build();
+
+        StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap1);
+        StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
+
+        assertEquals(-1, sc1.compareTo(sc2));
+    }
+
+    @Test
+    public void compareToStreamCutWithDifferentNumberOfSegments() {
+        ImmutableMap<Segment, Long> segmentOffsetMap1 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
+                .build();
+
+        ImmutableMap<Segment, Long> segmentOffsetMap2 = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 30L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 40L)
+                .put(new Segment("scope", "stream", computeSegmentId(5, 1)), 50L)
                 .build();
 
         StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap1);
@@ -352,8 +429,8 @@ public class StreamCutTest {
         StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap1);
         StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
 
-        assertEquals(sc1.compareTo(sc2), -1);
-        assertEquals(sc2.compareTo(sc1), 1);
+        assertEquals(-1, sc1.compareTo(sc2));
+        assertEquals(1, sc2.compareTo(sc1));
     }
 
     private byte[] serialize(StreamCut sc) throws IOException {

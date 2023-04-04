@@ -259,11 +259,6 @@ public final class StreamCutImpl extends StreamCutInternal {
 
         boolean hasPositive = false, hasNegative = false;
         for (Segment s : matchingSegments) {
-            if (positions.get(s) == -1) {
-                if (otherPositions.get(s) != -1) {
-                    hasNegative = true;
-                }
-            }
             if (positions.get(s) < otherPositions.get(s)) {
                 hasNegative = true;
             }
@@ -275,17 +270,18 @@ public final class StreamCutImpl extends StreamCutInternal {
         Set<Segment> ourSegments = new HashSet<>(positions.keySet());
         Set<Segment> theirSegments = new HashSet<>(otherPositions.keySet());
 
-        // If true we have unmatched number segments
-        if (ourSegments.size() != theirSegments.size()) {
-            // invalid comparison, even if streamcuts are named the same, if they are unmatched (or overlapping) then they
-            // can be considered to be different streams, and we cant compare streamcuts from diff streams
-            // if one side is empty, it violates pravega's successor predecessor rules (sclaing events)
+        ourSegments.removeAll(otherPositions.keySet());
+        theirSegments.removeAll(positions.keySet());
+
+        // if one side is non-empty, the other side must be non-empty
+        if ((ourSegments.isEmpty() && !theirSegments.isEmpty()) || (!ourSegments.isEmpty() && theirSegments.isEmpty())) {
+            // invalid comparison, even if StreamCuts are named the same, if they are unmatched for cross-join
+            // then they can be considered to be different streams, and we can't compare StreamCuts from
+            // different streams. If one side is empty when the other is not, it trivially violates Pravega's
+            // successor-predecessor rules (scaling events)
             throw new RuntimeException("StreamCuts containing unmatched segment IDs cannot be compared - Considered to " +
                     "be different streams");
         }
-
-        ourSegments.removeAll(otherPositions.keySet());
-        theirSegments.removeAll(positions.keySet());
 
         Set<List<Segment>> products = Sets.cartesianProduct(ourSegments, theirSegments);
 
@@ -298,9 +294,15 @@ public final class StreamCutImpl extends StreamCutInternal {
             }
         }
 
-        if (hasPositive && hasNegative) throw new RuntimeException("Overlapping StreamCuts");
-        if (hasPositive && !hasNegative) return +1;
-        if (hasNegative && !hasPositive) return -1;
+        if (hasPositive && hasNegative) {
+            throw new RuntimeException("Overlapping StreamCuts");
+        }
+        if (hasPositive && !hasNegative) {
+            return +1;
+        }
+        if (hasNegative && !hasPositive) {
+            return -1;
+        }
 
         return 0;
     }
