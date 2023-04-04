@@ -100,7 +100,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private static final StreamConfiguration STREAM_CONFIGURATION = StreamConfiguration.builder().scalingPolicy(SCALING_POLICY).retentionPolicy(RETENTION_POLICY_BY_SIZE).build();
     private static final StreamConfiguration TIME_BASED_RETENTION_STREAM_CONFIGURATION = StreamConfiguration.builder().scalingPolicy(SCALING_POLICY).retentionPolicy(RETENTION_POLICY_BY_TIME).build();
     @Rule
-    public final Timeout globalTimeout = Timeout.seconds(6 * 60);
+    public final Timeout globalTimeout = Timeout.seconds(4 * 60);
 
     private final ReaderConfig readerConfig = ReaderConfig.builder().build();
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
@@ -410,7 +410,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     }
 
     @Test
-    public void multipleControllerCBRTest() throws Exception {
+    public void multipleControllerFailoverAndRestartCBRTest() throws Exception {
         String scope = "testCBR2Scope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
         String stream = "multiControllerStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
         String readerGroupName = "testmultiControllerReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
@@ -421,7 +421,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         log.info("Successfully statred 2 instance of segment store service");
         assertTrue("Creating scope", streamManager.createScope(scope));
         assertTrue("Creating stream", streamManager.createStream(scope, stream, STREAM_CONFIGURATION));
-        
+
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
 
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
@@ -436,7 +436,6 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
         assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(readerGroupName, readerGroupConfig));
         assertEquals(1, controller.listSubscribers(scope, stream).join().size());
-
 
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupName);
         AtomicLong clock = new AtomicLong();
@@ -464,21 +463,6 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                         new StreamImpl(scope, stream), 0L).join().values().stream().anyMatch(off -> off == 30),
                 5000, 2 * 60 * 1000L);
 
-        checkpoint = initiateCheckPoint("Checkpoint2", readerGroup, reader, clock);
-        read = reader.readNextEvent(READ_TIMEOUT);
-        log.info("Reading next event after checkpoint2 {}", read.getEvent());
-        cpResult = checkpoint.join();
-        assertTrue(checkpoint.isDone());
-
-        // Retention set has one stream cut at 0/150
-        // READER_GROUP_1 updated stream cut at 0/60
-        // Subscriber lower bound is 0/60, truncation should happen at this point
-        // The timeout is set to 2 minutes a little longer than the retention period which is set to 1 minutes
-        // in order to confirm that the retention has taken place.
-        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 60.", true, () -> controller.getSegmentsAtTime(
-                        new StreamImpl(scope, stream), 0L).join().values().stream().anyMatch(off -> off == 60),
-                5000, 2 * 60 * 1000L);
-
         // Validating the failover scenario - Start
         log.info("Controller and segment store failover scenario started");
         // Write six events.
@@ -500,10 +484,10 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         log.info("Successfully scaled down segment store to 1 instance");
 
         // Retention set has two stream cut at 0/150...0/240
-        // READER_GROUP_1 updated stream cut at 0/120
-        // Subscriber lower bound is 0/120, truncation should happen at this point
-        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 120.", true, () -> controller.getSegmentsAtTime(
-                        new StreamImpl(scope, stream), 0L).join().values().stream().anyMatch(off -> off == 120),
+        // READER_GROUP_1 updated stream cut at 0/90
+        // Subscriber lower bound is 0/90, truncation should happen at this point
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 90.", true, () -> controller.getSegmentsAtTime(
+                        new StreamImpl(scope, stream), 0L).join().values().stream().anyMatch(off -> off == 90),
                 5000,  2 * 60 * 1000L);
 
         // Validating the restart scenario - Start
@@ -513,91 +497,31 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         cpResult = checkpoint.join();
         assertTrue(checkpoint.isDone());
 
-        log.info("Closing reader");
+        //Closing all the resources before restart
         reader.close();
-        log.info("Closing readerGroup");
         readerGroup.close();
-        log.info("Closing readerGroupManager");
         readerGroupManager.close();
-        log.info("Closing writer");
         writer.close();
-        log.info("Closing clientFactory");
         clientFactory.close();
-        log.info("Closing connectionFactory");
         connectionFactory.close();
-        log.info("Scaling down controller ");
         Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
         log.info("Ankur Successfully stopped 1 instance of controller service");
         Futures.getAndHandleExceptions(segmentStoreService.scaleService(0), ExecutionException::new);
         log.info("Ankur Successfully stopped 1 instance of segment store service");
-
 
         Futures.getAndHandleExceptions(segmentStoreService.scaleService(1), ExecutionException::new);
         log.info("Ankur Successfully started 1 instance of segment store service");
         scaleAndUpdateControllerURI(1);
         log.info("Ankur Successfully started 1 instance of controller service");
 
-        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 150.", true, () -> controller.getSegmentsAtTime(
-                        new StreamImpl(scope, stream), 0L).join().values().stream().anyMatch(off -> off == 150),
+        // Retention set has two stream cut at 0/150...0/240
+        // READER_GROUP_1 updated stream cut at 0/120
+        // Subscriber lower bound is 0/120, truncation should happen at this point
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 120.", true, () -> controller.getSegmentsAtTime(
+                        new StreamImpl(scope, stream), 0L).join().values().stream().anyMatch(off -> off == 120),
                 5000,  2 * 60 * 1000L);
         log.info("Test Executed successfully");
     }
-
-    /*@Test
-    public void testCBRwithControllerAndSegmentStoreFailover() throws Exception {
-
-        String scope = "testCBR3Scope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-        String stream = "testControllerFailOverStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-        String readerGroupNmae = "testControllerFailOverReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-        scaleAndUpdateControllerURI(3);
-        Futures.getAndHandleExceptions(segmentStoreService.scaleService(2), ExecutionException::new);
-        log.info("Successfully statred 2 instance of segment store service");
-
-        assertTrue("Creating scope", streamManager.createScope(scope));
-        assertTrue("Creating stream", streamManager.createStream(scope, stream, STREAM_CONFIGURATION));
-        @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-        @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
-        // Write six events.
-        writingEventsToStream(6, writer, scope, stream);
-        @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
-        ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(scope, stream, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
-
-        assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(readerGroupNmae, readerGroupConfig));
-        assertEquals(1, controller.listSubscribers(scope, stream).join().size());
-
-        @Cleanup
-        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupNmae);
-        AtomicLong clock = new AtomicLong();
-        @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader(readerGroupNmae + "-" + 1,
-                readerGroupNmae, new JavaSerializer<>(), readerConfig, clock::get, clock::get);
-        // Read two events with reader.
-        readingEventsFromStream(2, reader);
-
-        log.info("{} generating 1st stream-cuts for {}/{}", readerGroupNmae, scope, stream);
-        Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup, reader, clock);
-
-        log.info("{} updating its retention stream-cut to {}", readerGroupNmae, streamCuts);
-        readerGroup.updateRetentionStreamCut(streamCuts);
-
-        //Controller Failover
-        scaleAndUpdateControllerURI(1);
-        log.info("Successfully scaled down controller to 1 instance");
-        //SegmentStore Failover
-        Futures.getAndHandleExceptions(segmentStoreService.scaleService(1), ExecutionException::new);
-        log.info("Successfully scaled down segment store to 1 instance");
-
-        AssertExtensions.assertEventuallyEquals("Truncation did not take place at offset 60.", true, () -> controller.getSegmentsAtTime(
-                        new StreamImpl(scope, stream), 0L).join().values().stream().anyMatch(off -> off == 60),
-                5000,  2 * 60 * 1000L);
-    }*/
-
 
     private void writingEventsToStream(int numberOfEvents, EventStreamWriter<String> writer, String scope, String stream) {
         for (int event = 0; event < numberOfEvents; event++) {
