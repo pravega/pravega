@@ -41,7 +41,7 @@ class LogFlusher {
      * Maximum number of {@link Writer} flushes to attempt until no more flush progress is expected to be made.
      */
     @VisibleForTesting
-    static final int MAX_FLUSH_ATTEMPTS = 10;
+    static final int MAX_FLUSH_ATTEMPTS = 100;
     private final int containerId;
     @NonNull
     private final OperationLog durableLog;
