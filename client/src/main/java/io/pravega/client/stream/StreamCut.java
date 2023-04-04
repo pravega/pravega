@@ -59,10 +59,16 @@ public interface StreamCut extends Serializable, Comparable<StreamCut> {
             return UNBOUNDED;
         }
 
+        /**
+         * UNBOUNDED is equal to itself and greater than all other StreamCuts
+         */
         @Override
         public int compareTo(StreamCut o) {
-            return 1;
-        } // Greater than everything
+            if (o == this) {
+                return 0; // UNBOUNDED is equal to itself
+            }
+            return 1; // and greater than all other StreamCuts
+        }
     };
     
     /**

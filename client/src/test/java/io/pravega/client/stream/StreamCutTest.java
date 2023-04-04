@@ -27,6 +27,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.nio.ByteBuffer;
 import java.util.Map;
 import lombok.Cleanup;
 
@@ -248,7 +249,26 @@ public class StreamCutTest {
 
         StreamCutImpl sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
 
-        assertEquals(sc.compareTo(StreamCut.UNBOUNDED), -1);
+        assertEquals(-1, sc.compareTo(StreamCut.UNBOUNDED));
+    }
+
+    @Test
+    public void compareUnboundedToItself() {
+        assertEquals(0, StreamCut.UNBOUNDED.compareTo(StreamCut.UNBOUNDED));
+    }
+
+    @Test
+    public void compareUnboundedToCopyOfItself() {
+        ByteBuffer bytes = StreamCut.UNBOUNDED.toBytes();
+
+        assertEquals(0, StreamCut.UNBOUNDED.compareTo(StreamCut.fromBytes(bytes)));
+    }
+
+    @Test
+    public void compareCopyOfUnboundedToUnbounded() {
+        ByteBuffer bytes = StreamCut.UNBOUNDED.toBytes();
+
+        assertEquals(0, StreamCut.fromBytes(bytes).compareTo(StreamCut.UNBOUNDED));
     }
 
     @Test
@@ -259,7 +279,7 @@ public class StreamCutTest {
                 .build();
 
         StreamCutImpl sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
-        assertEquals(StreamCut.UNBOUNDED.compareTo((sc)), 1);
+        assertEquals(1, StreamCut.UNBOUNDED.compareTo((sc)));
     }
 
     @Test

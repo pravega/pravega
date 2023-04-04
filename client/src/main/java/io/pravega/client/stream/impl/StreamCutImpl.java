@@ -240,20 +240,18 @@ public final class StreamCutImpl extends StreamCutInternal {
 
     @Override
     public int compareTo(@NonNull StreamCut o) {
+        // Unbounded is greater than everything
+        if (o == StreamCut.UNBOUNDED) {
+            return -1;
+        }
+
         Preconditions.checkArgument(stream.getScope().compareTo(o.asImpl().getStream().getScope()) == 0,
                 "StreamCuts must be in the same Scope.");
         Preconditions.checkArgument(stream.getStreamName().compareTo(o.asImpl().getStream().getStreamName()) == 0,
                 "StreamCuts must be for the same Stream.");
 
-        // Unbounded is greater than everything
-        if (o == (StreamCut.UNBOUNDED)) {
-            return -1;
-        }
-
         final Map<Segment, Long> otherPositions = o.asImpl().getPositions();
 
-        //check offsets for overlapping segments.
-        // TODO check UNBOUNDED, check non-comparable (unmatches AND overlapping) case
         List<Segment> matchingSegments = positions.keySet()
                 .stream()
                 .filter(otherPositions::containsKey)
