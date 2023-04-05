@@ -46,6 +46,15 @@ public interface DebugDurableDataLogWrapper extends AutoCloseable {
     void forceMetadataOverWrite(ReadOnlyLogMetadata metadata) throws DurableDataLogException;
 
     /**
+     * Allows to override the epoch of the current DurableDataLog Metadata. This method has been introduced
+     * to help with cluster recoveries. (not to be used otherwise).
+     *
+     * @param epoch The epoch to override in the Log Metadata.
+     * @throws DurableDataLogException any Exception while overriding the metadata.
+     */
+    void overrideEpochInMetadata(long epoch) throws DurableDataLogException;
+
+    /**
      * Completely deletes the metadata of a {@link DurableDataLog}. Warning: This should only be used for repair and/or
      * administration purposes.
      *

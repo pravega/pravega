@@ -51,6 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
+import static io.pravega.shared.NameUtils.getStorageMetadataSegmentName;
 
 /**
  * Utility methods for container recovery.
@@ -97,7 +98,7 @@ public class ContainerRecoveryUtils {
 
         log.info("Recovery started for all containers...");
         // Get all segments in the metadata store for each debug segment container instance.
-        Map<Integer, Set<String>> existingSegmentsMap = getExistingSegments(debugStreamSegmentContainersMap, executorService,
+        Map<Integer, Set<String>> existingSegmentsMap = getExistingSegments(debugStreamSegmentContainersMap, executorService, false,
                 timeout);
 
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount, true);
@@ -164,6 +165,7 @@ public class ContainerRecoveryUtils {
      * @param containerMap              A Map of Container Ids to {@link DebugStreamSegmentContainer} instances
      *                                  representing the containers to list the segments from.
      * @param executorService           A thread pool for execution.
+     * @param isStorageMetadata         If true iterate storage_metadata else container_metadata.
      * @param timeout                   Timeout for the operation.
      * @return                          A Map of Container Ids to segment names representing all segments present in the
      *                                  container metadata segment of a Container.
@@ -172,8 +174,8 @@ public class ContainerRecoveryUtils {
      *                                                              didn't complete in time.
      *                                      * IOException     :     If a general IO exception occurred.
      */
-    private static Map<Integer, Set<String>> getExistingSegments(Map<Integer, DebugStreamSegmentContainer> containerMap,
-                                                                 ExecutorService executorService,
+    public static Map<Integer, Set<String>> getExistingSegments(Map<Integer, DebugStreamSegmentContainer> containerMap,
+                                                                 ExecutorService executorService, boolean isStorageMetadata,
                                                                  Duration timeout) throws Exception {
         Map<Integer, Set<String>> metadataSegmentsMap = new HashMap<>();
         val args = IteratorArgs.builder().fetchTimeout(timeout).build();
@@ -182,14 +184,14 @@ public class ContainerRecoveryUtils {
         for (val containerEntry : containerMap.entrySet()) {
             Preconditions.checkNotNull(containerEntry.getValue());
             val tableExtension = containerEntry.getValue().getExtension(ContainerTableExtension.class);
-            val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
-                    containerEntry.getKey()), args).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            val metadataSegmentName = isStorageMetadata ? getStorageMetadataSegmentName(containerEntry.getKey()) : getMetadataSegmentName(containerEntry.getKey());
+            val keyIterator = tableExtension.keyIterator(metadataSegmentName, args).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
             // Store the segments in a set
             Set<String> metadataSegments = new HashSet<>();
             Futures.exceptionallyExpecting(keyIterator.forEachRemaining(k ->
                     metadataSegments.addAll(k.getEntries().stream()
-                            .map(entry -> entry.getKey().toString())
+                            .map(entry -> new String(entry.getKey().getCopy()))
                             .collect(Collectors.toSet())), executorService),
                     ex -> ex instanceof StreamSegmentNotExistsException, null).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
