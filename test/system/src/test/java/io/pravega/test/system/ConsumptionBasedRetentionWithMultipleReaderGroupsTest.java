@@ -465,9 +465,9 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
         // Validating the failover scenario - Start
         log.info("Controller and segment store failover scenario started");
-        // Write six events.
+        // Write three events.
         writingEventsToStream(3, writer, scope, stream);
-        // Read two events with reader.
+        // Read one event with reader.
         readingEventsFromStream(1, reader);
 
         checkpoint = initiateCheckPoint("Checkpoint3", readerGroup, reader, clock);
