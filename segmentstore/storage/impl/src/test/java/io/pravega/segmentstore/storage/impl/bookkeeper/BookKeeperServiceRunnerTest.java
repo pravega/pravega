@@ -15,7 +15,6 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
-import com.google.common.base.Strings;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.pravega.common.io.filesystem.FileOperations;
 import io.pravega.common.util.CommonUtils;
@@ -73,11 +72,7 @@ public class BookKeeperServiceRunnerTest {
         String ledgersDir = "ledgersDir";
         File ledgerDir = ledgerDirs.getOrDefault(bkPort, null);
         if (ledgerDir == null) {
-            if (Strings.isNullOrEmpty(ledgersDir)) {
-                ledgerDir = null;
-            } else {
-                ledgerDir = new File(ledgersDir);
-            }
+            ledgerDir = new File(ledgersDir);
             if (!ledgerDir.exists()) {
                 ledgerDir.mkdir();
             }
@@ -180,7 +175,7 @@ public class BookKeeperServiceRunnerTest {
             throw new RuntimeException(e);
         }
     }
-    
+
     private void setupTempDir(File dir) throws IOException {
         dir.deleteOnExit();
         if (!dir.delete() || !dir.mkdir()) {
