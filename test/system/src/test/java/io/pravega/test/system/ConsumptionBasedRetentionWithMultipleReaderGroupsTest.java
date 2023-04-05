@@ -505,14 +505,14 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         clientFactory.close();
         connectionFactory.close();
         Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
-        log.info("Ankur Successfully stopped 1 instance of controller service");
+        log.info("Successfully stopped 1 instance of controller service");
         Futures.getAndHandleExceptions(segmentStoreService.scaleService(0), ExecutionException::new);
-        log.info("Ankur Successfully stopped 1 instance of segment store service");
+        log.info("Successfully stopped 1 instance of segment store service");
 
         Futures.getAndHandleExceptions(segmentStoreService.scaleService(1), ExecutionException::new);
-        log.info("Ankur Successfully started 1 instance of segment store service");
+        log.info("Successfully started 1 instance of segment store service");
         scaleAndUpdateControllerURI(1);
-        log.info("Ankur Successfully started 1 instance of controller service");
+        log.info("Successfully started 1 instance of controller service");
 
         // Retention set has two stream cut at 0/150...0/240
         // READER_GROUP_1 updated stream cut at 0/120
