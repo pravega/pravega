@@ -1,3 +1,18 @@
+/**
+ * Copyright Pravega Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Strings;
@@ -45,7 +60,7 @@ public class BookKeeperServiceRunnerTest {
         String testId = Long.toHexString(System.nanoTime());
         int zkPort = CommonUtils.getAvailableListenPort();
         String ledgersPath = "/pravega/bookkeeper/ledgers/" + testId;
-        int bkPort = CommonUtils.getAvailableListenPort();;
+        int bkPort = CommonUtils.getAvailableListenPort();
         val bookiePorts = Arrays.asList(bkPort);
 
         File journalDir = journalDirs.getOrDefault(bkPort, null);
@@ -58,9 +73,12 @@ public class BookKeeperServiceRunnerTest {
         String ledgersDir = "ledgersDir";
         File ledgerDir = ledgerDirs.getOrDefault(bkPort, null);
         if (ledgerDir == null) {
-            if (Strings.isNullOrEmpty(ledgersDir)) ledgerDir = null;
-            else ledgerDir = new File(ledgersDir);
-            if (!ledgerDir.exists()){
+            if (Strings.isNullOrEmpty(ledgersDir)) {
+                ledgerDir = null;
+            } else {
+                ledgerDir = new File(ledgersDir);
+            }
+            if (!ledgerDir.exists()) {
                 ledgerDir.mkdir();
             }
             ledgerDir = IOUtils.createTempDir("bookieledger_" + bkPort, "_test", ledgerDir);
@@ -68,7 +86,7 @@ public class BookKeeperServiceRunnerTest {
             setupTempDir(ledgerDir);
         }
 
-        ServerConfiguration conf =new ServerConfiguration();
+        ServerConfiguration conf = new ServerConfiguration();
         conf.setAdvertisedAddress("127.0.0.1");
         conf.setBookiePort(bkPort);
         conf.setMetadataServiceUri("zk://127.0.0.1:" + zkPort + ledgersPath);
@@ -134,7 +152,7 @@ public class BookKeeperServiceRunnerTest {
         LedgerDirsManager ledgerDirsManager = org.apache.bookkeeper.bookie.BookieResources.createLedgerDirsManager(
                 conf, diskChecker, NullStatsLogger.INSTANCE);
 
-        try{
+        try {
             runner.getBookieServer(conf, ledgerDirsManager, bookie);
         } catch (Exception e) {
             System.out.println("Exceptionn occured");
@@ -162,6 +180,7 @@ public class BookKeeperServiceRunnerTest {
             throw new RuntimeException(e);
         }
     }
+    
     private void setupTempDir(File dir) throws IOException {
         dir.deleteOnExit();
         if (!dir.delete() || !dir.mkdir()) {
