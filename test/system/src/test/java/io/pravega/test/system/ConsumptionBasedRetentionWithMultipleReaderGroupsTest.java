@@ -23,18 +23,7 @@ import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.stream.EventRead;
-import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ReaderConfig;
-import io.pravega.client.stream.ReaderGroup;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.RetentionPolicy;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -58,14 +47,13 @@ import org.junit.runner.RunWith;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 
 @Slf4j
@@ -82,6 +70,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private static final String READER_GROUP_3 = "testCBR1ReaderGroup1" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP_4 = "timeBasedRetentionReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String SIZE_30_EVENT = "data of size 30";
+    private static Random random = RandomFactory.create();
     private static final long CLOCK_ADVANCE_INTERVAL = 5 * 1000000000L;
 
     private static final int READ_TIMEOUT = 1000;
@@ -104,6 +93,8 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private StreamManager streamManager = null;
     private Controller controller = null;
     private ClientConfig clientConfig;
+    private Service controllerService = null;
+    private Service segmentStoreService = null;
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -119,16 +110,25 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
     @Before
     public void setup() {
-        Service controllerService = Utils.createPravegaControllerService(null);
-        List<URI> controllerURIs = controllerService.getServiceDetails();
-        controllerURI = controllerURIs.get(0);
-
+        Service zkService = Utils.createZookeeperService();
+        assertTrue(zkService.isRunning());
+        List<URI> zkUris = zkService.getServiceDetails();
+        log.info("zookeeper service details: {}", zkUris);
+        controllerService = Utils.createPravegaControllerService(zkUris.get(0));
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
+        }
+        List<URI> controllerUris = controllerService.getServiceDetails();
+        // Fetch all the RPC endpoints and construct the client URIs.
+        List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+        controllerURI = URI.create(TCP + String.join(",", uris));
         clientConfig = Utils.buildClientConfig(controllerURI);
-
         controller = new ControllerImpl(ControllerImplConfig.builder()
                 .clientConfig(clientConfig)
                 .maxBackoffMillis(5000).build(), executor);
         streamManager = StreamManager.create(clientConfig);
+
+        segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerURI);
     }
 
     @After
@@ -389,6 +389,69 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         // Truncation should happen at SLB
         assertEquals(true, controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE_1, STREAM_2), 0L).join().values().stream().anyMatch(off -> off == 390));
+    }
+
+    public void streamScalingCBRTest() throws Exception {
+        String scope = "streamScalingCBRScope" + random.nextInt(Integer.MAX_VALUE);
+        String stream = "streamScalingCBRStream" + random.nextInt(Integer.MAX_VALUE);
+        String readerGroupName = "streamScalingCBRReaderGroup" + random.nextInt(Integer.MAX_VALUE);
+        StreamConfiguration streamConfiguration = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 1))
+                .retentionPolicy(RetentionPolicy.bySizeBytes(MIN_SIZE_IN_STREAM, MAX_SIZE_IN_STREAM))
+                .build();
+        assertTrue("Creating scope", streamManager.createScope(scope));
+        assertTrue("Creating stream", streamManager.createStream(scope, stream, streamConfiguration));
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        // Write two events.
+        writingEventsToStream(2, writer, scope, stream);
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
+        ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(scope, stream, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
+
+        assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(readerGroupName, readerGroupConfig));
+        assertEquals(1, controller.listSubscribers(scope, stream).join().size());
+
+        @Cleanup
+        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupName);
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(readerGroupName + "-" + 1,
+                readerGroupName, new JavaSerializer<>(), readerConfig, clock::get, clock::get);
+
+        // Read two events with reader.
+        readingEventsFromStream(2, reader);
+        Map<Double, Double> keyRanges = new HashMap<>();
+        keyRanges.put(0.0, 0.5);
+        keyRanges.put(0.5, 1.0);
+        Boolean status = controller.scaleStream(new StreamImpl(scope, stream),
+                Collections.singletonList(0L),
+                keyRanges,
+                executor).getFuture().get();
+        assertTrue(status);
+        // Write 7 events.
+        writingEventsToStream(7, writer, scope, stream);
+        EventRead<String> eosEvent = reader.readNextEvent(READ_TIMEOUT);
+        assertNull(eosEvent.getEvent()); //Reader does not yet see the data because there has been no CP
+        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("cp1", executor);
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        EventRead<String> cpEvent = reader.readNextEvent(READ_TIMEOUT);
+        assertEquals("cp1", cpEvent.getCheckpointName());
+        // Read three events with reader.
+        readingEventsFromStream(3, reader);
+        log.info("{} generating 1st stream-cut for {}/{}", readerGroupName, scope, stream);
+        Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup, reader, clock);
+
+        log.info("{} updating its retention stream-cut to {}", readerGroupName, streamCuts);
+        readerGroup.updateRetentionStreamCut(streamCuts);
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place.", true, () -> controller.getSegmentsAtTime(
+                        new StreamImpl(scope, stream), 0L).join().equals(streamCuts.values().stream().findFirst().get().asImpl().getPositions()),
+                5000, 2 * 60 * 1000L);
     }
 
 
