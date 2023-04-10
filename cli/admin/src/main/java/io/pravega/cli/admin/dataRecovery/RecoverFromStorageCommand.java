@@ -317,7 +317,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         List<File> filteredFiles =  Arrays.stream(allFiles)
                 .filter(File::isFile)
                 .filter(f -> !f.getName().contains(ATTRIBUTE_SUFFIX))
-                .filter(f -> f.getName().split(EPOCH_SPLITTER)[0].contains("_" + String.valueOf(containerId)))
+                .filter(f -> f.getName().split(EPOCH_SPLITTER)[0].endsWith("_" + String.valueOf(containerId)))
                 .collect(Collectors.toList());
         return filteredFiles.toArray(new File[filteredFiles.size()]);
     }
@@ -455,7 +455,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private MetadataStore.SegmentInfo resetStorageSegment(MetadataStore.SegmentInfo segmentInfo) {
         StreamSegmentInformation segmentInformation = StreamSegmentInformation.builder()
                 .name(segmentInfo.getProperties().getName())
-                .attributes(segmentInfo.getProperties().getAttributes())
+//                .attributes(segmentInfo.getProperties().getAttributes())
+                .attributes(Collections.emptyMap())
                 .build();
         return MetadataStore.SegmentInfo.builder()
                 .properties(segmentInformation)
