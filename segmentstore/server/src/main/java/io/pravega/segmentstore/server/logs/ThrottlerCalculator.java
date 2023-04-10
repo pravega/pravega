@@ -297,6 +297,7 @@ class ThrottlerCalculator {
         @Override
         boolean isThrottlingRequired() {
             QueueStats stats = this.getQueueStats.get();
+            log.info("Test print the values total length {} and product {}", stats.getTotalLength(), this.thresholdPercentage * this.maxOutstandingBytes);
             return stats.getTotalLength() > this.thresholdPercentage * this.maxOutstandingBytes;
         }
 
