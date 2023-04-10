@@ -53,8 +53,7 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     @Override
     public void execute() throws Exception {
-        //ensureArgCount(1);
-        validate();
+        validateArguments();
         final String containerId = getArg(0);
 
         @Cleanup
@@ -86,8 +85,9 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "flush-to-storage", "Persist the given Segment Container into Storage.",
-                new ArgDescriptor("container-id", "The container Id of the Segment Container that needs to be persisted, " +
-                        "if given as \"all\" all the containers will be persisted."));
+                new ArgDescriptor("start-container-id", "The start container Id of the Segment Container that needs to be persisted, " +
+                        "if given as \"all\" all the containers will be persisted."), new ArgDescriptor("end-container-id", "The end container Id of the Segment Container that needs to be persisted, " +
+                "if given as \"all\" all the containers will be persisted."));
     }
 
     private Map<Integer, String> getHosts() {
@@ -112,7 +112,7 @@ public class FlushToStorageCommand extends ContainerCommand {
         return containerHostMap;
     }
 
-    private void validate() {
+    private void validateArguments() {
         Preconditions.checkArgument(getArgCount() > 0, "Container id must be provided.");
         final String container = getArg(0);
         if (!NumberUtils.isNumber(container)) {
