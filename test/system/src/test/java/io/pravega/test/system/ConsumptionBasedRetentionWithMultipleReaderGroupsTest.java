@@ -61,6 +61,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -87,6 +88,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private static final String READER_GROUP_3 = "testCBR1ReaderGroup1" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP_4 = "timeBasedRetentionReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String SIZE_30_EVENT = "data of size 30";
+    private static Random RANDOM = RandomFactory.create();
     private static final long CLOCK_ADVANCE_INTERVAL = 5 * 1000000000L;
 
     private static final int READ_TIMEOUT = 1000;
@@ -411,9 +413,9 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
     @Test
     public void multipleControllerFailoverAndRestartCBRTest() throws Exception {
-        String scope = "testCBR2Scope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-        String stream = "multiControllerStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-        String readerGroupName = "testmultiControllerReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+        String scope = "testCBR2Scope" + RANDOM.nextInt(Integer.MAX_VALUE);
+        String stream = "multiControllerStream" + RANDOM.nextInt(Integer.MAX_VALUE);
+        String readerGroupName = "testmultiControllerReaderGroup" + RANDOM.nextInt(Integer.MAX_VALUE);
         // scale to three controller instances.
         scaleAndUpdateControllerURI(3);
         // scale to two segment store instances.
