@@ -69,9 +69,8 @@ public class FlushToStorageCommand extends ContainerCommand {
     }
 
     private void flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId) throws Exception {
-        String segmentStoreHost = getCommandArgs().getArgs().size() == 2 ? getArg(1) : getHosts().get(containerId);
         CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(containerId,
-                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
+                new PravegaNodeUri(this.getHosts().get(containerId), getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
         reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         output("Flushed the Segment Container with containerId %d to Storage.", containerId);
     }
