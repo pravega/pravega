@@ -411,6 +411,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                 new StreamImpl(SCOPE_1, STREAM_2), 0L).join().values().stream().anyMatch(off -> off == 390));
     }
 
+    @Test
     public void streamScalingCBRTest() throws Exception {
         String scope = "streamScalingCBRScope" + random.nextInt(Integer.MAX_VALUE);
         String streamName = "streamScalingCBRStream" + random.nextInt(Integer.MAX_VALUE);
