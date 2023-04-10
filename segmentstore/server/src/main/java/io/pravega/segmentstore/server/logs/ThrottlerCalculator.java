@@ -30,6 +30,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.Singular;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
@@ -38,6 +39,7 @@ import lombok.val;
  */
 @Builder
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@Slf4j
 class ThrottlerCalculator {
     //region Members
 
@@ -302,8 +304,11 @@ class ThrottlerCalculator {
         int getDelayMillis() {
             if (isThrottlingRequired()) {
                 QueueStats stats = this.getQueueStats.get();
+                log.info("Test to check values:: stats {}", stats);
                 val threshold = this.thresholdPercentage * this.maxOutstandingBytes;
+                log.info("Test to check values:: threshold {}", threshold);
                 val scaleFactor = 1 / (this.maxOutstandingBytes - threshold);
+                log.info("Test to check values:: scaleFactor {}", scaleFactor);
                 val excess = stats.getTotalLength() - threshold;
                 return Math.min(this.baseDelay, (int) Math.ceil(excess * scaleFactor * this.baseDelay));
             }
