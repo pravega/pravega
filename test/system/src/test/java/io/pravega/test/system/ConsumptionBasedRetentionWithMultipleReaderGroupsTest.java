@@ -23,13 +23,26 @@ import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.Checkpoint;
+import io.pravega.client.stream.EventRead;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.RetentionPolicy;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -47,13 +60,20 @@ import org.junit.runner.RunWith;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 
 @Slf4j
@@ -393,29 +413,29 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
     public void streamScalingCBRTest() throws Exception {
         String scope = "streamScalingCBRScope" + random.nextInt(Integer.MAX_VALUE);
-        String stream = "streamScalingCBRStream" + random.nextInt(Integer.MAX_VALUE);
+        String streamName = "streamScalingCBRStream" + random.nextInt(Integer.MAX_VALUE);
         String readerGroupName = "streamScalingCBRReaderGroup" + random.nextInt(Integer.MAX_VALUE);
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 1))
                 .retentionPolicy(RetentionPolicy.bySizeBytes(MIN_SIZE_IN_STREAM, MAX_SIZE_IN_STREAM))
                 .build();
         assertTrue("Creating scope", streamManager.createScope(scope));
-        assertTrue("Creating stream", streamManager.createStream(scope, stream, streamConfiguration));
+        assertTrue("Creating stream", streamManager.createStream(scope, streamName, streamConfiguration));
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
         // Write two events.
-        writingEventsToStream(2, writer, scope, stream);
+        writingEventsToStream(2, writer, scope, streamName);
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
-        ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(scope, stream, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
+        ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(scope, streamName, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
 
         assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(readerGroupName, readerGroupConfig));
-        assertEquals(1, controller.listSubscribers(scope, stream).join().size());
+        assertEquals(1, controller.listSubscribers(scope, streamName).join().size());
 
         @Cleanup
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupName);
@@ -426,16 +446,20 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
 
         // Read two events with reader.
         readingEventsFromStream(2, reader);
+
         Map<Double, Double> keyRanges = new HashMap<>();
         keyRanges.put(0.0, 0.5);
         keyRanges.put(0.5, 1.0);
-        Boolean status = controller.scaleStream(new StreamImpl(scope, stream),
+        Stream stream = new StreamImpl(scope, streamName);
+        Boolean status = controller.scaleStream(stream,
                 Collections.singletonList(0L),
                 keyRanges,
                 executor).getFuture().get();
         assertTrue(status);
+
         // Write 7 events.
-        writingEventsToStream(7, writer, scope, stream);
+        writingEventsToStream(7, writer, scope, streamName);
+
         EventRead<String> eosEvent = reader.readNextEvent(READ_TIMEOUT);
         assertNull(eosEvent.getEvent()); //Reader does not yet see the data because there has been no CP
         CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("cp1", executor);
@@ -444,13 +468,31 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertEquals("cp1", cpEvent.getCheckpointName());
         // Read three events with reader.
         readingEventsFromStream(3, reader);
-        log.info("{} generating 1st stream-cut for {}/{}", readerGroupName, scope, stream);
+        log.info("{} generating 1st stream-cut for {}/{}", readerGroupName, scope, streamName);
         Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup, reader, clock);
 
         log.info("{} updating its retention stream-cut to {}", readerGroupName, streamCuts);
         readerGroup.updateRetentionStreamCut(streamCuts);
         AssertExtensions.assertEventuallyEquals("Truncation did not take place.", true, () -> controller.getSegmentsAtTime(
-                        new StreamImpl(scope, stream), 0L).join().equals(streamCuts.values().stream().findFirst().get().asImpl().getPositions()),
+                        new StreamImpl(scope, streamName), 0L).join().equals(streamCuts.values().stream().findFirst().get().asImpl().getPositions()),
+                5000, 2 * 60 * 1000L);
+
+        // Read two events with reader.
+        readingEventsFromStream(2, reader);
+        //Stream scaling down
+        status =controller.scaleStream(stream, Arrays.asList(NameUtils.computeSegmentId(1, 1), NameUtils.computeSegmentId(2, 1)),
+                Collections.singletonMap(0.0, 1.0), executor).getFuture().get();
+        assertTrue(status);
+
+        // Write 3 events.
+        writingEventsToStream(3, writer, scope, streamName);
+        log.info("{} generating 2nd stream-cut for {}/{}", readerGroupName, scope, streamName);
+        Map<Stream, StreamCut> streamCuts2 = generateStreamCuts(readerGroup, reader, clock);
+
+        log.info("{} updating its retention stream-cut to {}", readerGroupName, streamCuts2);
+        readerGroup.updateRetentionStreamCut(streamCuts2);
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place.", true, () -> controller.getSegmentsAtTime(
+                        new StreamImpl(scope, streamName), 0L).join().equals(streamCuts2.values().stream().findFirst().get().asImpl().getPositions()),
                 5000, 2 * 60 * 1000L);
     }
 
