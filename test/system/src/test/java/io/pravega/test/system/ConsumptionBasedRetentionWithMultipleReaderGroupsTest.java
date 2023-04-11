@@ -570,6 +570,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         keyRanges.put(0.0, 0.5);
         keyRanges.put(0.5, 1.0);
         Stream stream = new StreamImpl(scope, streamName);
+        // Stream scaling up
         Boolean status = controller.scaleStream(stream,
                 Collections.singletonList(0L),
                 keyRanges,
@@ -580,7 +581,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         writingEventsToStream(7, writer, scope, streamName);
 
         EventRead<String> eosEvent = reader.readNextEvent(READ_TIMEOUT);
-        assertNull(eosEvent.getEvent()); //Reader does not yet see the data because there has been no CP
+        assertNull(eosEvent.getEvent()); //Reader does not yet see the data because there has been no checkpoint
         CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("cp1", executor);
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         EventRead<String> cpEvent = reader.readNextEvent(READ_TIMEOUT);
@@ -593,7 +594,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         log.info("{} updating its retention stream-cut to {}", readerGroupName, streamCuts);
         readerGroup.updateRetentionStreamCut(streamCuts);
         AssertExtensions.assertEventuallyEquals("Truncation did not take place.", true, () -> controller.getSegmentsAtTime(
-                        new StreamImpl(scope, streamName), 0L).join().equals(streamCuts.values().stream().findFirst().get().asImpl().getPositions()),
+                        stream, 0L).join().equals(streamCuts.values().stream().findFirst().get().asImpl().getPositions()),
                 5000, 2 * 60 * 1000L);
 
         // Read two events with reader.
@@ -611,10 +612,10 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         log.info("{} updating its retention stream-cut to {}", readerGroupName, streamCuts2);
         readerGroup.updateRetentionStreamCut(streamCuts2);
         AssertExtensions.assertEventuallyEquals("Truncation did not take place.", true, () -> controller.getSegmentsAtTime(
-                        new StreamImpl(scope, streamName), 0L).join().equals(streamCuts2.values().stream().findFirst().get().asImpl().getPositions()),
+                        stream, 0L).join().equals(streamCuts2.values().stream().findFirst().get().asImpl().getPositions()),
                 5000, 2 * 60 * 1000L);
+        log.info("streamScalingCBRTest executed successfully");
     }
-
 
     private void writingEventsToStream(int numberOfEvents, EventStreamWriter<String> writer, String scope, String stream) {
         for (int event = 0; event < numberOfEvents; event++) {
