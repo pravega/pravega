@@ -85,6 +85,11 @@ class ThrottlerCalculator {
         ThrottlerName throttlerName = null;
         for (Throttler t : this.throttlers) {
             int delay = t.getDelayMillis();
+            if (t.getName().equals(ThrottlerName.DurableDataLogLimit) && delay >= this.maxDelayMillis) {
+                log.info("Test to check if the condition is achieved and delay is {} and maxDelay is {}", delay, this.maxDelayMillis);
+            } else if (t.getName().equals(ThrottlerName.DurableDataLogLimit)) {
+                log.info("the delay is :: {} and the maxDelayMills is {}", delay, this.maxDelayMillis);
+            }
             if (delay >= this.maxDelayMillis) {
                 // This throttler introduced the maximum delay. No need to search more.
                 maxDelay = this.maxDelayMillis;
@@ -297,7 +302,7 @@ class ThrottlerCalculator {
         @Override
         boolean isThrottlingRequired() {
             QueueStats stats = this.getQueueStats.get();
-            log.info("Test print the values total length {} and product {}", stats.getTotalLength(), this.thresholdPercentage * this.maxOutstandingBytes);
+//            log.info("Test print the values total length {} and product {}", stats.getTotalLength(), this.thresholdPercentage * this.maxOutstandingBytes);
             return stats.getTotalLength() > this.thresholdPercentage * this.maxOutstandingBytes;
         }
 
@@ -311,6 +316,7 @@ class ThrottlerCalculator {
                 val scaleFactor = 1 / (this.maxOutstandingBytes - threshold);
                 log.info("Test to check values:: scaleFactor {}", scaleFactor);
                 val excess = stats.getTotalLength() - threshold;
+                log.info("Test to check values excess {} and baseValue {} and math.ceil value {}", excess, this.baseDelay, (int) Math.ceil(excess * scaleFactor * this.baseDelay));
                 return Math.min(this.baseDelay, (int) Math.ceil(excess * scaleFactor * this.baseDelay));
             }
 
