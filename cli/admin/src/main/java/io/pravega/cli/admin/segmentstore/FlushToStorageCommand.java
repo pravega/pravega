@@ -55,24 +55,24 @@ public class FlushToStorageCommand extends ContainerCommand {
     public void execute() throws Exception {
         validateArguments();
         final String containerId = getArg(0);
-
+        int startContainerId;
+        int endContainerId;
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         if (containerId.equalsIgnoreCase(ALL_CONTAINERS)) {
-            int containerCount = getServiceConfig().getContainerCount();
-            for (int id = 0; id < containerCount; id++) {
-                flushContainerToStorage(adminSegmentHelper, id);
-            }
+            startContainerId = 0;
+            endContainerId = getServiceConfig().getContainerCount() - 1;
         } else {
-            int startPosition = parseInt(containerId);
-            int endPosition = getArgCount() == 2 ? parseInt(getArg(1)) : startPosition  ;
-            output("start position = " + startPosition);
-            output("end position = " + endPosition);
-            for (int id = startPosition; id <= endPosition; id ++) {
-                flushContainerToStorage(adminSegmentHelper, id);
-            }
+            startContainerId = parseInt(containerId);
+            endContainerId = getArgCount() == 2 ? parseInt(getArg(1)) : startContainerId;
+        }
+
+        output("Start container id = " + startContainerId);
+        output("End container id = " + endContainerId);
+        for (int id = startContainerId; id <= endContainerId; id ++) {
+            flushContainerToStorage(adminSegmentHelper, id);
         }
     }
 
@@ -113,10 +113,11 @@ public class FlushToStorageCommand extends ContainerCommand {
     }
 
     private void validateArguments() {
-        Preconditions.checkArgument(getArgCount() > 0, "Container id must be provided.");
+        Preconditions.checkArgument(getArgCount() > 0, "Incorrect argument count.");
         final String container = getArg(0);
         if (!NumberUtils.isNumber(container)) {
             Preconditions.checkArgument(container.equalsIgnoreCase("all"), "Container argument should either be ALL/all or a container id.");
+            Preconditions.checkArgument(getArgCount() == 1, "Incorrect argument count.");
         } else {
             final int startContainer = Integer.parseInt(container);
             final int containerCount = getServiceConfig().getContainerCount();
