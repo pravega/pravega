@@ -71,7 +71,7 @@ public class FlushToStorageCommand extends ContainerCommand {
 
         output("Start container id = " + startContainerId);
         output("End container id = " + endContainerId);
-        for (int id = startContainerId; id <= endContainerId; id ++) {
+        for (int id = startContainerId; id <= endContainerId; id++) {
             flushContainerToStorage(adminSegmentHelper, id);
         }
     }
@@ -121,13 +121,13 @@ public class FlushToStorageCommand extends ContainerCommand {
         } else {
             final int startContainer = Integer.parseInt(container);
             final int containerCount = getServiceConfig().getContainerCount();
-            Preconditions.checkArgument((startContainer < containerCount), "The start container id does not exist. There are %s containers present", containerCount);
+            Preconditions.checkArgument(startContainer < containerCount, "The start container id does not exist. There are %s containers present", containerCount);
 
             if (getArgCount() == 2) {
                 Preconditions.checkArgument(NumberUtils.isNumber(getArg(1)), "End container id must be a number.");
                 final int endContainerId = Integer.parseInt(getArg(1));
-                Preconditions.checkArgument((endContainerId < containerCount), "The end container id does not exist. There are %s containers present", containerCount);
-                Preconditions.checkArgument((startContainer <= endContainerId), "End container id must be greater than or equal to start container id.");
+                Preconditions.checkArgument(endContainerId < containerCount, "The end container id does not exist. There are %s containers present", containerCount);
+                Preconditions.checkArgument(startContainer <= endContainerId, "End container id must be greater than or equal to start container id.");
             }
         }
     }
