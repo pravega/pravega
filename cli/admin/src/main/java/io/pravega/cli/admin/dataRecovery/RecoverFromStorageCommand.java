@@ -173,8 +173,15 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
     @Override
     public void execute() throws Exception {
-        validateArguments();
+        ensureArgCount(2);
+        String tableSegmentDataChunksPath = getArg(0);
+        String container = getArg(1);
 
+        if (!NumberUtils.isNumber(container)) {
+            Preconditions.checkArgument(container.toLowerCase().equals("all"), "Container argument should either be ALL/all or a container id.");
+        } else {
+            Preconditions.checkArgument(Integer.parseInt(container) < this.containerCount, "This container id does not exist. There are %s containers present", this.containerCount);
+        }
         @Cleanup
         Context context = createContext(executorService);
         @Cleanup
@@ -187,21 +194,14 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         output("Started ZK Client at %s.", getServiceConfig().getZkURL());
         output("Starting recovery...");
         // STEP 1: Get all the segment chunks related to the main Segment in order.
-        String tableSegmentDataChunksPath = getArg(0);
         File[] allFiles = new File(tableSegmentDataChunksPath).listFiles();
-        String container = getArg(1);
+
         int containerId = NumberUtils.isNumber(container) ? Integer.parseInt(container) : 0;
         int endContainer = containerId + 1;
-
         if (container.equalsIgnoreCase(ALL_CONTAINERS)) {
             containerId = 0;
             endContainer = this.containerCount;
-        } else if (getArgCount() == 3) {
-            endContainer = Integer.parseInt(getArg(2)) + 1;
         }
-
-        output("Start container id = " + containerId);
-        output("End containerid = " + (endContainer - 1));
 
         while (containerId < endContainer) {
             recoverFromStorage(containerId, allFiles, context, dataLogFactory);
@@ -317,7 +317,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         List<File> filteredFiles =  Arrays.stream(allFiles)
                 .filter(File::isFile)
                 .filter(f -> !f.getName().contains(ATTRIBUTE_SUFFIX))
-                .filter(f -> f.getName().split(EPOCH_SPLITTER)[0].endsWith("_" + String.valueOf(containerId)))
+                .filter(f -> f.getName().split(EPOCH_SPLITTER)[0].contains("_" + String.valueOf(containerId)))
                 .collect(Collectors.toList());
         return filteredFiles.toArray(new File[filteredFiles.size()]);
     }
@@ -630,25 +630,6 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             this.readIndexFactory.close();
             this.cacheManager.close();
             this.cacheStorage.close();
-        }
-    }
-
-    private void validateArguments() {
-        Preconditions.checkArgument(getArgCount() >= 2, "Incorrect argument count.");
-        String container = getArg(1);
-
-        if (!NumberUtils.isNumber(container)) {
-            Preconditions.checkArgument(container.toLowerCase().equals("all"), "Container argument should either be ALL/all or a container id.");
-            Preconditions.checkArgument(getArgCount() >= 2, "Incorrect argument count.");
-        } else {
-            Preconditions.checkArgument(Integer.parseInt(container) < this.containerCount, "The start container id does not exist. There are %s containers present", this.containerCount);
-        }
-
-        if (getArgCount() == 3) {
-            Preconditions.checkArgument(NumberUtils.isNumber(getArg(2)), "The end container id must be a number");
-            int endContainer = Integer.parseInt(getArg(2));
-            Preconditions.checkArgument(endContainer < this.containerCount, "The end container id does not exist. There are %s containers present", this.containerCount);
-            Preconditions.checkArgument(endContainer >= Integer.parseInt(container), "End container id must be greater than or equal to start container id.");
         }
     }
 

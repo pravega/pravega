@@ -92,6 +92,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
         pravegaProperties.setProperty("pravegaservice.zk.connect.uri", SETUP_UTILS.getZkTestServer().getConnectString());
         pravegaProperties.setProperty("pravegaservice.container.count", String.valueOf(CONTAINER_COUNT));
         pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(SETUP_UTILS.getAdminPort()));
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega/pravega-cluster");
 
         if (enableAuth) {
             clientConfigBuilder = clientConfigBuilder.credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
@@ -229,6 +230,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testFlushToStorageCommandAllCase() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
         String commandResult = TestUtils.executeCommand("container flush-to-storage all", STATE.get());
         for (int id = 0; id < CONTAINER_COUNT; id++) {
             Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId " + id + " to Storage."));
@@ -238,9 +240,25 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testFlushToStorageCommand() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
         String commandResult = TestUtils.executeCommand("container flush-to-storage 0", STATE.get());
         Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId 0 to Storage."));
         Assert.assertNotNull(FlushToStorageCommand.descriptor());
+    }
+
+    @Test
+    public void testFlushToStorageCommandRangeCase() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        String commandResult = TestUtils.executeCommand("container flush-to-storage 0 " + (CONTAINER_COUNT - 1), STATE.get());
+        Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId 0 to Storage."));
+        Assert.assertNotNull(FlushToStorageCommand.descriptor());
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithEndContainerNotNumber() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("End container id must be a number.", () -> TestUtils.executeCommand("container flush-to-storage 0 all", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
