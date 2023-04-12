@@ -68,9 +68,7 @@ public class FlushToStorageCommand extends ContainerCommand {
             startContainerId = parseInt(containerId);
             endContainerId = getArgCount() == 2 ? parseInt(getArg(1)) : startContainerId;
         }
-
-        output("Start container id = " + startContainerId);
-        output("End container id = " + endContainerId);
+        
         for (int id = startContainerId; id <= endContainerId; id++) {
             flushContainerToStorage(adminSegmentHelper, id);
         }
