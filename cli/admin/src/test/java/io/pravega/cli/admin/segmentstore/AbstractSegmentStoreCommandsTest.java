@@ -297,6 +297,20 @@ public abstract class AbstractSegmentStoreCommandsTest {
     }
 
     @Test
+    public void testFlushToStorageCommandWithNegativeStartContainerId() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("The start container id must be a positive number.", () -> TestUtils.executeCommand("container flush-to-storage -1", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithNegativeEndContainerId() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("The end container id must be a positive number.", () -> TestUtils.executeCommand("container flush-to-storage 0 -1", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
     public void testSetSerializerCommand() throws Exception {
         Assert.assertNull(STATE.get().getKeySerializer());
         Assert.assertNull(STATE.get().getValueSerializer());
