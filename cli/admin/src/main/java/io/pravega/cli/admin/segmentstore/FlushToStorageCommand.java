@@ -15,6 +15,7 @@
  */
 package io.pravega.cli.admin.segmentstore;
 
+import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.utils.ZKHelper;
@@ -22,6 +23,7 @@ import io.pravega.common.cluster.Host;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
+import org.apache.commons.lang.math.NumberUtils;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.util.HashMap;
@@ -51,20 +53,26 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     @Override
     public void execute() throws Exception {
-        ensureArgCount(1);
-
+        validateArguments();
         final String containerId = getArg(0);
+        int startContainerId;
+        int endContainerId;
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         AdminSegmentHelper adminSegmentHelper = instantiateAdminSegmentHelper(zkClient);
         if (containerId.equalsIgnoreCase(ALL_CONTAINERS)) {
-            int containerCount = getServiceConfig().getContainerCount();
-            for (int id = 0; id < containerCount; id++) {
-                flushContainerToStorage(adminSegmentHelper, id);
-            }
+            startContainerId = 0;
+            endContainerId = getServiceConfig().getContainerCount() - 1;
         } else {
-            flushContainerToStorage(adminSegmentHelper, parseInt(containerId));
+            startContainerId = parseInt(containerId);
+            endContainerId = getArgCount() == 2 ? parseInt(getArg(1)) : startContainerId;
+        }
+
+        output("Start container id = " + startContainerId);
+        output("End container id = " + endContainerId);
+        for (int id = startContainerId; id <= endContainerId; id++) {
+            flushContainerToStorage(adminSegmentHelper, id);
         }
     }
 
@@ -77,12 +85,13 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "flush-to-storage", "Persist the given Segment Container into Storage.",
-                new ArgDescriptor("container-id", "The container Id of the Segment Container that needs to be persisted, " +
-                        "if given as \"all\" all the containers will be persisted."));
+                new ArgDescriptor("start-container-id", "The start container Id of the Segment Container that needs to be persisted, " +
+                        "if given as \"all\" all the containers will be persisted."), new ArgDescriptor("end-container-id", "The end container Id of the Segment Container that needs to be persisted, " +
+                "if given as \"all\" all the containers will be persisted."));
     }
 
     private Map<Integer, String> getHosts() {
-        Map<Host, Set<Integer>> hostMap = null;
+        Map<Host, Set<Integer>> hostMap;
         try {
             @Cleanup
             ZKHelper zkStoreHelper = ZKHelper.create(getServiceConfig().getZkURL(), getServiceConfig().getClusterName());
@@ -101,5 +110,25 @@ public class FlushToStorageCommand extends ContainerCommand {
             }
         }
         return containerHostMap;
+    }
+
+    private void validateArguments() {
+        Preconditions.checkArgument(getArgCount() > 0, "Incorrect argument count.");
+        final String container = getArg(0);
+        if (!NumberUtils.isNumber(container)) {
+            Preconditions.checkArgument(container.equalsIgnoreCase("all"), "Container argument should either be ALL/all or a container id.");
+            Preconditions.checkArgument(getArgCount() == 1, "Incorrect argument count.");
+        } else {
+            final int startContainer = Integer.parseInt(container);
+            final int containerCount = getServiceConfig().getContainerCount();
+            Preconditions.checkArgument(startContainer < containerCount, "The start container id does not exist. There are %s containers present", containerCount);
+
+            if (getArgCount() == 2) {
+                Preconditions.checkArgument(NumberUtils.isNumber(getArg(1)), "End container id must be a number.");
+                final int endContainerId = Integer.parseInt(getArg(1));
+                Preconditions.checkArgument(endContainerId < containerCount, "The end container id does not exist. There are %s containers present", containerCount);
+                Preconditions.checkArgument(startContainer <= endContainerId, "End container id must be greater than or equal to start container id.");
+            }
+        }
     }
 }
