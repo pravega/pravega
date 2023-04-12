@@ -528,6 +528,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                 5000,  2 * 60 * 1000L);
         log.info("Test Executed successfully");
     }
+
     @Test
     public void streamScalingCBRTest() throws Exception {
         Random random = RandomFactory.create();
@@ -600,7 +601,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         // Read two events with reader.
         readingEventsFromStream(2, reader);
         //Stream scaling down
-        status =controller.scaleStream(stream, Arrays.asList(NameUtils.computeSegmentId(1, 1), NameUtils.computeSegmentId(2, 1)),
+        status = controller.scaleStream(stream, Arrays.asList(NameUtils.computeSegmentId(1, 1), NameUtils.computeSegmentId(2, 1)),
                 Collections.singletonMap(0.0, 1.0), executor).getFuture().get();
         assertTrue(status);
 
