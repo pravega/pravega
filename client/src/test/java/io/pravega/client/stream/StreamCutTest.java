@@ -35,11 +35,10 @@ import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 public class StreamCutTest {
 
@@ -123,13 +122,9 @@ public class StreamCutTest {
                 .build();
         StreamCutImpl sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
         boolean exceptionCaught = false;
-        try {
+        assertThrows(NullPointerException.class, () -> {
             sc.compareTo(null);
-        } catch (Exception e) {
-            assertThat(e, instanceOf(NullPointerException.class));
-            exceptionCaught = true;
-        }
-        assertTrue("NullPointerException not caught", exceptionCaught);
+        });
     }
 
 
@@ -279,7 +274,7 @@ public class StreamCutTest {
                 .build();
 
         StreamCutImpl sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
-        assertEquals(1, StreamCut.UNBOUNDED.compareTo((sc)));
+        assertEquals(1, StreamCut.UNBOUNDED.compareTo(sc));
     }
 
     @Test
@@ -341,7 +336,7 @@ public class StreamCutTest {
     }
 
     @Test
-    public void compareToStreamCutWithDifferentNumberOfSegmentsAdvancingIdAndEpoch () {
+    public void compareToStreamCutWithDifferentNumberOfSegmentsAdvancingIdAndEpoch() {
         ImmutableMap<Segment, Long> segmentOffsetMap1 = ImmutableMap.<Segment, Long>builder()
                 .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
                 .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
@@ -375,14 +370,9 @@ public class StreamCutTest {
         StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap1);
         StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
 
-        boolean exceptionCaught = false;
-        try {
+        assertThrows(RuntimeException.class, () -> {
             sc1.compareTo(sc2);
-        } catch (Exception e) {
-            assertThat(e, instanceOf(RuntimeException.class));
-            exceptionCaught = true;
-        }
-        assertTrue("RuntimeException not caught", exceptionCaught);
+        });
     }
 
     @Test
@@ -404,14 +394,9 @@ public class StreamCutTest {
         StreamCutImpl sc1 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap1);
         StreamCutImpl sc2 = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap2);
 
-        boolean exceptionCaught = false;
-        try {
+        assertThrows(RuntimeException.class, () -> {
             sc1.compareTo(sc2);
-        } catch (Exception e) {
-            assertThat(e, instanceOf(RuntimeException.class));
-            exceptionCaught = true;
-        }
-        assertTrue("RuntimeException not caught", exceptionCaught);
+        });
     }
 
     @Test
