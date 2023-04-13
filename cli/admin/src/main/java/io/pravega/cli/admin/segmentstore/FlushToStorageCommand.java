@@ -133,8 +133,9 @@ public class FlushToStorageCommand extends ContainerCommand {
             Preconditions.checkArgument(startContainer < containerCount, "The start container id does not exist. There are %s containers present", containerCount);
             Preconditions.checkArgument(startContainer >= 0, "The start container id must be a positive number.");
 
-            if (getArgCount() == 2) {
+            if (getArgCount() != 1) {
                 Preconditions.checkArgument(NumberUtils.isNumber(getArg(1)), "End container id must be a number.");
+                Preconditions.checkArgument(getArgCount() == 2, "Incorrect argument count.");
                 final int endContainerId = Integer.parseInt(getArg(1));
                 Preconditions.checkArgument(endContainerId < containerCount, "The end container id does not exist. There are %s containers present", containerCount);
                 Preconditions.checkArgument(endContainerId >= 0, "The end container  id must be a positive number.");

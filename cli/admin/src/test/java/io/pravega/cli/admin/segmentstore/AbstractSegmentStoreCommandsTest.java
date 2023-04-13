@@ -269,6 +269,13 @@ public abstract class AbstractSegmentStoreCommandsTest {
     }
 
     @Test
+    public void testFlushToStorageCommandWithThreeArguments() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("container flush-to-storage 0 1 1", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
     public void testFlushToStorageCommandWithoutGettingSegmentStoreHostForGivenContainer() throws Exception {
         TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
         Properties pravegaProperties = new Properties();
