@@ -121,7 +121,6 @@ public class StreamCutTest {
                 .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
                 .build();
         StreamCutImpl sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
-        boolean exceptionCaught = false;
         assertThrows(NullPointerException.class, () -> {
             sc.compareTo(null);
         });
