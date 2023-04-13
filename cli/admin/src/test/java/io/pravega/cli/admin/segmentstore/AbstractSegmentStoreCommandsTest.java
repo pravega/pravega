@@ -269,6 +269,18 @@ public abstract class AbstractSegmentStoreCommandsTest {
     }
 
     @Test
+    public void testFlushToStorageCommandWithoutGettingSegmentStoreHostForGivenContainer() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "8");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        AssertExtensions.assertThrows("No host found for given container", () -> TestUtils.executeCommand("container flush-to-storage 4", STATE.get()),
+                ex -> ex instanceof RuntimeException);
+        pravegaProperties.setProperty("pravegaservice.container.count", String.valueOf(CONTAINER_COUNT));
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+    }
+
+    @Test
     public void testFlushToStorageCommandWithoutArguments() throws Exception {
         TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
         AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("container flush-to-storage", STATE.get()),

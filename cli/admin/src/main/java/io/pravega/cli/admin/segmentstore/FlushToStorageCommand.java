@@ -76,7 +76,7 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private void flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId) throws Exception {
         CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(containerId,
-                new PravegaNodeUri(this.getHosts().get(containerId), getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
+                new PravegaNodeUri(this.getHostByContainer(containerId), getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
         reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         output("Flushed the Segment Container with containerId %d to Storage.", containerId);
     }
@@ -84,8 +84,16 @@ public class FlushToStorageCommand extends ContainerCommand {
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "flush-to-storage", "Persist the given Segment Container into Storage.",
                 new ArgDescriptor("start-container-id", "The start container Id of the Segment Container that needs to be persisted, " +
-                        "if given as \"all\" all the containers will be persisted."), new ArgDescriptor("end-container-id", "The end container Id of the Segment Container that needs to be persisted, " +
-                "if given as \"all\" all the containers will be persisted."));
+                        "if given as \"all\" all the containers will be persisted. If given as container id without "), new ArgDescriptor("end-container-id", "The end container Id of the Segment Container that needs to be persisted, " +
+                "This is an optional parameter. If not given then only start container id will be flushed"));
+    }
+
+    private String getHostByContainer(int containerId) {
+        String host = this.getHosts().get(containerId);
+        if (host == null || host.isEmpty()) {
+            throw new RuntimeException("No host found for given container: " + containerId);
+        }
+        return host;
     }
 
     private Map<Integer, String> getHosts() {
@@ -95,7 +103,10 @@ public class FlushToStorageCommand extends ContainerCommand {
             ZKHelper zkStoreHelper = ZKHelper.create(getServiceConfig().getZkURL(), getServiceConfig().getClusterName());
             hostMap = zkStoreHelper.getCurrentHostMap();
         } catch (Exception e) {
-            System.err.println("Exception accessing to Zookeeper cluster metadata: " + e.getMessage());
+            throw new RuntimeException("Error getting segment store hosts for containers: " + e.getMessage());
+        }
+
+        if (hostMap == null || hostMap.isEmpty()) {
             throw new RuntimeException("Error getting segment store hosts for containers.");
         }
 
