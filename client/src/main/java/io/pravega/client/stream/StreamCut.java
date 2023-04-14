@@ -69,6 +69,14 @@ public interface StreamCut extends Serializable, Comparable<StreamCut> {
             }
             return 1; // and greater than all other StreamCuts
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true; // UNBOUNDED is equal to itself
+            }
+            return false;
+        }
     };
     
     /**
