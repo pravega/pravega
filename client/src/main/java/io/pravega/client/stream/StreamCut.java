@@ -77,6 +77,11 @@ public interface StreamCut extends Serializable, Comparable<StreamCut> {
             }
             return false;
         }
+        
+        @Override
+        public int hashCode() {
+            return super.hashCode(); //This is useless but prevents a warning
+        }
     };
     
     /**
