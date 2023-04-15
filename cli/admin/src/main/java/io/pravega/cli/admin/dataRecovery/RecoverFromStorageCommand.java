@@ -120,7 +120,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private static final int RETRY_ATTEMPT = 10;
     private static final int CONTAINER_CLOSE_WAIT_TIME_MILLIS = 5000;
     private static final String ALL_CONTAINERS = "all";
-    private final WriterConfig writerConfig = WriterConfig.builder().with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, 1).build(); // flush attributes immediately
+    private final WriterConfig writerConfig = WriterConfig.builder().build();
     private final ScheduledExecutorService executorService = getCommandArgs().getState().getExecutor();
     private final int containerCount;
     private final StorageFactory storageFactory;
