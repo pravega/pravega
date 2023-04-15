@@ -485,20 +485,6 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         tableExtension.put(NameUtils.getMetadataSegmentName(container.getId()), Collections.singletonList(unversionedEntry), TIMEOUT).join();
     }
 
-    /**
-     *  Resets the Storage segment
-     */
-    private MetadataStore.SegmentInfo resetStorageSegment(MetadataStore.SegmentInfo segmentInfo) {
-        StreamSegmentInformation segmentInformation = StreamSegmentInformation.builder()
-                .name(segmentInfo.getProperties().getName())
-                .attributes(segmentInfo.getProperties().getAttributes())
-                .build();
-        return MetadataStore.SegmentInfo.builder()
-                .properties(segmentInformation)
-                .segmentId(segmentInfo.getSegmentId())
-                .build();
-    }
-
     private MetadataStore.SegmentInfo resetSegmentID(MetadataStore.SegmentInfo segmentInfo) {
         MetadataStore.SegmentInfo resetSegmentInfo = MetadataStore.SegmentInfo.builder()
                 .segmentId(NO_STREAM_SEGMENT_ID)
