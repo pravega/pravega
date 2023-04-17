@@ -321,7 +321,7 @@ project('shared:protocol') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        testCompile project(path: ':common', configuration: 'testRuntime')
+        testCompile project(path: ':common', configuration: 'tests')
     }
 
     tasks.withType(JavaCompile) {
@@ -477,7 +477,7 @@ project('segmentstore:storage:impl') {
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
         testCompile project(':test:testcommon')
-        testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:storage', configuration:'tests')
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
     javadoc {
@@ -525,7 +525,7 @@ project ('bindings') {
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
-        testCompile project(path: ':segmentstore:storage', configuration: 'testRuntime')
+        testCompile project(path: ':segmentstore:storage', configuration: 'tests')
     }
     javadoc {
         dependsOn delombok
@@ -594,10 +594,10 @@ project('segmentstore:server:host') {
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
-        testCompile project(path:':segmentstore:server', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:server', configuration:'tests')
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
-        testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
-        testCompile project(path:':bindings', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:storage:impl', configuration:'tests')
+        testCompile project(path:':bindings', configuration:'tests')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
         testCompile group: 'com.google.cloud', name: 'google-cloud-storage', version: gcpSdkVersion
         testCompile group: 'com.google.cloud', name: 'google-cloud-nio', version: gcpCloudNioVersion
@@ -659,11 +659,11 @@ project('test:integration') {
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
-        testCompile project(path:':common', configuration:'testRuntime')
-        testCompile project(path:':shared:protocol', configuration:'testRuntime')
-        testCompile project(path:':segmentstore:server', configuration:'testRuntime')
-        testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
-        testCompile project(path:':shared:metrics', configuration:'testRuntime')
+        testCompile project(path:':common', configuration:'tests')
+        testCompile project(path:':shared:protocol', configuration:'tests')
+        testCompile project(path:':segmentstore:server', configuration:'tests')
+        testCompile project(path:':segmentstore:server:host', configuration:'tests')
+        testCompile project(path:':shared:metrics', configuration:'tests')
 
         // Workaround for intellij issue, since we cannot add both the compile dependency and the testRuntime
         // dependency of the client project into the compile scope of the integration tests
@@ -995,9 +995,9 @@ project('standalone') {
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         compile group: 'io.jsonwebtoken', name: 'jjwt', version: jjwtVersion
         testCompile project(':test:testcommon')
-        testCompile project(path:':common', configuration:'testRuntime')
-        testCompile project(path:':segmentstore:server', configuration:'testRuntime')
-        testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
+        testCompile project(path:':common', configuration:'tests')
+        testCompile project(path:':segmentstore:server', configuration:'tests')
+        testCompile project(path:':segmentstore:server:host', configuration:'tests')
     }
 
     configurations {
@@ -1034,7 +1034,7 @@ project('standalone') {
 
 project('test:system') {
     // Specifically publish this test project
-    apply plugin: 'maven'
+    apply plugin: 'maven-publish'
 
     // override the compile java options to disable -Werror this will remove once https://github.com/pravega/pravega/issues/3152 is resolved.
     tasks.withType(JavaCompile) {

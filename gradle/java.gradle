@@ -18,7 +18,7 @@ plugins.withId('java') {
     apply plugin: 'com.github.spotbugs'
     apply plugin: 'jacoco'
     apply plugin: 'signing'
-    apply plugin: 'maven'
+    apply plugin: 'maven-publish'
 
     compileJava {
         options.compilerArgs.addAll([
@@ -60,7 +60,7 @@ plugins.withId('java') {
     }
 
     task sourceJar(type: Jar) {
-        classifier = 'sources'
+        archiveClassifier= 'sources'
         from sourceSets.main.java
     }
     artifacts { archives sourceJar }
@@ -72,20 +72,27 @@ plugins.withId('java') {
         failOnError = false
     }
     task javadocJar(type: Jar) {
-        classifier = 'javadoc'
+        archiveClassifier = 'javadoc'
         from generateJavadoc
     }
     artifacts { archives javadocJar }
 
     task testJar(type: Jar) {
-        classifier = 'tests'
+        archiveClassifier = 'tests'
         from sourceSets.test.output
     }
-    artifacts { testRuntime testJar }
+    configurations {
+        tests {
+            extendsFrom testRuntimeOnly
+        }
+    }
+    artifacts {
+        tests testJar
+    }
 
     if (project.hasProperty("doSigning")) {
         signing {
-            sign configurations.archives
+            sign publishing.publications.mavenDeployer
         }
         // Default the secretKeyRingFile to the current user's home
         if (!project.property("signing.secretKeyRingFile")) {
@@ -134,9 +141,9 @@ plugins.withId('java') {
 
     dependencies {
         // The production code uses the SLF4J logging API at compile time
-        compile group: 'org.slf4j', name:'slf4j-api', version: slf4jApiVersion
-        testCompile group: 'junit', name:'junit', version: junitVersion
-        testCompile "org.mockito:mockito-core:${mockitoVersion}"
+        implementation group: 'org.slf4j', name:'slf4j-api', version: slf4jApiVersion
+        testImplementation group: 'junit', name:'junit', version: junitVersion
+        testImplementation "org.mockito:mockito-core:${mockitoVersion}"
     }
 }
 
