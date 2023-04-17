@@ -223,6 +223,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
                 }
             });
             channel.close();
+            channel = null;
         }
     }
     

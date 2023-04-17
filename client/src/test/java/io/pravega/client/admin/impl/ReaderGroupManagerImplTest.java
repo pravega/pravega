@@ -36,6 +36,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.shared.NameUtils;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import lombok.Cleanup;
@@ -111,10 +112,11 @@ public class ReaderGroupManagerImplTest {
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
         ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
-        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
-                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
+        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
+                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
+        mockConnectionPoolExecutor(false);
         // Create a ReaderGroup
         boolean created = readerGroupManager.createReaderGroup(GROUP_NAME, config);
         assertTrue(created);
@@ -132,7 +134,7 @@ public class ReaderGroupManagerImplTest {
         ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
         when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
                 .thenReturn(CompletableFuture.completedFuture(expectedConfig));
-
+        mockConnectionPoolExecutor(false);
         // Create a ReaderGroup
         ReaderGroupConfig newConfig = ReaderGroupConfig.builder()
                                                        .stream(createStream("s1"), createStreamCut("s1", 2))
@@ -165,6 +167,7 @@ public class ReaderGroupManagerImplTest {
         ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 1L);
         when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
                 .thenReturn(CompletableFuture.completedFuture(expectedConfig));
+        mockConnectionPoolExecutor(false);
         // Create a ReaderGroup
         boolean created = readerGroupManager.createReaderGroup(GROUP_NAME, config);
         assertFalse(created);
@@ -187,6 +190,7 @@ public class ReaderGroupManagerImplTest {
         when(synchronizer.getState()).thenReturn(state);
         when(state.getConfig()).thenReturn(config);
         when(controller.deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId())).thenReturn(CompletableFuture.completedFuture(true));
+        mockConnectionPoolExecutor(false);
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
         verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId());
@@ -204,6 +208,7 @@ public class ReaderGroupManagerImplTest {
         when(controller.getReaderGroupConfig(SCOPE, GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(config));
         when(controller.deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId()))
                 .thenReturn(CompletableFuture.completedFuture(true));
+        mockConnectionPoolExecutor(false);
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
@@ -229,6 +234,7 @@ public class ReaderGroupManagerImplTest {
                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
         when(controller.deleteReaderGroup(anyString(), anyString(), any(UUID.class)))
                 .thenReturn(CompletableFuture.completedFuture(true));
+        mockConnectionPoolExecutor(false);
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
@@ -256,6 +262,7 @@ public class ReaderGroupManagerImplTest {
                 .thenReturn(CompletableFuture.completedFuture(true));
         when(controller.deleteStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME)))
                 .thenReturn(CompletableFuture.completedFuture(true));
+        mockConnectionPoolExecutor(false);
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
@@ -274,6 +281,19 @@ public class ReaderGroupManagerImplTest {
         assertEquals(config.isEnableTls(), cp.getClientConfig().isEnableTls());
     }
 
+    @Test(expected = ObjectClosedException.class)
+    public void testWhenExecutorIsUnavailable() {
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenThrow(new InvalidStreamException("invalid RG stream"));
+        mockConnectionPoolExecutor(true);
+        readerGroupManager.getReaderGroup(GROUP_NAME);
+    }
+
+    private void mockConnectionPoolExecutor(boolean value) {
+        when(pool.getInternalExecutor()).thenReturn(scheduledThreadPoolExecutor);
+        when(clientFactory.getConnectionPool().getInternalExecutor().isShutdown()).thenReturn(value);
+    }
+    
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(numberOfSegments).forEach(segNum -> positions.put(new Segment(SCOPE, streamName, segNum), 10L));
