@@ -664,7 +664,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             Preconditions.checkArgument(startContainer < this.containerCount, "The start container id does not exist. There are %s containers present", this.containerCount);
             Preconditions.checkArgument(startContainer >= 0, "The start container id must be a positive number.");
 
-            if (getArgCount() >=3 ) {
+            if (getArgCount() >= 3) {
                 Preconditions.checkArgument(NumberUtils.isNumber(getArg(2)), "The end container id must be a number.");
                 Preconditions.checkArgument(getArgCount() == 3, "Incorrect argument count.");
                 int endContainer = Integer.parseInt(getArg(2));
