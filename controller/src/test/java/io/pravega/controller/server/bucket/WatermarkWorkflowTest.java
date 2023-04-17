@@ -730,6 +730,15 @@ public class WatermarkWorkflowTest {
 
         @Override
         @Synchronized
+        public Iterator<Map.Entry<Revision, Watermark>> readRange(Revision start, Revision end) throws TruncatedDataException {
+            checkValid();
+            int startIndex = start.equals(MockRevision.EMPTY) ? 0 : ((MockRevision) start).id + 1;
+            int endIndex = end.equals(MockRevision.EMPTY) ? 0 : ((MockRevision) start).id;
+            return watermarks.subList(startIndex, endIndex).iterator();
+        }
+
+        @Override
+        @Synchronized
         public Revision writeConditionally(Revision latestRevision, Watermark value) {
             checkValid();
             Revision last = watermarks.isEmpty() ? MockRevision.EMPTY : watermarks.get(watermarks.size() - 1).getKey();

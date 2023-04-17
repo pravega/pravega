@@ -104,6 +104,13 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     }
 
     private StreamSegmentsIterator getStreamSegmentInfo(final Stream stream, final StreamCut startStreamCut, final StreamCut endStreamCut) {
+        List<SegmentRange> results = getSegmentRanges(stream, startStreamCut, endStreamCut);
+        return StreamSegmentsInfoImpl.builder().segmentRangeIterator(results.iterator())
+                                     .startStreamCut(startStreamCut)
+                                     .endStreamCut(endStreamCut).build();
+    }
+
+    private List<SegmentRange> getSegmentRanges(final Stream stream, final StreamCut startStreamCut, final StreamCut endStreamCut) {
         log.debug("Start stream cut: {}, End stream cut: {}", startStreamCut, endStreamCut);
         StreamSegmentsInfoImpl.validateStreamCuts(startStreamCut, endStreamCut);
 
@@ -116,9 +123,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
 
         val futures = segmentSet.stream().map(s -> getSegmentRange(s, startStreamCut, endStreamCut, tokenProvider)).collect(Collectors.toList());
         List<SegmentRange> results = Futures.getThrowingException(Futures.allOfWithResults(futures));
-        return StreamSegmentsInfoImpl.builder().segmentRangeIterator(results.iterator())
-                                     .startStreamCut(startStreamCut)
-                                     .endStreamCut(endStreamCut).build();
+        return results;
     }
 
     /*
@@ -157,6 +162,16 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     public void close() {
         controller.close();
         connectionPool.close();
+    }
+
+    @Override
+    public List<SegmentRange> getSegmentRangeBetweenStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut) {
+        log.debug("Start stream cut: {}, End stream cut: {}", startStreamCut, endStreamCut);
+        Preconditions.checkArgument(startStreamCut.asImpl().getStream().equals(endStreamCut.asImpl().getStream()),
+                "Ensure streamCuts for the same stream is passed");
+        Stream stream = startStreamCut.asImpl().getStream();
+        List<SegmentRange> segmentRanges = getSegmentRanges(stream, startStreamCut, endStreamCut);
+        return segmentRanges;
     }
 
 }

@@ -118,7 +118,7 @@ public class TestUtils {
         }
 
         if (condition == null || !condition.get() && remainingMillis <= 0) {
-            throw new TimeoutException("Timeout expired prior to the condition becoming true.");
+            throw new TimeoutException("Timeout expired prior to the condition becoming true. Expected value: " + expected + " observed: " + result);
         }
 
         return result;

@@ -17,6 +17,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.netty.buffer.UnpooledByteBufAllocator;
 import io.pravega.common.io.filesystem.FileOperations;
 import io.pravega.common.security.JKSHelper;
 import io.pravega.common.security.ZKTLSUtils;
@@ -27,13 +28,29 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+
 import lombok.Builder;
 import lombok.Cleanup;
+import lombok.Data;
+import lombok.Getter;
 import lombok.SneakyThrows;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.apache.bookkeeper.bookie.Bookie;
+import org.apache.bookkeeper.bookie.BookieImpl;
+import org.apache.bookkeeper.bookie.LedgerDirsManager;
+import org.apache.bookkeeper.bookie.LedgerStorage;
+import org.apache.bookkeeper.bookie.UncleanShutdownDetectionImpl;
 import org.apache.bookkeeper.conf.ServerConfiguration;
+import org.apache.bookkeeper.discover.RegistrationManager;
+import org.apache.bookkeeper.meta.LedgerManager;
+import org.apache.bookkeeper.meta.LedgerManagerFactory;
+import org.apache.bookkeeper.meta.MetadataBookieDriver;
+import org.apache.bookkeeper.meta.NullMetadataBookieDriver;
 import org.apache.bookkeeper.proto.BookieServer;
+import org.apache.bookkeeper.proto.SimpleBookieServiceInfoProvider;
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.util.DiskChecker;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
 import org.apache.zookeeper.CreateMode;
@@ -68,7 +85,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final String tlsTrustStore;
     private final String ledgersDir;
     private final List<Integer> bookiePorts;
-    private final List<BookieServer> servers = new ArrayList<>();
+    private final List<BookieServerAndResources> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
     private final HashMap<Integer, File> journalDirs = new HashMap<>();
     private final HashMap<Integer, File> ledgerDirs = new HashMap<>();
@@ -81,7 +98,10 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     @Override
     public void close() throws Exception {
         try {
-            this.servers.stream().filter(Objects::nonNull).forEach(BookieServer::shutdown);
+            this.servers.stream().filter(Objects::nonNull).forEach(bookieAndResources -> {
+                bookieAndResources.getBookieServer().shutdown();
+                bookieAndResources.getResources().cleanup();
+            });
             if (this.zkServer.get() != null) {
                 this.zkServer.get().close();
             }
@@ -112,7 +132,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public void stopBookie(int bookieIndex) {
         Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
         Preconditions.checkState(this.servers.get(0) != null, "Bookie already stopped.");
-        val bk = this.servers.get(bookieIndex);
+        val bk = this.servers.get(bookieIndex).getBookieServer();
         bk.shutdown();
         log.info("Bookie {} is stopping.", bookieIndex);
         this.servers.set(bookieIndex, null);
@@ -127,7 +147,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public void suspendBookie(int bookieIndex) {
         Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
         Preconditions.checkState(this.servers.get(0) != null, "Bookie does not exists.");
-        val bk = this.servers.get(bookieIndex);
+        val bk = this.servers.get(bookieIndex).getBookieServer();
         log.info("Bookie {} is suspending processing.", bookieIndex);
         bk.suspendProcessing();
         log.info("Bookie {} suspended processing.", bookieIndex);
@@ -141,7 +161,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public void resumeBookie(int bookieIndex) {
         Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
         Preconditions.checkState(this.servers.get(0) != null, "Bookie does not exists.");
-        val bk = this.servers.get(bookieIndex);
+        val bk = this.servers.get(bookieIndex).getBookieServer();
         log.info("Bookie {} is resuming processing.", bookieIndex);
         bk.resumeProcessing();
         log.info("Bookie {} resumed processing.", bookieIndex);
@@ -237,7 +257,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         }
     }
 
-    private BookieServer runBookie(int bkPort) throws Exception {
+    private BookieServerAndResources runBookie(int bkPort) throws Exception {
         // Attempt to reuse an existing data directory. This is useful in case of stops & restarts, when we want to preserve
         // already committed data.
         File journalDir = this.journalDirs.getOrDefault(bkPort, null);
@@ -274,9 +294,24 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         }
 
         log.info("Starting Bookie at port " + bkPort);
-        val bs = new BookieServer(conf);
+        BookieResources resources = new ResourceBuilder(conf).build();
+        Bookie bookie = createBookie(resources);
+        val bs = new BookieServer(conf, bookie, org.apache.bookkeeper.stats.NullStatsLogger.INSTANCE, UnpooledByteBufAllocator.DEFAULT,
+                new UncleanShutdownDetectionImpl(resources.getLedgerDirsManager()));
         bs.start();
-        return bs;
+        return new BookieServerAndResources(bs, resources);
+    }
+
+    private Bookie createBookie(BookieResources resources) throws Exception {
+        return new BookieImpl(resources.conf,
+                resources.registrationManager,
+                resources.storage,
+                resources.diskChecker,
+                resources.ledgerDirsManager,
+                resources.indexDirsManager,
+                NullStatsLogger.INSTANCE,
+                UnpooledByteBufAllocator.DEFAULT,
+                new SimpleBookieServiceInfoProvider(resources.conf));
     }
 
     private void setupTempDir(File dir) throws IOException {
@@ -332,5 +367,114 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         BookKeeperServiceRunner runner = b.build();
         runner.startAll();
         Thread.sleep(Long.MAX_VALUE);
+    }
+
+    @Data
+    static class BookieServerAndResources {
+        private final BookieServer bookieServer;
+        private final BookieResources resources;
+    }
+
+    /**
+     * Manages bookie resources including their cleanup.
+     */
+    @Getter
+    static class BookieResources {
+        private final ServerConfiguration conf;
+        private final MetadataBookieDriver metadataDriver;
+        private final  RegistrationManager registrationManager;
+        private final LedgerManagerFactory ledgerManagerFactory;
+        private final LedgerManager ledgerManager;
+        private final LedgerStorage storage;
+        private final DiskChecker diskChecker;
+        private final LedgerDirsManager ledgerDirsManager;
+        private final LedgerDirsManager indexDirsManager;
+
+        BookieResources(ServerConfiguration conf,
+                        MetadataBookieDriver metadataDriver,
+                        RegistrationManager registrationManager,
+                        LedgerManagerFactory ledgerManagerFactory,
+                        LedgerManager ledgerManager,
+                        LedgerStorage storage,
+                        DiskChecker diskChecker,
+                        LedgerDirsManager ledgerDirsManager,
+                        LedgerDirsManager indexDirsManager) {
+            this.conf = conf;
+            this.metadataDriver = metadataDriver;
+            this.registrationManager = registrationManager;
+            this.ledgerManagerFactory = ledgerManagerFactory;
+            this.ledgerManager = ledgerManager;
+            this.storage = storage;
+            this.diskChecker = diskChecker;
+            this.ledgerDirsManager = ledgerDirsManager;
+            this.indexDirsManager = indexDirsManager;
+        }
+
+        void cleanup() {
+            try {
+                ledgerManager.close();
+            } catch (Exception e) {
+                log.warn("Error shutting down ledger manager", e);
+            }
+            try {
+                ledgerManagerFactory.close();
+            } catch (Exception e) {
+                log.warn("Error shutting down ledger manager factory", e);
+            }
+            registrationManager.close();
+            try {
+                metadataDriver.close();
+            } catch (Exception e) {
+                log.warn("Error shutting down metadata driver", e);
+            }
+        }
+    }
+
+    /**
+     * Builder for Bookie resources.
+     */
+    static class ResourceBuilder {
+        private final ServerConfiguration conf;
+        private MetadataBookieDriver metadataBookieDriver;
+        private RegistrationManager registrationManager;
+
+        public ResourceBuilder(ServerConfiguration conf) {
+            this.conf = conf;
+        }
+
+        BookieResources build() throws Exception {
+            if (metadataBookieDriver == null) {
+                if (conf.getMetadataServiceUri() == null) {
+                    metadataBookieDriver = new NullMetadataBookieDriver();
+                } else {
+                    metadataBookieDriver = org.apache.bookkeeper.bookie.BookieResources.createMetadataDriver(conf, NullStatsLogger.INSTANCE);
+                }
+            }
+            if (registrationManager == null) {
+                registrationManager = metadataBookieDriver.createRegistrationManager();
+            }
+            LedgerManagerFactory ledgerManagerFactory = metadataBookieDriver.getLedgerManagerFactory();
+            LedgerManager ledgerManager = ledgerManagerFactory.newLedgerManager();
+
+            DiskChecker diskChecker = org.apache.bookkeeper.bookie.BookieResources.createDiskChecker(conf);
+            LedgerDirsManager ledgerDirsManager = org.apache.bookkeeper.bookie.BookieResources.createLedgerDirsManager(
+                    conf, diskChecker, NullStatsLogger.INSTANCE);
+            LedgerDirsManager indexDirsManager = org.apache.bookkeeper.bookie.BookieResources.createIndexDirsManager(
+                    conf, diskChecker, NullStatsLogger.INSTANCE, ledgerDirsManager);
+
+            LedgerStorage storage = org.apache.bookkeeper.bookie.BookieResources.createLedgerStorage(
+                    conf, ledgerManager, ledgerDirsManager, indexDirsManager,
+                    NullStatsLogger.INSTANCE, UnpooledByteBufAllocator.DEFAULT);
+
+            return new BookieResources(conf,
+                    metadataBookieDriver,
+                    registrationManager,
+                    ledgerManagerFactory,
+                    ledgerManager,
+                    storage,
+                    diskChecker,
+                    ledgerDirsManager,
+                    indexDirsManager);
+        }
     }
 }
