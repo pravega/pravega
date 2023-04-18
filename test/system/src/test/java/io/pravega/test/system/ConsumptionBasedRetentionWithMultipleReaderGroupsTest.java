@@ -42,6 +42,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -59,6 +60,9 @@ import org.junit.runner.RunWith;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -523,6 +527,95 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
                         new StreamImpl(scope, stream), 0L).join().values().stream().anyMatch(off -> off == 120),
                 5000,  2 * 60 * 1000L);
         log.info("Test Executed successfully");
+    }
+
+    @Test
+    public void streamScalingCBRTest() throws Exception {
+        Random random = RandomFactory.create();
+        String scope = "streamScalingCBRScope" + random.nextInt(Integer.MAX_VALUE);
+        String streamName = "streamScalingCBRStream" + random.nextInt(Integer.MAX_VALUE);
+        String readerGroupName = "streamScalingCBRReaderGroup" + random.nextInt(Integer.MAX_VALUE);
+        StreamConfiguration streamConfiguration = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 1))
+                .retentionPolicy(RetentionPolicy.bySizeBytes(MIN_SIZE_IN_STREAM, MAX_SIZE_IN_STREAM))
+                .build();
+        assertTrue("Creating scope", streamManager.createScope(scope));
+        assertTrue("Creating stream", streamManager.createStream(scope, streamName, streamConfiguration));
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        // Write two events.
+        writingEventsToStream(2, writer, scope, streamName);
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
+        ReaderGroupConfig readerGroupConfig = getReaderGroupConfig(scope, streamName, ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT);
+
+        assertTrue("Reader group is not created", readerGroupManager.createReaderGroup(readerGroupName, readerGroupConfig));
+        assertEquals(1, controller.listSubscribers(scope, streamName).join().size());
+
+        @Cleanup
+        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupName);
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(readerGroupName + "-" + 1,
+                readerGroupName, new JavaSerializer<>(), readerConfig, clock::get, clock::get);
+
+        // Read two events with reader.
+        readingEventsFromStream(2, reader);
+
+        Map<Double, Double> keyRanges = new HashMap<>();
+        keyRanges.put(0.0, 0.5);
+        keyRanges.put(0.5, 1.0);
+        Stream stream = new StreamImpl(scope, streamName);
+        // Stream scaling up
+        Boolean status = controller.scaleStream(stream,
+                Collections.singletonList(0L),
+                keyRanges,
+                executor).getFuture().get();
+        assertTrue(status);
+
+        // Write 7 events.
+        writingEventsToStream(7, writer, scope, streamName);
+
+        EventRead<String> eosEvent = reader.readNextEvent(READ_TIMEOUT);
+        assertNull(eosEvent.getEvent()); //Reader does not yet see the data because there has been no checkpoint
+        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("cp1", executor);
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        EventRead<String> cpEvent = reader.readNextEvent(READ_TIMEOUT);
+        assertEquals("cp1", cpEvent.getCheckpointName());
+        // Read three events with reader.
+        readingEventsFromStream(3, reader);
+        log.info("{} generating 1st stream-cut for {}/{}", readerGroupName, scope, streamName);
+        Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup, reader, clock);
+
+        log.info("{} updating its retention stream-cut to {}", readerGroupName, streamCuts);
+        readerGroup.updateRetentionStreamCut(streamCuts);
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place.", true, () -> controller.getSegmentsAtTime(
+                        stream, 0L).join().equals(streamCuts.values().stream().findFirst().get().asImpl().getPositions()),
+                5000, 2 * 60 * 1000L);
+
+        // Read two events with reader.
+        readingEventsFromStream(2, reader);
+        //Stream scaling down
+        status = controller.scaleStream(stream, Arrays.asList(NameUtils.computeSegmentId(1, 1), NameUtils.computeSegmentId(2, 1)),
+                Collections.singletonMap(0.0, 1.0), executor).getFuture().get();
+        assertTrue(status);
+
+        // Write 3 events.
+        writingEventsToStream(3, writer, scope, streamName);
+        log.info("{} generating 2nd stream-cut for {}/{}", readerGroupName, scope, streamName);
+        Map<Stream, StreamCut> streamCuts2 = generateStreamCuts(readerGroup, reader, clock);
+
+        log.info("{} updating its retention stream-cut to {}", readerGroupName, streamCuts2);
+        readerGroup.updateRetentionStreamCut(streamCuts2);
+        AssertExtensions.assertEventuallyEquals("Truncation did not take place.", true, () -> controller.getSegmentsAtTime(
+                        stream, 0L).join().equals(streamCuts2.values().stream().findFirst().get().asImpl().getPositions()),
+                5000, 2 * 60 * 1000L);
+        log.info("streamScalingCBRTest executed successfully");
     }
 
     private void writingEventsToStream(int numberOfEvents, EventStreamWriter<String> writer, String scope, String stream) {
