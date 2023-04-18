@@ -176,15 +176,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
     @Override
     public void execute() throws Exception {
-        ensureArgCount(2);
-        String tableSegmentDataChunksPath = getArg(0);
-        String container = getArg(1);
-
-        if (!NumberUtils.isNumber(container)) {
-            Preconditions.checkArgument(container.toLowerCase().equals("all"), "Container argument should either be ALL/all or a container id.");
-        } else {
-            Preconditions.checkArgument(Integer.parseInt(container) < this.containerCount, "This container id does not exist. There are %s containers present", this.containerCount);
-        }
+        validateArguments();
         @Cleanup
         Context context = createContext(executorService);
         @Cleanup
@@ -197,13 +189,16 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         output("Started ZK Client at %s.", getServiceConfig().getZkURL());
         output("Starting recovery...");
         // STEP 1: Get all the segment chunks related to the main Segment in order.
+        String tableSegmentDataChunksPath = getArg(0);
         File[] allFiles = new File(tableSegmentDataChunksPath).listFiles();
-
+        String container = getArg(1);
         int containerId = NumberUtils.isNumber(container) ? Integer.parseInt(container) : 0;
         int endContainer = containerId + 1;
         if (container.equalsIgnoreCase(ALL_CONTAINERS)) {
             containerId = 0;
             endContainer = this.containerCount;
+        } else if (getArgCount() == 3) {
+            endContainer = Integer.parseInt(getArg(2)) + 1;
         }
 
         while (containerId < endContainer) {
@@ -542,7 +537,10 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "recover-from-storage", "Recover the state of a container from what is present on tier-2.");
+        return new CommandDescriptor(COMPONENT, "recover-from-storage", "Recover the state of a container from what is present on tier-2.",
+                new ArgDescriptor("start-container-id", "The start container Id of the Segment Container that needs to be recovered, " +
+                        "if given as \"all\" all the containers will be recovered. If given as container id then that container will be recovered."), new ArgDescriptor("end-container-id", "The end container Id of the Segment Container that needs to be recovered, " +
+                "This is an optional parameter. If given, then all container from start container id to end container id will be recovered else only start container id will be recovered."));
     }
 
     // Creates the environment for debug segment container
@@ -654,6 +652,29 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             this.readIndexFactory.close();
             this.cacheManager.close();
             this.cacheStorage.close();
+        }
+    }
+
+    private void validateArguments() {
+        Preconditions.checkArgument(getArgCount() >= 2, "Incorrect argument count.");
+        final String container = getArg(1);
+
+        if (!NumberUtils.isNumber(container)) {
+            Preconditions.checkArgument(container.toLowerCase().equals("all"), "Container argument should either be ALL/all or a container id.");
+            Preconditions.checkArgument(getArgCount() == 2, "Incorrect argument count.");
+        } else {
+            final int startContainer = Integer.parseInt(container);
+            Preconditions.checkArgument(startContainer < this.containerCount, "The start container id does not exist. There are %s containers present", this.containerCount);
+            Preconditions.checkArgument(startContainer >= 0, "The start container id must be a positive number.");
+
+            if (getArgCount() >= 3) {
+                Preconditions.checkArgument(NumberUtils.isNumber(getArg(2)), "The end container id must be a number.");
+                Preconditions.checkArgument(getArgCount() == 3, "Incorrect argument count.");
+                int endContainer = Integer.parseInt(getArg(2));
+                Preconditions.checkArgument(endContainer < this.containerCount, "The end container id does not exist. There are %s containers present", this.containerCount);
+                Preconditions.checkArgument(endContainer >= 0, "The end container  id must be a positive number.");
+                Preconditions.checkArgument(endContainer >= startContainer, "End container id must be greater than or equal to start container id.");
+            }
         }
     }
 
