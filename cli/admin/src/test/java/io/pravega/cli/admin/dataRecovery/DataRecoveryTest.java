@@ -28,11 +28,25 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.common.util.ImmutableDate;
-import io.pravega.segmentstore.contracts.*;
+import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.logs.operations.*;
+import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
+import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.tables.EntrySerializer;
 import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
@@ -55,7 +69,12 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.mockito.Mockito;
 
@@ -69,7 +88,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -494,12 +520,12 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         // We can have multiple Add Edit Operations on the same sequence number.
         command.checkDurableLogEdits(Arrays.asList(
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
-                                10, 10, new DeleteSegmentOperation(0)),
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
-                                10, 10, new DeleteSegmentOperation(0)),
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
-                                10, 10, new DeleteSegmentOperation(0))));
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                        10, 10, new DeleteSegmentOperation(0)),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                        10, 10, new DeleteSegmentOperation(0)),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                        10, 10, new DeleteSegmentOperation(0))));
         AssertExtensions.assertThrows("Two non-Add Edit Operation on the same Sequence Number should not be accepted.",
                 () -> command.checkDurableLogEdits(Arrays.asList(
                         new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
@@ -922,8 +948,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         EntrySerializer entrySerializer = new EntrySerializer();
         BufferView serializedEntries = BufferView.builder().add(entrySerializer.serializeUpdate(tableSegmentPuts))
-                                                           .add(entrySerializer.serializeRemoval(tableSegmentRemovals))
-                                                           .build();
+                .add(entrySerializer.serializeRemoval(tableSegmentRemovals))
+                .build();
         InputStream serializedEntriesReader = serializedEntries.getReader();
 
         Path p1 = Files.createTempFile(testDataDir.toPath(), "chunk-1", ".txt");
@@ -1794,7 +1820,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
     private Map<String, Long> getOperationsCountMapByOperationType(List<DurableLogInspectCommand.OperationInspectInfo> originalOperations) {
         Map<String, Long> resultMap = originalOperations.size() == 0 ? new HashMap<>() :
-        originalOperations.stream().collect(Collectors.groupingBy(op -> op.getOperationTypeString(), Collectors.counting()));
+                originalOperations.stream().collect(Collectors.groupingBy(op -> op.getOperationTypeString(), Collectors.counting()));
         return resultMap;
     }
 
@@ -1811,9 +1837,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     /*
-    * Creating a test version of EntrySerializer to serialize Table Segment entry
-    * for recovery purposes without changing visibility of methods from original class.
-    * */
+     * Creating a test version of EntrySerializer to serialize Table Segment entry
+     * for recovery purposes without changing visibility of methods from original class.
+     * */
     static class MyEntrySerializer extends EntrySerializer {
 
         public static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES;
