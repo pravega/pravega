@@ -1711,8 +1711,108 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Command under test
         TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + " all", STATE.get());
         AssertExtensions.assertThrows("Container out of range ", () -> TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + "81", STATE.get()), ex -> ex instanceof IllegalArgumentException);
+        Assert.assertNotNull(RecoverFromStorageCommand.descriptor());
     }
 
+    @Test
+    public void testLTSRecoveryCommandWithEndContainerNotANumber() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("End container id must be a number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "0 all", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithStartContainerNotANumber() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("Start container id must be a number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "a 0", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithThreeArguments() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "0 0 0", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithStartContainerGreaterThanContainerCount() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("The start container id does not exist.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "4", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithEndContainerGreaterThanContainerCount() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("The end container id does not exist.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "0 4", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithNegativeStartContainer() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("The start container id must be a positive number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "-1", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithNegativeEndContainer() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("The end container id must be a positive number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "0 -1", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithMoreThanThreeArguments() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("The end container id must be a positive number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "0 0 0", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithAllAndEndContainer() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("The end container id must be a positive number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "all 0", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithEndContainerLessThanStart() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(4));
+        AssertExtensions.assertThrows("The end container id must be a positive number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "2 1", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    private Properties getProperties(int containerCount) throws Exception {
+
+        LocalServiceStarter.PravegaRunner pravegaRunner2 = new LocalServiceStarter.PravegaRunner(3, containerCount);
+        pravegaRunner2.startBookKeeperRunner(1);
+
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", String.valueOf(containerCount));
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "CHUNKED_STORAGE");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner2.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.zk.connect.uri", "localhost:" + pravegaRunner2.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner2.getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner2.getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", pravegaRunner2.getBookKeeperRunner().getBaseNamespace());
+        pravegaProperties.setProperty("writer.flush.attributes.threshold", "1");
+
+        return pravegaProperties;
+    }
 
     private List<DurableLogInspectCommand.OperationInspectInfo> getSavedResult(String inspectResult) {
         List<DurableLogInspectCommand.OperationInspectInfo> savedResults = new ArrayList<>();
