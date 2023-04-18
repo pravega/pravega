@@ -20,6 +20,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -1711,6 +1712,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Command under test
         TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + " all", STATE.get());
         AssertExtensions.assertThrows("Container out of range ", () -> TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + "81", STATE.get()), ex -> ex instanceof IllegalArgumentException);
+        Assert.assertNotNull(RecoverFromStorageCommand.descriptor());
     }
 
     @Test
