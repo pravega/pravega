@@ -661,7 +661,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
         if (!NumberUtils.isNumber(container)) {
             Preconditions.checkArgument(container.toLowerCase().equals("all"), "Container argument should either be ALL/all or a container id.");
-            Preconditions.checkArgument(getArgCount() >= 2, "Incorrect argument count.");
+            Preconditions.checkArgument(getArgCount() == 2, "Incorrect argument count.");
         } else {
             final int startContainer = Integer.parseInt(container);
             Preconditions.checkArgument(startContainer < this.containerCount, "The start container id does not exist. There are %s containers present", this.containerCount);
