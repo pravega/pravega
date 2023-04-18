@@ -23,6 +23,7 @@ import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.common.util.btree.BTreeIndex;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -43,6 +44,7 @@ import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
 import io.pravega.segmentstore.server.containers.MetadataStore;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
+import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
@@ -104,6 +106,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private static final String RG_SCALE_GROUP = "scaleGroup";
     private static final String SYSJOURNAL_BACKUP_EXTENSION = ".backup";
     private static final String EVENT_PROCESSEOR_SEGMENT = "event_processor_GC";
+    private static final String COMMIT_STREAM_READERS = "commitStreamReaders";
     private static final String EPOCH_SPLITTER = ".E-";
     private static final String OFFSET_SPLITTER = "O-";
     private static final String CHUNK_FIELD_SEPARATOR = "-";
@@ -117,7 +120,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private static final int RETRY_ATTEMPT = 10;
     private static final int CONTAINER_CLOSE_WAIT_TIME_MILLIS = 5000;
     private static final String ALL_CONTAINERS = "all";
-    private final WriterConfig writerConfig = WriterConfig.builder().with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, 1).build(); // flush attributes immediately
+    private final WriterConfig writerConfig = WriterConfig.builder().build();
     private final ScheduledExecutorService executorService = getCommandArgs().getState().getExecutor();
     private final int containerCount;
     private final StorageFactory storageFactory;
@@ -317,7 +320,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         List<File> filteredFiles =  Arrays.stream(allFiles)
                 .filter(File::isFile)
                 .filter(f -> !f.getName().contains(ATTRIBUTE_SUFFIX))
-                .filter(f -> f.getName().split(EPOCH_SPLITTER)[0].contains("_" + String.valueOf(containerId)))
+                .filter(f -> f.getName().split(EPOCH_SPLITTER)[0].endsWith("_" + String.valueOf(containerId)))
                 .collect(Collectors.toList());
         return filteredFiles.toArray(new File[filteredFiles.size()]);
     }
@@ -435,10 +438,6 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
             if (operation instanceof TableSegmentUtils.PutOperation) {
                 MetadataStore.SegmentInfo segmentInfo = SERIALIZER.deserialize(new ByteArraySegment(unversionedEntry.getValue().getCopy()).getReader());
-                if ( segmentInfo.getProperties().getName().contains(NameUtils.getStorageMetadataSegmentName(container.getId()))) {
-                    // Reset storage_metadata segment to have 0 storageLength to avoid storage Length error in {@link SegmentAggregator@initialize} method.
-                    segmentInfo = resetStorageSegment(segmentInfo);
-                }
                 // Reset Segment ID to "NO_STREAM_SEGMENT_ID" to avoid segment id conflicts with some segments that get created when container starts up immediately after recovery.
                 ByteArraySegment segment = SERIALIZER.serialize(resetSegmentID(segmentInfo));
                 unversionedEntry = TableEntry.unversioned(unversionedEntry.getKey().getKey(), segment );
@@ -447,20 +446,43 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
             }
         }
+        //reset the core attribs in storage_segment so as to allow the attributes
+        //index to get generated with flush-to-storage being invoked.
+        resetStorageSegment(container);
     }
 
     /**
-     *  Resets the Storage segment
+     * Reset the storage_metadata segment,especially, some of the core attributes
+     * from the recovered segment. Resetting these will allow the operations
+     * parsed from storage_metadata chunks to be processed.
+     * @param container Container being recoverd.
+     * @throws Exception
      */
-    private MetadataStore.SegmentInfo resetStorageSegment(MetadataStore.SegmentInfo segmentInfo) {
+    private void resetStorageSegment(DebugStreamSegmentContainer container) throws Exception {
+        ContainerTableExtension tableExtension = container.getExtension(ContainerTableExtension.class);
+        List<TableEntry> entries = tableExtension.get(NameUtils.getMetadataSegmentName(container.getId()),
+                Collections.singletonList(BufferView.wrap(NameUtils.getStorageMetadataSegmentName(container.getId()).getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
+        TableEntry entry = entries.get(0);
+        TableEntry unversionedEntry = TableEntry.unversioned(entry.getKey().getKey(), entry.getValue());
+        MetadataStore.SegmentInfo segmentInfo = SERIALIZER.deserialize(new ByteArraySegment(unversionedEntry.getValue().getCopy()).getReader());
+
+        Map<AttributeId, Long> attribs = new HashMap<>(segmentInfo.getProperties().getAttributes());
+        attribs.put(TableAttributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, Operation.NO_SEQUENCE_NUMBER);
+        attribs.put(TableAttributes.INDEX_OFFSET, 0L);
+        attribs.put(TableAttributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, BTreeIndex.IndexInfo.EMPTY.getRootPointer());
         StreamSegmentInformation segmentInformation = StreamSegmentInformation.builder()
                 .name(segmentInfo.getProperties().getName())
                 .attributes(segmentInfo.getProperties().getAttributes())
+                .attributes(attribs)
                 .build();
-        return MetadataStore.SegmentInfo.builder()
+        MetadataStore.SegmentInfo newSegmentInfo =  MetadataStore.SegmentInfo.builder()
                 .properties(segmentInformation)
                 .segmentId(segmentInfo.getSegmentId())
                 .build();
+
+        ByteArraySegment segment = SERIALIZER.serialize(resetSegmentID(newSegmentInfo));
+        unversionedEntry = TableEntry.unversioned(unversionedEntry.getKey().getKey(), segment );
+        tableExtension.put(NameUtils.getMetadataSegmentName(container.getId()), Collections.singletonList(unversionedEntry), TIMEOUT).join();
     }
 
     private MetadataStore.SegmentInfo resetSegmentID(MetadataStore.SegmentInfo segmentInfo) {
@@ -507,7 +529,9 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         // 2. Recovering EVENT_PROCESSOR_SEGMENT leads to length mismatch issues between container and storage
         //    metadata as EVENT_PROCESSOR_SEGMENTS are created by default when container starts and then as part
         //    of recovery, when container comes up we update the lenghts in the metadata.
-        if (segmentName.contains(RG_SCALE_GROUP) || segmentName.contains(EVENT_PROCESSEOR_SEGMENT)) {
+        // 3. Same as scaleGroup for COMMIT_STREAM_READERS
+        if (segmentName.contains(RG_SCALE_GROUP) || segmentName.contains(EVENT_PROCESSEOR_SEGMENT)
+            || segmentName.contains(COMMIT_STREAM_READERS)) {
             return false;
         }
         return true;
