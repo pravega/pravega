@@ -537,7 +537,10 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "recover-from-storage", "Recover the state of a container from what is present on tier-2.");
+        return new CommandDescriptor(COMPONENT, "recover-from-storage", "Recover the state of a container from what is present on tier-2.",
+                new ArgDescriptor("start-container-id", "The start container Id of the Segment Container that needs to be recovered, " +
+                "if given as \"all\" all the containers will be recovered. If given as container id without "), new ArgDescriptor("end-container-id", "The end container Id of the Segment Container that needs to be recovered, " +
+                "This is an optional parameter. If not given then only start container id will be recovered."));
     }
 
     // Creates the environment for debug segment container
