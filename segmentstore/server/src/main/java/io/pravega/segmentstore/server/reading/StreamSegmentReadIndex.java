@@ -74,6 +74,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     @GuardedBy("lock")
     private final SortedIndex<ReadIndexEntry> indexEntries;
     private final ReadIndexConfig config;
+    @GuardedBy("lock")
     private final CacheStorage cacheStorage;
     private final FutureReadResultEntryCollection futureReads;
     @GuardedBy("lock")
@@ -585,7 +586,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         // Add append data to the Data Store.
-        appendLength = this.cacheStorage.append(entry.getCacheAddress(), (int) entry.getLength(), data);
+        synchronized (this.lock) {
+            appendLength = this.cacheStorage.append(entry.getCacheAddress(), (int) entry.getLength(), data);
+        }
         entry.increaseLength(appendLength);
         entry.setGeneration(this.summary.touchOne(entry.getGeneration()));
         return appendLength;
@@ -617,7 +620,10 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @return A {@link CacheIndexEntry} representing the index entry added.
      */
     private CacheIndexEntry appendSingleEntryToCacheAndIndex(BufferView data, long segmentOffset) {
-        int dataAddress = this.cacheStorage.insert(data);
+        int dataAddress;
+        synchronized (this.lock) {
+            dataAddress = this.cacheStorage.insert(data);
+        }
         CacheIndexEntry newEntry;
         try {
             newEntry = new CacheIndexEntry(segmentOffset, data.getLength(), dataAddress);
@@ -628,8 +634,10 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             }
         } catch (Throwable ex) {
             if (!Exceptions.mustRethrow(ex)) {
-                // Clean up the data we inserted if we were unable to add it to the index.
-                this.cacheStorage.delete(dataAddress);
+                synchronized (this.lock) {
+                    // Clean up the data we inserted if we were unable to add it to the index.
+                    this.cacheStorage.delete(dataAddress);
+                }
             }
             throw ex;
         }
@@ -668,14 +676,18 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                     CacheIndexEntry newEntry;
                     int dataAddress = CacheStorage.NO_ADDRESS; // Null address pointer.
                     try {
-                        dataAddress = this.cacheStorage.insert(dataToInsert);
+                        synchronized (this.lock) {
+                            dataAddress = this.cacheStorage.insert(dataToInsert);
+                        }
                         newEntry = new CacheIndexEntry(segmentOffset, dataToInsert.getLength(), dataAddress);
                         ReadIndexEntry overriddenEntry = addToIndex(newEntry);
                         assert overriddenEntry == null : "Insert overrode existing entry; " + segmentOffset + ":" + dataToInsert.getLength();
                         lastInsertedEntry = newEntry;
                     } catch (Throwable ex) {
-                        // Clean up the data we might have inserted if we were unable to add it to the index.
-                        this.cacheStorage.delete(dataAddress);
+                        synchronized (this.lock) {
+                            // Clean up the data we might have inserted if we were unable to add it to the index.
+                            this.cacheStorage.delete(dataAddress);
+                        }
                         throw ex;
                     }
                 }
@@ -1330,7 +1342,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     private void deleteData(ReadIndexEntry entry) {
         if (entry.isDataEntry()) {
-            this.cacheStorage.delete(entry.getCacheAddress());
+            synchronized (this.lock) {
+                this.cacheStorage.delete(entry.getCacheAddress());
+            }
         }
     }
 

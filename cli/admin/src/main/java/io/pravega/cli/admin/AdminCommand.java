@@ -32,6 +32,11 @@ import io.pravega.cli.admin.bookkeeper.BookKeeperLogReconcileCommand;
 import io.pravega.cli.admin.bookkeeper.BookkeeperDeleteLedgersCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerContinuousRecoveryCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerRecoverCommand;
+import io.pravega.cli.admin.cluster.GetClusterNodesCommand;
+import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
+import io.pravega.cli.admin.cluster.ListContainersCommand;
+import io.pravega.cli.admin.config.ConfigListCommand;
+import io.pravega.cli.admin.config.ConfigSetCommand;
 import io.pravega.cli.admin.controller.ControllerDeleteReaderGroupCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeReaderGroupCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeScopeCommand;
@@ -39,24 +44,19 @@ import io.pravega.cli.admin.controller.ControllerDescribeStreamCommand;
 import io.pravega.cli.admin.controller.ControllerListReaderGroupsInScopeCommand;
 import io.pravega.cli.admin.controller.ControllerListScopesCommand;
 import io.pravega.cli.admin.controller.ControllerListStreamsInScopeCommand;
-import io.pravega.cli.admin.controller.metadata.ControllerMetadataTablesInfoCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataGetEntryCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListEntriesCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataListKeysCommand;
+import io.pravega.cli.admin.controller.metadata.ControllerMetadataTablesInfoCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataUpdateEntryCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewPendingEventsCommand;
 import io.pravega.cli.admin.controller.metadata.ControllerMetadataViewReaderInfoCommand;
-import io.pravega.cli.admin.dataRecovery.DurableLogInspectCommand;
-import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
 import io.pravega.cli.admin.dataRecovery.DurableDataLogRepairCommand;
+import io.pravega.cli.admin.dataRecovery.DurableLogInspectCommand;
+import io.pravega.cli.admin.dataRecovery.RecoverFromStorageCommand;
 import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
 import io.pravega.cli.admin.dataRecovery.TableSegmentRecoveryCommand;
 import io.pravega.cli.admin.password.PasswordFileCreatorCommand;
-import io.pravega.cli.admin.cluster.GetClusterNodesCommand;
-import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
-import io.pravega.cli.admin.cluster.ListContainersCommand;
-import io.pravega.cli.admin.config.ConfigListCommand;
-import io.pravega.cli.admin.config.ConfigSetCommand;
 import io.pravega.cli.admin.readerGroup.ParseReaderGroupStreamCommand;
 import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
@@ -90,6 +90,17 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.shared.security.auth.DefaultCredentials;
+import lombok.AccessLevel;
+import lombok.Data;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import lombok.SneakyThrows;
+import lombok.val;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 
 import java.io.PrintStream;
 import java.net.URI;
@@ -103,18 +114,6 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import io.pravega.shared.security.auth.DefaultCredentials;
-import lombok.AccessLevel;
-import lombok.Data;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.Setter;
-import lombok.SneakyThrows;
-import lombok.val;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 
 /**
  * Base class for any command to execute from the Admin tool.
@@ -393,7 +392,7 @@ public abstract class AdminCommand {
                         .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)
                         .put(StorageUpdateSnapshotCommand::descriptor, StorageUpdateSnapshotCommand::new)
                         .put(DurableLogInspectCommand::descriptor, DurableLogInspectCommand::new)
-                        .put(DurableLogRecoveryCommand::descriptor, DurableLogRecoveryCommand::new)
+                        .put(RecoverFromStorageCommand::descriptor, RecoverFromStorageCommand::new)
                         .put(DurableDataLogRepairCommand::descriptor, DurableDataLogRepairCommand::new)
                         .put(TableSegmentRecoveryCommand::descriptor, TableSegmentRecoveryCommand::new)
                         .put(GetSegmentInfoCommand::descriptor, GetSegmentInfoCommand::new)
