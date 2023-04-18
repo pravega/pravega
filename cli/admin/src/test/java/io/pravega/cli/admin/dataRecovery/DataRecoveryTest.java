@@ -1771,6 +1771,22 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testLTSRecoveryCommandWithMoreThanThreeArguments() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("The end container id must be a positive number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "0 0 0", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithAllAndEndContainer() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("The end container id must be a positive number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "all 0", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
     public void testLTSRecoveryCommandWithEndContainerLessThanStart() throws Exception {
         STATE.set(new AdminCommandState());
         STATE.get().getConfigBuilder().include(getProperties(4));
