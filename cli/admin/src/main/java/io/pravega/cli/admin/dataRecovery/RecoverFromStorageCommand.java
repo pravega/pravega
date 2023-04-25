@@ -70,6 +70,7 @@ import lombok.Cleanup;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.lang.math.NumberUtils;
 
 import java.io.File;
@@ -78,6 +79,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -126,6 +128,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private final StorageFactory storageFactory;
     private final String tier2Root = getCommandArgs().getState().getConfigBuilder().build().getConfig(FileSystemStorageConfig::builder).getRoot();
     private final String containersPath = File.separator + "_system" + File.separator + "containers";
+    private final Collection<String> deletedSegments = new HashSet<>();
 
     /**
      * Creates an instance of RecoverFromStorageCommand class.
@@ -350,6 +353,10 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         for (String segment : segments) {
             List<TableEntry> entries = extension.get(NameUtils.getStorageMetadataSegmentName(container.getId()), Collections.singletonList(BufferView.wrap(segment.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
             TableEntry entry = entries.get(0);
+            if (entry == null) {
+                // skip entries having null values
+                continue;
+            }
             StorageMetadata storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().getCopy()).getValue();
             if (storageMetadata instanceof SegmentMetadata) {
                 SegmentMetadata storageSegment = (SegmentMetadata) storageMetadata;
@@ -510,6 +517,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             if (operation instanceof TableSegmentUtils.PutOperation) {
                 tableExtension.put(tableSegment, Collections.singletonList(unversionedEntry), TIMEOUT).join();
             } else {
+                deletedSegments.add(segment); //track deleted segments/chunks and skip querying them during validation.
                 tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
             }
         }
@@ -596,25 +604,31 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             ContainerTableExtension extension = this.container.getExtension(ContainerTableExtension.class);
             boolean isValid = true;
             try {
+                if (deletedSegments.contains(segment)) {
+                    return true;
+                }
                 List<TableEntry> entries = extension.get(NameUtils.getStorageMetadataSegmentName(this.container.getId()), Collections.singletonList(BufferView.wrap(segment.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
                 TableEntry entry = entries.get(0);
+                if (entry == null) {
+                    return true;
+                }
                 StorageMetadata storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().getCopy()).getValue();
                 if (storageMetadata instanceof ChunkMetadata) {
                     ChunkMetadata chunkMetdata = (ChunkMetadata) storageMetadata;
                     if (chunkMetdata.getNextChunk() != null && !chunkMetdata.getNextChunk().equalsIgnoreCase("null")) {
-                        return validateSegment(chunkMetdata.getNextChunk());
+                        isValid = validateSegment(chunkMetdata.getNextChunk());
                     } else {
-                        return true;
+                        isValid = true; //checkstyle
                     }
                 }
                 if (storageMetadata instanceof SegmentMetadata) {
                     SegmentMetadata segmentMetadata = (SegmentMetadata) storageMetadata;
                     if (segmentMetadata.isActive() && segmentMetadata.getFirstChunk() != null && !segmentMetadata.getFirstChunk().equalsIgnoreCase("null")) {
-                        return validateSegment(segmentMetadata.getFirstChunk());
+                        isValid = validateSegment(segmentMetadata.getFirstChunk());
                     }
                 }
             } catch (Exception e) {
-                output("There was exception fetching entry from " + NameUtils.getStorageMetadataSegmentName(this.container.getId()) + " exception " + e);
+                output("Error validating segment/chunk %s from %s . Exception %s", segment, NameUtils.getStorageMetadataSegmentName(this.container.getId()), ExceptionUtils.getStackTrace(e));
                 isValid = false;
             }
             return isValid;
@@ -644,7 +658,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         }
 
         private ContainerTableExtension createTableExtension(SegmentContainer c, ScheduledExecutorService e) {
-            return new ContainerTableExtensionImpl(TableExtensionConfig.builder().build(), c, this.cacheManager, e);
+            TableExtensionConfig tableExtensionConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(TableExtensionConfig::builder);
+            return new ContainerTableExtensionImpl(tableExtensionConfig, c, this.cacheManager, e);
         }
 
         @Override
