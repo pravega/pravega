@@ -70,7 +70,6 @@ import lombok.Cleanup;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.lang.math.NumberUtils;
 
 import java.io.File;
@@ -628,7 +627,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                     }
                 }
             } catch (Exception e) {
-                output("Error validating segment/chunk %s from %s . Exception %s", segment, NameUtils.getStorageMetadataSegmentName(this.container.getId()), ExceptionUtils.getStackTrace(e));
+                output("There was exception fetching entry from " + NameUtils.getStorageMetadataSegmentName(this.container.getId()) + " exception " + e);
                 isValid = false;
             }
             return isValid;

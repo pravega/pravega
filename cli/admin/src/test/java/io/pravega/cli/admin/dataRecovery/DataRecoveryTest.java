@@ -1652,8 +1652,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
-        // 100kb rollover size so that there are multiple chunks created. Helps with unit test coverage.
-        ChunkedSegmentStorageConfig storageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().storageMetadataRollingPolicy(new SegmentRollingPolicy(100L * 1000L)).build();
+        // 20B rollover size so that there are multiple chunks created. Helps with unit test coverage.
+        ChunkedSegmentStorageConfig storageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().storageMetadataRollingPolicy(new SegmentRollingPolicy(20L)).build();
         this.storageFactory = new FileSystemSimpleStorageFactory(storageConfig, adapterConfig, executorService());
 
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
