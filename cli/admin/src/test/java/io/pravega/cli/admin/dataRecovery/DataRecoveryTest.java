@@ -1652,8 +1652,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
-        // 20B rollover size so that there are multiple chunks created. Helps with unit test coverage.
-        ChunkedSegmentStorageConfig storageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().storageMetadataRollingPolicy(new SegmentRollingPolicy(20L)).build();
+        // 100KB rollover size so that there are multiple chunks created. Helps with unit test coverage.
+        ChunkedSegmentStorageConfig storageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().storageMetadataRollingPolicy(new SegmentRollingPolicy(100L * 1000L)).build();
         this.storageFactory = new FileSystemSimpleStorageFactory(storageConfig, adapterConfig, executorService());
 
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
@@ -1665,6 +1665,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
             TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
         TestUtils.deleteScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName);
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
         pravegaRunner.shutDownControllerRunner(); // Shut down the controller
 
         // Flush all Tier 1 to LTS
