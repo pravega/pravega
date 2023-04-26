@@ -809,10 +809,15 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         close("garbageCollector", this.garbageCollector);
         // taskQueue is per instance so safe to close this here.
         close("taskQueue", this.taskQueue);
+
+        // Do not forget to close ChunkStorage.
+        close("chunkStorage", this.chunkStorage);
+
         this.reporter.cancel(true);
         if (null != this.storageChecker) {
             this.storageChecker.cancel(true);
         }
+
         this.closed.set(true);
     }
 
