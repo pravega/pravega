@@ -615,9 +615,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 if (storageMetadata instanceof ChunkMetadata) {
                     ChunkMetadata chunkMetdata = (ChunkMetadata) storageMetadata;
                     if (chunkMetdata.getNextChunk() != null && !chunkMetdata.getNextChunk().equalsIgnoreCase("null")) {
-                        isValid = validateSegment(chunkMetdata.getNextChunk());
-                    } else {
-                        isValid = true; //checkstyle
+                        return validateSegment(chunkMetdata.getNextChunk());
                     }
                 }
                 if (storageMetadata instanceof SegmentMetadata) {
