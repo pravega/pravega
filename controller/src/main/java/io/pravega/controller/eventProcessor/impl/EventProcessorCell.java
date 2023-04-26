@@ -38,6 +38,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -84,6 +85,8 @@ class EventProcessorCell<T extends ControllerEvent> {
         private final EventProcessorConfig<T> eventProcessorConfig;
         private EventRead<T> event;
         private final CheckpointState state;
+        private Thread currentThread;
+        private AtomicBoolean interruptFlag = new AtomicBoolean(false);
 
         Delegate(final EventProcessorConfig<T> eventProcessorConfig) {
             this.eventProcessorConfig = eventProcessorConfig;
@@ -104,7 +107,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         @Override
         protected final void run() throws Exception {
             log.debug("Event processor RUN {}, state={}", objectId, state());
-
+            this.currentThread = Thread.currentThread();
             while (isRunning()) {
                 try {
                     event = reader.readNextEvent(defaultTimeout);
@@ -116,7 +119,10 @@ class EventProcessorCell<T extends ControllerEvent> {
                         state.store(event.getPosition());
                     }
                 } catch (Exception e) {
-                    handleException(e);
+                    log.warn("Exception in Delegate run method. EventProcessor {} is interrupted: {}", objectId, interruptFlag.get());
+                    if( !interruptFlag.get()) {
+                        handleException(e);
+                    }
                 }
             }
         }
@@ -145,7 +151,12 @@ class EventProcessorCell<T extends ControllerEvent> {
                 }
             }
         }
-
+        @Override
+        protected void triggerShutdown(){
+            log.info("Event processor triggerShutdown called for {}", objectId);
+            this.interruptFlag.set(true);
+            this.currentThread.interrupt();
+        }
         private void restart(Throwable error, T event) {
             log.debug("Event processor RESTART {}, state={}", objectId, state());
             try {

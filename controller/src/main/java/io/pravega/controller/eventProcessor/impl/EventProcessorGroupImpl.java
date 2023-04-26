@@ -229,7 +229,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 // Finally, clean up Reader Group data from Checkpoint store.
                 try {
                     cleanupReaderGroup(actorSystem.getProcess(), readerPositions);
-                } catch (CheckpointStoreException e) {
+                } catch (Exception e) {
                     log.warn("Error removing data for Reader Group {} from checkpoint store. ", readerGroup.getGroupName(), e);
                 }
                 readerGroup.close();
