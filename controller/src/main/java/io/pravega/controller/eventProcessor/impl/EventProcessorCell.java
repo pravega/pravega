@@ -120,7 +120,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                     }
                 } catch (Exception e) {
                     log.warn("Exception in Delegate run method. EventProcessor {} is interrupted: {}", objectId, interruptFlag.get());
-                    if( !interruptFlag.get()) {
+                    if ( !interruptFlag.get()) {
                         handleException(e);
                     }
                 }
@@ -151,12 +151,14 @@ class EventProcessorCell<T extends ControllerEvent> {
                 }
             }
         }
+
         @Override
-        protected void triggerShutdown(){
+        protected void triggerShutdown() {
             log.info("Event processor triggerShutdown called for {}", objectId);
             this.interruptFlag.set(true);
             this.currentThread.interrupt();
         }
+        
         private void restart(Throwable error, T event) {
             log.debug("Event processor RESTART {}, state={}", objectId, state());
             try {
