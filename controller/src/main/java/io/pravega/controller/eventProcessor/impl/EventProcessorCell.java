@@ -155,8 +155,10 @@ class EventProcessorCell<T extends ControllerEvent> {
         @Override
         protected void triggerShutdown() {
             log.info("Event processor triggerShutdown called for {}", objectId);
-            this.interruptFlag.set(true);
-            this.currentThread.interrupt();
+            if (this.currentThread != null && Thread.State.WAITING.equals(this.currentThread.getState())) {
+                this.interruptFlag.set(true);
+                this.currentThread.interrupt();
+            }
         }
         
         private void restart(Throwable error, T event) {
