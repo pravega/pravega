@@ -545,4 +545,20 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
                 () -> chunkedSegmentStorage.listSegments().get(),
                 ex -> clazz.equals(ex.getClass()));
     }
+
+    @Test
+    public void testClose() {
+        @Cleanup
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
+
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        chunkedSegmentStorage.initialize(1);
+
+        chunkedSegmentStorage.close();
+
+        // Verify that chunkStorage is closed
+        verify(spyChunkStorage).close();
+    }
 }
