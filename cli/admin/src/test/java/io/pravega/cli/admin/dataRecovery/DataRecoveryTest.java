@@ -37,6 +37,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
@@ -53,6 +54,7 @@ import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
@@ -96,6 +98,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -1713,6 +1716,29 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + " all", STATE.get());
         AssertExtensions.assertThrows("Container out of range ", () -> TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + "81", STATE.get()), ex -> ex instanceof IllegalArgumentException);
         Assert.assertNotNull(RecoverFromStorageCommand.descriptor());
+    }
+
+    @Test
+    public void testLTSRecoveryNullEntry() throws Exception {
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        CommandArgs args = new CommandArgs(List.of("/tmp/metadata", "all"), STATE.get());
+        RecoverFromStorageCommand command = new RecoverFromStorageCommand(args);
+        @Cleanup
+        DebugStreamSegmentContainer container = Mockito.mock(DebugStreamSegmentContainer.class);
+        ContainerTableExtension extension = Mockito.mock(ContainerTableExtension.class);
+        List<TableEntry> entries = new ArrayList<>();
+        entries.add(null);
+        CompletableFuture<List<TableEntry>> cf = CompletableFuture.supplyAsync(() -> entries);
+        Mockito.doReturn( cf ).when(extension).get(Mockito.any(), Mockito.any(), Mockito.any());
+        Mockito.doReturn(extension).when(container).getExtension(Mockito.any());
+        RecoverFromStorageCommand.ChunkValidator chunkValidator = Mockito.spy(command.new ChunkValidator(container));
+        command.setDeletedSegments("testSegemnt");
+        Assert.assertTrue(chunkValidator.validateSegment("testSegemnt"));
+        Assert.assertTrue(chunkValidator.validateSegment("testSegemnt1"));
     }
 
     @Test

@@ -15,6 +15,7 @@
  */
 package io.pravega.cli.admin.dataRecovery;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TableSegmentUtils;
@@ -108,6 +109,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private static final String SYSJOURNAL_BACKUP_EXTENSION = ".backup";
     private static final String EVENT_PROCESSEOR_SEGMENT = "event_processor_GC";
     private static final String COMMIT_STREAM_READERS = "commitStreamReaders";
+    private static final String ABORT_STREAM_READERS = "abortStreamReaders";
+    private static final String KVT_STREAM_READERS = "kvtStreamReaders";
     private static final String EPOCH_SPLITTER = ".E-";
     private static final String OFFSET_SPLITTER = "O-";
     private static final String CHUNK_FIELD_SEPARATOR = "-";
@@ -533,7 +536,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         //    of recovery, when container comes up we update the lenghts in the metadata.
         // 3. Same as scaleGroup for COMMIT_STREAM_READERS
         if (segmentName.contains(RG_SCALE_GROUP) || segmentName.contains(EVENT_PROCESSEOR_SEGMENT)
-            || segmentName.contains(COMMIT_STREAM_READERS)) {
+            || segmentName.contains(COMMIT_STREAM_READERS) || segmentName.contains(ABORT_STREAM_READERS)
+            || segmentName.contains(KVT_STREAM_READERS)) {
             return false;
         }
         return true;
@@ -565,8 +569,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         boolean validate() throws Exception;
     }
 
-    private class ChunkValidator implements Validator {
-
+    @VisibleForTesting
+    protected class ChunkValidator implements Validator {
         DebugStreamSegmentContainer container;
 
         ChunkValidator(DebugStreamSegmentContainer container) {
@@ -597,9 +601,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
          *
          * @param segment Segment whose chunks need to be checked for presence.
          * @return True if all chunks of a segment are found in metadata, false otherwise.
-         * @throws Exception
          */
-        private boolean validateSegment(String segment) throws Exception {
+        protected boolean validateSegment(String segment) {
             ContainerTableExtension extension = this.container.getExtension(ContainerTableExtension.class);
             boolean isValid = true;
             try {
@@ -690,4 +693,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         }
     }
 
+    @VisibleForTesting
+    protected void setDeletedSegments(String segment) {
+        this.deletedSegments.add(segment);
+    }
 }
