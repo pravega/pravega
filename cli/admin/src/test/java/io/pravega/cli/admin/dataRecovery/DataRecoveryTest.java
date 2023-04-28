@@ -60,6 +60,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.DebugBookKeeperLogWrapper;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyBookkeeperLogMetadata;
+import io.pravega.cli.admin.dataRecovery.RecoverFromStorageCommand.ChunkValidator;
 import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.test.common.AssertExtensions;
@@ -105,6 +106,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doReturn;
 
 /**
  * Tests Data recovery commands.
@@ -1728,14 +1734,14 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         CommandArgs args = new CommandArgs(List.of("/tmp/metadata", "all"), STATE.get());
         RecoverFromStorageCommand command = new RecoverFromStorageCommand(args);
         @Cleanup
-        DebugStreamSegmentContainer container = Mockito.mock(DebugStreamSegmentContainer.class);
-        ContainerTableExtension extension = Mockito.mock(ContainerTableExtension.class);
+        DebugStreamSegmentContainer container = mock(DebugStreamSegmentContainer.class);
+        ContainerTableExtension extension = mock(ContainerTableExtension.class);
         List<TableEntry> entries = new ArrayList<>();
         entries.add(null);
         CompletableFuture<List<TableEntry>> cf = CompletableFuture.supplyAsync(() -> entries);
-        Mockito.doReturn( cf ).when(extension).get(Mockito.any(), Mockito.any(), Mockito.any());
-        Mockito.doReturn(extension).when(container).getExtension(Mockito.any());
-        RecoverFromStorageCommand.ChunkValidator chunkValidator = Mockito.spy(command.new ChunkValidator(container));
+        doReturn( cf ).when(extension).get(any(), any(), any());
+        doReturn(extension).when(container).getExtension(any());
+        ChunkValidator chunkValidator = spy(command.new ChunkValidator(container));
         command.setDeletedSegments("testSegemnt");
         Assert.assertTrue(chunkValidator.validateSegment("testSegemnt"));
         Assert.assertTrue(chunkValidator.validateSegment("testSegemnt1"));
