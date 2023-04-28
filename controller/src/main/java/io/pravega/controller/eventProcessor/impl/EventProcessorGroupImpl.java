@@ -214,7 +214,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 // Initiate stop on all event processor cells
                 for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
                     log.info("Terminating event processor cell: {}", cell);
-                    cell.stopAsync();
+                    cell.stopAsync(true);
                 }
                 // Await termination of cells
                 for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
@@ -377,7 +377,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             EventProcessorCell<T> cell = eventProcessorMap.get(readerId);
             log.info("Stopping event processor cell: {}", cell);
             try {
-                cell.stopAsync();
+                cell.stopAsync(false);
                 cell.awaitTerminated();
                 checkpointStore.removeReader(cell.getProcess(), readerGroup.getGroupName(), readerId);
                 eventProcessorMap.remove(readerId);

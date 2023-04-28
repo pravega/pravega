@@ -67,6 +67,7 @@ class EventProcessorCell<T extends ControllerEvent> {
     private final String readerId;
     private final String objectId;
     private final AtomicReference<Position> lastCheckpoint;
+    private final AtomicReference<Boolean> isDelegateInterrupted = new AtomicReference<>(false);
 
     @VisibleForTesting
     @Getter(value = AccessLevel.PACKAGE)
@@ -155,7 +156,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         @Override
         protected void triggerShutdown() {
             log.info("Event processor triggerShutdown called for {}", objectId);
-            if (this.currentThread != null && Thread.State.WAITING.equals(this.currentThread.getState())) {
+            if (isDelegateInterrupted.get() && this.currentThread != null ) {
                 this.interruptFlag.set(true);
                 this.currentThread.interrupt();
             }
@@ -280,9 +281,10 @@ class EventProcessorCell<T extends ControllerEvent> {
         }
     }
 
-    final void stopAsync() {
+    final void stopAsync(Boolean interruptDelegate) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "stopAsync");
         try {
+            isDelegateInterrupted.set(interruptDelegate);
             delegate.stopAsync();
             log.info("Event processor cell {} SHUTDOWN issued", this.objectId);
         } finally {
