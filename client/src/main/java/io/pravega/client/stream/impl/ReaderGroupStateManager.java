@@ -81,11 +81,11 @@ import static io.pravega.common.concurrent.Futures.getThrowingException;
 @Slf4j
 public class ReaderGroupStateManager {
     
-    static final Duration TIME_UNIT = Duration.ofMillis(1000);
-    static final Duration UPDATE_WINDOW = Duration.ofMillis(30000);
-    static final Duration UPDATE_CONFIG_WINDOW = Duration.ofMillis(10000);
-    private static final double COMPACTION_PROBABILITY = 0.05;
-    private static final int MIN_BYTES_BETWEEN_COMPACTIONS = 512 * 1024;
+    static final Duration TIME_UNIT = Duration.ofMillis(1);
+    static final Duration UPDATE_WINDOW = Duration.ofMillis(30);
+    static final Duration UPDATE_CONFIG_WINDOW = Duration.ofMillis(10);
+    private static final double COMPACTION_PROBABILITY = 0.5;
+    private static final int MIN_BYTES_BETWEEN_COMPACTIONS = 1 * 1;
     private final Object decisionLock = new Object();
     private final HashHelper hashHelper;
     @Getter
