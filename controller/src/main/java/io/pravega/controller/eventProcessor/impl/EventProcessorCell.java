@@ -67,7 +67,6 @@ class EventProcessorCell<T extends ControllerEvent> {
     private final String readerId;
     private final String objectId;
     private final AtomicReference<Position> lastCheckpoint;
-    private final AtomicReference<Boolean> isDelegateInterrupted = new AtomicReference<>(false);
 
     @VisibleForTesting
     @Getter(value = AccessLevel.PACKAGE)
@@ -78,7 +77,7 @@ class EventProcessorCell<T extends ControllerEvent> {
      * This delegate provides a single thread of execution for the event processor.
      * This prevents sub-classes of EventProcessor from controlling EventProcessor's lifecycle.
      */
-    private final Service delegate;
+    private final Delegate delegate;
 
     private class Delegate extends AbstractExecutionThreadService {
 
@@ -86,8 +85,8 @@ class EventProcessorCell<T extends ControllerEvent> {
         private final EventProcessorConfig<T> eventProcessorConfig;
         private EventRead<T> event;
         private final CheckpointState state;
-        private Thread currentThread;
         private AtomicBoolean interruptFlag = new AtomicBoolean(false);
+        private AtomicReference<Thread> currenThread = new AtomicReference<>();
 
         Delegate(final EventProcessorConfig<T> eventProcessorConfig) {
             this.eventProcessorConfig = eventProcessorConfig;
@@ -108,7 +107,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         @Override
         protected final void run() throws Exception {
             log.debug("Event processor RUN {}, state={}", objectId, state());
-            this.currentThread = Thread.currentThread();
+            this.currenThread.set(Thread.currentThread());
             while (isRunning()) {
                 try {
                     event = reader.readNextEvent(defaultTimeout);
@@ -120,10 +119,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                         state.store(event.getPosition());
                     }
                 } catch (Exception e) {
-                    log.warn("Exception in Delegate run method. EventProcessor {} is interrupted: {}", objectId, interruptFlag.get());
-                    if ( !interruptFlag.get()) {
-                        handleException(e);
-                    }
+                    handleException(e);
                 }
             }
         }
@@ -156,9 +152,10 @@ class EventProcessorCell<T extends ControllerEvent> {
         @Override
         protected void triggerShutdown() {
             log.info("Event processor triggerShutdown called for {}", objectId);
-            if (isDelegateInterrupted.get() && this.currentThread != null ) {
-                this.interruptFlag.set(true);
-                this.currentThread.interrupt();
+            Thread thread = this.currenThread.getAndSet(null);
+            if (thread != null && this.interruptFlag.get()) {
+                log.debug("Event Processor {} is interrupted", objectId);
+                thread.interrupt();
             }
         }
         
@@ -284,7 +281,7 @@ class EventProcessorCell<T extends ControllerEvent> {
     final void stopAsync(Boolean interruptDelegate) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "stopAsync");
         try {
-            isDelegateInterrupted.set(interruptDelegate);
+            delegate.interruptFlag.set(interruptDelegate);
             delegate.stopAsync();
             log.info("Event processor cell {} SHUTDOWN issued", this.objectId);
         } finally {
