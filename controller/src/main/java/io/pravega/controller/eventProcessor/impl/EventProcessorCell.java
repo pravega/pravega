@@ -86,7 +86,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         private EventRead<T> event;
         private final CheckpointState state;
         private AtomicBoolean interruptFlag = new AtomicBoolean(false);
-        private AtomicReference<Thread> currenThread = new AtomicReference<>();
+        private AtomicReference<Thread> currentThread = new AtomicReference<>();
 
         Delegate(final EventProcessorConfig<T> eventProcessorConfig) {
             this.eventProcessorConfig = eventProcessorConfig;
@@ -107,7 +107,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         @Override
         protected final void run() throws Exception {
             log.debug("Event processor RUN {}, state={}", objectId, state());
-            this.currenThread.set(Thread.currentThread());
+            this.currentThread.set(Thread.currentThread());
             while (isRunning()) {
                 try {
                     event = reader.readNextEvent(defaultTimeout);
@@ -152,7 +152,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         @Override
         protected void triggerShutdown() {
             log.info("Event processor triggerShutdown called for {}", objectId);
-            Thread thread = this.currenThread.getAndSet(null);
+            Thread thread = this.currentThread.getAndSet(null);
             if (thread != null && this.interruptFlag.get()) {
                 log.debug("Event Processor {} is interrupted", objectId);
                 thread.interrupt();
