@@ -15,6 +15,7 @@
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
 import io.kubernetes.client.openapi.models.V1Secret;
@@ -28,6 +29,8 @@ import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
 
 import org.apache.commons.io.IOUtils;
+
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -293,6 +296,18 @@ public abstract class AbstractService implements Service {
     }
 
     private Map<String, Object> getResources(String limitsCpu, String limitsMem, String requestsCpu, String requestsMem) {
+        String jsonSrc = "";
+        ObjectMapper objectMapper = new ObjectMapper();
+        File file = new File(jsonSrc);
+        ResourceWrapper resourceWrapper = null;
+        try {
+            resourceWrapper = objectMapper.readValue(file, ResourceWrapper.class);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        if (resourceWrapper != null) {
+            return resourceWrapper.getResources();
+        }
         return ImmutableMap.<String, Object>builder()
                 .put("limits", ImmutableMap.builder()
                         .put("cpu", limitsCpu)
