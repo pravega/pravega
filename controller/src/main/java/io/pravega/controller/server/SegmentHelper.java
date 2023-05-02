@@ -203,8 +203,16 @@ public class SegmentHelper implements AutoCloseable {
                                                  final long clientRequestId) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
+
+        return deleteSegment(qualifiedStreamSegmentName, delegationToken, ModelHelper.encode(uri), clientRequestId);
+    }
+
+    public CompletableFuture<Void> deleteSegment(final String qualifiedStreamSegmentName,
+                                                 final String delegationToken,
+                                                 PravegaNodeUri uri,
+                                                 final long clientRequestId) {
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
+        RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         return sendRequest(connection, clientRequestId, new WireCommands.DeleteSegment(requestId,

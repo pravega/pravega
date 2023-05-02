@@ -138,6 +138,16 @@ public abstract class AbstractSegmentStoreCommandsTest {
     }
 
     @Test
+    public void testDeleteSegmentCommand() throws Exception {
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "deleteSegmentTest", StreamConfiguration.builder().build());
+        String commandResult = TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentTest/0.#epoch.0 localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("DeleteSegment:"));
+
+        Assert.assertNotNull(DeleteSegmentCommand.descriptor());
+    }
+
+
+    @Test
     public void testReadSegmentRangeCommand() throws Exception {
         // Create a temporary directory.
         Path tempDirPath = Files.createTempDirectory("readSegmentDir");
