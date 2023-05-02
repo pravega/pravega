@@ -29,7 +29,6 @@ import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
 
 import org.apache.commons.io.IOUtils;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -303,7 +302,7 @@ public abstract class AbstractService implements Service {
         try {
             resourceWrapper = objectMapper.readValue(file, ResourceWrapper.class);
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("Input json file not available", e);
         }
         if (resourceWrapper != null) {
             return resourceWrapper.getResources();
