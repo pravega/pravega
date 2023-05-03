@@ -146,6 +146,15 @@ public abstract class AbstractSegmentStoreCommandsTest {
         Assert.assertNotNull(DeleteSegmentCommand.descriptor());
     }
 
+    @Test
+    public void testCreateSegmentCommand() throws Exception {
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "createSegmentTest", StreamConfiguration.builder().build());
+        String commandResult = TestUtils.executeCommand("segmentstore create-segment segmentstore/createSegmentTest/0.#epoch.0 localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("CreateSegment:"));
+
+        Assert.assertNotNull(CreateSegmentCommand.descriptor());
+    }
+
 
     @Test
     public void testReadSegmentRangeCommand() throws Exception {
