@@ -85,8 +85,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         private final EventProcessorConfig<T> eventProcessorConfig;
         private EventRead<T> event;
         private final CheckpointState state;
-        private AtomicBoolean interruptFlag = new AtomicBoolean(false);
-        private AtomicReference<Thread> currentThread = new AtomicReference<>();
+        private final AtomicReference<Thread> currentThread = new AtomicReference<>();
 
         Delegate(final EventProcessorConfig<T> eventProcessorConfig) {
             this.eventProcessorConfig = eventProcessorConfig;
@@ -149,16 +148,6 @@ class EventProcessorCell<T extends ControllerEvent> {
             }
         }
 
-        @Override
-        protected void triggerShutdown() {
-            log.info("Event processor triggerShutdown called for {}", objectId);
-            Thread thread = this.currentThread.getAndSet(null);
-            if (thread != null && this.interruptFlag.get()) {
-                log.debug("Event Processor {} is interrupted", objectId);
-                thread.interrupt();
-            }
-        }
-        
         private void restart(Throwable error, T event) {
             log.debug("Event processor RESTART {}, state={}", objectId, state());
             try {
@@ -281,8 +270,12 @@ class EventProcessorCell<T extends ControllerEvent> {
     final void stopAsync(Boolean interruptDelegate) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "stopAsync");
         try {
-            delegate.interruptFlag.set(interruptDelegate);
+            Thread thread = delegate.currentThread.getAndSet(null);
             delegate.stopAsync();
+            if (thread != null && Boolean.TRUE.equals(interruptDelegate)) {
+                log.debug("Event Processor {} is interrupted", objectId);
+                thread.interrupt();
+            }
             log.info("Event processor cell {} SHUTDOWN issued", this.objectId);
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "stopAsync", traceId);
