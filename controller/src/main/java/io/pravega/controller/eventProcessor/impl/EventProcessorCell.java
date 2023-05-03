@@ -117,7 +117,9 @@ class EventProcessorCell<T extends ControllerEvent> {
                         state.store(event.getPosition());
                     }
                 } catch (Exception e) {
-                    handleException(e);
+                    if(this.currentThread.get() != null) {
+                        handleException(e);
+                    }
                 }
             }
         }
@@ -269,9 +271,10 @@ class EventProcessorCell<T extends ControllerEvent> {
     final void stopAsync(Boolean interruptDelegate) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "stopAsync");
         try {
-            Thread thread = delegate.currentThread.getAndSet(null);
+            Thread thread = delegate.currentThread.get();
             delegate.stopAsync();
             if (thread != null && Boolean.TRUE.equals(interruptDelegate)) {
+                delegate.currentThread.set(null);
                 log.debug("Event Processor {} is interrupted", objectId);
                 thread.interrupt();
             }
