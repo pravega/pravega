@@ -117,7 +117,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                         state.store(event.getPosition());
                     }
                 } catch (Exception e) {
-                    if(this.currentThread.get() != null) {
+                    if (this.currentThread.get() != null) {
                         handleException(e);
                     }
                 }
