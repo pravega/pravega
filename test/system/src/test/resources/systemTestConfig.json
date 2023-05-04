@@ -1,0 +1,14 @@
+{
+  "resources": {
+    "requests": {
+      "cpu": "700m",
+      "memory": "1Gi"
+    },
+    "limits": {
+      "cpu": "700m",
+      "memory": "1Gi"
+    }
+  },
+  "segmentStoreJVMOptions": ["-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-XX:MaxDirectMemorySize=5g", "-Xmx512m"],
+  "controllerJVMOptions": ["-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-Xmx512m"]
+}

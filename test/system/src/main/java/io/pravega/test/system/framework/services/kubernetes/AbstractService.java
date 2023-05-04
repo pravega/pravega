@@ -90,9 +90,10 @@ public abstract class AbstractService implements Service {
     private static final String ZK_SERVICE_NAME = "zookeeper-client:2181";
     private static final String JOURNALDIRECTORIES = "/bk/journal/j0,/bk/journal/j1,/bk/journal/j2,/bk/journal/j3";
     private static final String LEDGERDIRECTORIES = "/bk/ledgers/l0,/bk/ledgers/l1,/bk/ledgers/l2,/bk/ledgers/l3";
-
+    private static final String SYSTEMTESTPROPERTIES = "test/system/src/test/resources/systemTestConfig.json";
     final K8sClient k8sClient;
     private final String id;
+    private ResourceWrapper resourceWrapper = null;
 
     AbstractService(final String id) {
         this.k8sClient = ClientFactory.INSTANCE.getK8sClient();
@@ -260,10 +261,20 @@ public abstract class AbstractService implements Service {
     // Removal of the JVM option 'UseCGroupMemoryLimitForHeap' is required with JVM environments >= 10. This option
     // is supplied by default by the operators. We cannot 'deactivate' it using the XX:- counterpart as it is unrecognized.
     private String[] getSegmentStoreJVMOptions() {
+        getSystemTestConfig();
+        log.info("***getSegmentStoreJVMOptions method invoked***");
+        if (resourceWrapper != null) {
+            return resourceWrapper.getSegmentStoreJVMOptions();
+        }
         return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-XX:MaxDirectMemorySize=4g", "-Xmx1024m"};
     }
 
     private String[] getControllerJVMOptions() {
+        getSystemTestConfig();
+        log.info("***getControllerJVMOptions method invoked***");
+        if (resourceWrapper != null) {
+            return resourceWrapper.getControllerJVMOptions();
+        }
         return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-Xmx1024m"};
     }
 
@@ -295,15 +306,8 @@ public abstract class AbstractService implements Service {
     }
 
     private Map<String, Object> getResources(String limitsCpu, String limitsMem, String requestsCpu, String requestsMem) {
-        String jsonSrc = "";
-        ObjectMapper objectMapper = new ObjectMapper();
-        File file = new File(jsonSrc);
-        ResourceWrapper resourceWrapper = null;
-        try {
-            resourceWrapper = objectMapper.readValue(file, ResourceWrapper.class);
-        } catch (IOException e) {
-            log.error("Input json file not available", e);
-        }
+        getSystemTestConfig();
+        log.info("***getResources method invoked***");
         if (resourceWrapper != null) {
             return resourceWrapper.getResources();
         }
@@ -437,6 +441,16 @@ public abstract class AbstractService implements Service {
                         .put(service, replicaCount)
                         .build())
                 .build();
+    }
+
+    private void getSystemTestConfig() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        File file = new File(SYSTEMTESTPROPERTIES);
+        try {
+            resourceWrapper = objectMapper.readValue(file, ResourceWrapper.class);
+        } catch (IOException e) {
+            log.error("Input json file not available", e);
+        }
     }
 
     @Override

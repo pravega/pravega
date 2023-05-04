@@ -27,4 +27,6 @@ import java.util.Map;
 @Setter
 public class ResourceWrapper {
     private Map<String, Object> resources;
+    private String[] segmentStoreJVMOptions;
+    private String[] controllerJVMOptions;
 }
