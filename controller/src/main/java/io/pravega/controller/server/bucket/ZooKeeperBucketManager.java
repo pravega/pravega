@@ -52,12 +52,18 @@ public class ZooKeeperBucketManager extends BucketManager {
 
     ZooKeeperBucketManager(String processId, ZookeeperBucketStore bucketStore, BucketStore.ServiceType serviceType, ScheduledExecutorService executor,
                            Function<Integer, BucketService> bucketServiceSupplier, BucketManagerLeader bucketManagerLeader) {
+        this(processId, bucketStore, serviceType, executor, bucketServiceSupplier, bucketManagerLeader, serviceType.getName());
+    }
+
+    @VisibleForTesting
+    ZooKeeperBucketManager(String processId, ZookeeperBucketStore bucketStore, BucketStore.ServiceType serviceType, ScheduledExecutorService executor,
+                           Function<Integer, BucketService> bucketServiceSupplier, BucketManagerLeader bucketManagerLeader, String leaderPath) {
         super(processId, serviceType, executor, bucketServiceSupplier, bucketStore);
         bucketOwnershipCacheMap = new ConcurrentHashMap<>();
         this.bucketStore = bucketStore;
         this.processId = processId;
         this.bucketManagerLeader = bucketManagerLeader;
-        leaderSelector = new LeaderSelector(bucketStore.getClient(), getLeaderZkPath(), bucketManagerLeader);
+        leaderSelector = new LeaderSelector(bucketStore.getClient(), getLeaderZkPath(leaderPath), bucketManagerLeader);
         cache = bucketStore.getBucketControllerMapNodeCache(getServiceType());
     }
 
@@ -242,11 +248,12 @@ public class ZooKeeperBucketManager extends BucketManager {
 
     /**
      * Method to get the leader path.
+     * @param leaderPath Leader path.
      *
-     * @return zpath for leader.
+     * @return Full zpath for leader.
      */
-    private String getLeaderZkPath() {
-        String rootPath = ZKPaths.makePath(ROOT_PATH, getServiceType().getName());
+    private String getLeaderZkPath(String leaderPath) {
+        String rootPath = ZKPaths.makePath(ROOT_PATH, leaderPath);
         return ZKPaths.makePath(rootPath, BUCKET_DISTRIBUTOR_LEADER_PATH);
     }
 

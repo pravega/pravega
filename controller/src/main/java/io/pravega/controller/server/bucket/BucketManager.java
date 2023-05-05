@@ -79,8 +79,10 @@ public abstract class BucketManager extends AbstractService {
                            .whenComplete((r, e) -> {
                                if (e != null) {
                                    notifyFailed(e);
+                                   log.error("Unable to start bucket manager", e);
                                } else {
                                    notifyStarted();
+                                   log.info("Bucket manager started successfully");
                                }
                            });
     }

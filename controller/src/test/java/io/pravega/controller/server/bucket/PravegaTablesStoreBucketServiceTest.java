@@ -281,5 +281,44 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         AssertExtensions.assertThrows(IllegalStateException.class, () -> bucketManager.awaitRunning());
     }
 
+    @Test(timeout = 30000)
+    public void testSplitBrainScenrio() throws Exception {
+        addEntryToZkCluster(controller);
 
+        Host controller1 = new Host(UUID.randomUUID().toString(), 9090, null);
+        BucketManager bucketManager1 = getBucketManager(controller1.getHostId(), "mypath");
+        addEntryToZkCluster(controller1);
+
+        Host controller2 = new Host(UUID.randomUUID().toString(), 9090, null);
+        BucketManager bucketManager2 = getBucketManager(controller2.getHostId(), BucketStore.ServiceType.WatermarkingService.getName());
+        addEntryToZkCluster(controller2);
+
+        bucketManager1.startAsync().awaitRunning();
+        bucketManager2.startAsync().awaitRunning();
+
+        //Check we have two leaders for same cluster.
+        assertEventuallyEquals(true, () -> ((ZooKeeperBucketManager) bucketManager1).isLeader(), 1000);
+        assertEventuallyEquals(true, () -> ((ZooKeeperBucketManager) bucketManager2).isLeader() ||
+                ((ZooKeeperBucketManager) watermarkingService).isLeader(), 1000);
+
+        //Check buckets are evenly distributed
+        assertEventuallyEquals(1, () -> bucketManager1.getBucketServices().size(), 10000);
+        assertEquals(1, bucketManager2.getBucketServices().size());
+        assertEquals(1, watermarkingService.getBucketServices().size());
+
+        //Stop bucket manager
+        bucketManager1.stopAsync().awaitTerminated();
+        bucketManager2.stopAsync().awaitTerminated();
+    }
+
+    private ZooKeeperBucketManager getBucketManager(String processId, String zkPath) {
+        Function<Integer, BucketService> zkSupplier = bucket ->
+                new ZooKeeperBucketService(BucketStore.ServiceType.WatermarkingService,
+                        bucket, (ZookeeperBucketStore) bucketStore, executor, 2,
+                        Duration.ofMillis(5), periodicWatermarking::watermark);
+
+        return new ZooKeeperBucketManager(processId, (ZookeeperBucketStore) bucketStore,
+                BucketStore.ServiceType.WatermarkingService, executor, zkSupplier,
+                getBucketManagerLeader(bucketStore, BucketStore.ServiceType.WatermarkingService), zkPath);
+    }
 }
