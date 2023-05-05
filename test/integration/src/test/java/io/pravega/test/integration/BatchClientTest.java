@@ -35,6 +35,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -53,6 +54,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -214,6 +216,52 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         @Cleanup
         SegmentIterator<String> segmentIterator = batchClient.readSegment(s0, serializer);
         eventList.addAll(Lists.newArrayList(segmentIterator));
+    }
+
+    @Test(timeout = 50000)
+    @SuppressWarnings("deprecation")
+    public void testGetDistanceBetweenTwoSCwithStartStreamCutAsUnboundedAndEndAtOffset() throws InterruptedException, ExecutionException {
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(clientConfig);
+        Stream stream = new StreamImpl(SCOPE, STREAM);
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
+        createTestStreamWithEvents(clientFactory);
+        log.info("Done creating a test stream with test events");
+
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig);
+        log.info("Done creating batch client factory");
+
+        StreamCut endStreamCut10L = new StreamCutImpl(Stream.of(SCOPE, STREAM),
+                ImmutableMap.of(new Segment(SCOPE, STREAM, 0), 10L));
+        CompletableFuture<Long> distance =  streamManager.getDistanceBetweenTwoStreamCuts(stream, StreamCut.UNBOUNDED, endStreamCut10L);
+        assertEquals(Long.valueOf(10), distance.join());
+    }
+
+    @Test(timeout = 50000)
+    @SuppressWarnings("deprecation")
+    public void testGetDistanceBetweenTwoSCwithStartSCAsUnboundedAndStreamTruncatedatOffset() throws InterruptedException, ExecutionException {
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(clientConfig);
+        Stream stream = new StreamImpl(SCOPE, STREAM);
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
+        createTestStreamWithEvents(clientFactory);
+        log.info("Done creating a test stream with test events");
+
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig);
+        log.info("Done creating batch client factory");
+
+        StreamCut streamCut10L = new StreamCutImpl(Stream.of(SCOPE, STREAM),
+                ImmutableMap.of(new Segment(SCOPE, STREAM, 0), 10L));
+        StreamCut streamCut30L = new StreamCutImpl(Stream.of(SCOPE, STREAM),
+                ImmutableMap.of(new Segment(SCOPE, STREAM, 0), 30L));
+        assertTrue("truncate stream", controllerWrapper.getController().truncateStream(SCOPE, STREAM, streamCut10L).join());
+
+        CompletableFuture<Long> distance =  streamManager.getDistanceBetweenTwoStreamCuts(stream, StreamCut.UNBOUNDED, streamCut30L);
+        assertEquals(Long.valueOf(20), distance.join());
     }
 
     //region Private helper methods

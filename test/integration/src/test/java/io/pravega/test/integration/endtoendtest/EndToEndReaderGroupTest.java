@@ -39,6 +39,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.test.common.InlineExecutor;
@@ -604,4 +605,44 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         writer.writeEvent( "0", Integer.toString(eventId)).join();
     }
 
+    @Test(timeout = 60000, expected = ObjectClosedException.class)
+    public void testRGManagerCallWhenExecutorisNotAvailable() throws Exception {
+        StreamConfiguration config = getStreamConfig();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        String streamName = "testDeleteReaderGroup";
+        controller.createScope("test").get();
+        controller.createStream("test", streamName, config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(PRAVEGA.getControllerURI())
+                .build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        // Create a ReaderGroup
+        String groupName = "testDeleteReaderGroup-group";
+        groupManager.createReaderGroup(groupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/" + streamName).build());
+        // Create a Reader
+        EventStreamReader<String> reader = clientFactory.createReader("reader2", groupName, serializer, ReaderConfig.builder().build());
+
+        // Write events into the stream.
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
+        writer.writeEvent("0", "data1").get();
+
+        EventRead<String> eventRead = reader.readNextEvent(10000);
+        eventRead.getEvent();
+
+        // Close the reader, this internally invokes ReaderGroup#readerOffline
+        reader.close();
+
+        // close the ReaderGroupManager
+        groupManager.close();
+        
+        // try to get the readerGroup, this should throw an exception as we have added a check to verify if the executor is available.
+        groupManager.getReaderGroup(groupName);
+    }
 }
