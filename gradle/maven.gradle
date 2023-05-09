@@ -103,7 +103,8 @@ plugins.withId('maven-publish') {
         }
     }
 
-    task publish (overwrite: true) {
-        dependsOn 'publishMavenDeployerPublicationToMavenRepository'
+    task publish(overwrite: true ) {
+        dependsOn publishing
+
     }
 }
