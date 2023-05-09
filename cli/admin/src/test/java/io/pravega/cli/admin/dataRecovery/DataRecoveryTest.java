@@ -37,6 +37,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
@@ -53,11 +54,13 @@ import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.DebugBookKeeperLogWrapper;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyBookkeeperLogMetadata;
+import io.pravega.cli.admin.dataRecovery.RecoverFromStorageCommand.ChunkValidator;
 import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.test.common.AssertExtensions;
@@ -96,12 +99,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doReturn;
 
 /**
  * Tests Data recovery commands.
@@ -520,12 +529,12 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         // We can have multiple Add Edit Operations on the same sequence number.
         command.checkDurableLogEdits(Arrays.asList(
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
-                                10, 10, new DeleteSegmentOperation(0)),
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
-                                10, 10, new DeleteSegmentOperation(0)),
-                        new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
-                                10, 10, new DeleteSegmentOperation(0))));
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                        10, 10, new DeleteSegmentOperation(0)),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                        10, 10, new DeleteSegmentOperation(0)),
+                new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                        10, 10, new DeleteSegmentOperation(0))));
         AssertExtensions.assertThrows("Two non-Add Edit Operation on the same Sequence Number should not be accepted.",
                 () -> command.checkDurableLogEdits(Arrays.asList(
                         new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
@@ -948,8 +957,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         EntrySerializer entrySerializer = new EntrySerializer();
         BufferView serializedEntries = BufferView.builder().add(entrySerializer.serializeUpdate(tableSegmentPuts))
-                                                           .add(entrySerializer.serializeRemoval(tableSegmentRemovals))
-                                                           .build();
+                .add(entrySerializer.serializeRemoval(tableSegmentRemovals))
+                .build();
         InputStream serializedEntriesReader = serializedEntries.getReader();
 
         Path p1 = Files.createTempFile(testDataDir.toPath(), "chunk-1", ".txt");
@@ -1652,7 +1661,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
-        // 100kb rollover size so that there are multiple chunks created. Helps with unit test coverage.
+        // 100KB rollover size so that there are multiple chunks created. Helps with unit test coverage.
         ChunkedSegmentStorageConfig storageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().storageMetadataRollingPolicy(new SegmentRollingPolicy(100L * 1000L)).build();
         this.storageFactory = new FileSystemSimpleStorageFactory(storageConfig, adapterConfig, executorService());
 
@@ -1665,6 +1674,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
             TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
         TestUtils.deleteScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName);
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
         pravegaRunner.shutDownControllerRunner(); // Shut down the controller
 
         // Flush all Tier 1 to LTS
@@ -1711,8 +1721,115 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Command under test
         TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + " all", STATE.get());
         AssertExtensions.assertThrows("Container out of range ", () -> TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + "81", STATE.get()), ex -> ex instanceof IllegalArgumentException);
+        Assert.assertNotNull(RecoverFromStorageCommand.descriptor());
     }
 
+    @Test
+    public void testLTSRecoveryNullEntry() throws Exception {
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        CommandArgs args = new CommandArgs(List.of("/tmp/metadata", "all"), STATE.get());
+        RecoverFromStorageCommand command = new RecoverFromStorageCommand(args);
+        @Cleanup
+        DebugStreamSegmentContainer container = mock(DebugStreamSegmentContainer.class);
+        ContainerTableExtension extension = mock(ContainerTableExtension.class);
+        List<TableEntry> entries = new ArrayList<>();
+        entries.add(null);
+        CompletableFuture<List<TableEntry>> cf = CompletableFuture.supplyAsync(() -> entries);
+        doReturn( cf ).when(extension).get(any(), any(), any());
+        doReturn(extension).when(container).getExtension(any());
+        ChunkValidator chunkValidator = spy(command.new ChunkValidator(container));
+        command.setDeletedSegments("testSegemnt");
+        Assert.assertTrue(chunkValidator.validateSegment("testSegemnt"));
+        Assert.assertTrue(chunkValidator.validateSegment("testSegemnt1"));
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithEndContainerNotANumber() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("End container id must be a number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "0 all", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithStartContainerNotANumber() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("Start container id must be a number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "a 0", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithThreeArguments() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "0 0 0", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithStartContainerGreaterThanContainerCount() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("The start container id does not exist.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "4", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithEndContainerGreaterThanContainerCount() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("The end container id does not exist.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "0 4", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithNegativeStartContainer() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("The start container id must be a positive number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "-1", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithNegativeEndContainer() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(1));
+        AssertExtensions.assertThrows("The end container id must be a positive number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "0 -1", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    @Test
+    public void testLTSRecoveryCommandWithEndContainerLessThanStart() throws Exception {
+        STATE.set(new AdminCommandState());
+        STATE.get().getConfigBuilder().include(getProperties(4));
+        AssertExtensions.assertThrows("The end container id must be a positive number.", () -> TestUtils.executeCommand("data-recovery recover-from-storage /mnt/tier2 " + "2 1", STATE.get()),
+                ex -> ex instanceof  IllegalArgumentException);
+    }
+
+    private Properties getProperties(int containerCount) throws Exception {
+
+        LocalServiceStarter.PravegaRunner pravegaRunner2 = new LocalServiceStarter.PravegaRunner(3, containerCount);
+        pravegaRunner2.startBookKeeperRunner(1);
+
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", String.valueOf(containerCount));
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "CHUNKED_STORAGE");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner2.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.zk.connect.uri", "localhost:" + pravegaRunner2.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner2.getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner2.getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", pravegaRunner2.getBookKeeperRunner().getBaseNamespace());
+        pravegaProperties.setProperty("writer.flush.attributes.threshold", "1");
+
+        return pravegaProperties;
+    }
 
     private List<DurableLogInspectCommand.OperationInspectInfo> getSavedResult(String inspectResult) {
         List<DurableLogInspectCommand.OperationInspectInfo> savedResults = new ArrayList<>();
@@ -1736,7 +1853,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
     private Map<String, Long> getOperationsCountMapByOperationType(List<DurableLogInspectCommand.OperationInspectInfo> originalOperations) {
         Map<String, Long> resultMap = originalOperations.size() == 0 ? new HashMap<>() :
-        originalOperations.stream().collect(Collectors.groupingBy(op -> op.getOperationTypeString(), Collectors.counting()));
+                originalOperations.stream().collect(Collectors.groupingBy(op -> op.getOperationTypeString(), Collectors.counting()));
         return resultMap;
     }
 
@@ -1753,9 +1870,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     /*
-    * Creating a test version of EntrySerializer to serialize Table Segment entry
-    * for recovery purposes without changing visibility of methods from original class.
-    * */
+     * Creating a test version of EntrySerializer to serialize Table Segment entry
+     * for recovery purposes without changing visibility of methods from original class.
+     * */
     static class MyEntrySerializer extends EntrySerializer {
 
         public static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES;

@@ -39,7 +39,7 @@ import static java.lang.Integer.parseInt;
  */
 public class FlushToStorageCommand extends ContainerCommand {
 
-    private static final int REQUEST_TIMEOUT_SECONDS = 60 * 5;
+    private static final int REQUEST_TIMEOUT_SECONDS = 60 * 30;
     private static final String ALL_CONTAINERS = "all";
 
     /**
