@@ -259,6 +259,7 @@ public class StreamMetadataTasks extends TaskBase {
         Preconditions.checkArgument(createTimestamp >= 0);
         NameUtils.validateStreamName(stream);
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
+        RetentionPolicy retentionPolicy = RetentionPolicy.byNone();
 
         return Futures.exceptionallyExpecting(streamMetadataStore.getState(scope, stream, true, context, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
@@ -267,7 +268,7 @@ public class StreamMetadataTasks extends TaskBase {
                         log.debug(requestId, "Creating StateSynchronizer Stream {}", stream);
                         return createStreamRetryOnLockFailure(scope,
                                 stream,
-                                config,
+                                config.toBuilder().retentionPolicy(retentionPolicy).build(),
                                 createTimestamp,
                                 numOfRetries,
                                 requestId);
@@ -788,7 +789,9 @@ public class StreamMetadataTasks extends TaskBase {
                                                                      long createTimestamp, long requestId) {
         log.debug(requestId, "createStream with resource called.");
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        if (config.getRetentionPolicy() == null && this.globalRetentionPolicy.get()) {
+        if (!config.getRetentionPolicy().getRetentionType().equals(RetentionType.NONE)
+                && config.getRetentionPolicy() == null
+                && this.globalRetentionPolicy.get()) {
             config = createRetentionPolicy(config);
         }
         final StreamConfiguration  streamConfig = config;
