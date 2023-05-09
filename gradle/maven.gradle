@@ -103,6 +103,7 @@ plugins.withId('maven-publish') {
         }
     }
 
-    task Publish(dependsOn:"publishmavenDeployerPublicationToMavenLocal") {
+    task publish (overwrite: true) {
+        dependsOn "publishToPublicationToMavenLocal"
     }
 }
