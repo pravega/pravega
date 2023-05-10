@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.stream.Position;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.PositionImpl;
@@ -313,18 +314,22 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private CompletableFuture<Void> createStreams() {
         StreamConfiguration commitStreamConfig = StreamConfiguration.builder()
                                                                     .scalingPolicy(config.getCommitStreamScalingPolicy())
+                                                                    .retentionPolicy(RetentionPolicy.defaultInternal())
                                                                     .build();
 
         StreamConfiguration abortStreamConfig = StreamConfiguration.builder()
                                                                    .scalingPolicy(config.getAbortStreamScalingPolicy())
+                                                                   .retentionPolicy(RetentionPolicy.defaultInternal())
                                                                    .build();
 
         StreamConfiguration requestStreamConfig = StreamConfiguration.builder()
                                                                      .scalingPolicy(config.getRequestStreamScalingPolicy())
+                                                                     .retentionPolicy(RetentionPolicy.defaultInternal())
                                                                      .build();
         StreamConfiguration kvTableStreamConfig = StreamConfiguration.builder()
-                                                                            .scalingPolicy(config.getKvtStreamScalingPolicy())
-                                                                            .build();
+                                                                        .scalingPolicy(config.getKvtStreamScalingPolicy())
+                                                                        .retentionPolicy(RetentionPolicy.defaultInternal())
+                                                                        .build();
 
         String scope = config.getScopeName();
         CompletableFuture<Void> future = createScope(scope);

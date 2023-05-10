@@ -40,7 +40,12 @@ public class RetentionPolicy implements Serializable {
         /**
          * Set retention based on the total size of the data in the stream in bytes.
          */
-        SIZE
+        SIZE,
+
+        /**
+         * Set retention to none for internal and state synchronizer streams.
+         */
+        DEFAULT_INTERNAL
     }
 
     private final RetentionType retentionType;
@@ -94,5 +99,12 @@ public class RetentionPolicy implements Serializable {
     public static RetentionPolicy bySizeBytes(long sizeMin, long sizeMax) {
         return RetentionPolicy.builder().retentionType(RetentionType.SIZE)
                 .retentionParam(sizeMin).retentionMax(sizeMax).build();
+    }
+
+    /**
+     * Create a retention policy to configure a stream to be used for internal streams.
+     */
+    public static RetentionPolicy defaultInternal() {
+        return RetentionPolicy.builder().retentionType(RetentionType.DEFAULT_INTERNAL).build();
     }
 }

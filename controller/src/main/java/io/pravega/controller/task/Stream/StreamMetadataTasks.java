@@ -473,6 +473,7 @@ public class StreamMetadataTasks extends TaskBase {
                     return CompletableFuture.completedFuture(null);
                 }).thenCompose(x -> createRGStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
                 StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
+                        .retentionPolicy(RetentionPolicy.defaultInternal())
                         .rolloverSizeBytes(READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES).build(),
                 System.currentTimeMillis(), 10, getRequestId(context))
                 .thenCompose(createStatus -> {
@@ -788,8 +789,13 @@ public class StreamMetadataTasks extends TaskBase {
                                                                      long createTimestamp, long requestId) {
         log.debug(requestId, "createStream with resource called.");
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
+        // Set global retention policy if applicable.
         if (config.getRetentionPolicy() == null && this.globalRetentionPolicy.get()) {
-            config = createRetentionPolicy(config);
+           config = createRetentionPolicy(config);
+        }
+        // Set RetentionPolicy to null for all streams with retention type DEFAULT_INTERNAL.
+        if (config.getRetentionPolicy() != null && config.getRetentionPolicy().getRetentionType().equals(RetentionType.DEFAULT_INTERNAL)) {
+            config = config.toBuilder().retentionPolicy(null).build();
         }
         final StreamConfiguration  streamConfig = config;
         return execute(
@@ -1894,7 +1900,10 @@ public class StreamMetadataTasks extends TaskBase {
      */
     private CompletableFuture<Void> createMarkStream(String scope, String baseStream, long timestamp, long requestId) {
         String markStream = NameUtils.getMarkStreamForStream(baseStream);
-        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        StreamConfiguration config = StreamConfiguration.builder()
+                .retentionPolicy(RetentionPolicy.defaultInternal())
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build();
         OperationContext context = streamMetadataStore.createStreamContext(scope, markStream, requestId);
         return this.streamMetadataStore.createStream(scope, markStream, config, timestamp, context, executor)
                                 .thenCompose(response -> {
