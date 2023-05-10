@@ -60,7 +60,7 @@ plugins.withId('java') {
     }
 
     task sourceJar(type: Jar) {
-        archiveClassifier= 'sources'
+        classifier= 'sources'
         from sourceSets.main.java
     }
     artifacts { archives sourceJar }
@@ -72,13 +72,13 @@ plugins.withId('java') {
         failOnError = false
     }
     task javadocJar(type: Jar) {
-        archiveClassifier = 'javadoc'
+        classifier = 'javadoc'
         from generateJavadoc
     }
     artifacts { archives javadocJar }
 
     task testJar(type: Jar) {
-        archiveClassifier = 'tests'
+        classifier = 'tests'
         from sourceSets.test.output
     }
     configurations {

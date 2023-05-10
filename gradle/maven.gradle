@@ -19,6 +19,12 @@ plugins.withId('maven-publish') {
             mavenDeployer(MavenPublication) {
                 artifactId = "pravega" + project.path.replace(':', '-')
                 from components.java
+                artifact(sourceJar){
+                    classifier "sources"
+                }
+                artifact(javadocJar){
+                    classifier "javadoc"
+                }
                 pom {
                     fileTree {
                         name = "Pravega"
@@ -45,9 +51,10 @@ plugins.withId('maven-publish') {
                 }
             }
         }
-        if (project.hasProperty("publishUrl")) {
-            if (publishUrl == "mavenCentral") {
-                repositories {
+        repositories {
+            if (project.hasProperty("publishUrl")) {
+                if (publishUrl == "mavenCentral") {
+
                     maven {
                         url "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
                         credentials {
@@ -60,9 +67,7 @@ plugins.withId('maven-publish') {
                         }
                     }
                 }
-            }
-            if (project.version.endsWith('-SNAPSHOT')) {
-                repositories {
+                if (project.version.endsWith('-SNAPSHOT')) {
                     maven {
                         url "https://oss.sonatype.org/content/repositories/snapshots/"
 
@@ -75,9 +80,7 @@ plugins.withId('maven-publish') {
                         }
                     }
                 }
-            }
-        } else {
-            repositories {
+            } else {
                 maven {
                     url "publishUrl"
                     // Only configure credentials if they are provided (allows publishing to the filesystem)
@@ -104,7 +107,7 @@ plugins.withId('maven-publish') {
     }
 
     task publish(overwrite: true ) {
-        dependsOn publishing
+        dependsOn "publishTomavenLocal"
 
     }
 }
