@@ -15,19 +15,17 @@
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
-import com.google.common.collect.ImmutableMap;
 import lombok.Getter;
 import lombok.Setter;
 
-/**
- * Wrapper class to deserializing the json file contents.
- */
+import java.util.List;
+import java.util.Map;
+
 @Getter
 @Setter
-public class ResourceWrapper {
-    private BookkeeperProperties bookkeeperProperties;
-    private ControllerProperties controllerProperties;
-    private SegmentStoreProperties segmentStoreProperties;
-    private ZookeeperProperties zookeeperProperties;
-    private ImmutableMap<String, String> pravegaOptions;
+public class BookkeeperProperties {
+private Resources resources;
+private Storage storage;
+private Map<String, String> bookkeeperOptions;
+private Map<String, List<String>> bookkeeperJVMOptions;
 }

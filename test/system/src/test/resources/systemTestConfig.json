@@ -1,14 +1,111 @@
 {
-  "resources": {
-    "requests": {
-      "cpu": "700m",
-      "memory": "1Gi"
+  "bookkeeperProperties": {
+    "resources": {
+      "limits": {
+        "cpu": "700m",
+        "memory": "1Gi"
+      },
+      "requests": {
+        "cpu": "700m",
+        "memory": "1Gi"
+      }
     },
-    "limits": {
-      "cpu": "700m",
-      "memory": "1Gi"
+    "storage": {
+      "index": {
+        "className": "",
+        "volumeSize": "10Gi"
+      },
+      "ledger": {
+        "className": "",
+        "volumeSize": "10Gi"
+      },
+      "journal": {
+        "className": "",
+        "volumeSize": "10Gi"
+      }
+    },
+    "bookkeeperOptions": {
+      "journalDirectories": "/bk/journal/j0,/bk/journal/j1,/bk/journal/j2,/bk/journal/j3",
+      "ledgerDirectories": "/bk/ledgers/l0,/bk/ledgers/l1,/bk/ledgers/l2,/bk/ledgers/l3"
+    },
+    "bookkeeperJVMOptions": {
+      "memoryOpts": [
+        "-XX:+UseContainerSupport",
+        "-XX:+IgnoreUnrecognizedVMOptions",
+        "-Xmx1024m"
+      ]
     }
   },
-  "segmentStoreJVMOptions": ["-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-XX:MaxDirectMemorySize=5g", "-Xmx512m"],
-  "controllerJVMOptions": ["-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-Xmx512m"]
+  "controllerPrperties": {
+    "resources": {
+      "limits": {
+        "cpu": "2000m",
+        "memory": "2Gi"
+      },
+      "requests": {
+        "cpu": "1000m",
+        "memory": "2Gi"
+      }
+    },
+    "controllerJVMOptions": [
+      "-XX:+UseContainerSupport",
+      "-XX:+IgnoreUnrecognizedVMOptions",
+      "-Xmx1024m"
+    ]
+  },
+  "segmentStoreProperties": {
+    "resources": {
+      "limits": {
+        "cpu": "2000m",
+        "memory": "6Gi"
+      },
+      "requests": {
+        "cpu": "1000m",
+        "memory": "6Gi"
+      }
+    },
+    "segmentStoreJVMOptions": [
+      "-XX:+UseContainerSupport",
+      "-XX:+IgnoreUnrecognizedVMOptions",
+      "-XX:MaxDirectMemorySize=4g",
+      "-Xmx1024m"
+    ]
+  },
+  "zookeeperPrperties": {
+    "resources": {
+      "limits": {
+        "cpu": "400m",
+        "memory": "2Gi"
+      },
+      "requests": {
+        "cpu": "200m",
+        "memory": "1Gi"
+      }
+    },
+    "persistantVolumeClaim": {
+      "storageClassName": "",
+      "volumeSize": "20Gi"
+    }
+  },
+  "pravegaOptions": {
+    "bookkeeper.ensemble.size": "3",
+    "bookkeeper.write.quorum.size": "3",
+    "bookkeeper.ack.quorum.size": "3",
+    "bookkeeper.write.timeout.milliseconds": "60000",
+    "bookkeeper.write.outstanding.bytes.max": "33554432",
+    "bookkeeper.ledger.size.max": "268435456",
+    "pravegaservice.cache.size.max": "1610612736",
+    "pravegaservice.cache.time.seconds.max": "600",
+    "pravegaservice.service.listener.port": "12345",
+    "hdfs.block.size": "67108864",
+    "writer.flush.threshold.bytes": "67108864",
+    "writer.flush.size.bytes.max": "67108864",
+    "pravegaservice.container.count": "8",
+    "controller.container.count": "8",
+    "controller.retention.bucket.count": "4",
+    "controller.service.asyncTaskPool.size": "20",
+    "controller.retention.thread.count": "4",
+    "log.level": "INFO",
+    "emptyDirVolumeMounts": "heap-dump=/tmp/dumpfile/heap,logs=/opt/pravega/logs"
+  }
 }
