@@ -21,6 +21,7 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Stream;
@@ -85,6 +86,7 @@ import org.mockito.Mock;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -164,6 +166,7 @@ public abstract class ControllerServiceWithStreamTest {
                 executor);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
+        streamMetadataTasks.setDefaultRetentionValues(true, 10, 20, RetentionPolicy.RetentionType.TIME);
         consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, 
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null, requestTracker);
     }
@@ -186,7 +189,7 @@ public abstract class ControllerServiceWithStreamTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 15000)
     public void createStreamTest() throws Exception {
         String stream = "create";
         String createStream = "_readerGroupStream";
@@ -220,6 +223,11 @@ public abstract class ControllerServiceWithStreamTest {
 
         // verify that create stream is not called again
         verify(streamStore, times(4)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
+
+        Controller.CreateStreamStatus streamStatusInternal = consumer.createInternalStream(SCOPE, "_createStream", configuration1, start, 0L).get();
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatusInternal.getStatus());
+        StreamConfiguration streamConfig = streamStore.getConfiguration(SCOPE, "_createStream", null, executor).get();
+        assertNull(streamConfig.getRetentionPolicy());
     }
 
     @Test(timeout = 5000)

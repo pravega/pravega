@@ -146,7 +146,7 @@ public class StreamMetadataTasks extends TaskBase {
     private static final long READER_GROUP_SEGMENT_ROLLOVER_SIZE_BYTES = 4 * 1024 * 1024; // 4MB
     private final AtomicLong retentionFrequencyMillis;
 
-    private final AtomicBoolean globalRetentionPolicy;
+    private final AtomicBoolean defaultRetentionPolicy;
 
     private final AtomicReference<RetentionType>  retentionType;
 
@@ -215,7 +215,7 @@ public class StreamMetadataTasks extends TaskBase {
         this.eventHelperFuture = new CompletableFuture<>();
         this.minRetentionValue = new AtomicLong(Config.RETENTION_MIN_VALUE);
         this.maxRetentionValue = new AtomicLong(Config.RETENTION_MAX_VALUE);
-        this.globalRetentionPolicy = new AtomicBoolean(Config.GLOBAL_RETENTION_POLICY);
+        this.defaultRetentionPolicy = new AtomicBoolean(Config.DEFAULT_RETENTION_POLICY);
         this.retentionType = new AtomicReference<>(Config.RETENTION_TYPE);
         this.setReady();
     }
@@ -788,7 +788,9 @@ public class StreamMetadataTasks extends TaskBase {
                                                                      long createTimestamp, long requestId) {
         log.debug(requestId, "createStream with resource called.");
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        if (config.getRetentionPolicy() == null && this.globalRetentionPolicy.get()) {
+        if (!stream.startsWith(NameUtils.INTERNAL_NAME_PREFIX) &&
+                config.getRetentionPolicy() == null &&
+                this.defaultRetentionPolicy.get()) {
             config = createRetentionPolicy(config);
         }
         final StreamConfiguration  streamConfig = config;
@@ -2177,8 +2179,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     @VisibleForTesting
-    void setGlobalRetentionValues(boolean globalPolicy, long minValue, long maxValue, RetentionType type) {
-        globalRetentionPolicy.set(globalPolicy);
+    public void setDefaultRetentionValues(boolean globalPolicy, long minValue, long maxValue, RetentionType type) {
+        defaultRetentionPolicy.set(globalPolicy);
         retentionType.set(type);
         minRetentionValue.set(minValue);
         maxRetentionValue.set(maxValue);
