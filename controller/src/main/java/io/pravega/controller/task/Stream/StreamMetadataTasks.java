@@ -789,8 +789,8 @@ public class StreamMetadataTasks extends TaskBase {
                                                                      long createTimestamp, long requestId) {
         log.debug(requestId, "createStream with resource called.");
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        if (config.getRetentionPolicy() == null
-            && !config.getRetentionPolicy().getRetentionType().equals(RetentionType.NONE)
+        if (!config.getRetentionPolicy().getRetentionType().equals(RetentionType.NONE)
+                && config.getRetentionPolicy() == null
                 && this.globalRetentionPolicy.get()) {
             config = createRetentionPolicy(config);
         }
