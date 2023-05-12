@@ -133,10 +133,10 @@ public abstract class AbstractService implements Service {
                 .put("debugLogging", true)
                 .put("cacheVolumeClaimTemplate", getPersistentVolumeClaimSpec(resourceWrapper.getZookeeperProperties().getPersistentVolumeClaim().get("storageClassName"),
                         resourceWrapper.getZookeeperProperties().getPersistentVolumeClaim().get("volumeSize")))
-                .put("controllerResources", getResources(resourceWrapper.getControllerProperties().getResources().getLimits().get("cpu"),
-                        resourceWrapper.getControllerProperties().getResources().getLimits().get("memory"), resourceWrapper.getControllerProperties().getResources().getRequests().get("cpu"),
-                        resourceWrapper.getControllerProperties().getResources().getRequests().get("memory")))
-                .put("segmentStoreResources", resourceWrapper.getSegmentStoreProperties().getResources())
+                .put("controllerResources", getResources(resourceWrapper.getControllerProperties().getControllerResources().getLimits().get("cpu"),
+                        resourceWrapper.getControllerProperties().getControllerResources().getLimits().get("memory"), resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("cpu"),
+                        resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("memory")))
+                .put("segmentStoreResources", resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources())
                 .put("options", resourceWrapper.getPravegaOptions())
                 .put("image", pravegaImgSpec)
                 .put("longtermStorage", tier2Spec())
@@ -382,9 +382,9 @@ public abstract class AbstractService implements Service {
         final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", getBookkeeperImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME))
                 .put("replicas", bookieCount)
                 .put("version", BOOKKEEPER_VERSION)
-                .put("resources", getResources(resourceWrapper.getBookkeeperProperties().getResources().getLimits().get("cpu"),
-                        resourceWrapper.getBookkeeperProperties().getResources().getLimits().get("memory"), resourceWrapper.getBookkeeperProperties().getResources().getRequests().get("cpu"),
-                        resourceWrapper.getBookkeeperProperties().getResources().getRequests().get("memory")))
+                .put("resources", getResources(resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("cpu"),
+                        resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("memory"), resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("cpu"),
+                        resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("memory")))
                 .put("storage", ImmutableMap.builder()
                         .put("index", resourceWrapper.getBookkeeperProperties().getStorage().getIndex())
                         .put("ledger", resourceWrapper.getBookkeeperProperties().getStorage().getLedger())

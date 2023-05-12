@@ -21,6 +21,6 @@ import lombok.Setter;
 @Getter
 @Setter
 public class SegmentStoreProperties {
-    private Resources resources;
+    private Resources segmentStoreResources;
     private String[] segmentStoreJVMOptions;
 }

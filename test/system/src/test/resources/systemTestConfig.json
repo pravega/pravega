@@ -1,6 +1,6 @@
 {
   "bookkeeperProperties": {
-    "resources": {
+    "bookkeeperResources": {
       "limits": {
         "cpu": "700m",
         "memory": "1Gi"
@@ -10,7 +10,7 @@
         "memory": "1Gi"
       }
     },
-    "storage": {
+    "bookkeeperStorage": {
       "index": {
         "className": "",
         "volumeSize": "10Gi"
@@ -36,8 +36,8 @@
       ]
     }
   },
-  "controllerPrperties": {
-    "resources": {
+  "controllerProperties": {
+    "controllerResources": {
       "limits": {
         "cpu": "2000m",
         "memory": "2Gi"
@@ -54,7 +54,7 @@
     ]
   },
   "segmentStoreProperties": {
-    "resources": {
+    "segmentStoreResources": {
       "limits": {
         "cpu": "2000m",
         "memory": "6Gi"
@@ -71,8 +71,8 @@
       "-Xmx1024m"
     ]
   },
-  "zookeeperPrperties": {
-    "resources": {
+  "zookeeperProperties": {
+    "zookeeperResources": {
       "limits": {
         "cpu": "400m",
         "memory": "2Gi"
@@ -82,7 +82,7 @@
         "memory": "1Gi"
       }
     },
-    "persistantVolumeClaim": {
+    "persistentVolumeClaim": {
       "storageClassName": "",
       "volumeSize": "20Gi"
     }

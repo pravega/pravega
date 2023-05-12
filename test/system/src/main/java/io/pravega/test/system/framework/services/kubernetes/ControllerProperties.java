@@ -24,6 +24,6 @@ import java.util.Map;
 @Getter
 @Setter
 public class ControllerProperties {
-    private Resources resources;
+    private Resources controllerResources;
     private Map<String, List<String>> controllerJVMOptions;
 }

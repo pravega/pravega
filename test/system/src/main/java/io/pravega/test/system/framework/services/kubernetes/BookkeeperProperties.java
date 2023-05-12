@@ -24,8 +24,8 @@ import java.util.Map;
 @Getter
 @Setter
 public class BookkeeperProperties {
-private Resources resources;
-private Storage storage;
-private Map<String, String> bookkeeperOptions;
-private Map<String, List<String>> bookkeeperJVMOptions;
+    private Resources bookkeeperResources;
+    private Storage storage;
+    private Map<String, String> bookkeeperOptions;
+    private Map<String, List<String>> bookkeeperJVMOptions;
 }

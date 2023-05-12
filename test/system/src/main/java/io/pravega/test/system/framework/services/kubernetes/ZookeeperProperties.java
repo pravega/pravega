@@ -23,6 +23,6 @@ import java.util.Map;
 @Getter
 @Setter
 public class ZookeeperProperties {
-    private Resources resources;
+    private Resources zookeeperResources;
     private Map<String, String> persistentVolumeClaim;
 }
