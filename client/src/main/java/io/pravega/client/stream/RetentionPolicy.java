@@ -43,8 +43,8 @@ public class RetentionPolicy implements Serializable {
         SIZE,
 
         /**
-         * Set the default retention as NONE to all internal streams as
-         * retention shouldn't be applied to any internal streams
+         * Set the default retention as NONE to all internal streams.
+         * Retention shouldn't be applied to any internal streams.
          */
         NONE
     }
@@ -103,7 +103,7 @@ public class RetentionPolicy implements Serializable {
     }
 
     /**
-     * Set the retention policy as NONE to configure all internal streams
+     * Set the retention policy as NONE to configure all internal streams,
      * so that no retention is applied and the truncation won't take in place
      *
      * @return Retention policy object.

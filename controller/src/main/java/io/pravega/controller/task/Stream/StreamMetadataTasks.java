@@ -803,8 +803,10 @@ public class StreamMetadataTasks extends TaskBase {
                 (config.getRetentionPolicy() != null &&
                         config.getRetentionPolicy().getRetentionType().equals(RetentionType.NONE))) {
             return false;
-        } else return config.getRetentionPolicy() == null &&
-                this.defaultRetentionPolicy.get();
+        } else {
+            return config.getRetentionPolicy() == null &&
+                    this.defaultRetentionPolicy.get();
+        }
     }
 
     private StreamConfiguration createRetentionPolicy(StreamConfiguration config) {
