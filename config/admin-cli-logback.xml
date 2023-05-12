@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <configuration scan="true" scanPeriod="30 seconds">
-    <logger name="io.pravega.cli.admin.dataRecovery" level="INFO">
+    <logger name="io.pravega.cli.admin.dataRecovery" level="DEBUG">
         <appender name="FILE" class="ch.qos.logback.core.FileAppender">
             <file>dataRecovery.log</file>
             <encoder>

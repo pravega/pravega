@@ -70,6 +70,7 @@ import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang.math.NumberUtils;
 
@@ -99,6 +100,7 @@ import java.util.stream.Collectors;
  * and its usage can be found at:
  * <a href="https://github.com/pravega/pravega/blob/master/documentation/src/docs/recovery-procedures/lts-recovery-steps.md"/>
  */
+@Slf4j(topic = "io.pravega.cli.admin.dataRecovery.RecoverFromStorageCommand")
 public class RecoverFromStorageCommand extends DataRecoveryCommand {
     private static final Duration TIMEOUT = Duration.ofMillis(300 * 1000);
     private static final String ATTRIBUTE_SUFFIX = "$attributes.index";
@@ -139,6 +141,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      */
     public RecoverFromStorageCommand(CommandArgs args) {
         super(args);
+        log.debug("******************Initializing RecoverFromStorageCommand********************");
         this.containerCount = getServiceConfig().getContainerCount();
         this.storageFactory = createStorageFactory(this.executorService);
     }
@@ -153,9 +156,11 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      * @throws Exception
      */
     private DebugStreamSegmentContainer createDebugSegmentContainer(Context context, int containerId, DurableDataLogFactory dataLogFactory) throws Exception {
+        debugLog("Creating DebugStreamSegmentContainer...", containerId);
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, dataLogFactory, executorService);
         DebugStreamSegmentContainer debugStreamSegmentContainer = new DebugStreamSegmentContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory, context.getReadIndexFactory(), context.getAttributeIndexFactory(), context.getWriterFactory(), this.storageFactory, context.getDefaultExtensions(), executorService);
         Services.startAsync(debugStreamSegmentContainer, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        debugLog("DebugStreamSegmentContainer created...", containerId);
         return debugStreamSegmentContainer;
     }
 
@@ -181,9 +186,11 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
     @Override
     public void execute() throws Exception {
+        log.debug("******************Inside execute method********************");
         validateArguments();
         @Cleanup
         Context context = createContext(executorService);
+        log.debug("Creating ZKClient...");
         @Cleanup
         val zkClient = createZKClient();
         val bkConfig = getCommandArgs().getState().getConfigBuilder().include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, getServiceConfig().getZkURL())).build().getConfig(BookKeeperConfig::builder);
@@ -212,6 +219,12 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         }
     }
 
+    @Override
+    protected void output(String messageTemplate, Object... args) {
+        super.output(messageTemplate, args);
+        log.info(messageTemplate.replace("%d", "{}"), args);
+    }
+
     /**
      * Performs actual recovery procedure.
      * 1. Spins up a DebugSegmentContainer.
@@ -228,15 +241,19 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      * @throws Exception
      */
     private void recoverFromStorage(int containerId, File[] allFiles, Context context, DurableDataLogFactory dataLogFactory) throws Exception {
+        debugLog("Inside recoverFromStorage method.", containerId);
         File[] potentialFiles = getContainerMetadataChunkFiles(allFiles, containerId);
         // Rename the Journal files. Recreating the metadata as part of the recovery will create new Journals
         renameJournalsOf(containerId);
         // Create debug segment container
         DebugStreamSegmentContainer debugStreamSegmentContainer = createDebugSegmentContainer(context, containerId, dataLogFactory);
+        debugLog("----------------Debug segment container initialized-----------------", containerId);
         output("-----------------Debug Segment container %d initialized--------------", containerId);
         // Segregate the metadata and storage metadata chunks
+        debugLog("Segregating segment metadata.", containerId);
         Map<String, List<File>> metadataSegments = segregateMetadataSegments(potentialFiles);
         Preconditions.checkState(metadataSegments.size() == 2, "Only MetadataSegment and Storage MetadataSegment chunks should be present");
+        debugLog("Segment metadata segregated.", containerId);
         List<File> storageChunks = null;
         int attempts = 0;
 
@@ -284,6 +301,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     @SneakyThrows
     private void overrideLogMetadataWithEpoch(Map<Integer, Long> containersToEpoch, DurableDataLogFactory durableDataLogFactory) {
         for (Map.Entry<Integer, Long> entry: containersToEpoch.entrySet()) {
+            debugLog("Overriding Epoch {}", entry.getKey(), entry.getValue());
             DebugDurableDataLogWrapper debugDurableDataLogWrapper = durableDataLogFactory.createDebugLogWrapper(entry.getKey());
             debugDurableDataLogWrapper.overrideEpochInMetadata(entry.getValue());
         }
@@ -297,7 +315,9 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      * @param containersToEpoch Map to hold highest epoch for all containers.
      */
     private void setEpochforContainer(File chunk, int containerId, Map<Integer, Long> containersToEpoch) {
+        debugLog("Getting Epoch from chunk.", containerId);
         long epoch = getEpochFromChunk(chunk);
+        debugLog("Setting Epoch for container.", containerId);
         long epochAlreadyPresent = containersToEpoch.getOrDefault(containerId, Long.valueOf(1));
         if (epoch > epochAlreadyPresent) {
             containersToEpoch.put(containerId, epoch);
@@ -317,6 +337,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      * set of Container or Storage Metadata Chunk files.
      */
     private File[] getContainerMetadataChunkFiles(File[] allFiles, int containerId) {
+        debugLog("Getting container metadata chunk files.", containerId);
         List<File> filteredFiles =  Arrays.stream(allFiles)
                 .filter(File::isFile)
                 .filter(f -> !f.getName().contains(ATTRIBUTE_SUFFIX))
@@ -329,6 +350,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      * Renames Journal files.
      */
     private void renameJournalsOf(int containerId) {
+        debugLog("Renaming journals.", containerId);
         File dir = new File(tier2Root + containersPath);
         assert dir != null;
         File[] files = dir.listFiles();
@@ -338,6 +360,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 file.renameTo(new File(file.getAbsolutePath().toString() + SYSJOURNAL_BACKUP_EXTENSION));
             }
         }
+        debugLog("Journals renamed.", containerId);
     }
 
     /**
@@ -348,17 +371,21 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      * @throws Exception
      */
     private void reconcileStorageSegment(DebugStreamSegmentContainer container) throws Exception {
+        debugLog("Inside reconcileStorageSegment method.", container.getId());
         Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), executorService, true, TIMEOUT );
         Set<String> segments = segmentsByContainer.get(container.getId());
         ContainerTableExtension extension = container.getExtension(ContainerTableExtension.class);
 
         for (String segment : segments) {
+            debugLog("Reconciling storage segment for segment {}", container.getId(), segment);
             List<TableEntry> entries = extension.get(NameUtils.getStorageMetadataSegmentName(container.getId()), Collections.singletonList(BufferView.wrap(segment.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
             TableEntry entry = entries.get(0);
             if (entry == null) {
+                debugLog("Entries having null for segment {}", container.getId(), segment);
                 // skip entries having null values
                 continue;
             }
+            debugLog("Serializing entries for segment {}", container.getId(), segment);
             StorageMetadata storageMetadata = SLTS_SERIALIZER.deserialize(entry.getValue().getCopy()).getValue();
             if (storageMetadata instanceof SegmentMetadata) {
                 SegmentMetadata storageSegment = (SegmentMetadata) storageMetadata;
@@ -400,6 +427,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 extension.put(NameUtils.getMetadataSegmentName(container.getId()), Collections.singletonList(unversionedEntry), TIMEOUT).join();
             }
         }
+        debugLog("Reconciliation completed.", container.getId());
     }
 
     /**
@@ -428,6 +456,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      * @throws Exception
      */
     private void writeEntriesToContainerMetadata(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
+        debugLog("Inside writeEntriesToContainerMetadata for container.", container.getId());
         output("Writing entries to container metadata");
         ContainerTableExtension tableExtension = container.getExtension(ContainerTableExtension.class);
         HashSet<String> deletedKeys = new HashSet<>();
@@ -441,12 +470,14 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
             }
 
             if (operation instanceof TableSegmentUtils.PutOperation) {
+                debugLog("Performing put operation on container metadata {} : {}.", container.getId(), tableSegment, unversionedEntry);
                 MetadataStore.SegmentInfo segmentInfo = SERIALIZER.deserialize(new ByteArraySegment(unversionedEntry.getValue().getCopy()).getReader());
                 // Reset Segment ID to "NO_STREAM_SEGMENT_ID" to avoid segment id conflicts with some segments that get created when container starts up immediately after recovery.
                 ByteArraySegment segment = SERIALIZER.serialize(resetSegmentID(segmentInfo));
                 unversionedEntry = TableEntry.unversioned(unversionedEntry.getKey().getKey(), segment );
                 tableExtension.put(tableSegment, Collections.singletonList(unversionedEntry), TIMEOUT).join();
             } else {
+                debugLog("Performing remove operation on container metadata.", container.getId(), tableSegment, unversionedEntry);
                 tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
             }
         }
@@ -463,6 +494,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      * @throws Exception
      */
     private void resetStorageSegment(DebugStreamSegmentContainer container) throws Exception {
+        debugLog("Resetting storage segment.", container.getId());
         ContainerTableExtension tableExtension = container.getExtension(ContainerTableExtension.class);
         List<TableEntry> entries = tableExtension.get(NameUtils.getMetadataSegmentName(container.getId()),
                 Collections.singletonList(BufferView.wrap(NameUtils.getStorageMetadataSegmentName(container.getId()).getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
@@ -487,6 +519,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         ByteArraySegment segment = SERIALIZER.serialize(resetSegmentID(newSegmentInfo));
         unversionedEntry = TableEntry.unversioned(unversionedEntry.getKey().getKey(), segment );
         tableExtension.put(NameUtils.getMetadataSegmentName(container.getId()), Collections.singletonList(unversionedEntry), TIMEOUT).join();
+        debugLog("Reset completed for storage segment.", container.getId());
     }
 
     private MetadataStore.SegmentInfo resetSegmentID(MetadataStore.SegmentInfo segmentInfo) {
@@ -507,6 +540,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      * @throws Exception
      */
     private void writeEntriesToStorageMetadata(DebugStreamSegmentContainer container, String tableSegment, List<TableSegmentUtils.TableSegmentOperation> tableSegmentOperations) throws Exception {
+        debugLog("Inside writeEntriesToStorageMetadata method.", container.getId());
         output("Writing entries to storage metadata");
         ContainerTableExtension tableExtension = container.getExtension(ContainerTableExtension.class);
         for (TableSegmentUtils.TableSegmentOperation operation : tableSegmentOperations) {
@@ -517,8 +551,10 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 continue;
             }
             if (operation instanceof TableSegmentUtils.PutOperation) {
+                debugLog("Performing put operation on storage metadata {} {}.", container.getId(), tableSegment, unversionedEntry);
                 tableExtension.put(tableSegment, Collections.singletonList(unversionedEntry), TIMEOUT).join();
             } else {
+                debugLog("Performing remove operation on storage metadata {} {}.", container.getId(), tableSegment, unversionedEntry);
                 deletedSegments.add(segment); //track deleted segments/chunks and skip querying them during validation.
                 tableExtension.remove(tableSegment, Collections.singletonList(unversionedEntry.getKey()), TIMEOUT);
             }
@@ -544,6 +580,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     }
 
     private void flushToStorage(DebugStreamSegmentContainer debugSegmentContainer) {
+        debugLog("Flushing to storage.", debugSegmentContainer.getId());
         debugSegmentContainer.flushToStorage(TIMEOUT).join();
     }
 
@@ -556,6 +593,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
     // Creates the environment for debug segment container
     private Context createContext(ScheduledExecutorService scheduledExecutorService) {
+        log.debug("Creating RecoverFromStorageCommand.Context...");
         return new Context(scheduledExecutorService);
     }
 
@@ -603,7 +641,9 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
          * @return True if all chunks of a segment are found in metadata, false otherwise.
          */
         protected boolean validateSegment(String segment) {
+            debugLog("Validating segments.", container.getId());
             ContainerTableExtension extension = this.container.getExtension(ContainerTableExtension.class);
+
             boolean isValid = true;
             try {
                 if (deletedSegments.contains(segment)) {
@@ -671,6 +711,7 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     }
 
     private void validateArguments() {
+        log.debug("Validating LTS recovery arguments.");
         Preconditions.checkArgument(getArgCount() >= 2, "Incorrect argument count.");
         final String container = getArg(1);
 
@@ -691,6 +732,11 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 Preconditions.checkArgument(endContainer >= startContainer, "End container id must be greater than or equal to start container id.");
             }
         }
+        log.debug("LTS recovery arguments validated.");
+    }
+
+    private void debugLog(String msg, int containerId, Object... args) {
+        log.debug( String.format("RecoverFromStorage[%s]: ", containerId) + msg, args);
     }
 
     @VisibleForTesting
