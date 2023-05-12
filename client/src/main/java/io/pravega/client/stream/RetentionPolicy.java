@@ -40,7 +40,13 @@ public class RetentionPolicy implements Serializable {
         /**
          * Set retention based on the total size of the data in the stream in bytes.
          */
-        SIZE
+        SIZE,
+
+        /**
+         * Set the default retention as NONE to all internal streams as
+         * retention shouldn't be applied to any internal streams
+         */
+        NONE
     }
 
     private final RetentionType retentionType;
@@ -94,5 +100,15 @@ public class RetentionPolicy implements Serializable {
     public static RetentionPolicy bySizeBytes(long sizeMin, long sizeMax) {
         return RetentionPolicy.builder().retentionType(RetentionType.SIZE)
                 .retentionParam(sizeMin).retentionMax(sizeMax).build();
+    }
+
+    /**
+     * Set the retention policy as NONE to configure all internal streams
+     * so that no retention is applied and the truncation won't take in place
+     *
+     * @return Retention policy object.
+     */
+    public static RetentionPolicy byNone() {
+        return RetentionPolicy.builder().retentionType(RetentionType.NONE).build();
     }
 }

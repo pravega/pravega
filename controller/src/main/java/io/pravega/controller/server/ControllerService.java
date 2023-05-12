@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
@@ -362,7 +363,9 @@ public class ControllerService {
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
-        return callCreateStream(scope, stream, streamConfig, createTimestamp, requestId);
+        return callCreateStream(scope, stream,
+                streamConfig.toBuilder().retentionPolicy(RetentionPolicy.byNone()).build(),
+                createTimestamp, requestId);
     }
 
     /**

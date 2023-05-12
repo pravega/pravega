@@ -267,7 +267,7 @@ public class StreamMetadataTasks extends TaskBase {
                         log.debug(requestId, "Creating StateSynchronizer Stream {}", stream);
                         return createStreamRetryOnLockFailure(scope,
                                 stream,
-                                config,
+                                config.toBuilder().retentionPolicy(RetentionPolicy.byNone()).build(),
                                 createTimestamp,
                                 numOfRetries,
                                 requestId);
@@ -790,6 +790,7 @@ public class StreamMetadataTasks extends TaskBase {
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
         if (!stream.startsWith(NameUtils.INTERNAL_NAME_PREFIX) &&
                 config.getRetentionPolicy() == null &&
+                !config.getRetentionPolicy().getRetentionType().equals(RetentionType.NONE) &&
                 this.defaultRetentionPolicy.get()) {
             config = createRetentionPolicy(config);
         }
@@ -1846,7 +1847,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     .thenCompose(y -> {
                                         return withRetries(() -> {
                                             CompletableFuture<Void> future;
-                                            if (config.getRetentionPolicy() != null) {
+                                            if (config.getRetentionPolicy() != null && !config.getRetentionPolicy().getRetentionType().equals(RetentionType.NONE)) {
                                                 future = bucketStore.addStreamToBucketStore(
                                                         BucketStore.ServiceType.RetentionService, scope, stream, executor);
                                             } else {
@@ -1898,7 +1899,7 @@ public class StreamMetadataTasks extends TaskBase {
         String markStream = NameUtils.getMarkStreamForStream(baseStream);
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         OperationContext context = streamMetadataStore.createStreamContext(scope, markStream, requestId);
-        return this.streamMetadataStore.createStream(scope, markStream, config, timestamp, context, executor)
+        return this.streamMetadataStore.createStream(scope, markStream, config.toBuilder().retentionPolicy(RetentionPolicy.byNone()).build(), timestamp, context, executor)
                                 .thenCompose(response -> {
                                     final long segmentId = NameUtils.computeSegmentId(response.getStartingSegmentNumber(), 0);
                                     return notifyNewSegment(scope, markStream, segmentId,
