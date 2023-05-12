@@ -788,10 +788,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                                      long createTimestamp, long requestId) {
         log.debug(requestId, "createStream with resource called.");
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        if (!stream.startsWith(NameUtils.INTERNAL_NAME_PREFIX) &&
-                config.getRetentionPolicy() == null &&
-                !config.getRetentionPolicy().getRetentionType().equals(RetentionType.NONE) &&
-                this.defaultRetentionPolicy.get()) {
+        if (validateStreamConfig(stream, config)) {
             config = createRetentionPolicy(config);
         }
         final StreamConfiguration  streamConfig = config;
@@ -799,6 +796,15 @@ public class StreamMetadataTasks extends TaskBase {
                     new Resource(scope, stream),
                     new Serializable[]{scope, stream, streamConfig, createTimestamp, requestId},
                     () -> createStreamBody(scope, stream, streamConfig, createTimestamp, context));
+    }
+
+    private boolean validateStreamConfig(String stream, StreamConfiguration config) {
+        if (stream.startsWith(NameUtils.INTERNAL_NAME_PREFIX) ||
+                (config.getRetentionPolicy() != null &&
+                        config.getRetentionPolicy().getRetentionType().equals(RetentionType.NONE))) {
+            return false;
+        } else return config.getRetentionPolicy() == null &&
+                this.defaultRetentionPolicy.get();
     }
 
     private StreamConfiguration createRetentionPolicy(StreamConfiguration config) {
