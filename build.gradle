@@ -1433,7 +1433,7 @@ task publishAllJars() {
     dependsOn ':standalone:Publish'
     dependsOn ':cli:admin'
     dependsOn ':cli:user'
-    dependsOn ':test:system:publish'
+    dependsOn ':test:system:Publish'
 }
 
 task sourceCopy(type: Copy) {
