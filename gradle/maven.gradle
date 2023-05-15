@@ -55,16 +55,29 @@ plugins.withId('maven-publish'){
                 if(project.hasProperty("publishUrl")){
                     if(publishUrl=="mavenCentral"){
                         url = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-                        credentials(username: publishUsername, password: publishPassword)
+                        credentials {
+                            userName publishUsername
+                            password publishPassword
+                        }
+
                         snapshotRepository{
                             url = "https://oss.sonatype.org/content/repositories/snapshots/"
-                            credentials(username: publishUsername, password: publishPassword)
+                            credentials {
+                                userName publishUsername
+                                password publishPassword
+                            }
+
                         }
                     }
                     else{
                         url = publishUrl
                         if(project.hasProperty("publishUsername") && project.hasProperty("publishPassword")){
-                            credentials(username: publishUsername, password: publishPassword)
+                            credentials {
+                                userName publishUsername
+                                password publishPassword
+                            }
+
+
                         }
                     }
                 }
@@ -85,7 +98,7 @@ plugins.withId('maven-publish'){
             }
         }
     }
-    task Publish(dependsOn: 'publish'){
+    task Publish(dependsOn: 'publishToMavenLocal'){
     }
 
 }
