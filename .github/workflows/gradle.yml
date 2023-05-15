@@ -48,7 +48,7 @@ env:
 
   # Set 'GRADLE_OPTS' to pass additional custom parameters to each ./gradlew invocation in this workflow.
   # Example '--info' or '--debug'.
-  GRADLE_OPTS: --debug
+  #GRADLE_OPTS: --debug
 
 # The workflow begins with a compilation and static analysis job that also caches the build output and source code,
 # followed by a number of parallel test jobs (which make use of that cached artifacts).
@@ -354,7 +354,7 @@ jobs:
           -x segmentstore:storage:test
           -x segmentstore:server:host:test
           -x segmentstore:server:test
-          --parallel ${{env.GRADLE_OPTS}}
+          --parallel --debug
       - name: Tar Reports
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
