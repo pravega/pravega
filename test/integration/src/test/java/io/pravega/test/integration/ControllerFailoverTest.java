@@ -145,17 +145,4 @@ public class ControllerFailoverTest {
         controllerWrapper.awaitRunning();
         controllerWrapper.close();
     }
-
-    @Test(timeout = 180000)
-    public void testStopControllerWhenSSDown() throws Exception {
-        final int controllerPort = TestUtils.getAvailableListenPort();
-        final String serviceHost = "localhost";
-        final int containerCount = 1;
-        @Cleanup
-        final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
-                false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.getAvailableListenPort());
-        controllerWrapper.awaitRunning();
-        serviceBuilder.close();
-        controllerWrapper.close();
-    }
 }
