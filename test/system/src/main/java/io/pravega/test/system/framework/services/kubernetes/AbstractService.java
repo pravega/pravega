@@ -432,7 +432,7 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
-    private void getSystemTestConfig() {
+    public void getSystemTestConfig() {
         ObjectMapper objectMapper = new ObjectMapper();
         File file = new File(SYSTEMTESTPROPERTIES);
         try {

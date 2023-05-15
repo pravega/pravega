@@ -41,9 +41,11 @@ public class ZookeeperK8sService extends AbstractService {
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
     private static final String ZOOKEEPER_IMAGE_NAME = System.getProperty("zookeeperImageName", "zookeeper");
     private static final String PRAVEGA_ZOOKEEPER_IMAGE_VERSION = System.getProperty("zookeeperImageVersion", "latest");
+    private ResourceWrapper resourceWrapper = null;
 
     public ZookeeperK8sService(String id) {
         super(id);
+        getSystemTestConfig();
     }
 
     @Override
@@ -111,21 +113,9 @@ public class ZookeeperK8sService extends AbstractService {
                 .put("spec", ImmutableMap.builder().put("image",  getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + ZOOKEEPER_IMAGE_NAME, PRAVEGA_ZOOKEEPER_IMAGE_VERSION))
                                          .put("replicas", clusterSize)
                                          .put("persistence", ImmutableMap.of("reclaimPolicy", "Delete"))
-                                         .put("pod", ImmutableMap.of("resources", getZookeeperResources()))
+                                         .put("pod", ImmutableMap.of("resources", resourceWrapper.getZookeeperProperties().getZookeeperResources()))
                                          .build())
                 .build();
     }
 
-    private Map<String, Object> getZookeeperResources() {
-        return ImmutableMap.<String, Object>builder()
-                           .put("limits", ImmutableMap.builder()
-                                                      .put("cpu", "400m")
-                                                      .put("memory", "2Gi")
-                                                      .build())
-                           .put("requests", ImmutableMap.builder()
-                                                        .put("cpu", "200m")
-                                                        .put("memory", "1Gi")
-                                                        .build())
-                           .build();
-    }
 }
