@@ -21,6 +21,7 @@ import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.StreamCut;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import lombok.Builder;
 import lombok.NonNull;
@@ -80,5 +81,25 @@ public class StreamSegmentsInfoImpl implements StreamSegmentsIterator {
         startSegments.keySet().stream().filter(endSegments::containsKey)
                      .forEach(s -> Preconditions.checkState(startSegments.get(s) <= endSegments.get(s),
                              "Segment offset in startStreamCut should be <= segment offset in endStreamCut."));
+    }
+
+    @Override
+    public StreamCut getCurrentStreamCut() {
+        throw new UnsupportedOperationException("TODO: Implement this");
+    }
+
+    @Override
+    public boolean hasNext() {
+        throw new UnsupportedOperationException("TODO: Implement this");
+    }
+
+    @Override
+    public List<SegmentRange> next() {
+        throw new UnsupportedOperationException("TODO: Implement this");
+    }
+
+    @Override
+    public List<SegmentRange> next(long size) {
+        throw new UnsupportedOperationException("TODO: Implement this");
     }
 }

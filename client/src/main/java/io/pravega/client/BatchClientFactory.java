@@ -62,13 +62,14 @@ public interface BatchClientFactory extends AutoCloseable {
     
     /**
      * Provides a list of segments for a given stream between fromStreamCut and toStreamCut.
+     * 
      * Passing StreamCut.UNBOUNDED or null to fromStreamCut and toStreamCut will result in using the current start of
      * stream and the current end of stream respectively.
      *
      * Note: In case of stream truncation: <p>
-     * - Passing a null to fromStreamCut will result in using the current start of the Stream post truncation.<p>
+     * - Passing a null or StreamCut.UNBOUNDED to fromStreamCut will result in using the current start of the Stream post truncation.<p>
      * - Passing a fromStreamCut which points to the truncated stream will result in a {@link NoSuchSegmentException} while
-     * iterating over SegmentRange iterator obtained via {@link StreamSegmentsIterator#getIterator()}
+     * iterating over SegmentRange iterator obtained via {@link StreamSegmentsIterator#next()}
      *
      * @param stream the stream.
      * @param fromStreamCut starting stream cut.
@@ -101,6 +102,9 @@ public interface BatchClientFactory extends AutoCloseable {
      * @param startStreamCut start streamCut.
      * @param endStreamCut end streamCut.
      * @return A list of segment range in between a start and end stream cut.
+     * @deprecated Use {@link #getSegments(Stream, StreamCut, StreamCut)}
      */
+    @Deprecated
     List<SegmentRange> getSegmentRangeBetweenStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut);
+    
 }
