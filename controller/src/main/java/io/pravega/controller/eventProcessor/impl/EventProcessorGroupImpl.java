@@ -214,7 +214,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 // Initiate stop on all event processor cells
                 for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
                     log.info("Terminating event processor cell: {}", cell);
-                    cell.stopAsync(false);
+                    cell.stopAsync(true);
                 }
                 // Await termination of cells
                 for (EventProcessorCell<T> cell : eventProcessorMap.values()) {

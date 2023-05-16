@@ -340,7 +340,21 @@ jobs:
           ./gradlew rat spotbugsMain spotbugsTest --parallel ${{env.GRADLE_OPTS}}
       - name: Unit tests
         run: >
-          ./gradlew standalone:test --parallel --debug
+          ./gradlew test
+          -x client:test
+          -x shared:protocol:test
+          -x shared:security:test
+          -x common:test
+          -x test:testcommon:test
+          -x controller:test
+          -x shared:controller-api:test
+          -x test:integration:test
+          -x bindings:test
+          -x segmentstore:storage:impl:test
+          -x segmentstore:storage:test
+          -x segmentstore:server:host:test
+          -x segmentstore:server:test
+          --parallel ${{env.GRADLE_OPTS}}
       - name: Tar Reports
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
