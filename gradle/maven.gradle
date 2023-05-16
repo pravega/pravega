@@ -17,31 +17,36 @@ plugins.withId('maven-publish') {
     publishing {
         repositories {
             if (project.hasProperty("publishUrl")) {
-                if (publishUrl == "mavenCentral") {
+                if (project.hasProperty("publishUrl")) {
+                    if (publishUrl == "mavenCentral") {
 
-                    maven {
-                        url "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-                        credentials {
-                            userName publishUsername
-                            password publishPassword
-                        }
-                        authentication {
-                            basic(BasicAuthentication)
+                        maven {
+                            url "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+                            credentials {
+                                userName publishUsername
+                                password publishPassword
+                            }
+                            authentication {
+                                basic(BasicAuthentication)
 
+                            }
                         }
                     }
-                    maven {
-                        url "https://oss.sonatype.org/content/repositories/snapshots/"
+                    if (project.version.endsWith('-SNAPSHOT')) {
+                        maven {
+                            url "https://oss.sonatype.org/content/repositories/snapshots/"
 
-                        credentials {
-                            userName publishUsername
-                            password publishPassword
-                        }
-                        authentication {
-                            basic(BasicAuthentication)
+                            credentials {
+                                userName publishUsername
+                                password publishPassword
+                            }
+                            authentication {
+                                basic(BasicAuthentication)
+                            }
                         }
                     }
-                } else {
+                }
+                else {
                     maven {
                         url "publishUrl"
                         // Only configure credentials if they are provided (allows publishing to the filesystem)
@@ -63,7 +68,6 @@ plugins.withId('maven-publish') {
                     from components.java
                     artifact sourceJar
                     artifact testJar
-
                     artifact javadocJar
                     pom {
                         name = "Pravega"
