@@ -106,7 +106,7 @@ plugins.withId('maven-publish') {
     }
 
 
-    task Publish{
+    task myTask{
         dependsOn "publish"
     }
 }
