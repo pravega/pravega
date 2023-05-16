@@ -47,11 +47,7 @@
         "memory": "2Gi"
       }
     },
-    "controllerJVMOptions": [
-      "-XX:+UseContainerSupport",
-      "-XX:+IgnoreUnrecognizedVMOptions",
-      "-Xmx1024m"
-    ]
+    "controllerJVMOptions": ["-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-Xmx1024m"]
   },
   "segmentStoreProperties": {
     "segmentStoreResources": {

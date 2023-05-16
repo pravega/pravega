@@ -15,19 +15,25 @@
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
-import com.google.common.collect.ImmutableMap;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.Map;
 
 /**
  * Wrapper class to deserializing the json file contents.
  */
 @Getter
 @Setter
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonDeserialize
 public class ResourceWrapper {
     private BookkeeperProperties bookkeeperProperties;
     private ControllerProperties controllerProperties;
     private SegmentStoreProperties segmentStoreProperties;
     private ZookeeperProperties zookeeperProperties;
-    private ImmutableMap<String, String> pravegaOptions;
+    private Map<String, String> pravegaOptions;
 }

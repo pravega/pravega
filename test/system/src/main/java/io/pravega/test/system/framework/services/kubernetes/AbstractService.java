@@ -15,7 +15,10 @@
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.introspect.VisibilityChecker;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
 import io.kubernetes.client.openapi.models.V1Secret;
@@ -50,7 +53,7 @@ public abstract class AbstractService implements Service {
 
     public static final int CONTROLLER_GRPC_PORT = 9090;
     public static final int CONTROLLER_REST_PORT = 10080;
-    public static final String SYSTEMTESTPROPERTIES = "systemTestConfig.json";
+    public static final String SYSTEMTESTPROPERTIES = "test/system/src/test/resources/systemTestConfig.json";
     protected static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     protected static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     protected static final String TCP = "tcp://";
@@ -117,8 +120,7 @@ public abstract class AbstractService implements Service {
                 getPravegaOnlyDeployment(zkUri.getAuthority(),
                 controllerCount,
                 segmentStoreCount,
-                resourceWrapper.getPravegaOptions())));
-
+                ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))));
     }
 
     private Map<String, Object> getPravegaOnlyDeployment(String zkLocation, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
@@ -267,7 +269,7 @@ public abstract class AbstractService implements Service {
         return resourceWrapper.getSegmentStoreProperties().getSegmentStoreJVMOptions();
     }
 
-    private Map<String, List<String>> getControllerJVMOptions() {
+    private String[] getControllerJVMOptions() {
         return resourceWrapper.getControllerProperties().getControllerJVMOptions();
     }
 
@@ -363,7 +365,7 @@ public abstract class AbstractService implements Service {
                         NAMESPACE, CUSTOM_RESOURCE_PLURAL_BOOKKEEPER,
                         getBookkeeperDeployment(zkUri.getAuthority(),
                                 bookieCount,
-                                resourceWrapper.getPravegaOptions())));
+                                ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))));
     }
 
     private V1ConfigMap getBookkeeperOperatorConfigMap() {
@@ -386,9 +388,9 @@ public abstract class AbstractService implements Service {
                         resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("memory"), resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("cpu"),
                         resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("memory")))
                 .put("storage", ImmutableMap.builder()
-                        .put("index", resourceWrapper.getBookkeeperProperties().getStorage().getIndex())
-                        .put("ledger", resourceWrapper.getBookkeeperProperties().getStorage().getLedger())
-                        .put("journal", resourceWrapper.getBookkeeperProperties().getStorage().getJournal())
+                        .put("index", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getIndex())
+                        .put("ledger", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getLedger())
+                        .put("journal", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getJournal())
                         .build())
 
                 .put("envVars", CONFIG_MAP_BOOKKEEPER)
@@ -434,8 +436,13 @@ public abstract class AbstractService implements Service {
 
     public void getSystemTestConfig() {
         ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        objectMapper.setVisibility(VisibilityChecker.Std.defaultInstance().withFieldVisibility(JsonAutoDetect.Visibility.ANY));
+        objectMapper.enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY);
+
         File file = new File(SYSTEMTESTPROPERTIES);
         try {
+            file.getAbsolutePath();
             resourceWrapper = objectMapper.readValue(file, ResourceWrapper.class);
         } catch (IOException e) {
             log.error("Input json file not available", e);
