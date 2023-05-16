@@ -340,7 +340,7 @@ jobs:
           ./gradlew rat spotbugsMain spotbugsTest --parallel ${{env.GRADLE_OPTS}}
       - name: Unit tests
         run: >
-          ./gradlew standalone:test --parallel --info
+          ./gradlew standalone:test --parallel --debug
       - name: Tar Reports
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
