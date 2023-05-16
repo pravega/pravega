@@ -379,7 +379,7 @@ public final class ModelHelper {
         final StreamConfig.Builder builder = StreamConfig.newBuilder()
                 .setStreamInfo(createStreamInfo(scope, streamName))
                 .setScalingPolicy(decode(configModel.getScalingPolicy()));
-        if (configModel.getRetentionPolicy() != null) {
+        if (configModel.getRetentionPolicy() != null && !configModel.getRetentionPolicy().getRetentionType().equals(RetentionPolicy.RetentionType.NONE)) {
             builder.setRetentionPolicy(decode(configModel.getRetentionPolicy()));
         }
         builder.setTags(Controller.Tags.newBuilder().addAllTag(configModel.getTags()).build());

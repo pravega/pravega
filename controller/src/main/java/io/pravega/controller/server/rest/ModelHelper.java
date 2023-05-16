@@ -205,7 +205,7 @@ public class ModelHelper {
         }
 
         RetentionConfig retentionConfig = null;
-        if (streamConfiguration.getRetentionPolicy() != null) {
+        if (streamConfiguration.getRetentionPolicy() != null && !streamConfiguration.getRetentionPolicy().getRetentionType().equals(RetentionPolicy.RetentionType.NONE)) {
             retentionConfig = new RetentionConfig();
             switch (streamConfiguration.getRetentionPolicy().getRetentionType()) {
                 case SIZE:

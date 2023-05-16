@@ -16,6 +16,7 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Timer;
@@ -178,7 +179,8 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
 
     private CompletableFuture<Void> updateStreamForAutoStreamCut(String scope, String stream,
                         StreamConfigurationRecord configProperty, VersionedMetadata<State> updated) {
-        if (configProperty.getStreamConfiguration().getRetentionPolicy() != null) {
+        if (configProperty.getStreamConfiguration().getRetentionPolicy() != null &&
+                !configProperty.getStreamConfiguration().getRetentionPolicy().getRetentionType().equals(RetentionPolicy.RetentionType.NONE)) {
             return bucketStore.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor);
         } else {
             return bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor);

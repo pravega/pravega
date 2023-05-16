@@ -788,7 +788,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                                      long createTimestamp, long requestId) {
         log.debug(requestId, "createStream with resource called.");
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        if (validateStreamConfig(stream, config)) {
+        if (isConfigUpdateRequired(stream, config)) {
             config = createRetentionPolicy(config);
         }
         final StreamConfiguration  streamConfig = config;
@@ -798,10 +798,10 @@ public class StreamMetadataTasks extends TaskBase {
                     () -> createStreamBody(scope, stream, streamConfig, createTimestamp, context));
     }
 
-    private boolean validateStreamConfig(String stream, StreamConfiguration config) {
+    private boolean isConfigUpdateRequired(String stream, StreamConfiguration config) {
         if (stream.startsWith(NameUtils.INTERNAL_NAME_PREFIX) ||
                 (config.getRetentionPolicy() != null &&
-                        config.getRetentionPolicy().getRetentionType().equals(RetentionType.NONE))) {
+                config.getRetentionPolicy().getRetentionType().equals(RetentionType.NONE))) {
             return false;
         } else {
             return config.getRetentionPolicy() == null &&
