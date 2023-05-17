@@ -175,17 +175,8 @@ public final class Config {
     public static final Property<Integer> PROPERTY_RETENTION_BUCKET_COUNT = Property.named(
             "retention.bucket.count", 1, "retention.bucketCount");
 
-    public static final Property<RetentionType> PROPERTY_RETENTION_TYPE = Property.named(
-            "retention.type", RetentionType.TIME, "retention.type");
-
-    public static final Property<Integer> PROPERTY_RETENTION_MIN_VALUE = Property.named(
-            "retention.min.value", Integer.MAX_VALUE, "retention.minVal");
-
-    public static final Property<Integer> PROPERTY_RETENTION_MAX_VALUE = Property.named(
-            "retention.max.value", Integer.MAX_VALUE, "retention.maxVal");
-
-    public static final Property<Boolean> PROPERTY_GLOBAL_RETENTION_POLICY = Property.named(
-            "retention.global.policy.enabled", false, "retention.globalPolicy");
+    public static final Property<Boolean> PROPERTY_REQUIRE_RETENTION_POLICY = Property.named(
+            "require.retention.policy", false, "require.retentionPolicy");
 
     public static final Property<Integer> PROPERTY_RETENTION_THREAD_COUNT = Property.named(
             "retention.thread.count", 1, "retention.threadCount");
@@ -292,12 +283,7 @@ public final class Config {
     public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES;
     public static final int RETENTION_BUCKET_COUNT;
 
-    public static final RetentionType RETENTION_TYPE;
-
-    public static final boolean GLOBAL_RETENTION_POLICY;
-    public static final int RETENTION_MIN_VALUE;
-
-    public static final int RETENTION_MAX_VALUE;
+    public static final boolean REQUIRE_RETENTION_POLICY;
     public static final int RETENTION_THREAD_POOL_SIZE;
 
     // Watermarking Configuration
@@ -381,10 +367,7 @@ public final class Config {
         COMPLETED_TRANSACTION_TTL_IN_HOURS = p.getInt(PROPERTY_TXN_TTL_HOURS);
         MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = p.getInt(PROPERTY_RETENTION_FREQUENCY_MINUTES);
         RETENTION_BUCKET_COUNT = p.getInt(PROPERTY_RETENTION_BUCKET_COUNT);
-        RETENTION_TYPE = p.getEnum(PROPERTY_RETENTION_TYPE, RetentionType.class);
-        RETENTION_MIN_VALUE = p.getInt(PROPERTY_RETENTION_MIN_VALUE);
-        RETENTION_MAX_VALUE = p.getInt(PROPERTY_RETENTION_MAX_VALUE);
-        GLOBAL_RETENTION_POLICY = p.getBoolean(PROPERTY_GLOBAL_RETENTION_POLICY);
+        REQUIRE_RETENTION_POLICY = p.getBoolean(PROPERTY_REQUIRE_RETENTION_POLICY);
         RETENTION_THREAD_POOL_SIZE = p.getInt(PROPERTY_RETENTION_THREAD_COUNT);
         MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS = p.getInt(PROPERTY_WATERMARKING_FREQUENCY_SECONDS);
         WATERMARKING_BUCKET_COUNT = p.getInt(PROPERTY_WATERMARKING_BUCKET_COUNT);

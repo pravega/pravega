@@ -213,6 +213,7 @@ message CreateStreamStatus {
         STREAM_EXISTS = 2;
         SCOPE_NOT_FOUND = 3;
         INVALID_STREAM_NAME = 4;
+        INVALID_RETENTION_POLICY = 5;
     }
     Status status = 1;
 }

@@ -217,6 +217,10 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     } else if (streamStatus.getStatus() == CreateStreamStatus.Status.INVALID_STREAM_NAME) {
                         log.warn(requestId, "Invalid stream name: {}", streamName);
                         resp = Response.status(Status.BAD_REQUEST).build();
+                    } else if (streamStatus.getStatus() == CreateStreamStatus.Status.INVALID_RETENTION_POLICY) {
+                        log.warn(requestId, "Invalid retention policy for the stream {} as require retention is enabled: {}",
+                                streamName, streamConfiguration);
+                        resp = Response.status(Status.BAD_REQUEST).build();
                     } else {
                         log.warn(requestId, "createStream failed for : {}/{}", scopeName, streamName);
                         resp = Response.status(Status.INTERNAL_SERVER_ERROR).build();

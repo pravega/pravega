@@ -105,6 +105,9 @@ public final class ApiV1 {
                         code = 409, message = "Stream already exists", response = StreamProperty.class),
 
                 @ApiResponse(
+                        code = 400, message = "Invalid stream name or retention policy", response = StreamProperty.class),
+
+                @ApiResponse(
                         code = 500, message = "Server error", response = StreamProperty.class) })
         void createStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                 @ApiParam(value = "The stream configuration", required = true) CreateStreamRequest createStreamRequest,

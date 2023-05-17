@@ -192,6 +192,8 @@ public class StreamMetaDataTests {
             completedFuture(CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.FAILURE).build());
     private final CompletableFuture<CreateStreamStatus> createStreamStatus4 = CompletableFuture.
             completedFuture(CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.SCOPE_NOT_FOUND).build());
+    private final CompletableFuture<CreateStreamStatus> createStreamStatus5 = CompletableFuture.
+            completedFuture(CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_RETENTION_POLICY).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus = CompletableFuture.
             completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SUCCESS).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus2 = CompletableFuture.
@@ -386,6 +388,19 @@ public class StreamMetaDataTests {
         when(mockControllerService.createStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(createStreamStatus4);
         response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest3)).invoke();
         assertEquals("Create Stream Status for non-existent scope", 404, response.getStatus());
+        response.close();
+    }
+
+    /**
+     * Test for require retention policy.
+     */
+    @Test(timeout = 30000)
+    public void testRequireRetention() {
+        String streamResourceURI = getURI() + "v1/scopes/" + scope1 + "/streams";
+        // Test to create a stream
+        when(mockControllerService.createStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(createStreamStatus5);
+        Response response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest)).invoke();
+        assertEquals("Create Stream Status", 400, response.getStatus());
         response.close();
     }
 

@@ -15,10 +15,12 @@
  */
 package io.pravega.controller.server;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
@@ -68,6 +70,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatu
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -85,6 +88,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -384,7 +388,22 @@ public class ControllerService {
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
+        try {
+            validateStreamConfig(streamConfig);
+        } catch (IllegalArgumentException e) {
+            log.error(requestId, "Create stream: {} failed due to invalid retention policy {}", stream, streamConfig);
+            return CompletableFuture.completedFuture(
+                    CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_RETENTION_POLICY).build());
+        }
         return callCreateStream(scope, stream, streamConfig, createTimestamp, requestId);
+    }
+
+    @VisibleForTesting
+    protected void validateStreamConfig(StreamConfiguration streamConfig) {
+        boolean isInvalidStreamConfig =  (Config.REQUIRE_RETENTION_POLICY &&
+                !streamConfig.getScalingPolicy().equals(ScalingPolicy.fixed(1)) &&
+                streamConfig.getRetentionPolicy()==null);
+        Preconditions.checkArgument(!isInvalidStreamConfig, "Invalid retention policy for the stream");
     }
 
     private CompletableFuture<CreateStreamStatus> callCreateStream(final String scope, final String stream,

@@ -216,6 +216,8 @@ public class LocalController implements Controller {
                 throw new ControllerFailureException(String.format("Failed to create stream: %s/%s with config: %s", scope, streamName, streamConfig));
             case INVALID_STREAM_NAME:
                 throw new IllegalArgumentException(String.format("Failed to create stream. Illegal Stream name: %s", streamName));
+            case INVALID_RETENTION_POLICY:
+                throw new IllegalArgumentException(String.format("Invalid retention policy for stream: %s as require retention policy is enabled: %s", streamName, streamConfig));
             case SCOPE_NOT_FOUND:
                 throw new IllegalArgumentException(String.format("Failed to create stream: %s as Scope %s does not exist.", streamName, scope));
             case STREAM_EXISTS:
