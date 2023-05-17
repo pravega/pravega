@@ -53,7 +53,7 @@ public abstract class AbstractService implements Service {
 
     public static final int CONTROLLER_GRPC_PORT = 9090;
     public static final int CONTROLLER_REST_PORT = 10080;
-    public static final String SYSTEMTESTPROPERTIES = "test/system/src/test/resources/systemTestConfig.json";
+    public static final String SYSTEMTESTPROPERTIES = "systemTestConfig.json";
     protected static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     protected static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     protected static final String TCP = "tcp://";
