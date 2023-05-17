@@ -88,7 +88,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -400,9 +399,9 @@ public class ControllerService {
 
     @VisibleForTesting
     protected void validateStreamConfig(StreamConfiguration streamConfig) {
-        boolean isInvalidStreamConfig =  (Config.REQUIRE_RETENTION_POLICY &&
-                !streamConfig.getScalingPolicy().equals(ScalingPolicy.fixed(1)) &&
-                streamConfig.getRetentionPolicy()==null);
+        boolean isInvalidStreamConfig =  (Config.REQUIRE_RETENTION_POLICY
+                && !streamConfig.getScalingPolicy().equals(ScalingPolicy.fixed(1))
+                && streamConfig.getRetentionPolicy() == null);
         Preconditions.checkArgument(!isInvalidStreamConfig, "Invalid retention policy for the stream");
     }
 

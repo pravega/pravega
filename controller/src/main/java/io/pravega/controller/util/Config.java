@@ -16,7 +16,6 @@
 package io.pravega.controller.util;
 
 import com.google.common.base.Strings;
-import io.pravega.client.stream.RetentionPolicy.RetentionType;
 import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
