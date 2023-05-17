@@ -399,9 +399,9 @@ public class ControllerService {
 
     @VisibleForTesting
     protected void validateStreamConfig(StreamConfiguration streamConfig) {
-        boolean isInvalidStreamConfig =  (Config.REQUIRE_RETENTION_POLICY
+        boolean isInvalidStreamConfig =  Config.REQUIRE_RETENTION_POLICY
                 && !streamConfig.getScalingPolicy().equals(ScalingPolicy.fixed(1))
-                && streamConfig.getRetentionPolicy() == null);
+                && streamConfig.getRetentionPolicy() == null;
         Preconditions.checkArgument(!isInvalidStreamConfig, "Invalid retention policy for the stream");
     }
 
