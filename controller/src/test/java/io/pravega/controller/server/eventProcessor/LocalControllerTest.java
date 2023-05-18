@@ -230,6 +230,13 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.createInternalStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.createStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
+                                                                               .setStatus(Controller.CreateStreamStatus.Status.INVALID_RETENTION_POLICY).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join(),
+                ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test(timeout = 10000)
