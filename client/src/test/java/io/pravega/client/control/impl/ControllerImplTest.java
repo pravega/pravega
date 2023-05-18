@@ -276,6 +276,11 @@ public class ControllerImplTest {
                                                     .setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME)
                                                     .build());
                     responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("requiredRetentionStream")) {
+                    responseObserver.onNext(CreateStreamStatus.newBuilder()
+                                                              .setStatus(CreateStreamStatus.Status.INVALID_RETENTION_POLICY)
+                                                              .build());
+                    responseObserver.onCompleted();
                 } else if (request.getStreamInfo().getStream().equals("streamparallel")) {
 
                     // Simulating delay in sending response.
@@ -1626,6 +1631,11 @@ public class ControllerImplTest {
                                                                    .build());
         AssertExtensions.assertFutureThrows("Should throw Exception",
                 createStreamStatus, throwable -> true);
+
+        createStreamStatus = controllerClient.createStream("scope1", "requiredRetentionStream", StreamConfiguration.builder()
+                                                                                                                   .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                                                                   .build());
+        AssertExtensions.assertFutureThrows("Should throw Exception", createStreamStatus, throwable -> true);
     }
 
     @Test
