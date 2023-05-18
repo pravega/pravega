@@ -34,6 +34,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
@@ -193,6 +194,15 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
         // Test to delete a reader group
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildDelete().invoke();
         assertEquals("Delete reader group response code", expectedResult, response.getStatus());
+        response.close();
+    }
+
+    @Override
+    public void testRequireRetention() {
+        final String streamResourceURI = getURI() + "v1/scopes/" + scope1 + "/streams";
+        // Test to create a stream
+        Response response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest)).invoke();
+        assertEquals("Create Stream Status", expectedResult, response.getStatus());
         response.close();
     }
 }
