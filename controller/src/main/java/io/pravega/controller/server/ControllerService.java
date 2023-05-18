@@ -390,7 +390,7 @@ public class ControllerService {
         try {
             validateStreamConfig(streamConfig);
         } catch (IllegalArgumentException e) {
-            log.error(requestId, "Create stream: {} failed due to invalid retention policy {}", stream, streamConfig);
+            log.error(requestId, "Create stream: {} failed due to missing retention policy {}", stream, streamConfig);
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_RETENTION_POLICY).build());
         }
@@ -400,9 +400,9 @@ public class ControllerService {
     @VisibleForTesting
     protected void validateStreamConfig(StreamConfiguration streamConfig) {
         boolean isInvalidStreamConfig =  Config.REQUIRE_RETENTION_POLICY
-                && !streamConfig.getScalingPolicy().equals(ScalingPolicy.fixed(1))
+                && !ScalingPolicy.fixed(1).equals(streamConfig.getScalingPolicy())
                 && streamConfig.getRetentionPolicy() == null;
-        Preconditions.checkArgument(!isInvalidStreamConfig, "Invalid retention policy for the stream");
+        Preconditions.checkArgument(!isInvalidStreamConfig, "Missing retention policy for the stream");
     }
 
     private CompletableFuture<CreateStreamStatus> callCreateStream(final String scope, final String stream,

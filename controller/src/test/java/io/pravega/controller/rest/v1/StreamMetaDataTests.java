@@ -394,7 +394,7 @@ public class StreamMetaDataTests {
     /**
      * Test for require retention policy.
      */
-    @Test(timeout = 30000)
+    @Test(timeout = 10000)
     public void testRequireRetention() {
         String streamResourceURI = getURI() + "v1/scopes/" + scope1 + "/streams";
         // Test to create a stream

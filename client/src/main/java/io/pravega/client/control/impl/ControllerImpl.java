@@ -640,8 +640,8 @@ public class ControllerImpl implements Controller {
                 throw new IllegalArgumentException("Illegal stream name: " + streamConfig);
 
             case INVALID_RETENTION_POLICY:
-                log.warn(requestId, "Invalid retention policy for the stream: {}", streamName);
-                throw new IllegalArgumentException("Invalid retention policy as require retention policy is enabled: " + streamConfig);
+                log.warn(requestId, "Missing retention policy for the stream: {}", streamName);
+                throw new IllegalArgumentException("Missing retention policy, retention policy must be specified as requireRetentionPolicy is enabled: " + streamConfig);
             case SCOPE_NOT_FOUND:
                 log.warn(requestId, "Scope not found: {}", scope);
                 throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
