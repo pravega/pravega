@@ -45,7 +45,7 @@ public class ZookeeperK8sService extends AbstractService {
 
     public ZookeeperK8sService(String id) {
         super(id);
-        getSystemTestConfig();
+        resourceWrapper = getSystemTestConfig();
     }
 
     @Override

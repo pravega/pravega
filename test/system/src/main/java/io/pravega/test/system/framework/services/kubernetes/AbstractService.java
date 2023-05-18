@@ -32,7 +32,6 @@ import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
 
 import org.apache.commons.io.IOUtils;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -62,7 +61,6 @@ public abstract class AbstractService implements Service {
     static final int DEFAULT_SEGMENTSTORE_COUNT = 1;
     static final int DEFAULT_BOOKIE_COUNT = 3;
     static final int ZKPORT = 2181;
-
     static final int SEGMENTSTORE_PORT = 12345;
     static final int BOOKKEEPER_PORT = 3181;
     static final String NAMESPACE = System.getProperty("namespace", "default");
@@ -98,7 +96,7 @@ public abstract class AbstractService implements Service {
     private ResourceWrapper resourceWrapper = null;
 
     AbstractService(final String id) {
-        getSystemTestConfig();
+        resourceWrapper = getSystemTestConfig();
         this.k8sClient = ClientFactory.INSTANCE.getK8sClient();
         this.id = id;
     }
@@ -434,20 +432,22 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
-    public void getSystemTestConfig() {
+    public  ResourceWrapper getSystemTestConfig() {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         objectMapper.setVisibility(VisibilityChecker.Std.defaultInstance().withFieldVisibility(JsonAutoDetect.Visibility.ANY));
         objectMapper.enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY);
 
-        File file = new File(SYSTEMTESTPROPERTIES);
+        InputStream stream = AbstractService.class.getClassLoader().getResourceAsStream(SYSTEMTESTPROPERTIES);
+        ResourceWrapper resourceWrapperObj = null;
         try {
-            file.getAbsolutePath();
-            resourceWrapper = objectMapper.readValue(file, ResourceWrapper.class);
-            log.info("*******" + resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("cpu"));
+            log.info("*******" + SYSTEMTESTPROPERTIES);
+            resourceWrapperObj = objectMapper.readValue(stream, ResourceWrapper.class);
+            log.info("*******" + resourceWrapperObj.getControllerProperties().getControllerResources().getRequests().get("cpu"));
         } catch (IOException e) {
             log.error("Input json file not available", e);
         }
+        return resourceWrapperObj;
     }
 
     @Override

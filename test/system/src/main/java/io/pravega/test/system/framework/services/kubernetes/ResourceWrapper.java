@@ -17,10 +17,8 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-
 import lombok.Getter;
 import lombok.Setter;
-
 import java.util.Map;
 
 /**
