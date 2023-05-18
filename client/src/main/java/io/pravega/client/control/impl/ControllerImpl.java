@@ -740,6 +740,9 @@ public class ControllerImpl implements Controller {
             case STREAM_NOT_FOUND:
                 log.warn(requestId, "Stream does not exist: {}", streamName);
                 throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
+            case INVALID_RETENTION_POLICY:
+                 log.warn(requestId, "Missing retention policy for the stream: {}", streamName);
+                 throw new IllegalArgumentException("Missing retention policy, retention policy must be specified as requireRetentionPolicy is enabled: " + streamConfig);
             case STREAM_SEALED:
                 log.warn(requestId, "Stream is sealed: {}", streamName);
                 throw new UnsupportedOperationException("Stream is sealed: " + streamConfig);

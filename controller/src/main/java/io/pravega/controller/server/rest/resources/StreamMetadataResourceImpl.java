@@ -732,6 +732,10 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     streamStatus.getStatus() == UpdateStreamStatus.Status.SCOPE_NOT_FOUND) {
                 log.warn(requestId, "Stream: {}/{} not found", scopeName, streamName);
                 return Response.status(Status.NOT_FOUND).build();
+            } else if (streamStatus.getStatus() == UpdateStreamStatus.Status.INVALID_RETENTION_POLICY) {
+                log.warn(requestId, "Invalid retention policy for the stream {} as require retention is enabled: {}",
+                        streamName, streamConfiguration);
+                return Response.status(Status.BAD_REQUEST).build();
             } else {
                 log.warn(requestId, "updateStream failed for {}/{}", scopeName, streamName);
                 return Response.status(Status.INTERNAL_SERVER_ERROR).build();

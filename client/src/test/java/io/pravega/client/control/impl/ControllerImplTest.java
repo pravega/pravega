@@ -366,6 +366,11 @@ public class ControllerImplTest {
                     responseObserver.onCompleted();
                 } else if (request.getStreamInfo().getStream().equals("deadline")) {
                     // dont send any response
+                } else if (request.getStreamInfo().getStream().equals("retentionRequired")) {
+                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                                                              .setStatus(UpdateStreamStatus.Status.INVALID_RETENTION_POLICY)
+                                                              .build());
+                    responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -1673,6 +1678,12 @@ public class ControllerImplTest {
         updateStreamStatus = controllerClient.updateStream("scope1", "stream6", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
+        AssertExtensions.assertFutureThrows("Should throw Exception",
+                updateStreamStatus, throwable -> true);
+
+        updateStreamStatus = controllerClient.updateStream("scope1", "retentionRequired", StreamConfiguration.builder()
+                                                                                                   .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                                                   .build());
         AssertExtensions.assertFutureThrows("Should throw Exception",
                 updateStreamStatus, throwable -> true);
     }

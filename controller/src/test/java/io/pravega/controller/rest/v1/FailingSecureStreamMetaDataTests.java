@@ -195,13 +195,4 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
         assertEquals("Delete reader group response code", expectedResult, response.getStatus());
         response.close();
     }
-
-    @Override
-    public void testRequireRetention() {
-        final String streamResourceURI = getURI() + "v1/scopes/" + scope1 + "/streams";
-        // Test to create a stream
-        Response response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest)).invoke();
-        assertEquals("Create Stream Status", expectedResult, response.getStatus());
-        response.close();
-    }
 }

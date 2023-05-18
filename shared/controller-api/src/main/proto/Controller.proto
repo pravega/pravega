@@ -225,6 +225,7 @@ message UpdateStreamStatus {
         STREAM_NOT_FOUND = 2;
         SCOPE_NOT_FOUND = 3;
         STREAM_SEALED = 4;
+        INVALID_RETENTION_POLICY = 5;
     }
     Status status = 1;
 }

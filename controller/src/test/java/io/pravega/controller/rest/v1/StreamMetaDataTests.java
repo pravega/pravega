@@ -202,6 +202,8 @@ public class StreamMetaDataTests {
             completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus4 = CompletableFuture.
             completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND).build());
+    private CompletableFuture<UpdateStreamStatus> updateStreamStatus5 = CompletableFuture.
+            completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.INVALID_RETENTION_POLICY).build());
 
     @Before
     public void setup() throws Exception {
@@ -389,17 +391,10 @@ public class StreamMetaDataTests {
         response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest3)).invoke();
         assertEquals("Create Stream Status for non-existent scope", 404, response.getStatus());
         response.close();
-    }
 
-    /**
-     * Test for require retention policy.
-     */
-    @Test(timeout = 10000)
-    public void testRequireRetention() {
-        String streamResourceURI = getURI() + "v1/scopes/" + scope1 + "/streams";
-        // Test to create a stream
+        // Test create stream with required retention enabled
         when(mockControllerService.createStream(any(), any(), any(), anyLong(), anyLong())).thenReturn(createStreamStatus5);
-        Response response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest)).invoke();
+        response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest)).invoke();
         assertEquals("Create Stream Status", 400, response.getStatus());
         response.close();
     }
@@ -447,6 +442,12 @@ public class StreamMetaDataTests {
         when(mockControllerService.updateStream(any(), any(), any(), anyLong())).thenReturn(updateStreamStatus4);
         response = addAuthHeaders(client.target(resourceURI).request()).buildPut(Entity.json(updateStreamRequest)).invoke();
         assertEquals("Update Stream Status", 404, response.getStatus());
+        response.close();
+
+        // Test to update an existing stream with required retention enabled
+        when(mockControllerService.updateStream(any(), any(), any(), anyLong())).thenReturn(updateStreamStatus5);
+        response = addAuthHeaders(client.target(resourceURI).request()).buildPut(Entity.json(updateStreamRequest)).invoke();
+        assertEquals("Update Stream Status", 400, response.getStatus());
         response.close();
     }
 

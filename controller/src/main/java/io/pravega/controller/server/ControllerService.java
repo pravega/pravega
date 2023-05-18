@@ -452,6 +452,14 @@ public class ControllerService {
     public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig,
                                                               long requestId) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
+        try {
+            validateStreamConfig(streamConfig);
+        } catch (IllegalArgumentException e) {
+            log.error(requestId, "Update stream: {} failed due to missing retention policy {}", stream, streamConfig);
+            return CompletableFuture.completedFuture(
+                    UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.INVALID_RETENTION_POLICY).build());
+        }
+
         Timer timer = new Timer();
         return streamMetadataTasks.updateStream(scope, stream, streamConfig, requestId)
                 .thenApplyAsync(status -> {

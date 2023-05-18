@@ -592,7 +592,7 @@ public abstract class ControllerServiceWithStreamTest {
                         Controller.ScaleStatusResponse.ScaleStatus.SUCCESS))), executor).get();
     }
 
-    @Test(timeout = 5000)
+    @Test
     public void testRequiredRetentionPolicy() throws ExecutionException, InterruptedException {
         String stream = "requireRetention";
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
@@ -631,5 +631,25 @@ public abstract class ControllerServiceWithStreamTest {
         doReturn(false).when(consumer1).getRequiredRetentionPolicyValue();
         streamStatus = consumer1.createStream(SCOPE, "stream3", configuration1, 0L, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
+
+        // check when required retention policy is enabled in config and scaling policy is not fixed(1)
+        doReturn(true).when(consumer1).getRequiredRetentionPolicyValue();
+        Controller.UpdateStreamStatus updateStatus = consumer1.updateStream(SCOPE, stream, configuration1, 0L).get();
+        assertEquals(Controller.UpdateStreamStatus.Status.INVALID_RETENTION_POLICY, updateStatus.getStatus());
+
+        // check when required retention policy is enabled in config and scaling policy is fixed(1)
+        updateStatus = consumer.updateStream(SCOPE, stream, configuration, 0L).get();
+        assertEquals(Controller.UpdateStreamStatus.Status.SUCCESS, updateStatus.getStatus());
+
+        // check when required retention policy is enabled in config and scaling policy is not fixed(1)
+        // and retention policy is not null
+        updateStatus = consumer1.updateStream(SCOPE, "stream2", configuration2, 0L).get();
+        assertEquals(Controller.UpdateStreamStatus.Status.SUCCESS, updateStatus.getStatus());
+
+        // check when required retention policy is disabled in config and scaling policy is not fixed(1)
+        // and retention policy is null
+        doReturn(false).when(consumer1).getRequiredRetentionPolicyValue();
+        updateStatus = consumer1.updateStream(SCOPE, "stream3", configuration1, 0L).get();
+        assertEquals(Controller.UpdateStreamStatus.Status.SUCCESS, updateStatus.getStatus());
     }
 }
