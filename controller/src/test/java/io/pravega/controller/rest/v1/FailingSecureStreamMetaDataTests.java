@@ -16,12 +16,12 @@
 package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
-import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.shared.rest.security.AuthHandlerManager;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.util.Arrays;
 import java.util.Date;
@@ -34,7 +34,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 

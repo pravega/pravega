@@ -21,6 +21,7 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Stream;
@@ -64,6 +65,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -89,6 +91,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -587,5 +590,46 @@ public abstract class ControllerServiceWithStreamTest {
         Futures.loop(() -> !done.get(), () -> Futures.delayedFuture(() -> consumer.checkScale(SCOPE, STREAM, scaleStatus.getEpoch(), 0L),
                 1000, executor).thenAccept(x -> done.set(x.getStatus().equals(
                         Controller.ScaleStatusResponse.ScaleStatus.SUCCESS))), executor).get();
+    }
+
+    @Test(timeout = 5000)
+    public void testRequiredRetentionPolicy() throws ExecutionException, InterruptedException {
+        String stream = "requireRetention";
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
+        final StreamConfiguration configuration = StreamConfiguration.builder()
+                                                                      .scalingPolicy(policy).build();
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder()
+                                                                      .scalingPolicy(policy1).build();
+
+        final StreamConfiguration configuration2 = StreamConfiguration.builder()
+                                                                      .scalingPolicy(policy1)
+                                                                      .retentionPolicy(RetentionPolicy
+                                                                              .byTime(Duration.ofMinutes(5))).build();
+        // Create scope
+        Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE, 0L).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
+
+        ControllerService consumer1 = spy(consumer);
+        doReturn(true).when(consumer1).getRequiredRetentionPolicyValue();
+
+        // check when required retention policy is enabled in config and scaling policy is not fixed(1)
+        Controller.CreateStreamStatus streamStatus = consumer1.createStream(SCOPE, stream, configuration1, 0L, 0L).get();
+        assertEquals(Controller.CreateStreamStatus.Status.INVALID_RETENTION_POLICY, streamStatus.getStatus());
+
+        // check when required retention policy is enabled in config and scaling policy is fixed(1)
+        streamStatus = consumer.createStream(SCOPE, stream, configuration, 0L, 0L).get();
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
+
+        // check when required retention policy is enabled in config and scaling policy is not fixed(1)
+        // and retention policy is not null
+        streamStatus = consumer1.createStream(SCOPE, "stream2", configuration2, 0L, 0L).get();
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
+
+        // check when required retention policy is disabled in config and scaling policy is not fixed(1)
+        // and retention policy is null
+        doReturn(false).when(consumer1).getRequiredRetentionPolicyValue();
+        streamStatus = consumer1.createStream(SCOPE, "stream3", configuration1, 0L, 0L).get();
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
     }
 }
