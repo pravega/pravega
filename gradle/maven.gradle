@@ -15,61 +15,16 @@
  */
 plugins.withId('maven-publish') {
     publishing {
-        repositories {
-            if (project.hasProperty("publishUrl")) {
-                if (project.hasProperty("publishUrl")) {
-                    if (publishUrl == "mavenCentral") {
-
-                        maven {
-                            url "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-                            credentials {
-                                userName publishUsername
-                                password publishPassword
-                            }
-                            authentication {
-                                basic(BasicAuthentication)
-
-                            }
-                        }
-                    }
-                    if (project.version.endsWith('-SNAPSHOT')) {
-                        maven {
-                            url "https://oss.sonatype.org/content/repositories/snapshots/"
-
-                            credentials {
-                                userName publishUsername
-                                password publishPassword
-                            }
-                            authentication {
-                                basic(BasicAuthentication)
-                            }
-                        }
-                    }
-                }
-                else {
-                    maven {
-                        url "publishUrl"
-                        // Only configure credentials if they are provided (allows publishing to the filesystem)
-                        if (project.hasProperty("publishUsername") && project.hasProperty("publishPassword")) {
-                            credentials {
-                                userName publishUsername
-                                password publishPassword
-                            }
-                            authentication {
-                                basic(BasicAuthentication)
-                            }
-                        }
-                    }
-                }
-            }
-            publications {
-                mavenDeployer(MavenPublication) {
+        publications {
+            mavenDeployer(MavenPublication) {
+                from components.java
+                artifact sourceJar
+                artifact testJar
+                artifact javadocJar
+                artifactId = "pravega" + project.path.replace(':', '-')
+                pom {
                     artifactId = "pravega" + project.path.replace(':', '-')
-                    from components.java
-                    artifact sourceJar
-                    artifact testJar
-                    artifact javadocJar
-                    pom {
+                    fileTree {
                         name = "Pravega"
                         url = "https://pravega.io"
                         description = "Streaming Storage Platform"
@@ -93,21 +48,62 @@ plugins.withId('maven-publish') {
                     }
                 }
             }
+        }
+        if (project.hasProperty("publishUrl")) {
+            if (publishUrl == "mavenCentral") {
+                repositories {
+                    maven {
+                        url "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+                        credentials {
+                            userName publishUsername
+                            password publishPassword
+                        }
+                        authentication {
+                            basic(BasicAuthentication)
 
-            // Sign the POM when the signing plugin is present
-            plugins.withId('signing') {
-                if (project.hasProperty('doSigning')) {
-                    beforeDeployment {
-                        sign publishing.publications.mavenDeployer
+                        }
+                    }
+                }
+            }
+            if (project.version.endsWith('-SNAPSHOT')) {
+                repositories {
+                    maven {
+                        url "https://oss.sonatype.org/content/repositories/snapshots/"
+
+                        credentials {
+                            userName publishUsername
+                            password publishPassword
+                        }
+                        authentication {
+                            basic(BasicAuthentication)
+                        }
+                    }
+                }
+            }
+        } else {
+            repositories {
+                maven {
+                    url "publishUrl"
+                    // Only configure credentials if they are provided (allows publishing to the filesystem)
+                    if (project.hasProperty("publishUsername") && project.hasProperty("publishPassword")) {
+                        credentials {
+                            userName publishUsername
+                            password publishPassword
+                        }
+                        authentication {
+                            basic(BasicAuthentication)
+                        }
                     }
                 }
             }
         }
     }
-
-
-    task myTask{
-        dependsOn "publish"
+    // Sign the POM when the signing plugin is present
+    plugins.withId('signing') {
+        if (project.hasProperty('doSigning')) {
+            beforeDeployment {
+                sign publishing.publications mavenDeployer
+            }
+        }
     }
 }
-
