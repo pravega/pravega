@@ -307,7 +307,7 @@ public abstract class AbstractService implements Service {
     }
 
     @SuppressWarnings("deprecation")
-    private static V1Secret getTLSSecret() throws IOException {
+    public static V1Secret getTLSSecret() throws IOException {
         String data = "";
         String yamlInputPath = "secret.yaml";
         try (InputStream inputStream = Utils.class.getClassLoader().getResourceAsStream(yamlInputPath)) {

@@ -34,4 +34,15 @@ public class ResourceWrapper {
     private SegmentStoreProperties segmentStoreProperties;
     private ZookeeperProperties zookeeperProperties;
     private Map<String, String> pravegaOptions;
+
+    @Override
+    public String toString() {
+        return "ResourceWrapper{" +
+                "bookkeeperProperties=" + bookkeeperProperties +
+                ", controllerProperties=" + controllerProperties +
+                ", segmentStoreProperties=" + segmentStoreProperties +
+                ", zookeeperProperties=" + zookeeperProperties +
+                ", pravegaOptions=" + pravegaOptions +
+                '}';
+    }
 }
