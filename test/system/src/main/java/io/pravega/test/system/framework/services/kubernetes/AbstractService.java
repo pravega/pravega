@@ -15,23 +15,20 @@
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.introspect.VisibilityChecker;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.openapi.models.V1Secret;
-import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.util.Yaml;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
-
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -42,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.Exceptions.checkNotNullOrEmpty;
 import static java.util.Collections.singletonList;
@@ -52,7 +48,6 @@ public abstract class AbstractService implements Service {
 
     public static final int CONTROLLER_GRPC_PORT = 9090;
     public static final int CONTROLLER_REST_PORT = 10080;
-    public static final String SYSTEMTESTPROPERTIES = "test/system/src/test/resources/systemTestConfig.json";
     protected static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     protected static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     protected static final String TCP = "tcp://";
@@ -96,7 +91,7 @@ public abstract class AbstractService implements Service {
     private ResourceWrapper resourceWrapper = null;
 
     AbstractService(final String id) {
-        resourceWrapper = getSystemTestConfig();
+        resourceWrapper = JSONReader.getSystemTestConfig();
         this.k8sClient = ClientFactory.INSTANCE.getK8sClient();
         this.id = id;
     }
@@ -430,24 +425,6 @@ public abstract class AbstractService implements Service {
                         .put(service, replicaCount)
                         .build())
                 .build();
-    }
-
-    public  ResourceWrapper getSystemTestConfig() {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-        objectMapper.setVisibility(VisibilityChecker.Std.defaultInstance().withFieldVisibility(JsonAutoDetect.Visibility.ANY));
-        objectMapper.enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY);
-
-        InputStream stream = AbstractService.class.getClassLoader().getResourceAsStream(SYSTEMTESTPROPERTIES);
-        ResourceWrapper resourceWrapperObj = null;
-        try {
-            log.info("*******" + SYSTEMTESTPROPERTIES);
-            resourceWrapperObj = objectMapper.readValue(stream, ResourceWrapper.class);
-            log.info("*******" + resourceWrapperObj.getControllerProperties().getControllerResources().getRequests().get("cpu"));
-        } catch (IOException e) {
-            log.error("Input json file not available", e);
-        }
-        return resourceWrapperObj;
     }
 
     @Override
