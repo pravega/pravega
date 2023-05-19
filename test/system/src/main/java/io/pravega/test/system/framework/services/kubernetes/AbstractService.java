@@ -375,6 +375,11 @@ public abstract class AbstractService implements Service {
         final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", getBookkeeperImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME))
                 .put("replicas", bookieCount)
                 .put("version", BOOKKEEPER_VERSION)
+                .put("probes", ImmutableMap.builder()
+                        .put("readinessProbe", ImmutableMap.builder()
+                                .put("timeoutSeconds", 30)
+                                .build())
+                        .build())
                 .put("resources", getResources(resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("cpu"),
                         resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("memory"), resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("cpu"),
                         resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("memory")))

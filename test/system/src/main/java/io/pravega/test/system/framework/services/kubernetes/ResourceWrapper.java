@@ -55,27 +55,10 @@ public class ResourceWrapper {
             log.info("*******" + configFile);
             resourceWrapper = objectMapper.readValue(stream, ResourceWrapper.class);
             log.info("*******" + resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("cpu"));
-            log.info("<<<<<<<<<<<<<<<<<<<<<<DEBUG>>>>>>>>>>>>>>>>>>>>>> ResourceWrapper ", resourceWrapper.toString());
-            // Convert the object to a JSON string and print it
-            String jsonString = objectMapper.writeValueAsString(resourceWrapper);
-            log.info("<<<<<<<<<<<<<<<<<<<<<<DEBUG>>>>>>>>>>>>>>>>>>>>>> JsonString ", jsonString);
-
         } catch (IOException e) {
             log.error("Input json file not available", e);
         }
         //show every thing what was populated
         return resourceWrapper;
     }
-
-    @Override
-    public String toString() {
-        return "ResourceWrapper{" +
-                "bookkeeperProperties=" + bookkeeperProperties +
-                ", controllerProperties=" + controllerProperties +
-                ", segmentStoreProperties=" + segmentStoreProperties +
-                ", zookeeperProperties=" + zookeeperProperties +
-                ", pravegaOptions=" + pravegaOptions +
-                '}';
-    }
-
 }
