@@ -41,11 +41,11 @@ public class ZookeeperK8sService extends AbstractService {
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
     private static final String ZOOKEEPER_IMAGE_NAME = System.getProperty("zookeeperImageName", "zookeeper");
     private static final String PRAVEGA_ZOOKEEPER_IMAGE_VERSION = System.getProperty("zookeeperImageVersion", "latest");
-    private ResourceWrapper resourceWrapper = null;
+    private static final String SYSTEMTESTCONFIG = "systemTestConfig.json";
+    private ResourceWrapper resourceWrapper = ResourceWrapper.getSystemTestConfig(SYSTEMTESTCONFIG);
 
     public ZookeeperK8sService(String id) {
         super(id);
-        resourceWrapper = JSONReader.getSystemTestConfig();
     }
 
     @Override

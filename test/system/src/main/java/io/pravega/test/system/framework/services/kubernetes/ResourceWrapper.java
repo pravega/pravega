@@ -15,15 +15,24 @@
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.introspect.VisibilityChecker;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 
 /**
  * Wrapper class to deserializing the json file contents.
  */
+@Slf4j
 @Getter
 @Setter
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -35,6 +44,29 @@ public class ResourceWrapper {
     private ZookeeperProperties zookeeperProperties;
     private Map<String, String> pravegaOptions;
 
+    public static ResourceWrapper getSystemTestConfig(String configFile) {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        objectMapper.setVisibility(VisibilityChecker.Std.defaultInstance().withFieldVisibility(JsonAutoDetect.Visibility.ANY));
+        objectMapper.enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY);
+        InputStream stream = ResourceWrapper.class.getClassLoader().getResourceAsStream(configFile);
+        ResourceWrapper resourceWrapper = null;
+        try {
+            log.info("*******" + configFile);
+            resourceWrapper = objectMapper.readValue(stream, ResourceWrapper.class);
+            log.info("*******" + resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("cpu"));
+            log.info("<<<<<<<<<<<<<<<<<<<<<<DEBUG>>>>>>>>>>>>>>>>>>>>>> ResourceWrapper ", resourceWrapper.toString());
+            // Convert the object to a JSON string and print it
+            String jsonString = objectMapper.writeValueAsString(resourceWrapper);
+            log.info("<<<<<<<<<<<<<<<<<<<<<<DEBUG>>>>>>>>>>>>>>>>>>>>>> JsonString ", jsonString);
+
+        } catch (IOException e) {
+            log.error("Input json file not available", e);
+        }
+        //show every thing what was populated
+        return resourceWrapper;
+    }
+
     @Override
     public String toString() {
         return "ResourceWrapper{" +
@@ -45,4 +77,5 @@ public class ResourceWrapper {
                 ", pravegaOptions=" + pravegaOptions +
                 '}';
     }
+
 }

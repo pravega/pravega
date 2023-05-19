@@ -86,12 +86,12 @@ public abstract class AbstractService implements Service {
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
     private static final String BOOKKEEPER_VERSION = System.getProperty("bookkeeperImageVersion", "latest");
     private static final String ZK_SERVICE_NAME = "zookeeper-client:2181";
+    private static final String SYSTEMTESTCONFIG = "systemTestConfig.json";
     final K8sClient k8sClient;
     private final String id;
-    private ResourceWrapper resourceWrapper = null;
+    private ResourceWrapper resourceWrapper = ResourceWrapper.getSystemTestConfig(SYSTEMTESTCONFIG);
 
     AbstractService(final String id) {
-        resourceWrapper = JSONReader.getSystemTestConfig();
         this.k8sClient = ClientFactory.INSTANCE.getK8sClient();
         this.id = id;
     }
@@ -126,8 +126,6 @@ public abstract class AbstractService implements Service {
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                 .put("segmentStoreReplicas", segmentStoreCount)
                 .put("debugLogging", true)
-                .put("cacheVolumeClaimTemplate", getPersistentVolumeClaimSpec(resourceWrapper.getZookeeperProperties().getPersistentVolumeClaim().get("storageClassName"),
-                        resourceWrapper.getZookeeperProperties().getPersistentVolumeClaim().get("volumeSize")))
                 .put("controllerResources", getResources(resourceWrapper.getControllerProperties().getControllerResources().getLimits().get("cpu"),
                         resourceWrapper.getControllerProperties().getControllerResources().getLimits().get("memory"), resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("cpu"),
                         resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("memory")))
@@ -267,7 +265,7 @@ public abstract class AbstractService implements Service {
     }
 
     private List<String> getBookkeeperMemoryOptions() {
-        return resourceWrapper.getBookkeeperProperties().getBookkeeperJVMOptions().get("memoryOptions");
+        return resourceWrapper.getBookkeeperProperties().getBookkeeperJVMOptions().get("memoryOpts");
     }
 
 
@@ -307,7 +305,7 @@ public abstract class AbstractService implements Service {
     }
 
     @SuppressWarnings("deprecation")
-    public static V1Secret getTLSSecret() throws IOException {
+    private static V1Secret getTLSSecret() throws IOException {
         String data = "";
         String yamlInputPath = "secret.yaml";
         try (InputStream inputStream = Utils.class.getClassLoader().getResourceAsStream(yamlInputPath)) {
