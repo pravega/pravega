@@ -18,12 +18,8 @@ plugins.withId('maven-publish') {
         publications {
             mavenDeployer(MavenPublication) {
                 from components.java
-                artifact sourceJar
-                artifact testJar
-                artifact javadocJar
                 artifactId = "pravega" + project.path.replace(':', '-')
                 pom {
-                    artifactId = "pravega" + project.path.replace(':', '-')
                     fileTree {
                         name = "Pravega"
                         url = "https://pravega.io"
@@ -97,13 +93,26 @@ plugins.withId('maven-publish') {
                 }
             }
         }
-    }
-    // Sign the POM when the signing plugin is present
-    plugins.withId('signing') {
-        if (project.hasProperty('doSigning')) {
-            beforeDeployment {
-                sign publishing.publications mavenDeployer
+
+        // Sign the POM when the signing plugin is present
+        plugins.withId('signing') {
+            if (project.hasProperty('doSigning')) {
+                beforeDeployment {
+                    sign publishing.publications mavenDeployer
+                }
             }
         }
     }
+    task install(dependsOn : 'publishToMavenLocal'){
+        publishing{
+            publications {
+                mavenInstaller(MavenPublication) {
+                    pom {
+                        artifactId = "pravega" + project.path.replace(':', '-')
+                    }
+                }
+            }
+        }
+    }
+    tasks.publish.dependsOn tasks.publishMavenDeployerPublicationToMavenRepository
 }

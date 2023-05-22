@@ -1415,7 +1415,7 @@ subprojects {
     task allDeps(type: DependencyReportTask) {}
 }
 
-plugins.withId('maven-publish') {
+
     task publishAllJars() {
         dependsOn ':authplugin:publish'
         dependsOn ':client:publish'
@@ -1436,7 +1436,7 @@ plugins.withId('maven-publish') {
         dependsOn ':cli:user'
         dependsOn ':test:system:publish'
     }
-}
+
 
 task sourceCopy(type: Copy) {
     from rootDir
