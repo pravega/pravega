@@ -52,9 +52,7 @@ public class ResourceWrapper {
         InputStream stream = ResourceWrapper.class.getClassLoader().getResourceAsStream(configFile);
         ResourceWrapper resourceWrapper = null;
         try {
-            log.info("*******" + configFile);
             resourceWrapper = objectMapper.readValue(stream, ResourceWrapper.class);
-            log.info("*******" + resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("cpu"));
         } catch (IOException e) {
             log.error("Input json file not available", e);
         }

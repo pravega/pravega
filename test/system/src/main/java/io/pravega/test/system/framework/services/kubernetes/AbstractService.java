@@ -380,10 +380,10 @@ public abstract class AbstractService implements Service {
                                 .put("timeoutSeconds", 30)
                                 .build())
                         .build())
-                .put("resources", getResources(resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("cpu"),
+                .put("bookkeeperResources", getResources(resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("cpu"),
                         resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("memory"), resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("cpu"),
                         resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("memory")))
-                .put("storage", ImmutableMap.builder()
+                .put("bookkeeperStorage", ImmutableMap.builder()
                         .put("index", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getIndex())
                         .put("ledger", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getLedger())
                         .put("journal", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getJournal())
@@ -392,10 +392,10 @@ public abstract class AbstractService implements Service {
                 .put("envVars", CONFIG_MAP_BOOKKEEPER)
                 .put("zookeeperUri", zkLocation)
                 .put("autoRecovery", true)
-                .put("options", ImmutableMap.builder()  .put("journalDirectories", resourceWrapper.getBookkeeperProperties().getBookkeeperOptions().get("journalDirectories"))
+                .put("bookkeeperOptions", ImmutableMap.builder()  .put("journalDirectories", resourceWrapper.getBookkeeperProperties().getBookkeeperOptions().get("journalDirectories"))
                         .put("ledgerDirectories", resourceWrapper.getBookkeeperProperties().getBookkeeperOptions().get("ledgerDirectories"))
                         .build())
-                .put("jvmOptions", ImmutableMap.builder()
+                .put("bookkeeperJVMOptions", ImmutableMap.builder()
                         .put("memoryOpts", getBookkeeperMemoryOptions())
                         .build())
                 .build();
