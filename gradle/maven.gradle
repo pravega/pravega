@@ -117,5 +117,5 @@ plugins.withId('maven-publish') {
             }
         }
     }
-    tasks.publish.dependsOn tasks.publishMavenDeployerPublicationToMavenRepository
+    tasks.publish{}
 }
