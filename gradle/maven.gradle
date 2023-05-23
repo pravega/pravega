@@ -18,6 +18,9 @@ plugins.withId('maven-publish') {
         publications {
             mavenDeployer(MavenPublication) {
                 from components.java
+                artifact sourceJar
+                artifact testJar
+                artifact javadocJar
                 artifactId = "pravega" + project.path.replace(':', '-')
                 pom {
                     fileTree {
