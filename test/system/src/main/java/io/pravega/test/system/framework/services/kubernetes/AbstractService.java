@@ -379,7 +379,7 @@ public abstract class AbstractService implements Service {
         final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", getBookkeeperImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME))
                 .put("replicas", bookieCount)
                 .put("version", BOOKKEEPER_VERSION)
-                .put("probes", resourceWrapper.getBookkeeperProperties().getProbes().getReadinessProbe().get("timeoutSeconds"))
+                .put("probes", ImmutableMap.builder().put("readinessProbe", resourceWrapper.getBookkeeperProperties().getProbes().getReadinessProbe()).build())
                 .put("bookkeeperResources", getResources(resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("cpu"),
                         resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("memory"), resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("cpu"),
                         resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("memory")))
@@ -391,9 +391,7 @@ public abstract class AbstractService implements Service {
                 .put("envVars", CONFIG_MAP_BOOKKEEPER)
                 .put("zookeeperUri", zkLocation)
                 .put("autoRecovery", true)
-                .put("bookkeeperOptions", ImmutableMap.builder()  .put("journalDirectories", resourceWrapper.getBookkeeperProperties().getBookkeeperOptions().get("journalDirectories"))
-                        .put("ledgerDirectories", resourceWrapper.getBookkeeperProperties().getBookkeeperOptions().get("ledgerDirectories"))
-                        .build())
+                .put("bookkeeperOptions", resourceWrapper.getBookkeeperProperties().getBookkeeperOptions())
                 .put("bookkeeperJVMOptions", ImmutableMap.builder()
                         .put("memoryOpts", getBookkeeperMemoryOptions())
                         .build())
