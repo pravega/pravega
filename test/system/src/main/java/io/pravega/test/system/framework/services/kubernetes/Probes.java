@@ -22,5 +22,5 @@ import java.util.Map;
 @Getter
 @Setter
 public class Probes {
-    private Map<String, String> readinessProbe;
+    private Map<String, Integer> readinessProbe;
 }

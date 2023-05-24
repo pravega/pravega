@@ -37,7 +37,7 @@
     },
     "probes": {
       "readinessProbe": {
-        "timeoutSeconds": "30"
+        "timeoutSeconds": 30
       }
     }
   },
