@@ -127,14 +127,18 @@ public abstract class AbstractService implements Service {
                 .put("segmentStoreReplicas", segmentStoreCount)
                 .put("debugLogging", true)
                 .put("controllerResources", getResources(resourceWrapper.getControllerProperties().getControllerResources().getLimits().get("cpu"),
-                        resourceWrapper.getControllerProperties().getControllerResources().getLimits().get("memory"), resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("cpu"),
+                        resourceWrapper.getControllerProperties().getControllerResources().getLimits().get("memory"),
+                        resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("cpu"),
                         resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("memory")))
-                .put("segmentStoreResources", resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources())
-                .put("options", resourceWrapper.getPravegaOptions())
+                .put("segmentStoreResources", getResources(resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getLimits().get("cpu"),
+                        resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getLimits().get("memory"),
+                        resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getRequests().get("cpu"),
+                        resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getRequests().get("memory")))
+                .put("pravegaOptions", ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))
                 .put("image", pravegaImgSpec)
                 .put("longtermStorage", tier2Spec())
                 .put("segmentStoreJVMOptions", getSegmentStoreJVMOptions())
-                .put("controllerjvmOptions", getControllerJVMOptions())
+                .put("controllerJVMOptions", getControllerJVMOptions())
                 .put("segmentStorePodAffinity", getSegmentStoreAntiAffinityPolicy())
                 .build();
 
@@ -384,7 +388,6 @@ public abstract class AbstractService implements Service {
                         .put("ledger", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getLedger())
                         .put("journal", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getJournal())
                         .build())
-
                 .put("envVars", CONFIG_MAP_BOOKKEEPER)
                 .put("zookeeperUri", zkLocation)
                 .put("autoRecovery", true)
