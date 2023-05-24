@@ -398,12 +398,6 @@ public class EventProcessorTest {
 
         EventStreamReader<TestEvent> reader = Mockito.mock(EventStreamReader.class);
 
-        Mockito.when(reader.readNextEvent(anyLong())).thenAnswer((Answer) invocation -> {
-            //Below sleep is to simulate the scenario where infinite retries happen to connect to segmentstore when SS is down
-            Thread.sleep(60000);
-            return null;
-        });
-
         EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(false))
                 .serializer(new EventSerializer<>())
@@ -413,11 +407,16 @@ public class EventProcessorTest {
         EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader,
                 new EventStreamWriterMock<>(), system.getProcess(), READER_ID, 0, checkpointStore);
 
+        Mockito.when(reader.readNextEvent(anyLong())).thenAnswer((Answer) invocation -> {
+            cell.stopAsync(true);
+            //Below sleep is to simulate the scenario where infinite retries happen to connect to segmentstore when SS is down
+            Thread.sleep(60000);
+            return null;
+        });
+
         cell.startAsync();
         cell.awaitStartupComplete();
 
-        Thread.sleep(1000); //To ensure stopAsync call is made after eventProcessor run has been called
-        cell.stopAsync(true);
         cell.awaitTerminated();
     }
 
