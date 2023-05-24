@@ -18,15 +18,9 @@ package io.pravega.test.system.framework.services.kubernetes;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.List;
 import java.util.Map;
-
 @Getter
 @Setter
-public class BookkeeperProperties {
-    private Resources bookkeeperResources;
-    private Storage bookkeeperStorage;
-    private Map<String, String> bookkeeperOptions;
-    private Map<String, List<String>> bookkeeperJVMOptions;
-    private Probes probes;
+public class Probes {
+    private Map<String, String> readinessProbe;
 }
