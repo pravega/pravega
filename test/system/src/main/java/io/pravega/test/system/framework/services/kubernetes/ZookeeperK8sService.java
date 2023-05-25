@@ -112,8 +112,8 @@ public class ZookeeperK8sService extends AbstractService {
                 .put("metadata", ImmutableMap.of("name", deploymentName))
                 .put("spec", ImmutableMap.builder().put("image",  getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + ZOOKEEPER_IMAGE_NAME, PRAVEGA_ZOOKEEPER_IMAGE_VERSION))
                                          .put("replicas", clusterSize)
-                                         .put("persistentVolumeClaim", ImmutableMap.copyOf(resourceWrapper.getZookeeperProperties().getPersistentVolumeClaim()))
-                                         .put("zookeeperResources", ImmutableMap.of(resourceWrapper.getZookeeperProperties().getZookeeperResources().getLimits().get("cpu"),
+                                         .put("persistence", ImmutableMap.copyOf(resourceWrapper.getZookeeperProperties().getPersistentVolumeClaim()))
+                                         .put("pod", ImmutableMap.of(resourceWrapper.getZookeeperProperties().getZookeeperResources().getLimits().get("cpu"),
                                                  resourceWrapper.getZookeeperProperties().getZookeeperResources().getLimits().get("memory"),
                                                  resourceWrapper.getZookeeperProperties().getZookeeperResources().getRequests().get("cpu"),
                                                  resourceWrapper.getZookeeperProperties().getZookeeperResources().getRequests().get("memory")))

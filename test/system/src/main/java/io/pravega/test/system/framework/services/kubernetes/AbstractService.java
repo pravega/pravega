@@ -138,7 +138,7 @@ public abstract class AbstractService implements Service {
                 .put("image", pravegaImgSpec)
                 .put("longtermStorage", tier2Spec())
                 .put("segmentStoreJVMOptions", getSegmentStoreJVMOptions())
-                .put("controllerJVMOptions", getControllerJVMOptions())
+                .put("controllerjvmOptions", getControllerJVMOptions())
                 .put("segmentStorePodAffinity", getSegmentStoreAntiAffinityPolicy())
                 .build();
 
@@ -380,10 +380,10 @@ public abstract class AbstractService implements Service {
                 .put("replicas", bookieCount)
                 .put("version", BOOKKEEPER_VERSION)
                 .put("probes", ImmutableMap.builder().put("readinessProbe", resourceWrapper.getBookkeeperProperties().getProbes().getReadinessProbe()).build())
-                .put("bookkeeperResources", getResources(resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("cpu"),
+                .put("resources", getResources(resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("cpu"),
                         resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("memory"), resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("cpu"),
                         resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("memory")))
-                .put("bookkeeperStorage", ImmutableMap.builder()
+                .put("storage", ImmutableMap.builder()
                         .put("index", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getIndex())
                         .put("ledger", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getLedger())
                         .put("journal", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getJournal())
@@ -391,8 +391,8 @@ public abstract class AbstractService implements Service {
                 .put("envVars", CONFIG_MAP_BOOKKEEPER)
                 .put("zookeeperUri", zkLocation)
                 .put("autoRecovery", true)
-                .put("bookkeeperOptions", resourceWrapper.getBookkeeperProperties().getBookkeeperOptions())
-                .put("bookkeeperJVMOptions", ImmutableMap.builder()
+                .put("options", resourceWrapper.getBookkeeperProperties().getBookkeeperOptions())
+                .put("jvmOptions", ImmutableMap.builder()
                         .put("memoryOpts", getBookkeeperMemoryOptions())
                         .build())
                 .build();
