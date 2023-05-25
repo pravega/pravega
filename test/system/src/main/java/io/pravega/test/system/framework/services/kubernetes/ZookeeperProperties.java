@@ -20,6 +20,9 @@ import lombok.Setter;
 
 import java.util.Map;
 
+/**
+ * POJO class for zookeeperProperties.
+ */
 @Getter
 @Setter
 public class ZookeeperProperties {

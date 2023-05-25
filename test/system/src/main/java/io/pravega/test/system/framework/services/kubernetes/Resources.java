@@ -20,6 +20,9 @@ import lombok.Setter;
 
 import java.util.Map;
 
+/**
+ * POJO class for getting resources for controller, segmentStore, zookeeper and bookkeeper.
+ */
 @Getter
 @Setter
 public class Resources {

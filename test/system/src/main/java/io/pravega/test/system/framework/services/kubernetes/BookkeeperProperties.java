@@ -21,6 +21,9 @@ import lombok.Setter;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * POJO class for bookkeeperProperties.
+ */
 @Getter
 @Setter
 public class BookkeeperProperties {

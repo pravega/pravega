@@ -20,6 +20,9 @@ import lombok.Setter;
 
 import java.util.Map;
 
+/**
+ * POJO class for getting storage values for bookkeeperStorage.
+ */
 @Getter
 @Setter
 public class Storage {

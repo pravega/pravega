@@ -19,6 +19,10 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.Map;
+
+/**
+ * POJO class for bookkeeper probes.
+ */
 @Getter
 @Setter
 public class Probes {

@@ -18,6 +18,9 @@ package io.pravega.test.system.framework.services.kubernetes;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * POJO class for controllerProperties.
+ */
 @Getter
 @Setter
 public class ControllerProperties {
