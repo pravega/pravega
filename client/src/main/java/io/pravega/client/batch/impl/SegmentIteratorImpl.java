@@ -22,15 +22,20 @@ import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
-import io.pravega.client.stream.Serializer;
-import io.pravega.client.stream.TruncatedDataException;
+import io.pravega.client.stream.*;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeoutException;
 
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.Retry;
-import lombok.Getter;
+import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 
 @Beta
@@ -45,6 +50,9 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
     private final EventSegmentReader input;
     private final Retry.RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 9, 30000);
 
+    private static final SegmentIteratorImpl.SegmentIteratorSerializer SERIALIZER = new SegmentIteratorImpl.SegmentIteratorSerializer();
+
+    @Builder(builderClassName = "SegmentIteratorBuilder")
     public SegmentIteratorImpl(SegmentInputStreamFactory factory, Segment segment,
             Serializer<T> deserializer, long startingOffset, long endingOffset) {
         this.segment = segment;
@@ -95,4 +103,46 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
         input.close();
     }
 
+    static class SegmentIteratorBuilder<T> implements ObjectBuilder<SegmentIteratorImpl> {
+    }
+
+    private static class SegmentIteratorSerializer extends VersionedSerializer.WithBuilder<SegmentIteratorImpl, SegmentIteratorBuilder<Object>> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        @Override
+        protected SegmentIteratorBuilder<Object> newBuilder() {
+            return builder();
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, SegmentIteratorImpl.SegmentIteratorBuilder builder) throws IOException {
+            builder.segment(Segment.fromScopedName(revisionDataInput.readUTF()));
+            builder.startingOffset(revisionDataInput.readCompactLong());
+            builder.endingOffset(revisionDataInput.readCompactLong());
+        }
+
+        private void write00(SegmentIteratorImpl segmentIterator, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeUTF(segmentIterator.segment.getScopedName());
+            revisionDataOutput.writeCompactLong(segmentIterator.getStartingOffset());
+            revisionDataOutput.writeCompactLong(segmentIterator.endingOffset);
+        }
+    }
+
+    @SneakyThrows(IOException.class)
+    public ByteBuffer toBytes() {
+        ByteArraySegment serialized = SERIALIZER.serialize(this);
+        return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
+    }
+
+    @SneakyThrows(IOException.class)
+    public static SegmentIterator fromBytes(ByteBuffer buff) {
+        return SERIALIZER.deserialize(new ByteArraySegment(buff));
+    }
 }
