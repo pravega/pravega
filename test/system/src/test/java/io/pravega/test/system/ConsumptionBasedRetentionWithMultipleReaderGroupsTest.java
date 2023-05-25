@@ -80,7 +80,7 @@ import static org.junit.Assert.assertNull;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class   ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends AbstractReadWriteTest {
+public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends AbstractReadWriteTest {
 
     private static final String SCOPE = "testConsumptionBasedRetentionScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String SCOPE_1 = "testCBR1Scope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
