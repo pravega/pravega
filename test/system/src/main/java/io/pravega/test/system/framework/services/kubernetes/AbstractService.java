@@ -134,7 +134,7 @@ public abstract class AbstractService implements Service {
                         resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getLimits().get("memory"),
                         resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getRequests().get("cpu"),
                         resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getRequests().get("memory")))
-                .put("pravegaOptions", ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))
+                .put("options", ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))
                 .put("image", pravegaImgSpec)
                 .put("longtermStorage", tier2Spec())
                 .put("segmentStoreJVMOptions", getSegmentStoreJVMOptions())

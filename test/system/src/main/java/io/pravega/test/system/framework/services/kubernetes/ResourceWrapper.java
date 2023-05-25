@@ -53,6 +53,8 @@ public class ResourceWrapper {
         ResourceWrapper resourceWrapper = null;
         try {
             resourceWrapper = objectMapper.readValue(stream, ResourceWrapper.class);
+            log.info("******************" + resourceWrapper.getPravegaOptions().get("pravegaservice.cache.size.max"));
+            log.info("******************" + resourceWrapper.getPravegaOptions().get("writer.flush.threshold.bytes"));
         } catch (IOException e) {
             log.error("Input json file not available", e);
         }
