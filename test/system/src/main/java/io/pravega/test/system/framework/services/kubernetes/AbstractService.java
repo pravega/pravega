@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.pravega.common.Exceptions.checkNotNullOrEmpty;
 import static java.util.Collections.singletonList;
@@ -106,6 +107,7 @@ public abstract class AbstractService implements Service {
             log.info("Skipping PravegaCluster installation.");
             return CompletableFuture.completedFuture(null);
         }
+        Map<String, String> combinedPropsMap = getCombinedMap(props, ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()));
         return registerTLSSecret()
                 .thenCompose(v -> k8sClient.createSecret(NAMESPACE, authSecret()))
                 .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
@@ -113,7 +115,7 @@ public abstract class AbstractService implements Service {
                 getPravegaOnlyDeployment(zkUri.getAuthority(),
                 controllerCount,
                 segmentStoreCount,
-                ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))));
+                ImmutableMap.copyOf(combinedPropsMap))));
     }
 
     private Map<String, Object> getPravegaOnlyDeployment(String zkLocation, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
@@ -134,7 +136,7 @@ public abstract class AbstractService implements Service {
                         resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getLimits().get("memory"),
                         resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getRequests().get("cpu"),
                         resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getRequests().get("memory")))
-                .put("options", ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))
+                .put("options", ImmutableMap.copyOf(getCombinedMap(props, ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))))
                 .put("image", pravegaImgSpec)
                 .put("longtermStorage", tier2Spec())
                 .put("segmentStoreJVMOptions", getSegmentStoreJVMOptions())
@@ -360,7 +362,7 @@ public abstract class AbstractService implements Service {
                         NAMESPACE, CUSTOM_RESOURCE_PLURAL_BOOKKEEPER,
                         getBookkeeperDeployment(zkUri.getAuthority(),
                                 bookieCount,
-                                ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))));
+                                ImmutableMap.copyOf(getCombinedMap(props, ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))))));
     }
 
     private V1ConfigMap getBookkeeperOperatorConfigMap() {
@@ -425,6 +427,17 @@ public abstract class AbstractService implements Service {
                         .put(service, replicaCount)
                         .build())
                 .build();
+    }
+
+    private Map<String, String> getCombinedMap(ImmutableMap<String, String> props, ImmutableMap<String, String> pravegaOptions) {
+        Map<String, String> propertiesMap = Stream.of(pravegaOptions, props)
+                .flatMap(map -> map.entrySet().stream())
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (value1, value2) -> value1));
+        log.info("********" + propertiesMap);
+        return propertiesMap;
     }
 
     @Override
