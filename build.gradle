@@ -1415,7 +1415,6 @@ subprojects {
     task allDeps(type: DependencyReportTask) {}
 }
 
-
     task publishAllJars() {
         dependsOn ':authplugin:publish'
         dependsOn ':client:publish'
