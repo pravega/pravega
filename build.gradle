@@ -1415,26 +1415,26 @@ subprojects {
     task allDeps(type: DependencyReportTask) {}
 }
 
-    task publishAllJars() {
-        dependsOn ':authplugin:publish'
-        dependsOn ':client:publish'
-        dependsOn ':common:publish'
-        dependsOn ':shared:publish'
-        dependsOn ':shared:security'
-        dependsOn ':shared:protocol:publish'
-        dependsOn ':segmentstore:contracts:publish'
-        dependsOn ':segmentstore:storage:publish'
-        dependsOn ':segmentstore:storage:impl:publish'
-        dependsOn ':segmentstore:server:publish'
-        dependsOn ':segmentstore:server:host:publish'
-        dependsOn ':shared:metrics:publish'
-        dependsOn ':shared:controller-api:publish'
-        dependsOn ':controller:publish'
-        dependsOn ':standalone:publish'
-        dependsOn ':cli:admin'
-        dependsOn ':cli:user'
-        dependsOn ':test:system:publish'
-    }
+task publishAllJars() {
+    dependsOn ':authplugin:publish'
+    dependsOn ':client:publish'
+    dependsOn ':common:publish'
+    dependsOn ':shared:publish'
+    dependsOn ':shared:security'
+    dependsOn ':shared:protocol:publish'
+    dependsOn ':segmentstore:contracts:publish'
+    dependsOn ':segmentstore:storage:publish'
+    dependsOn ':segmentstore:storage:impl:publish'
+    dependsOn ':segmentstore:server:publish'
+    dependsOn ':segmentstore:server:host:publish'
+    dependsOn ':shared:metrics:publish'
+    dependsOn ':shared:controller-api:publish'
+    dependsOn ':controller:publish'
+    dependsOn ':standalone:publish'
+    dependsOn ':cli:admin'
+    dependsOn ':cli:user'
+    dependsOn ':test:system:publish'
+}
 
 
 task sourceCopy(type: Copy) {

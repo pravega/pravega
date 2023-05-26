@@ -117,7 +117,9 @@ plugins.withId('maven-publish') {
             }
         }
         tasks.publish {
-            println "starting to publish"
+            afterEvaluate {
+                println "starting to publish"
+            }
         }
     }
 }
