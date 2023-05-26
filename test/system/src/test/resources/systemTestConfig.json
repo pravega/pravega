@@ -106,7 +106,16 @@
     "controller.retention.bucket.count": "3",
     "controller.service.asyncTaskPool.size": "20",
     "controller.retention.thread.count": "1",
+    "controller.transaction.lease.count.max": "600000",
+    "controller.retention.frequency.minutes": "1",
     "log.level": "DEBUG",
-    "emptyDirVolumeMounts": "heap-dump=/tmp/dumpfile/heap,logs=/opt/pravega/logs"
+    "emptyDirVolumeMounts": "heap-dump=/tmp/dumpfile/heap,logs=/opt/pravega/logs",
+    "autoScale.mute.time.seconds": "120",
+    "autoScale.cooldown.time.seconds": "120",
+    "autoScale.cache.expiry.seconds": "120",
+    "autoScale.cache.cleanUp.interval.seconds": "120",
+    "curator-default-session-timeout": "10000",
+    "hdfs.replaceDataNodesOnFailure.enable": "false",
+    "io.netty.maxDirectMemory": "5368709120"
   }
 }
