@@ -436,7 +436,6 @@ public abstract class AbstractService implements Service {
                         Map.Entry::getKey,
                         Map.Entry::getValue,
                         (value1, value2) -> value1));
-        log.info("********" + propertiesMap);
         return propertiesMap;
     }
 
