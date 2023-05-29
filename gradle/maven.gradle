@@ -116,8 +116,9 @@ plugins.withId('maven-publish') {
                 }
             }
         }
-        tasks.publish {
-            afterEvaluate {
+        tasks.publish{
+            dependsOn('publishMavenDeployerPublicationToMavenRepository')
+            doLast {
                 println "starting to publish"
             }
         }
