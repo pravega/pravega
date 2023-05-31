@@ -32,6 +32,7 @@ import io.pravega.cli.admin.bookkeeper.BookKeeperLogReconcileCommand;
 import io.pravega.cli.admin.bookkeeper.BookkeeperDeleteLedgersCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerContinuousRecoveryCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerRecoverCommand;
+import io.pravega.cli.admin.bookkeeper.GetContainerEpochsCommand;
 import io.pravega.cli.admin.cluster.GetClusterNodesCommand;
 import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
 import io.pravega.cli.admin.cluster.ListContainersCommand;
@@ -387,6 +388,7 @@ public abstract class AdminCommand {
                         .put(ControllerDescribeStreamCommand::descriptor, ControllerDescribeStreamCommand::new)
                         .put(GetClusterNodesCommand::descriptor, GetClusterNodesCommand::new)
                         .put(ListContainersCommand::descriptor, ListContainersCommand::new)
+                        .put(GetContainerEpochsCommand::descriptor, GetContainerEpochsCommand::new)
                         .put(GetSegmentStoreByContainerCommand::descriptor, GetSegmentStoreByContainerCommand::new)
                         .put(PasswordFileCreatorCommand::descriptor, PasswordFileCreatorCommand::new)
                         .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)

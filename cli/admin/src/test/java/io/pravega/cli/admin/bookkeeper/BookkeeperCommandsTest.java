@@ -43,9 +43,13 @@ import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.net.NetworkInterface;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,6 +59,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * Test basic functionality of Bookkeeper commands.
@@ -273,6 +278,15 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         Assert.assertTrue(TestUtils.executeCommand("bk list-ledgers", STATE.get()).contains("List of ledgers in the system"));
         createLedgerInBookkeeperTestCluster(0);
         Assert.assertTrue(TestUtils.executeCommand("bk list-ledgers", STATE.get()).contains("bookieLogID: 0"));
+    }
+
+    @Test
+    public void testGetContainerEpochsCommand() throws Exception {
+        createLedgerInBookkeeperTestCluster(0);
+        TestUtils.executeCommand("bk get-container-epochs test", STATE.get());
+        File testDataFile = new File("test");
+        Assert.assertTrue(Files.lines(Path.of(testDataFile.toURI()), StandardCharsets.UTF_8)
+                .collect(Collectors.toList()).toString().contains("0:"));
     }
 
     private void createLedgerInBookkeeperTestCluster(int logId) throws Exception {
