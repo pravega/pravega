@@ -30,7 +30,7 @@ import java.io.InputStream;
 import java.util.Map;
 
 /**
- * Wrapper class to deserializing the json file contents.
+ * Wrapper class for deserializing the json file contents.
  */
 @Slf4j
 @Getter
@@ -56,7 +56,6 @@ public class ResourceWrapper {
         } catch (IOException e) {
             log.error("Input json file not available", e);
         }
-        //show every thing what was populated
         return resourceWrapper;
     }
 }
