@@ -96,12 +96,11 @@ helm repo update
 
 ###Webhook conversion and Cert-Manager
 
-The most recent versions of Pravega Operator resort to the new 
-[Webhook Conversion feature](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#webhook-conversion), 
-which is beta since 1.15. For this reason, Cert-Manager or some other certificate management solution must be 
+The most recent versions of Pravega Operator resort to the
+[Webhook Conversion feature](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#webhook-conversion). For this reason, Cert-Manager or some other certificate management solution must be
 deployed for managing webhook service certificates. To install Cert-Manager, just execute this command:
 ```
-kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.14.2/cert-manager.yaml 
+kubectl apply -f https://github.com/jetstack/cert-manager/releases/latest/download/cert-manager.yaml
 ```
 
 ##Deploying Pravega
@@ -122,14 +121,14 @@ to manage the deployment of Zookeeper clusters in Kubernetes. Thus, deploying th
 to deploy Zookeeper:
 
 ```
-helm install zookeeper-operator pravega/zookeeper-operator --version=0.2.8
+helm install zookeeper-operator pravega/zookeeper-operator
 ```
 
 With the Zookeeper Operator up and running, the next step is to deploy Zookeeper. We can do so with the helm chart we 
 published for Zookeeper: 
 
 ```
-helm install zookeeper pravega/zookeeper --version=0.2.8
+helm install zookeeper pravega/zookeeper
 ```
 
 This chart instantiates a Zookeeper cluster made of 3 instances and their respective Persistent Volume Claims (PVC) 
@@ -158,14 +157,15 @@ As in the case of Zookeeper, we have also developed a [Bookkeeper Operator](http
 to manage the lifecycle of Bookkeeper clusters deployed in Kubernetes. Thus, the next step is to deploy the Bookkeeper Operator:
 
 ```
-helm install bookkeeper-operator pravega/bookkeeper-operator --version=0.1.2
+kubectl apply -f https://github.com/pravega/bookkeeper-operator/raw/master/config/certmanager/certificate.yaml
+helm install bookkeeper-operator pravega/bookkeeper-operator --set webhookCert.certName=selfsigned-cert-bk --set webhookCert.secretName=selfsigned-cert-tls-bk
 ```
 
 Once running, we can proceed to deploy Bookkeeper. In this case, we will use the Helm chart publicly available to quickly 
 spin up a Bookkeeper cluster:
 
 ```
-helm install bookkeeper pravega/bookkeeper --version=0.7.1
+helm install bookkeeper pravega/bookkeeper
 ```
 
 As a result, you can see below both Zookeeper and Bookkeeper up and running:
@@ -173,10 +173,10 @@ As a result, you can see below both Zookeeper and Bookkeeper up and running:
 ```console
 $ kubectl get pods
 NAME                                   READY   STATUS    RESTARTS   AGE
+bookkeeper-bookie-0                    1/1     Running   0          2m10s
+bookkeeper-bookie-1                    1/1     Running   0          2m10s
+bookkeeper-bookie-2                    1/1     Running   0          2m10s
 bookkeeper-operator-85568f8949-d652z   1/1     Running   0          4m10s
-bookkeeper-pravega-bk-bookie-0         1/1     Running   0          2m10s
-bookkeeper-pravega-bk-bookie-1         1/1     Running   0          2m10s
-bookkeeper-pravega-bk-bookie-2         1/1     Running   0          2m10s
 zookeeper-0                            1/1     Running   0          8m59s
 zookeeper-1                            1/1     Running   0          8m19s
 zookeeper-2                            1/1     Running   0          7m38s
@@ -194,7 +194,7 @@ With such a provisioner, we have a pod that acts as an NFS Server for Pravega. T
 the next command:
 
 ```
-helm repo add stable https://kubernetes-charts.storage.googleapis.com/
+helm repo add stable https://charts.helm.sh/stable
 helm install stable/nfs-server-provisioner --generate-name
 ```
 
@@ -234,15 +234,14 @@ already done for Zookeeper and Bookkeeper. As usual, we first need to deploy the
 (and its required certificate) as follows:
 
 ```
-git clone https://github.com/pravega/pravega-operator
-kubectl create -f pravega-operator/deploy/certificate.yaml
-helm install pravega-operator pravega/pravega-operator --version=0.5.1
+kubectl apply -f https://github.com/pravega/pravega-operator/raw/master/config/certmanager/certificate.yaml
+helm install pravega-operator pravega/pravega-operator --set webhookCert.certName=selfsigned-cert --set webhookCert.secretName=selfsigned-cert-tls
 ```
 
 Once deployed, we can deploy Pravega with the default Helm chart publicly available as follows:
 
 ```
-helm install pravega pravega/pravega --version=0.8.0
+helm install pravega pravega/pravega
 ```
 
 That's it! Once this command gets executed, you will have your first Pravega cluster up and running:
@@ -250,10 +249,10 @@ That's it! Once this command gets executed, you will have your first Pravega clu
 ```console
 $ kubectl get pods
 NAME                                         READY   STATUS    RESTARTS  AGE
+bookkeeper-bookie-0                          1/1     Running   0         9m6s
+bookkeeper-bookie-1                          1/1     Running   0         9m6s
+bookkeeper-bookie-2                          1/1     Running   0         9m6s
 bookkeeper-operator-85568f8949-d652z         1/1     Running   0         11m
-bookkeeper-pravega-bk-bookie-0               1/1     Running   0         9m6s
-bookkeeper-pravega-bk-bookie-1               1/1     Running   0         9m6s
-bookkeeper-pravega-bk-bookie-2               1/1     Running   0         9m6s
 nfs-server-provisioner-1592297085-0          1/1     Running   0         5m26s
 pravega-operator-6c6d9db459-mpjr4            1/1     Running   0         4m19s
 pravega-pravega-controller-5b447c85b-t8jsx   1/1     Running   0         2m56s

@@ -744,6 +744,10 @@ public class LocalController implements Controller {
                 .thenApply(this::getKeyValueTableSegments);
     }
 
+    @Override
+    public void updateStaleValueInCache(String segmentName, PravegaNodeUri errNodeUri) {
+    }
+
     private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {
         return new KeyValueTableSegments(getRangeMap(ranges));
     }

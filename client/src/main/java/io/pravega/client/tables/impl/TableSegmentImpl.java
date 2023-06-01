@@ -627,7 +627,7 @@ class TableSegmentImpl implements TableSegment {
                                 .getEndpointForSegment(TableSegmentImpl.this.segmentName)
                                 .thenCompose(uri -> TableSegmentImpl.this.tokenProvider
                                         .retrieveToken()
-                                        .thenApply(token -> new ConnectionState(new RawClient(uri, TableSegmentImpl.this.connectionPool), token))),
+                                        .thenApply(token -> new ConnectionState(new RawClient(TableSegmentImpl.this.controller, TableSegmentImpl.this.connectionPool, Segment.fromScopedName(TableSegmentImpl.this.segmentName)), token))),
                         result);
             }
             return result;

@@ -111,11 +111,13 @@ public class SegmentSelector {
                     return null;
                 });
 
+        // If Successors is null that means Stream doesn't exist
         if (successors == null) {
             return Collections.emptyList();
         } else if (successors.getSegmentToPredecessor().isEmpty()) {
             log.warn("Stream {} is sealed since no successor segments found for segment {} ", sealedSegment.getStream(), sealedSegment);
             Exception e = new IllegalStateException("Writes cannot proceed since the stream is sealed");
+            // Remove all writers and fail all pending writes since Stream is sealed and no successor segment found
             removeAllWriters().forEach(pendingEvent -> pendingEvent.getAckFuture()
                                                                    .completeExceptionally(e));
             sealed.set(true);

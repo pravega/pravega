@@ -381,6 +381,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Call concrete implementation.
         val returnFuture = doWriteAsync(handle, offset, length, data, opContext);
         returnFuture.thenAcceptAsync(bytesWritten -> {
+            Preconditions.checkState(bytesWritten == length, "Wrong number of bytes written. Expected(%s) Actual(%s)", length, bytesWritten);
             val elapsed = opContext.getInclusiveLatency();
 
             ChunkStorageMetrics.WRITE_LATENCY.reportSuccessEvent(elapsed);

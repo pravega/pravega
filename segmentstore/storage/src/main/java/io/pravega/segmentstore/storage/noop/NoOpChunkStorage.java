@@ -47,6 +47,11 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
+    public boolean supportsDataIntegrityCheck() {
+        return false;
+    }
+
+    @Override
     protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         ChunkData chunkData = chunkMetadata.get(chunkName);
         if (null == chunkData) {
@@ -136,6 +141,12 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
         }
         if (offset != chunkData.length) {
             throw new InvalidOffsetException(handle.getChunkName(), chunkData.length, offset, "doWrite");
+        }
+        // Consume data
+        try {
+            data.readNBytes(length);
+        } catch (Exception e) {
+            throw new ChunkStorageException(handle.getChunkName(), "Unexpected exception while consuming data", e);
         }
         chunkData.length = offset + length;
         chunkMetadata.put(handle.getChunkName(), chunkData);

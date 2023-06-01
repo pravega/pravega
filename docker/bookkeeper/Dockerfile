@@ -23,9 +23,9 @@
 # - github.com/apache/bookkeeper/blob/branch-4.9/docker/Dockerfile
 #
 
-FROM apache/bookkeeper:4.14.1
+FROM apache/bookkeeper:4.15.3
 
-ARG BK_VERSION=4.14.1
+ARG BK_VERSION=4.15.3
 ARG DISTRO_NAME=bookkeeper-all-${BK_VERSION}-bin
 ENV JAVA_HOME=/usr/lib/jvm/java-11
 

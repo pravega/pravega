@@ -30,6 +30,8 @@ import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import lombok.val;
 
+import java.util.List;
+
 /**
  * Please note this is an experimental API.
  * 
@@ -92,4 +94,13 @@ public interface BatchClientFactory extends AutoCloseable {
      */
     @Override
     void close();
+
+    /**
+     * Provides a list of SegmentRange in between a start and end streamCut.
+     *
+     * @param startStreamCut start streamCut.
+     * @param endStreamCut end streamCut.
+     * @return A list of segment range in between a start and end stream cut.
+     */
+    List<SegmentRange> getSegmentRangeBetweenStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut);
 }

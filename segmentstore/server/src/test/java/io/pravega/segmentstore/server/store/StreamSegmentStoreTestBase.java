@@ -853,7 +853,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             Retry.withExpBackoff(100, 2, 10, TIMEOUT.toMillis() / 5)
                     .retryWhen(ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException || info.get().getLength() != info.get().getStorageLength())
                     .run(() -> {
-                        val latestInfo =  (StreamSegmentInformation) store.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+                        final StreamSegmentInformation latestInfo = (StreamSegmentInformation) store.getStreamSegmentInfo(segmentName, TIMEOUT).join();
                         try {
                             checkSegmentReads(segmentName, expectedCurrentOffset, info.get().getLength(), store, expectedData);
                         } catch (Exception ex2) {

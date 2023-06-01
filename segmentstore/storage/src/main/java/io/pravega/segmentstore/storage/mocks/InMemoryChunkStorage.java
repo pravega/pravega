@@ -189,7 +189,7 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
         } catch (IOException e) {
             throw new ChunkStorageException(handle.getChunkName(), "Error while reading", e);
         }
-        Preconditions.checkState(length == totalBytesRead);
+        Preconditions.checkState(length == totalBytesRead, "%s %s", length, totalBytesRead);
 
         byte[] writtenBytes = out.toByteArray();
         Preconditions.checkState(writtenBytes.length == totalBytesRead);

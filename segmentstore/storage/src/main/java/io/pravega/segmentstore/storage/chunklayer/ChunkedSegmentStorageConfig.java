@@ -40,10 +40,9 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> MAX_INDEXED_SEGMENTS = Property.named("readindex.segments.max", 1024);
     public static final Property<Integer> MAX_INDEXED_CHUNKS_PER_SEGMENTS = Property.named("readindex.chunksPerSegment.max", 1024);
     public static final Property<Integer> MAX_INDEXED_CHUNKS = Property.named("readindex.chunks.max", 16 * 1024);
-    public static final Property<Long> READ_INDEX_BLOCK_SIZE = Property.named("readindex.block.size", 1024 * 1024L);
+    public static final Property<Long> READ_INDEX_BLOCK_SIZE = Property.named("readindex.block.size", 1024 * 1024 * 1024L);
 
     public static final Property<Boolean> APPENDS_ENABLED = Property.named("appends.enable", true);
-    public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", true);
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
 
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", 128 * 1024 * 1024L);
@@ -65,6 +64,8 @@ public class ChunkedSegmentStorageConfig {
 
     public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", false);
     public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
+    public static final Property<Boolean> SELF_CHECK_DATA_INTEGRITY = Property.named("self.check.integrity.data", false);
+    public static final Property<Boolean> SELF_CHECK_METADATA_INTEGRITY = Property.named("self.check.integrity.metadata", false);
 
     public static final Property<Long> MAX_SAFE_SIZE = Property.named("safe.size.bytes.max", Long.MAX_VALUE);
     public static final Property<Boolean> ENABLE_SAFE_SIZE_CHECK = Property.named("safe.size.check.enable", true);
@@ -88,7 +89,6 @@ public class ChunkedSegmentStorageConfig {
             .maxIndexedChunksPerSegment(1024)
             .maxIndexedChunks(16 * 1024)
             .appendEnabled(true)
-            .lazyCommitEnabled(true)
             .inlineDefragEnabled(true)
             .lateWarningThresholdInMillis(100)
             .garbageCollectionDelay(Duration.ofSeconds(60))
@@ -97,7 +97,7 @@ public class ChunkedSegmentStorageConfig {
             .garbageCollectionSleep(Duration.ofMillis(10))
             .garbageCollectionMaxAttempts(3)
             .garbageCollectionTransactionBatchSize(5000)
-            .indexBlockSize(1024 * 1024)
+            .indexBlockSize(1024 * 1024 * 1024)
             .maxEntriesInCache(5000)
             .maxEntriesInTxnBuffer(1024)
             .journalSnapshotInfoUpdateFrequency(Duration.ofMinutes(5))
@@ -105,6 +105,8 @@ public class ChunkedSegmentStorageConfig {
             .maxJournalReadAttempts(100)
             .maxJournalWriteAttempts(10)
             .selfCheckEnabled(false)
+            .selfCheckForDataEnabled(false)
+            .selfCheckForMetadataEnabled(false)
             .maxSafeStorageSize(Long.MAX_VALUE)
             .safeStorageSizeCheckEnabled(true)
             .safeStorageSizeCheckFrequencyInSeconds(60)
@@ -171,15 +173,6 @@ public class ChunkedSegmentStorageConfig {
      */
     @Getter
     final private boolean appendEnabled;
-
-    /**
-     * Whether the lazy commit functionality is enabled or disabled.
-     * Underlying implementation might buffer frequently or recently updated metadata keys to optimize read/write performance.
-     * To further optimize it may provide "lazy committing" of changes where there is application specific way to recover from failures.(Eg. when only length of chunk is changed.)
-     * Note that otherwise for each commit the data is written to underlying key-value store.
-     */
-    @Getter
-    final private boolean lazyCommitEnabled;
 
     /**
      * Whether the inline defrag functionality is enabled or disabled.
@@ -294,6 +287,19 @@ public class ChunkedSegmentStorageConfig {
     @Getter
     final private boolean selfCheckEnabled;
 
+
+    /**
+     * When enabled, SLTS will perform extra validation for data.
+     */
+    @Getter
+    final private boolean selfCheckForDataEnabled;
+
+    /**
+     * When enabled, SLTS will perform extra validation for metadata.
+     */
+    @Getter
+    final private boolean selfCheckForMetadataEnabled;
+
     /**
      * Maximum storage size in bytes below which operations are considered safe.
      * Above this value any non-critical writes are not allowed.
@@ -320,7 +326,6 @@ public class ChunkedSegmentStorageConfig {
      */
     ChunkedSegmentStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.appendEnabled = properties.getBoolean(APPENDS_ENABLED);
-        this.lazyCommitEnabled = properties.getBoolean(LAZY_COMMIT_ENABLED);
         this.inlineDefragEnabled = properties.getBoolean(INLINE_DEFRAG_ENABLED);
         this.maxBufferSizeForChunkDataTransfer = properties.getPositiveInt(MAX_BUFFER_SIZE_FOR_APPENDS);
         // Don't use appends for concat when appends are disabled.
@@ -342,6 +347,8 @@ public class ChunkedSegmentStorageConfig {
         this.maxJournalReadAttempts = properties.getPositiveInt(MAX_JOURNAL_READ_ATTEMPTS);
         this.maxJournalWriteAttempts = properties.getPositiveInt(MAX_JOURNAL_WRITE_ATTEMPTS);
         this.selfCheckEnabled = properties.getBoolean(SELF_CHECK_ENABLED);
+        this.selfCheckForDataEnabled = properties.getBoolean(SELF_CHECK_DATA_INTEGRITY);
+        this.selfCheckForMetadataEnabled = properties.getBoolean(SELF_CHECK_METADATA_INTEGRITY);
         this.indexBlockSize = properties.getPositiveLong(READ_INDEX_BLOCK_SIZE);
         this.maxEntriesInTxnBuffer = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_BUFFER);
         this.maxEntriesInCache = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_CACHE);

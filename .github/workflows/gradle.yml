@@ -102,6 +102,57 @@ jobs:
 #      - name: Setup upterm session
 #        uses: lhotari/action-upterm@v1
 
+  snapshot_docs:
+    name: Upload Docs Snapshot
+    needs: build
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/r0.') || startsWith(github.ref, 'refs/heads/r1.')) }}
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+      - name: Gradle & Maven Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+      - name: Build Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
+          restore-keys: |
+            ${{github.ref}}-${{github.run_id}}
+            ${{github.ref}}
+      - name: Build MkDocs and Javadocs
+        run: |
+          ./gradlew -PenableMkdocs=true -PsimpleSnapshot=true mkdocsBuild javadocs ${{env.GRADLE_OPTS}}
+      - name: Upload MkDocs and Javadocs snapshot
+        run: |
+          mkdir ~/.ssh
+          echo "$KNOWN_HOST" >> ~/.ssh/known_hosts
+          echo "$SSH_KEY" > ~/pravegaio.pem
+          chmod 400 ~/pravegaio.pem
+          VERSION=$(grep pravegaVersion gradle.properties | sed 's/pravegaVersion=//')
+          cd documentation/generated/$VERSION
+          ssh -i ~/pravegaio.pem ubuntu@cncf.pravega.io "rm -rf /var/www/pravega.io/docs/v$VERSION && mkdir -p /var/www/pravega.io/docs/v$VERSION"
+          tar cf - * | ssh -i ~/pravegaio.pem ubuntu@cncf.pravega.io "cd /var/www/pravega.io/docs/v$VERSION && tar xvf -"
+          ssh -i ~/pravegaio.pem ubuntu@cncf.pravega.io "mkdir /var/www/pravega.io/docs/v$VERSION/javadoc/clients"
+          cd ../../../build/javadocs/
+          tar cf - * | ssh -i ~/pravegaio.pem ubuntu@cncf.pravega.io "cd /var/www/pravega.io/docs/v$VERSION/javadoc/clients && tar xvf -"
+          echo -e \\nDocs site updated at https://cncf.pravega.io/docs/v$VERSION
+          if [ "${{ github.ref }}" == 'refs/heads/master' ]; then
+            ssh -i ~/pravegaio.pem ubuntu@cncf.pravega.io "rm /var/www/pravega.io/docs/snapshot && cd /var/www/pravega.io/docs && ln -s v$VERSION snapshot"
+            echo Symlink updated at https://cncf.pravega.io/docs/snapshot
+          fi
+        env:
+          KNOWN_HOST: ${{ secrets.PRAVEGA_IO_KNOWN_HOST }}
+          SSH_KEY: ${{ secrets.PRAVEGA_IO_SSH_KEY }}
+
   unit_client:
     name: Client Unit Tests
     needs: build

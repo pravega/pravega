@@ -109,7 +109,8 @@ allprojects {
             //failOnVersionConflict()
             force "com.google.guava:guava:" + guavaVersion
             force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
-            force "io.grpc:grpc-context:" + grpcVersion
+            force "com.google.protobuf:protobuf-java-util:" + protobufProtocVersion
+	    force "io.grpc:grpc-context:" + grpcVersion
             force "commons-beanutils:commons-beanutils:" + commonsBeanutilsVersion
             force "org.apache.commons:commons-compress:" + apacheCommonsCompressVersion
             force "org.apache.commons:commons-lang3:" + commonsLang3Version
@@ -123,13 +124,24 @@ allprojects {
             force "io.netty:netty-transport:" + nettyVersion
             force "io.netty:netty-handler:" + nettyVersion
             force "io.netty:netty-codec:" + nettyVersion
+            force "io.netty:netty-codec-dns:" + nettyVersion
             force "io.netty:netty-codec-http:" + nettyVersion
             force "io.netty:netty-codec-http2:" + nettyVersion
             force "io.netty:netty-codec-socks:" + nettyVersion
             force "io.netty:netty-handler-proxy:" + nettyVersion
+            force "io.netty:netty-resolver-dns:" + nettyVersion
             force "io.netty:netty-transport-native-epoll:" + nettyVersion
             force "io.netty:netty-tcnative-boringssl-static:" + nettyBoringSSLVersion
             force "junit:junit:" + junitVersion
+            force "org.bouncycastle:bcprov-jdk15on:" + bouncyCastleVersion
+	    force "org.bouncycastle:bcpkix-jdk15on:" + bouncyCastleVersion
+	    force "org.apache.avro:avro:" + apacheAvroVersion
+	    force "org.jetbrains.kotlin:kotlin-stdlib-common:" + kotlinVersion
+	    force "org.jetbrains.kotlin:kotlin-stdlib:" + kotlinVersion
+	    force "org.yaml:snakeyaml:" + snakeYamlVersion
+            force "com.fasterxml.woodstox:woodstox-core:" + woodstoxVersion
+	    force "org.jdom:jdom2:" + jdomVersion
+	    force "commons-net:commons-net:" + commonsNetVersion
             // Netty 4 uber jar
             exclude group: 'io.netty', module: 'netty-all'
             // Netty 3
@@ -286,7 +298,7 @@ project ('shared:metrics') {
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-prometheus/<micrometerVersion>
         compile project(':common')
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
-        runtime group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
+        runtimeOnly group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
         testCompile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
@@ -304,6 +316,7 @@ project('shared:protocol') {
     dependencies {
         compile project(':common')
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
@@ -718,6 +731,13 @@ project('test:integration') {
         systemProperties System.getProperties()
     }
 
+    task compatibilityCheck(type: JavaExec){
+        main = "io.pravega.test.integration.compatibility.CompatibilityChecker"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        systemProperties System.getProperties()
+    }
+
     /**
      * See: https://github.com/pravega/pravega/wiki/Pravega-User-CLI.
      * This will only work well from the console if all Gradle output is suppressed: -q --console=plain
@@ -953,7 +973,7 @@ project('standalone') {
     }
 
     dependencies {
-        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        runtimeOnly group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         compile project(':common')
         compile project(':client')
@@ -1025,7 +1045,7 @@ project('test:system') {
 
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
-        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        runtimeOnly group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion, withoutLogger
         if (System.getProperty("customClient") != null) {
             implementation fileTree(System.getProperty("customClient")) { include '*.jar' }
@@ -1041,8 +1061,8 @@ project('test:system') {
         compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
         compile group: 'io.kubernetes', name: 'client-java', version: k8ClientVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
-        runtime group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
-        runtime group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
+        runtimeOnly group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
+        runtimeOnly group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
     }
     //disable the default test task.
     test {
@@ -1050,9 +1070,9 @@ project('test:system') {
     }
 
     jar { //create a fat jar
-        archiveName = "test-collection.jar"
+        archiveFileName = "test-collection.jar"
         from {
-            (configurations.runtime).collect {
+            (configurations.runtimeClasspath).collect {
                 it.isDirectory() ? it : zipTree(it)
             }
         }
@@ -1061,7 +1081,7 @@ project('test:system') {
     }
 
     task testJarForDocker(type: Jar) {
-        archiveName = "test-docker-collection.jar"
+        archiveFileName = "test-docker-collection.jar"
         from {
             (configurations.runtime).collect {
                 it.isDirectory() ? it : zipTree(it)
@@ -1347,7 +1367,7 @@ project('test:system') {
 
 def getProjectVersion() {
     String ver = pravegaVersion
-    if (grgit && ver.contains("-SNAPSHOT")) {
+    if (grgit && ver.contains("-SNAPSHOT") && !project.hasProperty("simpleSnapshot")) {
         String versionLabel = ver.substring(0, ver.indexOf("-SNAPSHOT"))
         def count = grgit.log(includes:['HEAD']).size()
         def commitId = "${grgit.head().abbreviatedId}"
@@ -1424,8 +1444,8 @@ task sourceCopy(type: Copy) {
 task sourceTar(type: Tar) {
     dependsOn 'sourceCopy'
     from  'source'
-    destinationDir = file('sourceArtifacts')
-    extension = 'tgz'
+    destinationDirectory = file('sourceArtifacts')
+    archiveExtension = 'tgz'
     compression = Compression.GZIP
 }
 
@@ -1452,7 +1472,7 @@ task javadocs(type: Javadoc) {
 apply plugin: 'distribution'
 distributions {
     main {
-        baseName = "pravega"
+        distributionBaseName = "pravega"
         contents {
             duplicatesStrategy = "exclude"
             from ("dist/conf") {
@@ -1475,7 +1495,7 @@ distributions {
         }
     }
     client {
-        baseName = "pravega-client"
+        distributionBaseName = "pravega-client"
         contents {
             from { project(":shared:authplugin").configurations.runtime }
             from { project(":shared:authplugin").configurations.runtime.allArtifacts.files }
@@ -1486,7 +1506,7 @@ distributions {
         }
     }
     javadoc {
-        baseName = "pravega-javadoc"
+        distributionBaseName = "pravega-javadoc"
         contents {
             from (javadocs)
             from 'LICENSE'

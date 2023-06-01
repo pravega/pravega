@@ -67,7 +67,7 @@ public class AssertExtensions {
         try {
             result = TestUtils.awaitEvaluateExpr(expected, eval, checkIntervalMillis, timeoutMillis);
         } catch (TimeoutException e) {
-            throw new TimeoutException("Expected value: " + expected + " observed: " + result);
+            throw e;
         }
         assertEquals(expected, result);
     }

@@ -18,6 +18,7 @@ package io.pravega.segmentstore.storage.chunklayer;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
+import io.pravega.segmentstore.storage.metadata.StatusFlags;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.test.common.AssertExtensions;
@@ -89,7 +90,7 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
 
         // Insert metadata
-        TestUtils.insertMetadata(segmentName, 25, CONTAINER_EPOCH, lengthsInMetadata, lengthsInStorage, false, false, metadataStore, chunkedSegmentStorage);
+        TestUtils.insertMetadata(segmentName, 25, CONTAINER_EPOCH, lengthsInMetadata, lengthsInStorage, false, false, metadataStore, chunkedSegmentStorage, StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES );
         val chunkMetadataList = TestUtils.getChunkList(metadataStore, segmentName);
 
         // Delete few chunks
@@ -150,7 +151,7 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(CONTAINER_EPOCH);
 
-        TestUtils.insertMetadata(segmentName, 25, CONTAINER_EPOCH, chunkLengths, chunkLengths, false, false, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
+        TestUtils.insertMetadata(segmentName, 25, CONTAINER_EPOCH, chunkLengths, chunkLengths, false, false, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage, StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES );
         val chunkMetadataList = TestUtils.getChunkList(chunkedSegmentStorage.getMetadataStore(), segmentName);
 
         // Test
@@ -206,9 +207,9 @@ public class UtilsWrapperTests extends ThreadPooledTestSuite {
         val chunkSizes = new long[] {1};
 
         // Insert metadata
-        TestUtils.insertMetadata("a", CONTAINER_ID, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
-        TestUtils.insertMetadata("b", CONTAINER_ID, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
-        TestUtils.insertMetadata("c", CONTAINER_ID, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage);
+        TestUtils.insertMetadata("a", CONTAINER_ID, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage, StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES);
+        TestUtils.insertMetadata("b", CONTAINER_ID, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage, StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES );
+        TestUtils.insertMetadata("c", CONTAINER_ID, 10, chunkSizes, chunkSizes, true, true, chunkedSegmentStorage.getMetadataStore(), chunkedSegmentStorage, StatusFlags.ACTIVE | StatusFlags.ATOMIC_WRITES );
 
         // Test
         UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, Duration.ZERO);

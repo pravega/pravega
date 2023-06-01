@@ -413,4 +413,28 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
         verify(c).close();
     }
 
+    @Test(timeout = 10000)
+    public void testWrongHost() throws ExecutionException, InterruptedException {
+        Segment segment = new Segment("scope", "testRead", 1);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
+        Semaphore dataAvailable = new Semaphore(0);
+        @Cleanup
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
+                DelegationTokenProviderFactory.createWithEmptyToken(), dataAvailable);
+        ClientConnection c = mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, c);
+        in.getConnection().get();
+        ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
+        CompletableFuture<PravegaNodeUri> endpointForSegment;
+        endpointForSegment = controller.getEndpointForSegment("scope1/stream1/0");
+        assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
+        WireCommands.WrongHost wrongHost = new WireCommands.WrongHost(in.getRequestId(), segment.getScopedName(), "newHost", "SomeException");
+        processor.process(wrongHost);
+        verify(c).close();
+    }
+
 }

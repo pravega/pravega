@@ -378,22 +378,25 @@ public class TestUtils {
     /**
      * Insert Metadata as given.
      *
-     * @param testSegmentName Name of the segment
-     * @param maxRollingLength Max rolling length.
-     * @param ownerEpoch Owner epoch.
+     * @param testSegmentName        Name of the segment
+     * @param maxRollingLength       Max rolling length.
+     * @param ownerEpoch             Owner epoch.
      * @param chunkLengthsInMetadata Chunk lengths to set in metadata.
-     * @param chunkLengthsInStorage Chunk lengths to set in storage.
-     * @param addIndex Whether to add index.
-     * @param addIndexMetadata Whether to add index metadata.
-     * @param metadataStore Instance of {@link ChunkMetadataStore}
-     * @param chunkedSegmentStorage Instance of {@link ChunkedSegmentStorage}.
+     * @param chunkLengthsInStorage  Chunk lengths to set in storage.
+     * @param addIndex               Whether to add index.
+     * @param addIndexMetadata       Whether to add index metadata.
+     * @param metadataStore          Instance of {@link ChunkMetadataStore}
+     * @param chunkedSegmentStorage  Instance of {@link ChunkedSegmentStorage}.
+     * @param statusFlags            Status flags to set.
      * @return {@link SegmentMetadata} representing segment.
      */
     public static SegmentMetadata insertMetadata(String testSegmentName, long maxRollingLength, int ownerEpoch,
                                                  long[] chunkLengthsInMetadata,
                                                  long[] chunkLengthsInStorage,
                                                  boolean addIndex, boolean addIndexMetadata,
-                                                 ChunkMetadataStore metadataStore, ChunkedSegmentStorage chunkedSegmentStorage) {
+                                                 ChunkMetadataStore metadataStore,
+                                                 ChunkedSegmentStorage chunkedSegmentStorage,
+                                                 int statusFlags) {
         Preconditions.checkArgument(maxRollingLength > 0, "maxRollingLength");
         Preconditions.checkArgument(ownerEpoch > 0, "ownerEpoch");
         try (val txn = metadataStore.beginTransaction(false, new String[]{testSegmentName})) {
@@ -440,6 +443,7 @@ public class TestUtils {
                     .firstChunk(firstChunk)
                     .lastChunk(lastChunk)
                     .length(length)
+                    .status(statusFlags)
                     .lastChunkStartOffset(startOfLast)
                     .build();
             segmentMetadata.setActive(true);

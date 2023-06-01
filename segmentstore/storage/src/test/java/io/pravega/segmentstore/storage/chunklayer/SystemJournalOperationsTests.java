@@ -22,7 +22,6 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
-import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueueManager;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -32,7 +31,6 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
@@ -43,15 +41,10 @@ import org.junit.rules.Timeout;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.function.Function;
 
 /**
  * Tests for testing bootstrap functionality with {@link SystemJournal}.
@@ -682,8 +675,8 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     void testWithFlakyChunkStorage(ChunkedSegmentStorageConfig config, TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod1, String interceptMethod2, int[] primes) throws Exception {
         for (val prime1 : primes) {
             for (val prime2 : primes) {
-                FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(executorService());
-                flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
+                FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(new InMemoryChunkStorage(executorService()), executorService());
+                flakyChunkStorage.getInterceptor().getFlakyPredicates().add(FlakinessPredicate.builder()
                         .method(interceptMethod1)
                         .matchPredicate(n -> n % prime1 == 0)
                         .matchRegEx("_sysjournal")
@@ -691,7 +684,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                             throw new IOException("Intentional");
                         })
                         .build());
-                flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
+                flakyChunkStorage.getInterceptor().getFlakyPredicates().add(FlakinessPredicate.builder()
                         .method(interceptMethod2)
                         .matchPredicate(n -> n % prime2 == 0)
                         .matchRegEx("_sysjournal")
@@ -706,8 +699,8 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
     void testWithFlakyChunkStorage(ChunkedSegmentStorageConfig config, TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod, int[] primes) throws Exception {
         for (val prime : primes) {
-            FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(executorService());
-            flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
+            FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(new InMemoryChunkStorage(executorService()), executorService());
+            flakyChunkStorage.getInterceptor().getFlakyPredicates().add(FlakinessPredicate.builder()
                     .method(interceptMethod)
                     .matchPredicate(n -> n % prime == 0)
                     .matchRegEx("_sysjournal")
@@ -721,9 +714,9 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
     void testScenarioWithFlakySnapshotInfoStore(ChunkedSegmentStorageConfig config, TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod, int[] primes) throws Exception {
         for (val prime : primes) {
-            FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(executorService());
+            FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(new InMemoryChunkStorage(executorService()), executorService());
             val flakySnaphotInfoStore = new FlakySnapshotInfoStore();
-            flakySnaphotInfoStore.interceptor.flakyPredicates
+            flakySnaphotInfoStore.getInterceptor().getFlakyPredicates()
                     .add(FlakinessPredicate.builder()
                         .method(interceptMethod)
                         .matchPredicate(n -> n % prime == 0)
@@ -741,9 +734,9 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                                                 int[] primes) throws Exception {
         for (val prime1 : primes) {
             for (val prime2 : primes) {
-                FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(executorService());
+                FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(new InMemoryChunkStorage(executorService()), executorService());
                 val flakySnaphotInfoStore = new FlakySnapshotInfoStore();
-                flakySnaphotInfoStore.interceptor.flakyPredicates
+                flakySnaphotInfoStore.getInterceptor().getFlakyPredicates()
                         .add(FlakinessPredicate.builder()
                                 .method(method1)
                                 .matchPredicate(n -> n % prime1 == 0)
@@ -752,7 +745,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                                     throw new IOException("Intentional");
                                 })
                                 .build());
-                flakySnaphotInfoStore.interceptor.flakyPredicates
+                flakySnaphotInfoStore.getInterceptor().getFlakyPredicates()
                         .add(FlakinessPredicate.builder()
                                 .method(method2)
                                 .matchPredicate(n -> n % prime2 == 0)
@@ -1224,12 +1217,20 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
             boolean done = false;
             while (!done) {
                 try {
-                    systemJournal.commitRecord(SystemJournal.ChunkAddedRecord.builder()
+                    val journalRecords = new ArrayList<SystemJournal.SystemJournalRecord>();
+                    journalRecords.add(SystemJournal.ChunkAddedRecord.builder()
                             .newChunkName(chunkName)
                             .oldChunkName(oldChunkName)
                             .offset(offset)
                             .segmentName(segmentName)
-                            .build()).join();
+                            .build());
+                    journalRecords.add(SystemJournal.AppendRecord.builder()
+                            .segmentName(segmentName)
+                            .chunkName(chunkName)
+                            .offset(0)
+                            .length(metadataLength)
+                            .build());
+                    systemJournal.commitRecords(journalRecords).join();
                     done = true;
                 } catch (RuntimeException e) {
                     throw e;
@@ -1409,149 +1410,6 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         public void close() throws Exception {
             garbageCollector.close();
             metadataStore.close();
-        }
-    }
-
-    /**
-     * Defines the flaky behavior for the FlakyChunkStorage.
-     */
-    @Builder
-    @Data
-    @RequiredArgsConstructor
-    static class FlakinessPredicate {
-        @NonNull
-        final String matchRegEx;
-        @NonNull
-        final String method;
-        @NonNull
-        final Function<Integer, Boolean> matchPredicate;
-        @NonNull
-        final Callable action;
-    }
-
-    static class FlakyInterceptor {
-        /**
-         * Predicate to evaluate against each invocation.
-         */
-        final ArrayList<FlakinessPredicate> flakyPredicates = new ArrayList<>();
-
-        /**
-         * Keeps track of invocations.
-         */
-        final HashMap<String, Integer> invokeCounts = new HashMap<>();
-
-        FlakinessPredicate getMatchingPredicate(String resourceName, String method, int invocationCount) {
-            return flakyPredicates.stream()
-                    .filter(predicate -> predicate.method.equals(method)
-                            && resourceName.contains(predicate.matchRegEx)
-                            && predicate.matchPredicate.apply(invocationCount))
-                    .findFirst()
-                    .orElse(null);
-        }
-
-        private void intercept(String resourceName, String method) throws ChunkStorageException {
-            int invocationCount = 0;
-            if (!invokeCounts.containsKey(method)) {
-                invokeCounts.put(method, 0);
-            }
-            invocationCount = invokeCounts.get(method);
-            invokeCounts.put(method, invocationCount + 1);
-            val predicate = getMatchingPredicate(resourceName, method, invocationCount);
-            if (null != predicate) {
-                try {
-                    predicate.action.call();
-                } catch (ChunkStorageException e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new ChunkStorageException(resourceName, "Intentional Failure", e);
-                }
-            }
-        }
-    }
-
-    /**
-     * {@link ChunkStorage} implementation that fails predictably based on provided list of {@link FlakinessPredicate}.
-     */
-    static class FlakyChunkStorage extends InMemoryChunkStorage {
-
-        final FlakyInterceptor  interceptor = new FlakyInterceptor();
-
-        FlakyChunkStorage(Executor executor) {
-            super(executor);
-        }
-
-        @Override
-        protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
-            // Apply any interceptors with identifier 'doWrite.before' or 'doWrite.after'
-            interceptor.intercept(handle.getChunkName(), "doWrite.before");
-            val ret = super.doWrite(handle, offset, length, data);
-            interceptor.intercept(handle.getChunkName(), "doWrite.after");
-            return ret;
-        }
-
-        @Override
-        protected ChunkHandle doCreateWithContent(String chunkName, int length, InputStream data) throws ChunkStorageException {
-            // Apply any interceptors with identifier 'doWrite.before' or 'doWrite.after'
-            interceptor.intercept(chunkName, "doWrite.before");
-            // Make sure you are calling methods on super class.
-            ChunkHandle handle = super.doCreate(chunkName);
-            int bytesWritten = super.doWrite(handle, 0, length, data);
-            if (bytesWritten < length) {
-                super.doDelete(ChunkHandle.writeHandle(chunkName));
-                throw new ChunkStorageException(chunkName, "doCreateWithContent - invalid length returned");
-            }
-            val ret = handle;
-            interceptor.intercept(chunkName, "doWrite.after");
-            return ret;
-        }
-
-        @Override
-        protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException, IllegalArgumentException {
-            // Apply any interceptors with identifier 'doWrite.before' or 'doWrite.after'
-            interceptor.intercept(chunkName, "doWrite.before");
-            // Make sure you are calling methods on super class.
-            val ret = super.doCreate(chunkName);
-            interceptor.intercept(chunkName, "doWrite.after");
-            return ret;
-        }
-
-        @Override
-        protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException {
-            // Apply any interceptors with identifier 'doRead.before' or 'doRead.after'
-            interceptor.intercept(handle.getChunkName(), "doRead.before");
-            val ret = super.doRead(handle, fromOffset, length, buffer, bufferOffset);
-            interceptor.intercept(handle.getChunkName(), "doRead.after");
-            return ret;
-        }
-    }
-
-    static class FlakySnapshotInfoStore extends InMemorySnapshotInfoStore {
-        final FlakyInterceptor  interceptor = new FlakyInterceptor();
-
-        @Override
-        @SneakyThrows
-        public CompletableFuture<SnapshotInfo> getSnapshotId(int containerId) {
-            try {
-                interceptor.intercept(Integer.toString(containerId), "getSnapshotId.before");
-                val retValue = super.getSnapshotId(containerId);
-                interceptor.intercept(Integer.toString(containerId), "getSnapshotId.after");
-                return retValue;
-            }  catch (Exception e) {
-                return CompletableFuture.failedFuture(e);
-            }
-        }
-
-        @Override
-        @SneakyThrows
-        public CompletableFuture<Void> setSnapshotId(int containerId, SnapshotInfo checkpoint) {
-            try {
-                interceptor.intercept(Integer.toString(containerId), "setSnapshotId.before");
-                val retValue = super.setSnapshotId(containerId, checkpoint);
-                interceptor.intercept(Integer.toString(containerId), "setSnapshotId.after");
-                return retValue;
-            }  catch (Exception e) {
-                return CompletableFuture.failedFuture(e);
-            }
         }
     }
 
