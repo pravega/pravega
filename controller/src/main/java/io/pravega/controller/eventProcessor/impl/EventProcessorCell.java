@@ -226,7 +226,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                 try {
                     actor.getCheckpointer().store(position);
                     // update the previous checkpoint stats if successful,
-                    // otherwise, new Delegate(eventProcessorConfig);we again attempt checkpointing after processing next event
+                    // otherwise, we again attempt checkpointing after processing next event
                     previousCheckpointIndex = count;
                     previousCheckpointTimestamp = timestamp;
                 } catch (CheckpointStoreException cse) {
