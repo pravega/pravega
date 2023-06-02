@@ -123,6 +123,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                     }
                 }
             }
+            log.info("Event processor RUN {}, state={}, isRunning={}", objectId, state(), isRunning());
         }
 
         @Override
