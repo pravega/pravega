@@ -93,9 +93,13 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
         runner.prestartAllCoreThreads();
     }
 
+    public static interface ScheduledChainableFuture<R> extends ScheduledFuture<R>, FutureSuplier<R> {
+        
+    }
+    
     @RequiredArgsConstructor
     @EqualsAndHashCode
-    private final class CancelableFuture<R> implements ScheduledFuture<R> {
+    private final class CancelableFuture<R> implements ScheduledChainableFuture<R> {
 
         private final ScheduledRunnable<R> task;
 
@@ -150,6 +154,11 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
         @Override
         public R get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
             return task.future.get(timeout, unit);
+        }
+
+        @Override
+        public CompletableFuture<R> getFuture() {
+            return task.future;
         }
     }
 
@@ -248,14 +257,14 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
     }
 
     @Override
-    public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-        ScheduledRunnable<?> task = new ScheduledRunnable<>(Executors.callable(command), delay, unit);
+    public ScheduledChainableFuture<Void> schedule(Runnable command, long delay, TimeUnit unit) {
+        ScheduledRunnable<Void> task = new ScheduledRunnable<Void>(Executors.callable(command, null), delay, unit);
         runner.execute(task);
         return new CancelableFuture<>(task);
     }
 
     @Override
-    public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
+    public <V> ScheduledChainableFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
         ScheduledRunnable<V> task = new ScheduledRunnable<>(callable, delay, unit);
         runner.execute(task);
         return new CancelableFuture<>(task);

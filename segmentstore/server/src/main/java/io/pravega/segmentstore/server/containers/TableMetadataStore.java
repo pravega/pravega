@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.FutureSuplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
@@ -153,7 +154,7 @@ class TableMetadataStore extends MetadataStore {
     }
 
     private <T> CompletableFuture<T> applyToSegment(String segmentName, BiFunction<TableEntry, Duration, CompletableFuture<T>> ifExists,
-                                                    Supplier<CompletableFuture<T>> ifNotExists, Duration timeout) {
+                                                    FutureSuplier<T> ifNotExists, Duration timeout) {
         ensureInitialized();
         ArrayView key = getTableKey(segmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -163,7 +164,7 @@ class TableMetadataStore extends MetadataStore {
                     assert existingData.size() == 1 : "Expecting only one result";
                     if (existingData.get(0) == null) {
                         // We don't know anything about this Segment.
-                        return ifNotExists.get();
+                        return ifNotExists.getFuture();
                     }
 
                     // We have an entry.

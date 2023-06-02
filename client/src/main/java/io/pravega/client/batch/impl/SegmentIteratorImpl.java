@@ -24,12 +24,10 @@ import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
-
+import io.pravega.common.util.Retry;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeoutException;
-
-import io.pravega.common.util.Retry;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 

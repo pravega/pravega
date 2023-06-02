@@ -17,6 +17,7 @@ package io.pravega.controller.util;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.FutureSuplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
@@ -49,7 +50,7 @@ public class RetryHelper {
                 .run(supplier::get);
     }
 
-    public static <U> CompletableFuture<U> withRetriesAsync(Supplier<CompletableFuture<U>> futureSupplier, Predicate<Throwable> predicate, int numOfTries,
+    public static <U> CompletableFuture<U> withRetriesAsync(FutureSuplier<U> futureSupplier, Predicate<Throwable> predicate, int numOfTries,
                                                             ScheduledExecutorService executor) {
         return Retry
                 .withExpBackoff(100, 2, numOfTries, 10000)
@@ -57,7 +58,7 @@ public class RetryHelper {
                 .runAsync(futureSupplier, executor);
     }
 
-    public static <U> CompletableFuture<U> withIndefiniteRetriesAsync(Supplier<CompletableFuture<U>> futureSupplier,
+    public static <U> CompletableFuture<U> withIndefiniteRetriesAsync(FutureSuplier<U> futureSupplier,
                                                                       Consumer<Throwable> exceptionConsumer,
                                                                       ScheduledExecutorService executor) {
         return Retry
@@ -65,12 +66,12 @@ public class RetryHelper {
                 .runAsync(futureSupplier, executor);
     }
 
-    public static CompletableFuture<Void> loopWithDelay(Supplier<Boolean> condition, Supplier<CompletableFuture<Void>> loopBody, long delay,
+    public static CompletableFuture<Void> loopWithDelay(Supplier<Boolean> condition, FutureSuplier<Void> loopBody, long delay,
                                                          ScheduledExecutorService executor) {
         return Futures.loop(condition, () -> Futures.delayedFuture(loopBody, delay, executor), executor);
     }
 
-    public static CompletableFuture<Void> loopWithTimeout(Supplier<Boolean> condition, Supplier<CompletableFuture<Void>> loopBody, 
+    public static CompletableFuture<Void> loopWithTimeout(Supplier<Boolean> condition, FutureSuplier<Void> loopBody, 
                                                         long initialDelayMillis, long maxDelayMillis, long timeoutMillis, ScheduledExecutorService executor) {
         Timer timer = new Timer();
         AtomicInteger i = new AtomicInteger(0);

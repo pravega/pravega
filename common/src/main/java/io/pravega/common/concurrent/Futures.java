@@ -17,6 +17,7 @@ package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ThreadPoolScheduledExecutorService.ScheduledChainableFuture;
 import io.pravega.common.function.Callbacks;
 import java.time.Duration;
 import java.util.Collection;
@@ -419,11 +420,11 @@ public final class Futures {
      * - Exceptionally with the original Future's exception if none of the above are true.
      */
     public static <T> CompletableFuture<T> exceptionallyComposeExpecting(CompletableFuture<T> future, Predicate<Throwable> isExpected,
-                                                                         Supplier<CompletableFuture<T>> exceptionFutureSupplier) {
+                                                                         FutureSuplier<T> exceptionFutureSupplier) {
         return exceptionallyCompose(future,
                 ex -> {
                     if (isExpected.test(Exceptions.unwrap(ex))) {
-                        return exceptionFutureSupplier.get();
+                        return exceptionFutureSupplier.getFuture();
                     } else {
                         return Futures.failedFuture(ex);
                     }
@@ -612,9 +613,9 @@ public final class Futures {
      * @param <T>             The Type argument for the CompletableFuture to create.
      * @return A CompletableFuture which is either completed within given timebound or failed with timeout exception.
      */
-    public static <T> CompletableFuture<T> futureWithTimeout(Supplier<CompletableFuture<T>> futureSupplier,
+    public static <T> CompletableFuture<T> futureWithTimeout(FutureSuplier<T> futureSupplier,
                                                              Duration timeout, String tag, ScheduledExecutorService executorService) {
-        CompletableFuture<T> future = futureSupplier.get();
+        CompletableFuture<T> future = futureSupplier.getFuture();
         ScheduledFuture<Boolean> sf = executorService.schedule(() -> future.completeExceptionally(
                 new TimeoutException(tag)), timeout.toMillis(), TimeUnit.MILLISECONDS);
         
@@ -644,16 +645,21 @@ public final class Futures {
      * @return A CompletableFuture that will complete after the specified delay.
      */
     public static CompletableFuture<Void> delayedFuture(Duration delay, ScheduledExecutorService executorService) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
         if (delay.toMillis() == 0) {
             // Zero delay; no need to bother with scheduling a task in the future.
-            result.complete(null);
+            return CompletableFuture.completedFuture(null);
         } else {
-            ScheduledFuture<Boolean> sf = executorService.schedule(() -> result.complete(null), delay.toMillis(), TimeUnit.MILLISECONDS);
-            result.whenComplete((r, ex) -> sf.cancel(true));
+            if (executorService instanceof ThreadPoolScheduledExecutorService) {
+                val executor = (ThreadPoolScheduledExecutorService) executorService;
+                return executor.schedule(() -> {}, delay.toMillis(), TimeUnit.MILLISECONDS).getFuture();
+            } else {
+                CompletableFuture<Void> result = new CompletableFuture<>();
+                ScheduledFuture<Boolean> sf = executorService.schedule(() -> result.complete(null), delay.toMillis(),
+                                                                       TimeUnit.MILLISECONDS);
+                result.whenComplete((r, ex) -> sf.cancel(true));
+                return result;
+            }
         }
-
-        return result;
     }
 
     /**
@@ -665,11 +671,11 @@ public final class Futures {
      * @param <T>             Type parameter.
      * @return A CompletableFuture that will be completed with the result of the given task.
      */
-    public static <T> CompletableFuture<T> delayedFuture(final Supplier<CompletableFuture<T>> task,
+    public static <T> CompletableFuture<T> delayedFuture(final FutureSuplier<T> task,
                                                          final long delay,
                                                          final ScheduledExecutorService executorService) {
         return delayedFuture(Duration.ofMillis(delay), executorService)
-                .thenCompose(v -> task.get());
+                .thenCompose(v -> task.getFuture());
     }
 
     /**
@@ -748,7 +754,7 @@ public final class Futures {
      * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
      * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
-    public static CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<Void>> loopBody, Executor executor) {
+    public static CompletableFuture<Void> loop(Supplier<Boolean> condition, FutureSuplier<Void> loopBody, Executor executor) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Loop<Void> loop = new Loop<>(condition, loopBody, null, result, executor);
         executor.execute(loop);
@@ -767,7 +773,7 @@ public final class Futures {
      * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
      * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
-    public static <T> CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<T>> loopBody, Consumer<T> resultConsumer, Executor executor) {
+    public static <T> CompletableFuture<Void> loop(Supplier<Boolean> condition, FutureSuplier<T> loopBody, Consumer<T> resultConsumer, Executor executor) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Loop<T> loop = new Loop<>(condition, loopBody, resultConsumer, result, executor);
         executor.execute(loop);
@@ -785,7 +791,7 @@ public final class Futures {
      * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
      * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
-    public static <T> CompletableFuture<Void> doWhileLoop(Supplier<CompletableFuture<T>> loopBody, Predicate<T> condition, Executor executor) {
+    public static <T> CompletableFuture<Void> doWhileLoop(FutureSuplier<T> loopBody, Predicate<T> condition, Executor executor) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
         // We implement the do-while loop using a regular loop, but we execute one iteration before we create the actual Loop object.
@@ -793,7 +799,7 @@ public final class Futures {
         // * After each iteration, we get the result and run it through 'condition' and use that to decide whether to continue.
         AtomicBoolean canContinue = new AtomicBoolean();
         Consumer<T> iterationResultHandler = ir -> canContinue.set(condition.test(ir));
-        loopBody.get()
+        loopBody.getFuture()
                 .thenAccept(iterationResultHandler)
                 .thenRunAsync(() -> {
                     Loop<T> loop = new Loop<>(canContinue::get, loopBody, iterationResultHandler, result, executor);
@@ -824,7 +830,7 @@ public final class Futures {
         /**
          * A supplier that creates a CompletableFuture which will indicate the end of an iteration when complete.
          */
-        final Supplier<CompletableFuture<T>> loopBody;
+        final FutureSuplier<T> loopBody;
 
         /**
          * An optional Consumer that will be passed the result of each loop iteration.
@@ -845,10 +851,11 @@ public final class Futures {
         public Void call() throws Exception {
             if (this.condition.get()) {
                 // Execute another iteration of the loop.
-                this.loopBody.get()
+                this.loopBody.getFuture()
                              .thenAccept(this::acceptIterationResult)
                              .exceptionally(this::handleException)
-                             .thenRunAsync(this, this.executor);
+                             .thenRunAsync(this, this.executor)
+                             .exceptionally(this::handleException);
             } else {
                 // We are done; set the result and don't loop again.
                 this.result.complete(null);

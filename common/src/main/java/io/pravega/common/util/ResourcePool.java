@@ -17,15 +17,14 @@ package io.pravega.common.util;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import lombok.Data;
-
-import javax.annotation.concurrent.GuardedBy;
+import io.pravega.common.concurrent.FutureSuplier;
 import java.util.ArrayDeque;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.Data;
 
 /**
  * Resource pool class implements functionality for creating and maintaining a pool of reusable resources. 
@@ -59,15 +58,15 @@ public class ResourcePool<T> {
     private final int maxIdle;
 
     private final Listener listener;
-    private final Supplier<CompletableFuture<T>> tSupplier;
+    private final FutureSuplier<T> tSupplier;
     private final Consumer<T> tDestroyer;
 
-    public ResourcePool(Supplier<CompletableFuture<T>> tSupplier, Consumer<T> tDestroyer, int maxConcurrent, int maxIdle) {
+    public ResourcePool(FutureSuplier<T> tSupplier, Consumer<T> tDestroyer, int maxConcurrent, int maxIdle) {
         this(tSupplier, tDestroyer, maxConcurrent, maxIdle, null);
     }
 
     @VisibleForTesting
-    ResourcePool(Supplier<CompletableFuture<T>> tSupplier, Consumer<T> tDestroyer,
+    ResourcePool(FutureSuplier<T> tSupplier, Consumer<T> tDestroyer,
                  int maxConcurrent, int maxIdle, Listener listener) {
         Preconditions.checkNotNull(tSupplier);
         Preconditions.checkNotNull(tDestroyer);
@@ -177,7 +176,7 @@ public class ResourcePool<T> {
 
         if (waiting != null) {
             try {
-                tSupplier.get().whenComplete((t, e) -> {
+                tSupplier.getFuture().whenComplete((t, e) -> {
                     if (e != null) {
                         waiting.future.completeExceptionally(e);
                     } else {

@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.FutureSuplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.common.tracing.TagLogger;
@@ -501,10 +502,11 @@ public class PravegaTablesScope implements Scope {
                 .thenCompose(kvtablesInScopeTable -> readAll(limit, continuationToken, kvtablesInScopeTable, context));
     }
 
-    private <T> CompletableFuture<T> withCreateTableIfAbsent(Supplier<CompletableFuture<T>> futureSupplier, String tableName,
+    private <T> CompletableFuture<T> withCreateTableIfAbsent(FutureSuplier<T> futureSupplier, String tableName,
                                                              OperationContext context) {
-        return Futures.exceptionallyComposeExpecting(futureSupplier.get(),
-                                                     DATA_NOT_FOUND_PREDICATE, () -> storeHelper.createTable(tableName, context.getRequestId()).thenCompose(v -> futureSupplier.get()));
+        return Futures.exceptionallyComposeExpecting(
+            futureSupplier.getFuture(), DATA_NOT_FOUND_PREDICATE,
+            () -> storeHelper.createTable(tableName, context.getRequestId()).thenCompose(v -> futureSupplier.getFuture()));
     }
 
     private CompletableFuture<Pair<List<String>, String>> readAll(int limit, String continuationToken, String tableName,

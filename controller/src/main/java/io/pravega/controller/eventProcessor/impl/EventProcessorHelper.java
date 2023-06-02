@@ -15,15 +15,14 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
+import io.pravega.common.concurrent.FutureSuplier;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class EventProcessorHelper {
@@ -46,11 +45,11 @@ public class EventProcessorHelper {
                         }
                     });
 
-    public static <U> CompletableFuture<U> withRetries(Supplier<CompletableFuture<U>> futureSupplier, ScheduledExecutorService executor) {
+    public static <U> CompletableFuture<U> withRetries(FutureSuplier<U> futureSupplier, ScheduledExecutorService executor) {
         return RETRY.runAsync(futureSupplier, executor);
     }
 
-    public static <U> CompletableFuture<U> indefiniteRetries(Supplier<CompletableFuture<U>> futureSupplier, ScheduledExecutorService executor) {
+    public static <U> CompletableFuture<U> indefiniteRetries(FutureSuplier<U> futureSupplier, ScheduledExecutorService executor) {
         return INDEFINITELY.runAsync(futureSupplier, executor);
     }
 
