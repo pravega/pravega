@@ -128,14 +128,8 @@ public abstract class AbstractService implements Service {
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                 .put("segmentStoreReplicas", segmentStoreCount)
                 .put("debugLogging", true)
-                .put("controllerResources", getResources(resourceWrapper.getControllerProperties().getControllerResources().getLimits().get("cpu"),
-                        resourceWrapper.getControllerProperties().getControllerResources().getLimits().get("memory"),
-                        resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("cpu"),
-                        resourceWrapper.getControllerProperties().getControllerResources().getRequests().get("memory")))
-                .put("segmentStoreResources", getResources(resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getLimits().get("cpu"),
-                        resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getLimits().get("memory"),
-                        resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getRequests().get("cpu"),
-                        resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources().getRequests().get("memory")))
+                .put("controllerResources", getResources(resourceWrapper.getControllerProperties().getControllerResources()))
+                .put("segmentStoreResources", getResources(resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources()))
                 .put("options", ImmutableMap.copyOf(getCombinedMap(props, ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))))
                 .put("image", pravegaImgSpec)
                 .put("longtermStorage", tier2Spec())
@@ -297,15 +291,15 @@ public abstract class AbstractService implements Service {
                 .build()).build();
     }
 
-    private Map<String, Object> getResources(String limitsCpu, String limitsMem, String requestsCpu, String requestsMem) {
+    private Map<String, Object> getResources(Resources resources) {
         return ImmutableMap.<String, Object>builder()
                 .put("limits", ImmutableMap.builder()
-                        .put("cpu", limitsCpu)
-                        .put("memory", limitsMem)
+                        .put("cpu", resources.getLimits().get("cpu"))
+                        .put("memory", resources.getLimits().get("memory"))
                         .build())
                 .put("requests", ImmutableMap.builder()
-                        .put("cpu", requestsCpu)
-                        .put("memory", requestsMem)
+                        .put("cpu", resources.getRequests().get("cpu"))
+                        .put("memory", resources.getRequests().get("memory"))
                         .build())
                 .build();
     }
@@ -382,9 +376,7 @@ public abstract class AbstractService implements Service {
                 .put("replicas", bookieCount)
                 .put("version", BOOKKEEPER_VERSION)
                 .put("probes", ImmutableMap.builder().put("readinessProbe", resourceWrapper.getBookkeeperProperties().getProbes().getReadinessProbe()).build())
-                .put("resources", getResources(resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("cpu"),
-                        resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getLimits().get("memory"), resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("cpu"),
-                        resourceWrapper.getBookkeeperProperties().getBookkeeperResources().getRequests().get("memory")))
+                .put("resources", getResources(resourceWrapper.getBookkeeperProperties().getBookkeeperResources()))
                 .put("storage", ImmutableMap.builder()
                         .put("index", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getIndex())
                         .put("ledger", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getLedger())
