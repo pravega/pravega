@@ -169,7 +169,7 @@ class EventProcessorCell<T extends ControllerEvent> {
 
         private void handleException(Exception e) {
             ExceptionHandler.Directive directive = eventProcessorConfig.getExceptionHandler().run(e);
-            log.warn("Exception handler directive is {}", directive);
+            log.info("Exception handler directive is {}", directive);
             switch (directive) {
                 case Restart:
                     log.warn("Restarting event processor: {} due to exception: {}", objectId, e);
