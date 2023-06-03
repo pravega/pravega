@@ -17,14 +17,12 @@ package io.pravega.client.control.impl;
 
 import io.pravega.common.concurrent.FutureSuplier;
 import io.pravega.common.concurrent.Futures;
-
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 public class CancellableRequest<T> {
     private final AtomicBoolean done;

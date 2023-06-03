@@ -64,7 +64,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AllArgsConstructor;
@@ -72,8 +71,8 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Attribute Index for a single Segment, backed by a B+Tree Index implementation.

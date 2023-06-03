@@ -46,11 +46,10 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * {@link MetadataStore} implementation that stores all Segment Information as {@link TableEntry} instances in a dedicated

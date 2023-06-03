@@ -23,6 +23,7 @@ import io.pravega.client.connection.impl.Flow;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -78,7 +79,7 @@ public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionP
         if (this.ownsExecutor) {
             // Only shut down the executor if it was the one we created. Do not shut down externally-provided executors
             // as that may break any tests that close this factory instance before the test completion.
-            ExecutorServiceHelpers.shutdown(executor);
+            ExecutorServiceHelpers.shutdown(Duration.ZERO, executor);
         }
     }
 

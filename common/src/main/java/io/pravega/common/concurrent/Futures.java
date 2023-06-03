@@ -17,7 +17,6 @@ package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ThreadPoolScheduledExecutorService.ScheduledChainableFuture;
 import io.pravega.common.function.Callbacks;
 import java.time.Duration;
 import java.util.Collection;
@@ -651,7 +650,7 @@ public final class Futures {
         } else {
             if (executorService instanceof ThreadPoolScheduledExecutorService) {
                 val executor = (ThreadPoolScheduledExecutorService) executorService;
-                return executor.schedule(() -> {}, delay.toMillis(), TimeUnit.MILLISECONDS).getFuture();
+                return executor.schedule(() -> { }, delay.toMillis(), TimeUnit.MILLISECONDS).getFuture();
             } else {
                 CompletableFuture<Void> result = new CompletableFuture<>();
                 ScheduledFuture<Boolean> sf = executorService.schedule(() -> result.complete(null), delay.toMillis(),

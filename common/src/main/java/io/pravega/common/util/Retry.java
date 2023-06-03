@@ -267,7 +267,10 @@ public final class Retry {
 
                                 return null;
                             }),
-                    executorService);
+                executorService).exceptionally(ex -> {
+                    result.completeExceptionally(ex);
+                    return null;
+                });
             return result;
         }
 
