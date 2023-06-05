@@ -26,13 +26,8 @@ import io.pravega.client.stream.*;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Optional;
 import java.util.concurrent.TimeoutException;
-
-import io.pravega.client.stream.impl.PositionImpl;
-import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -41,7 +36,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.Retry;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.SerializationUtils;
+
 
 @Beta
 @Slf4j
