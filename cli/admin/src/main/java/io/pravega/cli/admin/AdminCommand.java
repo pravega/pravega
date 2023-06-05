@@ -58,6 +58,8 @@ import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
 import io.pravega.cli.admin.dataRecovery.TableSegmentRecoveryCommand;
 import io.pravega.cli.admin.password.PasswordFileCreatorCommand;
 import io.pravega.cli.admin.readerGroup.ParseReaderGroupStreamCommand;
+import io.pravega.cli.admin.segmentstore.CreateSegmentCommand;
+import io.pravega.cli.admin.segmentstore.DeleteSegmentCommand;
 import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
@@ -400,6 +402,8 @@ public abstract class AdminCommand {
                         .put(GetSegmentAttributeCommand::descriptor, GetSegmentAttributeCommand::new)
                         .put(UpdateSegmentAttributeCommand::descriptor, UpdateSegmentAttributeCommand::new)
                         .put(FlushToStorageCommand::descriptor, FlushToStorageCommand::new)
+                        .put(CreateSegmentCommand::descriptor, CreateSegmentCommand::new)
+                        .put(DeleteSegmentCommand::descriptor, DeleteSegmentCommand::new)
                         .put(GetTableSegmentInfoCommand::descriptor, GetTableSegmentInfoCommand::new)
                         .put(GetTableSegmentEntryCommand::descriptor, GetTableSegmentEntryCommand::new)
                         .put(PutTableSegmentEntryCommand::descriptor, PutTableSegmentEntryCommand::new)
