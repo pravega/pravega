@@ -16,6 +16,9 @@
 package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
+import io.pravega.common.util.ByteArraySegment;
+
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 
 /**
@@ -50,5 +53,20 @@ public interface SegmentIterator<T> extends Iterator<T>, AutoCloseable {
      */
     @Override
     void close();
+
+    /**
+     * Deserializes the position from its serialized from obtained from calling {@link #toBytes()}.
+     *
+     * @param serializedPosition A serialized position.
+     * @return The SegmentIterator object.
+     */
+    public  SegmentIterator fromBytes(ByteBuffer serializedPosition) ;
+
+    /**
+     * Serializes the position to a compact byte array.
+     *
+     * @return compact byte array
+     */
+    public ByteBuffer toBytes() ;
 
 }

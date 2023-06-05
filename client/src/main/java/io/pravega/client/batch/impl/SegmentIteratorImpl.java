@@ -26,9 +26,13 @@ import io.pravega.client.stream.*;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 
+import io.pravega.client.stream.impl.PositionImpl;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -37,6 +41,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.Retry;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.SerializationUtils;
 
 @Beta
 @Slf4j
@@ -48,6 +53,7 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
     private final long startingOffset;
     private final long endingOffset;
     private final EventSegmentReader input;
+
     private final Retry.RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 9, 30000);
 
     private static final SegmentIteratorImpl.SegmentIteratorSerializer SERIALIZER = new SegmentIteratorImpl.SegmentIteratorSerializer();
@@ -61,7 +67,6 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
         this.endingOffset = endingOffset;
         input = factory.createEventReaderForSegment(segment, startingOffset, endingOffset);
     }
-
     @Override
     public boolean hasNext() {
         return input.getOffset() < endingOffset;
@@ -133,16 +138,17 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
             revisionDataOutput.writeCompactLong(segmentIterator.getStartingOffset());
             revisionDataOutput.writeCompactLong(segmentIterator.endingOffset);
         }
-    }
 
+    }
+    @Override
     @SneakyThrows(IOException.class)
     public ByteBuffer toBytes() {
         ByteArraySegment serialized = SERIALIZER.serialize(this);
         return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
     }
-
+    @Override
     @SneakyThrows(IOException.class)
-    public static SegmentIterator fromBytes(ByteBuffer buff) {
-        return SERIALIZER.deserialize(new ByteArraySegment(buff));
+    public  SegmentIterator fromBytes(ByteBuffer serializedPosition) {
+        return SERIALIZER.deserialize(new ByteArraySegment(serializedPosition));
     }
 }
