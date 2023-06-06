@@ -65,7 +65,7 @@ public class DeleteSegmentCommand extends SegmentStoreCommand {
             reply.join();
             output("DeleteSegment: %s deleted successfully", fullyQualifiedSegmentName);
         } catch (Exception ex) {
-            output("DeleteSegment failed for %s - %s", fullyQualifiedSegmentName ,ex.getMessage());
+            output("DeleteSegment failed for %s - %s", fullyQualifiedSegmentName, ex.getMessage());
         }
     }
 
