@@ -15,34 +15,25 @@
  */
 package io.pravega.client.batch.impl;
 
+import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import io.pravega.client.segment.impl.EndOfSegmentException;
-import io.pravega.client.segment.impl.EventSegmentReader;
-import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.segment.impl.SegmentInputStreamFactory;
-import io.pravega.client.segment.impl.SegmentMetadataClient;
-import io.pravega.client.segment.impl.SegmentOutputStream;
-import io.pravega.client.segment.impl.SegmentTruncatedException;
+import io.pravega.client.segment.impl.*;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.test.common.AssertExtensions;
-
-import java.util.NoSuchElementException;
-import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
+import java.util.NoSuchElementException;
+import java.util.concurrent.CompletableFuture;
+
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
 
 public class SegmentIteratorTest {
 
@@ -148,8 +139,31 @@ public class SegmentIteratorTest {
         assertThrows(TruncatedDataException.class, () -> iter.next());
     }
 
+    @Test(timeout = 5000)
+    public void testSegmentIteratorBytes() {
+        MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
+        Segment segment = new Segment("Scope", "Stream", 1);
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config, DelegationTokenProviderFactory.createWithEmptyToken());
+        sendData("A", outputStream);
+        sendData("B", outputStream);
+
+        @Cleanup
+        SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment, DelegationTokenProviderFactory.createWithEmptyToken());
+        long length = metadataClient.getSegmentInfo().join().getWriteOffset();
+        @Cleanup
+        SegmentIteratorImpl<String> iterator = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);
+        ByteBuffer byteBuffer = iterator.toBytes();
+        SegmentIteratorImpl segmentIterator =  (SegmentIteratorImpl)iterator.fromBytes(byteBuffer);
+
+        assertEquals(iterator.getSegment().getScopedName(),segmentIterator.getSegment().getScopedName());
+        assertEquals(iterator.getStartingOffset(),segmentIterator.getStartingOffset());
+        assertEquals(iterator.getEndingOffset(),segmentIterator.getEndingOffset());
+        assertEquals(factory,SegmentIteratorImpl.getFactory());
+        assertEquals(iterator.getOffset(),segmentIterator.getOffset());
+    }
+
     private void sendData(String data, SegmentOutputStream outputStream) {
         outputStream.write(PendingEvent.withHeader("routingKey", stringSerializer.serialize(data), new CompletableFuture<>()));
     }
-    
 }

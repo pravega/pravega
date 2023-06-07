@@ -41,14 +41,16 @@ import lombok.extern.slf4j.Slf4j;
 @Beta
 @Slf4j
 public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
-
+    @Getter
     private final Segment segment;
     private final Serializer<T> deserializer;
     @Getter
     private final long startingOffset;
+    @Getter
     private final long endingOffset;
     private final EventSegmentReader input;
-
+    @Getter
+    private static SegmentInputStreamFactory factory;
     private final Retry.RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 9, 30000);
 
     private static final SegmentIteratorImpl.SegmentIteratorSerializer SERIALIZER = new SegmentIteratorImpl.SegmentIteratorSerializer();
@@ -60,6 +62,7 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
         this.deserializer = deserializer;
         this.startingOffset = startingOffset;
         this.endingOffset = endingOffset;
+        this.factory=factory;
         input = factory.createEventReaderForSegment(segment, startingOffset, endingOffset);
     }
     @Override
@@ -126,6 +129,7 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
             builder.segment(Segment.fromScopedName(revisionDataInput.readUTF()));
             builder.startingOffset(revisionDataInput.readCompactLong());
             builder.endingOffset(revisionDataInput.readCompactLong());
+            builder.factory(factory);
         }
 
         private void write00(SegmentIteratorImpl segmentIterator, RevisionDataOutput revisionDataOutput) throws IOException {
@@ -133,7 +137,6 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
             revisionDataOutput.writeCompactLong(segmentIterator.getStartingOffset());
             revisionDataOutput.writeCompactLong(segmentIterator.endingOffset);
         }
-
     }
     @Override
     @SneakyThrows(IOException.class)
