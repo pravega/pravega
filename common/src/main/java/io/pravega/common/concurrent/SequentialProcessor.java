@@ -23,10 +23,12 @@ import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Async processor that serializes the execution of tasks such that no two tasks execute at the same time.
  */
+@Slf4j
 @RequiredArgsConstructor
 public class SequentialProcessor implements AutoCloseable {
     @NonNull
@@ -68,10 +70,12 @@ public class SequentialProcessor implements AutoCloseable {
     public <ReturnType> CompletableFuture<ReturnType> add(Supplier<CompletableFuture<? extends ReturnType>> toRun) {
         CompletableFuture<ReturnType> result = new CompletableFuture<>();
         CompletableFuture<?> existingTask;
+        log.info("KARMAN-5731: adding task to taskmanager");
         synchronized (this.lock) {
             Exceptions.checkNotClosed(this.closed, this);
             existingTask = this.lastTask;
             if (existingTask != null) {
+                log.info("KARMAN-5731: Existing taks is not null");
                 // Another task is in progress. Queue up behind it, and make sure to only start the execution once
                 // it is done.
                 existingTask.whenCompleteAsync((r, ex) -> Futures.completeAfter(toRun, result), this.executor);
@@ -81,6 +85,7 @@ public class SequentialProcessor implements AutoCloseable {
         }
 
         if (existingTask == null) {
+            log.info("KARMAN-5731: Existing taks is null(outside synch)");
             // There is no previously running task. Need to trigger its execution now, outside of the synchronized block.
             Futures.completeAfter(toRun, result);
         }
@@ -89,6 +94,7 @@ public class SequentialProcessor implements AutoCloseable {
         result.whenComplete((r, ex) -> {
             synchronized (this.lock) {
                 if (this.lastTask != null && this.lastTask.isDone()) {
+                    log.info("KARMAN-5731: last task is not null and done");
                     this.lastTask = null;
                 }
             }

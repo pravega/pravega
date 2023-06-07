@@ -395,16 +395,22 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         checkRunning();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "acknowledge");
         long highestCommittedSeqNo = this.ackCalculator.getHighestCommittedSequenceNumber(this.processors.values());
+        log.info("{}: KARMAN-5731: Highest committed seq no is {}", this.traceObjectId, highestCommittedSeqNo);
         long ackSequenceNumber = this.dataSource.getClosestValidTruncationPoint(highestCommittedSeqNo);
+        log.info("{}: KARMAN-5731: Closest valid truncationpoint is seq no {}", this.traceObjectId, ackSequenceNumber);
 
+        log.info("{}: KARMAN-5731: ackseqnumber is {} and last truncated point is {}", this.traceObjectId, ackSequenceNumber, this.state.getLastTruncatedSequenceNumber());
         if (ackSequenceNumber > this.state.getLastTruncatedSequenceNumber()) {
+            log.info("{}: KARMAN-55731: There is a new truncation to be performed. Current truncation point {}. Last truncation point {}", this.traceObjectId, ackSequenceNumber, this.state.getLastTruncatedSequenceNumber());
             this.ackProcessor.add(() -> {
                 // If the StorageWriter completes an iteration faster than the data source can process the acknowledgment,
                 // then the State's LastTruncatedSequenceNumber may not be updated in time and we can re-queue the same
                 // truncation multiple times, which is undesirable. However, the ackProcessor serializes all invocations
                 // to its add() method so at this point we are guaranteed to have completed the callback below that updates
                 // that value.
+                log.info("{}:KARMAN-5731: Running truncation task", this.traceObjectId);
                 if (ackSequenceNumber <= this.state.getLastTruncatedSequenceNumber()) {
+                    log.info("{}: KARMAN-5731 current truncation point {} less than lasttruncationpoint {}", this.traceObjectId, ackSequenceNumber, this.state.getLastTruncatedSequenceNumber() );
                     return CompletableFuture.completedFuture(null);
                 }
 
@@ -418,6 +424,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                         });
             }).exceptionally(this::iterationErrorHandler);
         } else {
+            log.info("{}: KARMAN-5731 no new truncation point computed", this.traceObjectId);
             // Nothing to do.
             LoggerHelpers.traceLeave(log, this.traceObjectId, "acknowledge", traceId, Operation.NO_SEQUENCE_NUMBER);
         }

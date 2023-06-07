@@ -391,6 +391,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     @Override
     public void setValidTruncationPoint(long sequenceNumber) {
         Exceptions.checkArgument(sequenceNumber >= 0, "sequenceNumber", "Operation Sequence Number must be a positive number.");
+        log.info("{}: adding truncation point with seq no {}", this.traceObjectId, sequenceNumber);
         synchronized (this.truncationMarkers) {
             this.truncationPoints.add(sequenceNumber);
         }
