@@ -22,16 +22,16 @@ import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import io.pravega.segmentstore.server.CachePolicy;
-import java.net.Inet4Address;
-import java.net.UnknownHostException;
-import java.time.Duration;
-import java.util.Arrays;
-
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import lombok.Getter;
 import lombok.SneakyThrows;
+
+import java.net.Inet4Address;
+import java.net.UnknownHostException;
+import java.time.Duration;
+import java.util.Arrays;
 
 /**
  * General Service Configuration.
@@ -91,6 +91,13 @@ public class ServiceConfig {
     // Admin Gateway-related parameters
     public static final Property<Boolean> ENABLE_ADMIN_GATEWAY = Property.named("admin.gateway.enable", false);
     public static final Property<Integer> ADMIN_GATEWAY_PORT = Property.named("admin.gateway.port", 9999);
+
+    //Connection Tracker related parameters
+    public static final Property<Integer> DEFAULT_ALL_CONNECTIONS_MAX_OUTSTANDING_BYTES = Property.named("default.all.connections.max.outstanding.bytes",
+            512 * 1024 * 1024);
+    public static final Property<Integer> DEFAULT_SINGLE_CONNECTION_MAX_OUTSTANDING_BYTES = Property.named("default.all.connections.max.outstanding.bytes",
+            128 * 1024 * 1024);
+
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
@@ -347,6 +354,12 @@ public class ServiceConfig {
 
     @Getter
     private final Duration healthCheckInterval;
+
+    @Getter
+    private final int defaultAllConnectionsMaxOutstandingBytes;
+
+    @Getter
+    private final int defaultSingleConnectionsMaxOutstandingBytes;
     //endregion
 
     //region Constructor
@@ -426,6 +439,8 @@ public class ServiceConfig {
         this.healthCheckInterval = Duration.ofSeconds(properties.getInt(HEALTH_CHECK_INTERVAL_SECONDS));
         this.enableAdminGateway = properties.getBoolean(ENABLE_ADMIN_GATEWAY);
         this.adminGatewayPort = properties.getInt(ADMIN_GATEWAY_PORT);
+        this.defaultAllConnectionsMaxOutstandingBytes = properties.getInt(DEFAULT_ALL_CONNECTIONS_MAX_OUTSTANDING_BYTES);
+        this.defaultSingleConnectionsMaxOutstandingBytes = properties.getInt(DEFAULT_SINGLE_CONNECTION_MAX_OUTSTANDING_BYTES);
     }
 
     /**
