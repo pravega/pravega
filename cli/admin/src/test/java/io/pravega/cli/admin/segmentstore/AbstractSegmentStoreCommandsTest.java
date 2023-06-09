@@ -457,6 +457,35 @@ public abstract class AbstractSegmentStoreCommandsTest {
         Assert.assertTrue(commandResult.contains("No fields provided to modify."));
     }
 
+    @Test
+    public void testRemoveTableSegmentKeysCommandIncorrectKey() throws Exception {
+        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
+
+        String tableSegmentName = getMetadataSegmentName(0);
+        String key = "invalidKey";
+        String commandResult = TestUtils.executeCommand("table-segment remove-key " + tableSegmentName + " " + key + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("RemoveTableKey failed: "+ key+" does not exist"));
+        /*key = "_system/_RGkvtStreamReaders/0.#epoch.0";
+        commandResult = TestUtils.executeCommand("table-segment get " + tableSegmentName + " " + key + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("RemoveTableKey: "+key+" removed successfully from "+tableSegmentName));*/
+    }
+
+    @Test
+    public void testRemoveTableSegmentKeysCommand() throws Exception {
+        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
+        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
+        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
+        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
+
+        String tableSegmentName = getMetadataSegmentName(0);
+        String key = "_system/_RGkvtStreamReaders/0.#epoch.0";
+        String commandResult = TestUtils.executeCommand("table-segment remove-key " + tableSegmentName + " " + key + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("RemoveTableKey: "+key+" removed successfully from "+tableSegmentName));
+    }
+
     @After
     public void tearDown() throws Exception {
         SETUP_UTILS.stopAllServices();
