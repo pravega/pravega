@@ -15,7 +15,6 @@
  */
 package io.pravega.client.batch.impl;
 
-import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
@@ -157,27 +156,27 @@ public class SegmentIteratorTest {
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config, DelegationTokenProviderFactory.createWithEmptyToken());
+        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> {
+        }, config, DelegationTokenProviderFactory.createWithEmptyToken());
         sendData("A", outputStream);
         sendData("B", outputStream);
 
         @Cleanup
         SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment, DelegationTokenProviderFactory.createWithEmptyToken());
         long length = metadataClient.getSegmentInfo().join().getWriteOffset();
-        @Cleanup
-        SegmentIteratorImpl<String> iterator = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);
-        ByteBuffer byteBuffer = iterator.toBytes();
-        SegmentIteratorImpl segmentIterator =  (SegmentIteratorImpl)iterator.fromBytes(byteBuffer);
 
-        assertEquals(iterator.getSegment().getScopedName(),segmentIterator.getSegment().getScopedName());
-        assertEquals(iterator.getStartingOffset(),segmentIterator.getStartingOffset());
-        assertEquals(iterator.getEndingOffset(),segmentIterator.getEndingOffset());
-        assertEquals(factory,SegmentIteratorImpl.getFactory());
-        assertEquals(iterator.getOffset(),segmentIterator.getOffset());
+        SegmentIteratorImpl.SegmentIteratorPosition iteratorPosition = new SegmentIteratorImpl.SegmentIteratorPosition(segment, 0, length);
+
+        ByteBuffer byteBuffer = iteratorPosition.toBytes();
+        SegmentIteratorImpl.SegmentIteratorPosition fromBytes = iteratorPosition.fromBytes(byteBuffer);
+
+        assertEquals(iteratorPosition.getSegment().getScopedName(), fromBytes.getSegment().getScopedName());
+        assertEquals(iteratorPosition.getStartingOffset(), fromBytes.getStartingOffset());
+        assertEquals(iteratorPosition.getEndingOffset(), fromBytes.getEndingOffset());
     }
 
     private void sendData(String data, SegmentOutputStream outputStream) {
         outputStream.write(PendingEvent.withHeader("routingKey", stringSerializer.serialize(data), new CompletableFuture<>()));
     }
-    
+
 }
