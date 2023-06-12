@@ -42,6 +42,8 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.AccessOperation;
+
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Optional;
 import java.util.SortedSet;
@@ -174,4 +176,15 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         return segmentRanges;
     }
 
+    @Override
+    public ByteBuffer serializedSegmentIteratorPosition(Segment segment, long startingOffset, long endingOffset) {
+        log.debug("Start serialize the segment position segment name: {}, startingOffSet: {}, endingOffset: {}", segment.getScopedName(), startingOffset, endingOffset);
+        SegmentIteratorImpl.SegmentIteratorPosition iteratorPosition = new SegmentIteratorImpl.SegmentIteratorPosition(segment, startingOffset, endingOffset);
+        return iteratorPosition.toBytes();
+    }
+
+    @Override
+    public SegmentIteratorImpl.SegmentIteratorPosition deSerializedSegmentIteratorPosition(ByteBuffer serializedPosition) {
+        return SegmentIteratorImpl.SegmentIteratorPosition.fromBytes(serializedPosition);
+    }
 }

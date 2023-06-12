@@ -20,8 +20,10 @@ import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.batch.impl.BatchClientFactoryImpl;
+import io.pravega.client.batch.impl.SegmentIteratorImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
@@ -30,6 +32,7 @@ import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import lombok.val;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 
 /**
@@ -103,4 +106,23 @@ public interface BatchClientFactory extends AutoCloseable {
      * @return A list of segment range in between a start and end stream cut.
      */
     List<SegmentRange> getSegmentRangeBetweenStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut);
+
+    /**
+     * Provides a serialized ByteBuffer of the requested segment starting from the
+     * beginning of the segment and ending at the current end of the segment.
+     *
+     * @param segment        The segment to serialize the position.
+     * @param startingOffset A starting offset of the segment.
+     * @param endingOffset   A ending offset of the segment.
+     * @return A serialized ByteBuffer of the requested segment position
+     */
+    ByteBuffer serializedSegmentIteratorPosition(Segment segment, long startingOffset, long endingOffset);
+
+    /**
+     * Provides a SegmentIteratorImpl.SegmentIteratorPosition from the requested ByteBuffer.
+     *
+     * @param serializedPosition ByteBuffer to deserialize the position of the segment.
+     * @return A SegmentIteratorImpl.SegmentIteratorPosition of the requested ByteBuffer.
+     */
+    SegmentIteratorImpl.SegmentIteratorPosition deSerializedSegmentIteratorPosition(ByteBuffer serializedPosition);
 }

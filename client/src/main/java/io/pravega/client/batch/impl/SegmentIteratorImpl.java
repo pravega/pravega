@@ -153,7 +153,7 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
         }
 
         @SneakyThrows(IOException.class)
-        public SegmentIteratorPosition fromBytes(ByteBuffer serializedPosition) {
+        public static SegmentIteratorPosition fromBytes(ByteBuffer serializedPosition) {
             return SERIALIZER.deserialize(new ByteArraySegment(serializedPosition));
         }
 
