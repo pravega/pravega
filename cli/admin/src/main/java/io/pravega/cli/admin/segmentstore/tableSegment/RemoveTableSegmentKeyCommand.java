@@ -27,14 +27,17 @@ import org.apache.curator.framework.CuratorFramework;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 
-public class RemoveTableSegmentKeysCommand extends TableSegmentCommand {
+/**
+ * Executes a RemoveTableSegmentKey request against the chosen Segment Store instance.
+ */
+public class RemoveTableSegmentKeyCommand extends TableSegmentCommand {
 
     /**
-     * Creates a new instance of RemoveTableSegmentKeysCommand.
+     * Creates a new instance of RemoveTableSegmentKeyCommand.
      *
      * @param args The arguments for the command.
      */
-    public RemoveTableSegmentKeysCommand(CommandArgs args) {
+    public RemoveTableSegmentKeyCommand(CommandArgs args) {
         super(args);
     }
 
