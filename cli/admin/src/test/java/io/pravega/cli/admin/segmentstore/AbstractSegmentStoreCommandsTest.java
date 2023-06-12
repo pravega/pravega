@@ -467,10 +467,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
         String tableSegmentName = getMetadataSegmentName(0);
         String key = "invalidKey";
         String commandResult = TestUtils.executeCommand("table-segment remove-key " + tableSegmentName + " " + key + " localhost", STATE.get());
-        Assert.assertTrue(commandResult.contains("RemoveTableKey failed: "+ key+" does not exist"));
-        /*key = "_system/_RGkvtStreamReaders/0.#epoch.0";
-        commandResult = TestUtils.executeCommand("table-segment get " + tableSegmentName + " " + key + " localhost", STATE.get());
-        Assert.assertTrue(commandResult.contains("RemoveTableKey: "+key+" removed successfully from "+tableSegmentName));*/
+        Assert.assertTrue(commandResult.contains("RemoveTableKey failed: " + key + " does not exist"));
     }
 
     @Test
@@ -483,7 +480,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
         String tableSegmentName = getMetadataSegmentName(0);
         String key = "_system/_RGkvtStreamReaders/0.#epoch.0";
         String commandResult = TestUtils.executeCommand("table-segment remove-key " + tableSegmentName + " " + key + " localhost", STATE.get());
-        Assert.assertTrue(commandResult.contains("RemoveTableKey: "+key+" removed successfully from "+tableSegmentName));
+        Assert.assertTrue(commandResult.contains("RemoveTableKey: " + key + " removed successfully from " + tableSegmentName));
     }
 
     @After
