@@ -35,8 +35,6 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
-import lombok.Cleanup;
-import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
