@@ -76,7 +76,7 @@ class EventProcessorCell<T extends ControllerEvent> {
      * This delegate provides a single thread of execution for the event processor.
      * This prevents sub-classes of EventProcessor from controlling EventProcessor's lifecycle.
      */
-    private final Service delegate;
+    private final Delegate delegate;
 
     private class Delegate extends AbstractExecutionThreadService {
 
@@ -84,6 +84,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         private final EventProcessorConfig<T> eventProcessorConfig;
         private EventRead<T> event;
         private final CheckpointState state;
+        private final AtomicReference<Thread> currentThread = new AtomicReference<>();
 
         Delegate(final EventProcessorConfig<T> eventProcessorConfig) {
             this.eventProcessorConfig = eventProcessorConfig;
@@ -104,7 +105,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         @Override
         protected final void run() throws Exception {
             log.debug("Event processor RUN {}, state={}", objectId, state());
-
+            this.currentThread.set(Thread.currentThread());
             while (isRunning()) {
                 try {
                     event = reader.readNextEvent(defaultTimeout);
@@ -116,14 +117,18 @@ class EventProcessorCell<T extends ControllerEvent> {
                         state.store(event.getPosition());
                     }
                 } catch (Exception e) {
-                    handleException(e);
+                    log.debug("Exception while reading the events {}", e);
+                    if (this.currentThread.get() != null) {
+                        handleException(e);
+                    }
                 }
             }
+            log.info("Event processor RUN {}, state={}, isRunning={}", objectId, state(), isRunning());
         }
 
         @Override
         protected final void shutDown() throws Exception {
-            log.info("Event processor SHUTDOWN {}, state={}", objectId, state());
+            log.info("Event processor SHUTDOWN {}, state={}, ISRUNNING={}", objectId, state(), isRunning());
             try {
                 actor.afterStop();
             } catch (Exception e) {
@@ -165,6 +170,7 @@ class EventProcessorCell<T extends ControllerEvent> {
 
         private void handleException(Exception e) {
             ExceptionHandler.Directive directive = eventProcessorConfig.getExceptionHandler().run(e);
+            log.info("Exception handler directive is {}", directive);
             switch (directive) {
                 case Restart:
                     log.warn("Restarting event processor: {} due to exception: {}", objectId, e);
@@ -265,10 +271,16 @@ class EventProcessorCell<T extends ControllerEvent> {
         }
     }
 
-    final void stopAsync() {
+    final void stopAsync(boolean interruptDelegate) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "stopAsync");
         try {
+            Thread thread = delegate.currentThread.get();
             delegate.stopAsync();
+            if (thread != null && interruptDelegate) {
+                delegate.currentThread.set(null);
+                log.debug("Event Processor {} is interrupted", objectId);
+                thread.interrupt();
+            }
             log.info("Event processor cell {} SHUTDOWN issued", this.objectId);
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "stopAsync", traceId);

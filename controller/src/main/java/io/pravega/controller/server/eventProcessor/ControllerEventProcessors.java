@@ -537,7 +537,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
 
         log.debug("Creating abort event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
-                e -> log.warn("Error creating commit event processor group", e))
+                e -> log.warn("Error creating abort event processor group", e))
                 .run(() -> {
                     abortEventProcessors = system.createEventProcessorGroup(abortConfig, checkpointStore, rebalanceExecutor);
                     return null;
@@ -591,9 +591,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .minRebalanceIntervalMillis(rebalanceIntervalMillis)
                         .build();
 
-        log.debug("Creating kvt request event processors");
+        log.debug("Creating kvt event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
-                e -> log.warn("Error creating request event processor group", e))
+                e -> log.warn("Error creating kvt event processor group", e))
                 .run(() -> {
                     kvtRequestEventProcessors = system.createEventProcessorGroup(kvtRequestConfig, checkpointStore, rebalanceExecutor);
                     return null;
