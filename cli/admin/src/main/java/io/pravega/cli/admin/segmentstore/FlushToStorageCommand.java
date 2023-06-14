@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static java.lang.Integer.parseInt;
 
@@ -75,14 +76,14 @@ public class FlushToStorageCommand extends ContainerCommand {
         for (int id = startContainerId; id <= endContainerId; id++) {
             completableFutures.add(flushContainerToStorage(adminSegmentHelper, id));
         }
-        Futures.allOf(completableFutures).join();
+        Futures.allOf(completableFutures).get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         output("Flushed all the given segment container to storage.");
     }
 
     private CompletableFuture<WireCommands.StorageFlushed> flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId) throws Exception {
         CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(containerId,
                 new PravegaNodeUri(this.getHostByContainer(containerId), getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
-        return reply.thenApply((result) -> {
+        return reply.thenApply(result -> {
             output("Flushed the Segment Container with containerId %d to Storage.", containerId);
             return result;
         });
