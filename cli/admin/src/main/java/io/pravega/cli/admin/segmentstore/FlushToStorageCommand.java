@@ -76,7 +76,7 @@ public class FlushToStorageCommand extends ContainerCommand {
             completableFutures.add(flushContainerToStorage(adminSegmentHelper, id));
         }
         Futures.allOf(completableFutures).join();
-        output("Flushed all the segment container to storage.");
+        output("Flushed all the given segment container to storage.");
     }
 
     private CompletableFuture<WireCommands.StorageFlushed> flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId) throws Exception {
