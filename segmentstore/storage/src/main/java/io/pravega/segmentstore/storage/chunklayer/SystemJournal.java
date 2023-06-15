@@ -585,7 +585,7 @@ public class SystemJournal {
                                         return readSnapshotInfoFromFile()
                                                 .thenComposeAsync( existingSnapshot -> {
                                                     if (existingSnapshot.getEpoch() > epoch) {
-                                                        return CompletableFuture.failedFuture(new StorageNotPrimaryException(""));
+                                                        return CompletableFuture.failedFuture(new StorageNotPrimaryException(String.format("SystemJournal[{}] Unexpected snapshot. Expected = {} actual = {}", info, existingSnapshot)));
                                                     } else {
                                                         return chunkStorage.delete(ChunkHandle.writeHandle(snapshotInfoFileName));
                                                     }
@@ -712,7 +712,7 @@ public class SystemJournal {
                     if (ex instanceof ChunkNotFoundException) {
                         log.info(String.format("Chunk containing SnapshotInfo does not exist. This is ok if this is new installation. Chunk name = %s", snapshotInfoFileName));
                     } else {
-                        log.warn(String.format("Chunk containing could not be read. chunk name = %s", snapshotInfoFileName), ex);
+                        log.warn(String.format("Chunk containing SnapshotInfo could not be read. Chunk name = %s", snapshotInfoFileName), ex);
                     }
                     return null;
                 })
