@@ -17,6 +17,9 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -45,16 +48,28 @@ public class ResourceWrapper {
     private Map<String, String> pravegaOptions;
 
     public static ResourceWrapper getSystemTestConfig(String configFile) {
-        ObjectMapper objectMapper = new ObjectMapper();
+        JsonFactory jsonFactory = new JsonFactory();
+        jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
+        jsonFactory.configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, false);
+        ObjectMapper objectMapper = new ObjectMapper(jsonFactory);
         objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         objectMapper.setVisibility(VisibilityChecker.Std.defaultInstance().withFieldVisibility(JsonAutoDetect.Visibility.ANY));
         objectMapper.enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY);
         InputStream stream = ResourceWrapper.class.getClassLoader().getResourceAsStream(configFile);
         ResourceWrapper resourceWrapper = null;
+
         try {
             resourceWrapper = objectMapper.readValue(stream, ResourceWrapper.class);
         } catch (IOException e) {
             log.error("Input json file not available", e);
+        } finally {
+            if (stream != null) {
+                try {
+                    stream.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
         return resourceWrapper;
     }
