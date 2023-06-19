@@ -66,7 +66,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import lombok.Cleanup;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -84,7 +83,7 @@ public class LargeEventWriterTest {
 
     private final UUID writerId = UUID.randomUUID();
 
-    @Test(timeout = 5000)
+    @Test(timeout = 15000)
     public void testBufferSplitting()
             throws NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
         Segment segment = Segment.fromScopedName("foo/bar/1");
@@ -133,7 +132,7 @@ public class LargeEventWriterTest {
         assertEquals(6 + WireCommands.TYPE_PLUS_LENGTH_SIZE * 3, written.get(3).readableBytes());
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 15000)
     public void testRetries()
             throws ConnectionFailedException, NoSuchSegmentException, AuthenticationException {
         Segment segment = Segment.fromScopedName("foo/bar/1");
@@ -177,7 +176,7 @@ public class LargeEventWriterTest {
 
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 15000)
     public void testThrownErrors() throws ConnectionFailedException {
         Segment segment = Segment.fromScopedName("foo/bar/1");
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -224,7 +223,7 @@ public class LargeEventWriterTest {
         });
     }
     
-    @Test(timeout = 5000)
+    @Test(timeout = 15000)
     public void testRetriedErrors() throws ConnectionFailedException, NoSuchSegmentException, AuthenticationException, SegmentSealedException {
         Segment segment = Segment.fromScopedName("foo/bar/1");
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -326,7 +325,7 @@ public class LargeEventWriterTest {
         assertTrue(succeeded.getAndSet(false));
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 15000)
     public void testUnexpectedErrors() throws ConnectionFailedException, NoSuchSegmentException, AuthenticationException, SegmentSealedException {
         Segment segment = Segment.fromScopedName("foo/bar/1");
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -427,8 +426,7 @@ public class LargeEventWriterTest {
         assertTrue(succeeded.getAndSet(false));
     }
     
-    @Test(timeout = 5000)
-    @Ignore("DISABLED FLAKY TEST")
+    @Test(timeout = 15000)
     public void testEventStreamWriter() throws ConnectionFailedException, SegmentSealedException {
         String scope = "scope";
         String streamName = "stream";
@@ -486,7 +484,7 @@ public class LargeEventWriterTest {
         order.verifyNoMoreInteractions();
     }
     
-    @Test(timeout = 5000)
+    @Test(timeout = 15000)
     public void testSegmentSealed() throws ConnectionFailedException, SegmentSealedException {
         String scope = "scope";
         String streamName = "stream";
