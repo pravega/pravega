@@ -275,7 +275,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                             log.debug("{} openWrite - exception segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis(), ex);
                             throw handleException(streamSegmentName, ex);
                         }
-                        return null;
+                        return v;
                     }, executor);
         }, streamSegmentName);
     }
@@ -435,7 +435,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                     log.debug("{} create - exception segment={}, rollingPolicy={}, latency={}.", logPrefix, streamSegmentName, rollingPolicy, timer.getElapsedMillis(), e);
                     throw handleException(streamSegmentName, e);
                 }
-                return null;
+                return v;
             }, executor);
         }, streamSegmentName);
     }
@@ -691,7 +691,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                             log.debug("{} openRead - exception segment={} latency={}.", logPrefix, streamSegmentName, timer.getElapsedMillis(), ex);
                             throw handleException(streamSegmentName, ex);
                         }
-                        return null;
+                        return v;
                     }, executor);
         }, streamSegmentName);
     }
@@ -734,7 +734,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                             log.debug("{} getStreamSegmentInfo - exception segment={}.", logPrefix, streamSegmentName, ex);
                             throw handleException(streamSegmentName, ex);
                         }
-                        return null;
+                        return v;
                     }, executor);
         }, streamSegmentName);
     }
