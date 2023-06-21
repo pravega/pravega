@@ -1,5 +1,6 @@
 max_attempt=3
 home_dir=/opt/pravega
+
 # validate method accepts the below three parameters.
 # $1 is the output of grep command.
 # $2 is the value that we are not expecting in the output.
