@@ -2,14 +2,9 @@ max_attempt=3
 home_dir=/opt/pravega
 
 validate() {
-  if [ "$#" -eq 2 ]
+  if [ "$2" == "$1" ]
   then
-    return
-  fi
-  [[ "$#" -ne 3 ]] && name=$1 || name=$3
-  if [ "$#" -ne 3 ] || [ $2 == "$1" ]
-  then
-    echo "Failed to get " $name
+    echo "Failed to get " $3
     exit 1
   fi
 }
@@ -21,16 +16,15 @@ get_val() {
   output=$(ps -aef | more | grep -o $cmd)
   validate "$output" "${cmd:1}" "$2"
   output=$(echo $output | cut -d ' ' -f1)
-  empty=""
-  validate "$output" $empty "$2"
+  validate "$output" "$2"
   val=$(echo $output | cut -d '=' -f2)
-  validate $val $empty "$2"
+  validate "$val" "$2"
 }
 
 set_configuration() {
-  get_val '\Dpravegaservice.clusterName=.*D' "Pravega cluster"
+  get_val "\Dpravegaservice.clusterName=.*D" "Pravega cluster"
   pravega_cluster=$val
-  get_val '\Dpravegaservice.zk.connect.uri=.*D' "zookeeper client"
+  get_val "\Dpravegaservice.zk.connect.uri=.*D" "zookeeper client"
   zookeeper_client=$val
 
   echo "Pravega cluster: $pravega_cluster"
