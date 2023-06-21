@@ -126,7 +126,7 @@ public class AsyncSemaphore implements AutoCloseable {
      * @return A CompletableFuture that, when completed, will contain the result of the executed task. If the task failed
      * or was rejected (i.e., due to {@link AsyncSemaphore} closing), it will be failed with the appropriate exception.
      */
-    public <T> CompletableFuture<T> run(@NonNull FutureSuplier<T> task, long credits, boolean force) {
+    public <T> CompletableFuture<T> run(@NonNull FutureSupplier<T> task, long credits, boolean force) {
         Preconditions.checkArgument(credits >= 0 && credits <= this.totalCredits,
                 "credits must be a non-negative number smaller than or equal to %s.", this.totalCredits);
 
@@ -195,7 +195,7 @@ public class AsyncSemaphore implements AutoCloseable {
                 });
     }
 
-    private <T> CompletableFuture<T> execute(FutureSuplier<T> toExecute, long credits) {
+    private <T> CompletableFuture<T> execute(FutureSupplier<T> toExecute, long credits) {
         CompletableFuture<T> result;
         try {
             result = toExecute.getFuture();
@@ -241,7 +241,7 @@ public class AsyncSemaphore implements AutoCloseable {
     @RequiredArgsConstructor
     private static class PendingTask<T> {
         final long credits;
-        final FutureSuplier<T> runTask;
+        final FutureSupplier<T> runTask;
         final CompletableFuture<T> result = new CompletableFuture<>();
     }
 

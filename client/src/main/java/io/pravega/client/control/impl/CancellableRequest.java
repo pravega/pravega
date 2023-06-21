@@ -15,7 +15,7 @@
  */
 package io.pravega.client.control.impl;
 
-import io.pravega.common.concurrent.FutureSuplier;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -49,7 +49,7 @@ public class CancellableRequest<T> {
         });
     }
 
-    public void start(FutureSuplier<T> supplier, Predicate<T> termination, ScheduledExecutorService executor) {
+    public void start(FutureSupplier<T> supplier, Predicate<T> termination, ScheduledExecutorService executor) {
         futureRef.updateAndGet(previous -> {
             if (previous != null) {
                 throw new IllegalStateException("Request already started");

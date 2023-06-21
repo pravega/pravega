@@ -183,8 +183,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         }
         final ClientConfiguration c = config;
         return Retry.withExpBackoff(100, 10, 3)
-                    .retryingOn(IOException.class)
-                    .throwingOn(RuntimeException.class)
+                    .retryWhen(e -> Exceptions.unwrap(e) instanceof IOException)
                     .run(() -> BookKeeper.newBuilder(c).build());
     }
 

@@ -294,7 +294,7 @@ public class SegmentMetadataClientTest {
     }
     
     @Test(timeout = 10000)
-    public void testShutdownDurringReconnect() throws Exception {
+    public void testShutdownDuringReconnect() throws Exception {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup
@@ -313,12 +313,11 @@ public class SegmentMetadataClientTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 WireCommands.GetStreamSegmentInfo request = invocation.getArgument(0);
                 requestIds.add(request.getRequestId());
+                ReplyProcessor processor = cf.getProcessor(endpoint);
                 if (requestIds.size() == 1) {
-                    ReplyProcessor processor = cf.getProcessor(endpoint);
                     processor.connectionDropped();
                 } else {
                     cf.close();
-                    ReplyProcessor processor = cf.getProcessor(endpoint);
                     processor.connectionDropped();
                 }
                 return null;

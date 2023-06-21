@@ -15,7 +15,7 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.concurrent.FutureSuplier;
+import io.pravega.common.concurrent.FutureSupplier;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -205,7 +205,7 @@ public class ResourcePoolTest {
     // resource instantiation test
     
     private static class MyResourcePool extends ResourcePool<MyResource> {
-        MyResourcePool(FutureSuplier<MyResource> tSupplier, Consumer<MyResource> tDestroyer, Listener myListener) {
+        MyResourcePool(FutureSupplier<MyResource> tSupplier, Consumer<MyResource> tDestroyer, Listener myListener) {
             super(tSupplier, tDestroyer, 2, 1, myListener);
         }
     }

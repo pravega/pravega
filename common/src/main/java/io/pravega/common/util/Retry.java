@@ -17,7 +17,7 @@ package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureSuplier;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import java.time.Duration;
 import java.time.Instant;
@@ -238,7 +238,7 @@ public final class Retry {
                     executorService);
         }
         
-        public <ReturnT> CompletableFuture<ReturnT> runAsync(final FutureSuplier<ReturnT> r,
+        public <ReturnT> CompletableFuture<ReturnT> runAsync(final FutureSupplier<ReturnT> r,
                                                              final ScheduledExecutorService executorService) {
             Preconditions.checkNotNull(r);
             CompletableFuture<ReturnT> result = new CompletableFuture<>();

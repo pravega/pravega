@@ -15,7 +15,7 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
-import io.pravega.common.concurrent.FutureSuplier;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -45,11 +45,11 @@ public class EventProcessorHelper {
                         }
                     });
 
-    public static <U> CompletableFuture<U> withRetries(FutureSuplier<U> futureSupplier, ScheduledExecutorService executor) {
+    public static <U> CompletableFuture<U> withRetries(FutureSupplier<U> futureSupplier, ScheduledExecutorService executor) {
         return RETRY.runAsync(futureSupplier, executor);
     }
 
-    public static <U> CompletableFuture<U> indefiniteRetries(FutureSuplier<U> futureSupplier, ScheduledExecutorService executor) {
+    public static <U> CompletableFuture<U> indefiniteRetries(FutureSupplier<U> futureSupplier, ScheduledExecutorService executor) {
         return INDEFINITELY.runAsync(futureSupplier, executor);
     }
 

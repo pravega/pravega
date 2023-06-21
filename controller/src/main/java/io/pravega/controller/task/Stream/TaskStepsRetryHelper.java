@@ -15,7 +15,7 @@
  */
 package io.pravega.controller.task.Stream;
 
-import io.pravega.common.concurrent.FutureSuplier;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
 import java.time.Duration;
@@ -31,7 +31,7 @@ public class TaskStepsRetryHelper {
             .withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
             .retryWhen(RetryableException::isRetryable);
 
-    public static <U> CompletableFuture<U> withRetries(FutureSuplier<U> futureSupplier, ScheduledExecutorService executor) {
+    public static <U> CompletableFuture<U> withRetries(FutureSupplier<U> futureSupplier, ScheduledExecutorService executor) {
         return RETRY.runAsync(futureSupplier, executor);
     }
 }

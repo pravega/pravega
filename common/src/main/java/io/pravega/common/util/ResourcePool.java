@@ -17,7 +17,7 @@ package io.pravega.common.util;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.concurrent.FutureSuplier;
+import io.pravega.common.concurrent.FutureSupplier;
 import java.util.ArrayDeque;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -58,15 +58,15 @@ public class ResourcePool<T> {
     private final int maxIdle;
 
     private final Listener listener;
-    private final FutureSuplier<T> tSupplier;
+    private final FutureSupplier<T> tSupplier;
     private final Consumer<T> tDestroyer;
 
-    public ResourcePool(FutureSuplier<T> tSupplier, Consumer<T> tDestroyer, int maxConcurrent, int maxIdle) {
+    public ResourcePool(FutureSupplier<T> tSupplier, Consumer<T> tDestroyer, int maxConcurrent, int maxIdle) {
         this(tSupplier, tDestroyer, maxConcurrent, maxIdle, null);
     }
 
     @VisibleForTesting
-    ResourcePool(FutureSuplier<T> tSupplier, Consumer<T> tDestroyer,
+    ResourcePool(FutureSupplier<T> tSupplier, Consumer<T> tDestroyer,
                  int maxConcurrent, int maxIdle, Listener listener) {
         Preconditions.checkNotNull(tSupplier);
         Preconditions.checkNotNull(tDestroyer);

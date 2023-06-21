@@ -93,7 +93,10 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
         runner.prestartAllCoreThreads();
     }
 
-    public static interface ScheduledChainableFuture<R> extends ScheduledFuture<R>, FutureSuplier<R> {
+    /**
+     * A ScheduledFuture that can be used as a CompletableFuture if desired. 
+     */
+    public static interface ScheduledChainableFuture<R> extends ScheduledFuture<R>, FutureSupplier<R> {
         
     }
     

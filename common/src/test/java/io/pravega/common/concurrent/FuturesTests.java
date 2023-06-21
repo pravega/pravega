@@ -676,7 +676,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
 
     @Test
     public void testTimeout() {
-        FutureSuplier<Integer> supplier = CompletableFuture::new;
+        FutureSupplier<Integer> supplier = CompletableFuture::new;
         CompletableFuture<Integer> f1 = Futures.futureWithTimeout(supplier, Duration.ofMillis(10), "", executorService());
         AssertExtensions.assertFutureThrows("Future should have timedout. ", f1, e -> Exceptions.unwrap(e) instanceof TimeoutException);
     }

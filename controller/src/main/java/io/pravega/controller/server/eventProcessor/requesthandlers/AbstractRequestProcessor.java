@@ -17,7 +17,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureSuplier;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.util.Retry;
@@ -207,7 +207,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
         }, returnOnException);
     }
 
-    private CompletableFuture<Void> retryIndefinitelyThenComplete(FutureSuplier<Void> futureSupplier, 
+    private CompletableFuture<Void> retryIndefinitelyThenComplete(FutureSupplier<Void> futureSupplier, 
                                                                   CompletableFuture<Void> toComplete,
                                                                   Throwable e) {
         String failureMessage = String.format("Error writing event back into stream from processor %s", getProcessorName());

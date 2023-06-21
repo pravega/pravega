@@ -20,7 +20,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.FutureSuplier;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
@@ -153,7 +153,7 @@ class TableMetadataStore extends MetadataStore {
     }
 
     private <T> CompletableFuture<T> applyToSegment(String segmentName, BiFunction<TableEntry, Duration, CompletableFuture<T>> ifExists,
-                                                    FutureSuplier<T> ifNotExists, Duration timeout) {
+                                                    FutureSupplier<T> ifNotExists, Duration timeout) {
         ensureInitialized();
         ArrayView key = getTableKey(segmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);

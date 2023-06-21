@@ -19,7 +19,7 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureSuplier;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.common.tracing.TagLogger;
@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory;
 
 import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_UUID_FUNCTION;
 import static io.pravega.controller.store.PravegaTablesStoreHelper.UUID_TO_BYTES_FUNCTION;
-import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
 import static io.pravega.shared.NameUtils.SEPARATOR;
@@ -500,7 +500,7 @@ public class PravegaTablesScope implements Scope {
                 .thenCompose(kvtablesInScopeTable -> readAll(limit, continuationToken, kvtablesInScopeTable, context));
     }
 
-    private <T> CompletableFuture<T> withCreateTableIfAbsent(FutureSuplier<T> futureSupplier, String tableName,
+    private <T> CompletableFuture<T> withCreateTableIfAbsent(FutureSupplier<T> futureSupplier, String tableName,
                                                              OperationContext context) {
         return Futures.exceptionallyComposeExpecting(
             futureSupplier.getFuture(), DATA_NOT_FOUND_PREDICATE,

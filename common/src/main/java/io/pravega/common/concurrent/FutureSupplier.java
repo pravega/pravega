@@ -21,7 +21,7 @@ import java.util.concurrent.CompletableFuture;
  * A function which returns a future.
  */
 @FunctionalInterface
-public interface FutureSuplier<T> {
+public interface FutureSupplier<T> {
 
     /**
      * A function that returns a future. This may either generate async work or simply be an accessor. 

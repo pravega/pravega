@@ -24,7 +24,7 @@ import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureSuplier;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
@@ -747,7 +747,7 @@ public class PravegaTablesStoreHelper {
                 toReturn);
     }
 
-    private <T> FutureSuplier<T> exceptionalCallback(FutureSuplier<T> future,
+    private <T> FutureSupplier<T> exceptionalCallback(FutureSupplier<T> future,
                                                                    Supplier<String> errorMessageSupplier,
                                                                    boolean throwOriginalOnCFE,
                                                                    long requestId) {
@@ -808,12 +808,12 @@ public class PravegaTablesStoreHelper {
      * talk to segment store. Both these are translated to ConnectionErrors and are retried. All other exceptions
      * are thrown back
      */
-    private <T> CompletableFuture<T> withRetries(FutureSuplier<T> futureSupplier, Supplier<String> errorMessage,
+    private <T> CompletableFuture<T> withRetries(FutureSupplier<T> futureSupplier, Supplier<String> errorMessage,
                                                  long requestId) {
         return withRetries(futureSupplier, errorMessage, false, requestId);
     }
 
-    private <T> CompletableFuture<T> withRetries(FutureSuplier<T> futureSupplier, Supplier<String> errorMessage,
+    private <T> CompletableFuture<T> withRetries(FutureSupplier<T> futureSupplier, Supplier<String> errorMessage,
                                          boolean throwOriginalOnCfe, long requestId) {
         return RetryHelper.withRetriesAsync(exceptionalCallback(futureSupplier, errorMessage, throwOriginalOnCfe, requestId),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException, numOfRetries, executor)

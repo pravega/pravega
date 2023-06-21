@@ -18,7 +18,7 @@ package io.pravega.controller.task;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureSuplier;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.index.HostIndex;
@@ -110,7 +110,7 @@ public class EventHelper implements AutoCloseable {
      * @param <T> The Type of the future's result.
      * @return CompletableFuture<T> returned by Supplier or Exception.
      */
-    public <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, FutureSuplier<T> futureSupplier) {
+    public <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, FutureSupplier<T> futureSupplier) {
         String id = UUID.randomUUID().toString();
         // We first add index and then call the metadata update.
         //  While trying to perform a metadata update, upon getting a connection exception or a write conflict exception

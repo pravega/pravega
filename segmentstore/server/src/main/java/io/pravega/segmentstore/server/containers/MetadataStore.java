@@ -22,7 +22,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.FutureSuplier;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -622,7 +622,7 @@ public abstract class MetadataStore implements AutoCloseable {
      * @param <T>   Return type of Future.
      * @return A CompletableFuture with the result, or failure cause.
      */
-    private <T> CompletableFuture<T> retryWithCleanup(FutureSuplier<T> toTry) {
+    private <T> CompletableFuture<T> retryWithCleanup(FutureSupplier<T> toTry) {
         CompletableFuture<T> result = new CompletableFuture<>();
         toTry.getFuture()
              .thenAccept(result::complete)
