@@ -18,10 +18,12 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
+import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
@@ -179,9 +181,11 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         } else {
             config = config.setEnsemblePlacementPolicy(DefaultEnsemblePlacementPolicy.class);
         }
-
-        return BookKeeper.newBuilder(config)
-                         .build();
+        final ClientConfiguration c = config;
+        return Retry.withExpBackoff(100, 10, 3)
+                    .retryingOn(IOException.class)
+                    .throwingOn(RuntimeException.class)
+                    .run(() -> BookKeeper.newBuilder(c).build());
     }
 
     //endregion
