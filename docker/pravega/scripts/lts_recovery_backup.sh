@@ -16,9 +16,9 @@ get_val() {
   output=$(ps -aef | more | grep -o $cmd)
   validate "$output" "${cmd:1}" "$2"
   output=$(echo $output | cut -d ' ' -f1)
-  validate "$output" "$2"
+  validate "$output" "" "$2"
   val=$(echo $output | cut -d '=' -f2)
-  validate "$val" "$2"
+  validate "$val" "" "$2"
 }
 
 set_configuration() {
