@@ -617,7 +617,7 @@ public class SystemJournal {
                                     if (null != e) {
                                         val ex = Exceptions.unwrap(e);
                                         if (ex instanceof StorageNotPrimaryException) {
-                                            log.warn("SystemJournal[{}] Error while saving snapshot info to file {}. info = {}", containerId, snapshotInfoFileName, info, e);
+                                            log.warn("SystemJournal[{}] Error while saving snapshot info to LTS {}. info = {}", containerId, snapshotInfoFileName, info, e);
                                             throw new CompletionException(e);
                                         }
                                         if (attempts.incrementAndGet() > config.getMaxJournalWriteAttempts()) {
