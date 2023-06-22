@@ -1,45 +1,38 @@
+#!/bin/sh
+
 max_attempt=3
 home_dir=/opt/pravega
 
-# validate method accepts the below three parameters.
-# $1 is the output of grep command.
-# $2 is the value that we are not expecting in the output.
-# $3 either contains 'Pravega cluster' or 'Zookeeper client'.
+# validate method takes the below two parameters.
+# $1 Output of grep command.
+# $2 Name of the cluster/client that we are trying to find.
 validate() {
-  # if $2 == $1 that means output is empty.
-  if [ "$2" == "$1" ]
+  if [ "$1" == "" ]
   then
-    echo "Failed to get " $3
+    echo "Failed to get " $2
     exit 1
   fi
 }
 
-val=''
-
-# get_val method accepts the below two parameters.
-# $1 Property keys for which the value needs to be searched.
-# $2 either contains 'Pravega cluster' or 'Zookeeper client'.
+# get_val method takes the below two parameters.
+# $1 Key that we want to search.
+# $2 Name of the cluster/client that we are trying to find.
 get_val() {
-  cmd=$1
-  # Greps the key matching for parameter $1
-  output=$(ps -aef | more | grep -o $cmd)
-  # Validates the output. If nothing is found in grep then it returns the parameter that we are searching.
-  validate "$output" "${cmd:1}" "$2"
-  # Split based on space and get first column.
-  output=$(echo $output | cut -d ' ' -f1)
-  # Validating output whether it is empty or not.
-  validate "$output" "" "$2"
-  # Splitting based on '=' to get the value for the key.
-  val=$(echo $output | cut -d '=' -f2)
-  # Validating value whether it is empty or not.
-  validate "$val" "" "$2"
+  key=$1
+  # Searching for the key.
+  output=$(printenv | grep $key)
+  # Validating whether key/value is empty or not.
+  validate "$output" "$2"
+  # Splitting the key/value pair and getting the value.
+  output=$(echo $output | cut -d '=' -f2)
+  # Validating whether value is empty or not.
+  validate "$output" "$2"
+  echo "$output"
 }
 
 set_configuration() {
-  get_val "\Dpravegaservice.clusterName=.*D" "Pravega cluster"
-  pravega_cluster=$val
-  get_val "\Dpravegaservice.zk.connect.uri=.*D" "zookeeper client"
-  zookeeper_client=$val
+  pravega_cluster=$(get_val "CLUSTER_NAME" "Pravega cluster")
+  zookeeper_client=$(get_val "ZK_URL" "Zookeeper client")
 
   echo "Pravega cluster: $pravega_cluster"
   echo "Zookeeper client: $zookeeper_client"
@@ -47,7 +40,7 @@ set_configuration() {
   echo "bookkeeper.ledger.path=pravega/$pravega_cluster/bookkeeper/ledgers"
   echo "pravegaservice.zk.connect.uri=$zookeeper_client"
 
-  # Setting the properties in /opt/pravega/conf/admin-cli.properties
+  # Updating configuration in /conf/admin-cli.properties
   sed -i "s|pravegaservice.clusterName=.*|pravegaservice.clusterName=pravega/$pravega_cluster|g" $home_dir/conf/admin-cli.properties
   sed -i "s|bookkeeper.ledger.path=.*|bookkeeper.ledger.path=pravega/$pravega_cluster/bookkeeper/ledgers|g" $home_dir/conf/admin-cli.properties
   sed -i "s|pravegaservice.zk.connect.uri=.*|pravegaservice.zk.connect.uri=$zookeeper_client|g" $home_dir/conf/admin-cli.properties
@@ -55,6 +48,7 @@ set_configuration() {
 
 flush_container() {
   cd $home_dir
+  # Calling flush to storage
   output=$(./bin/pravega-admin container flush-to-storage all)
   message="Flushed all the given segment container to storage."
   if [[ "$output" != *"$message"* ]]
