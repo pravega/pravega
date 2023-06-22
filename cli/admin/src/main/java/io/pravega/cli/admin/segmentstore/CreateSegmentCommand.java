@@ -77,7 +77,7 @@ public class CreateSegmentCommand extends SegmentStoreCommand {
                 try {
                     StreamConfiguration streamConfig = controller.getStreamConfiguration(scope, stream).join();
                     CompletableFuture<Void> reply = segmentHelper.createSegment(scope, stream, segmentId, streamConfig.getScalingPolicy(),
-                            super.authHelper.retrieveMasterToken(),0L, streamConfig.getRolloverSizeBytes());
+                            super.authHelper.retrieveMasterToken(), 0L, streamConfig.getRolloverSizeBytes());
                     reply.join();
                     output("CreateSegment: %s created successfully", fullyQualifiedSegmentName);
                 } catch (Exception e) {
