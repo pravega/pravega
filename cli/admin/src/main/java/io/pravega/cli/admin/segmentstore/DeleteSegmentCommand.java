@@ -19,7 +19,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
@@ -41,10 +41,9 @@ public class DeleteSegmentCommand extends SegmentStoreCommand {
 
     @Override
     public void execute() {
-        ensureArgCount(2);
+        ensureArgCount(1);
 
         final String fullyQualifiedSegmentName = getArg(0);
-        final String segmentStoreHost = getArg(1);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
@@ -54,14 +53,17 @@ public class DeleteSegmentCommand extends SegmentStoreCommand {
 
         String[] inputParam = fullyQualifiedSegmentName.split("/");
         Preconditions.checkArgument(inputParam.length == 3, "Invalid qualified-segment-name  '%s'", fullyQualifiedSegmentName);
+        String scope = inputParam[0];
+        String stream = inputParam[1];
+        String[] segmentArr = inputParam[2].split("\\.");
+        int segmentNumber = Integer.parseInt(segmentArr[0]);
+        int epoch = Integer.parseInt(segmentArr[2]);
+        long segmentId = NameUtils.computeSegmentId(segmentNumber, epoch);
 
         try {
-            CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfoFuture = segmentHelper.getSegmentInfo(fullyQualifiedSegmentName,
-                    new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken(), 0L);
+            CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfoFuture = segmentHelper.getSegmentInfo(scope, stream, segmentId, super.authHelper.retrieveMasterToken(), 0L);
             segmentInfoFuture.join();
-            CompletableFuture<Void> reply = segmentHelper.deleteSegment(fullyQualifiedSegmentName,
-                        super.authHelper.retrieveMasterToken(),
-                        new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), 0L);
+            CompletableFuture<Void> reply = segmentHelper.deleteSegment(scope, stream, segmentId, super.authHelper.retrieveMasterToken(), 0L);
             reply.join();
             output("DeleteSegment: %s deleted successfully", fullyQualifiedSegmentName);
         } catch (Exception ex) {
@@ -71,7 +73,6 @@ public class DeleteSegmentCommand extends SegmentStoreCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "delete-segment", "Deletes a given Segment.",
-                new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to delete (e.g., scope/stream/0.#epoch.0)."),
-                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
+                new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to delete (e.g., scope/stream/0.#epoch.0)."));
     }
 }

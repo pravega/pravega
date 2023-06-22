@@ -23,7 +23,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
@@ -46,10 +46,9 @@ public class CreateSegmentCommand extends SegmentStoreCommand {
 
     @Override
     public void execute() {
-        ensureArgCount(2);
+        ensureArgCount(1);
 
         final String fullyQualifiedSegmentName = getArg(0);
-        final String segmentStoreHost = getArg(1);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
@@ -61,22 +60,29 @@ public class CreateSegmentCommand extends SegmentStoreCommand {
 
         String[] inputParam = fullyQualifiedSegmentName.split("/");
         Preconditions.checkArgument(inputParam.length == 3, "Invalid qualified-segment-name  '%s'", fullyQualifiedSegmentName);
+        String scope = inputParam[0];
+        String stream = inputParam[1];
+        String[] segmentArr = inputParam[2].split("\\.");
+        int segmentNumber = Integer.parseInt(segmentArr[0]);
+        int epoch = Integer.parseInt(segmentArr[2]);
+        long segmentId = NameUtils.computeSegmentId(segmentNumber, epoch);
 
         try {
-            CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfoFuture = segmentHelper.getSegmentInfo(fullyQualifiedSegmentName,
-                    new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken(), 0L);
+            CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfoFuture = segmentHelper.getSegmentInfo(scope, stream, segmentId, super.authHelper.retrieveMasterToken(), 0L);
             segmentInfoFuture.join();
             output("Segment %s already exists", fullyQualifiedSegmentName);
         } catch (Exception ex) {
             Throwable cause = Exceptions.unwrap(ex);
             if (cause instanceof WireCommandFailedException && ((WireCommandFailedException) cause).getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist)) {
-                StreamConfiguration streamConfig = controller.getStreamConfiguration(inputParam[0], inputParam[1]).join();
-                CompletableFuture<Void> reply = segmentHelper.createSegment(streamConfig.getScalingPolicy(),
-                        fullyQualifiedSegmentName, streamConfig.getRolloverSizeBytes(), super.authHelper.retrieveMasterToken(),
-                        0L,
-                        new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()));
-                reply.join();
-                output("CreateSegment: %s created successfully", fullyQualifiedSegmentName);
+                try {
+                    StreamConfiguration streamConfig = controller.getStreamConfiguration(scope, stream).join();
+                    CompletableFuture<Void> reply = segmentHelper.createSegment(scope, stream, segmentId, streamConfig.getScalingPolicy(),
+                            super.authHelper.retrieveMasterToken(),0L, streamConfig.getRolloverSizeBytes());
+                    reply.join();
+                    output("CreateSegment: %s created successfully", fullyQualifiedSegmentName);
+                } catch (Exception e) {
+                    output("CreateSegment failed for %s - %s", fullyQualifiedSegmentName, e.getMessage());
+                }
             } else {
                 output("CreateSegment failed for %s - %s", fullyQualifiedSegmentName, ex.getMessage());
             }
@@ -85,7 +91,6 @@ public class CreateSegmentCommand extends SegmentStoreCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "create-segment", "Creates a given Segment.",
-                new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to create (e.g., scope/stream/0.#epoch.0)."),
-                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
+                new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to create (e.g., scope/stream/0.#epoch.0)."));
     }
 }

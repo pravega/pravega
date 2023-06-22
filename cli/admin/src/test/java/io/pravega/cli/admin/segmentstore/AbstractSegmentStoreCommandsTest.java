@@ -461,24 +461,25 @@ public abstract class AbstractSegmentStoreCommandsTest {
     @Test
     public void testDeleteSegmentCommandWithIncorrectArgs() {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "deleteSegmentWrongArgTest", StreamConfiguration.builder().build());
-        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentWrongArgTest/0.#epoch.0", STATE.get()),
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentWrongArgTest/0.#epoch.0 localhost", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testDeleteSegmentInvalidSegmentName() {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "deleteSegmentInvalidSegmentName", StreamConfiguration.builder().build());
-        AssertExtensions.assertThrows("Invalid qualified-segment-name.", () -> TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentInvalidSegmentName localhost", STATE.get()),
+        AssertExtensions.assertThrows("Invalid qualified-segment-name.", () -> TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentInvalidSegmentName", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testDeleteSegmentCommand() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", SETUP_UTILS.getServicePort());
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "deleteSegmentTest", StreamConfiguration.builder().build());
-        String commandResult = TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentTest/0.#epoch.0 localhost", STATE.get());
+        String commandResult = TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentTest/0.#epoch.0", STATE.get());
         Assert.assertTrue(commandResult.contains("deleted successfully"));
         // here trying to delete the already deleted segment
-        String commandResult2 = TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentTest/0.#epoch.0 localhost", STATE.get());
+        String commandResult2 = TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentTest/0.#epoch.0", STATE.get());
         Assert.assertTrue(commandResult2.contains("DeleteSegment failed"));
         Assert.assertNotNull(DeleteSegmentCommand.descriptor());
     }
@@ -486,28 +487,30 @@ public abstract class AbstractSegmentStoreCommandsTest {
     @Test
     public void testCreateSegmentCommandWithIncorrectArgs() throws Exception {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "createSegmentWrongArgTest", StreamConfiguration.builder().build());
-        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("segmentstore create-segment segmentstore/createSegmentWrongArgTest/0.#epoch.0", STATE.get()),
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("segmentstore create-segment segmentstore/createSegmentWrongArgTest/0.#epoch.0 localhost", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testCreateSegmentCommandInvalidSegmentName() throws Exception {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "createSegmentInvalidSegmentName", StreamConfiguration.builder().build());
-        AssertExtensions.assertThrows("Invalid qualified-segment-name", () -> TestUtils.executeCommand("segmentstore create-segment segmentstore/InvalidSegmentName localhost", STATE.get()),
+        AssertExtensions.assertThrows("Invalid qualified-segment-name", () -> TestUtils.executeCommand("segmentstore create-segment segmentstore/InvalidSegmentName", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testCreateSegmentAlreadyExist() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", SETUP_UTILS.getServicePort());
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "createSegmentAlreadyExist", StreamConfiguration.builder().build());
-        String commandResult = TestUtils.executeCommand("segmentstore create-segment segmentstore/createSegmentAlreadyExist/0.#epoch.0 localhost", STATE.get());
+        String commandResult = TestUtils.executeCommand("segmentstore create-segment segmentstore/createSegmentAlreadyExist/0.#epoch.0", STATE.get());
         Assert.assertTrue(commandResult.contains("already exists"));
     }
 
     @Test
     public void testCreateSegmentCommand() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", SETUP_UTILS.getServicePort());
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "createSegmentTest", StreamConfiguration.builder().build());
-        String commandResult = TestUtils.executeCommand("segmentstore create-segment segmentstore/createSegmentTest/5.#epoch.0 localhost", STATE.get());
+        String commandResult = TestUtils.executeCommand("segmentstore create-segment segmentstore/createSegmentTest/5.#epoch.0", STATE.get());
         Assert.assertTrue(commandResult.contains("created successfully"));
 
         Assert.assertNotNull(CreateSegmentCommand.descriptor());
