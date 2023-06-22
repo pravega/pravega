@@ -85,6 +85,8 @@ import io.pravega.segmentstore.storage.chunklayer.SnapshotInfoStore;
 import io.pravega.segmentstore.storage.chunklayer.UtilsWrapper;
 import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
+
+import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -119,6 +121,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region Members
     // Default buffer size of 1 MB.
     private static final int BUFFER_SIZE = 1048576;
+    private static final String COLON_SEPARATOR = ":";
     private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
             .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
     protected final StreamSegmentContainerMetadata metadata;
@@ -724,8 +727,30 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @Override
     public CompletableFuture<Void> flushToStorage(Duration timeout) {
-        LogFlusher flusher = new LogFlusher(this.metadata.getContainerId(), this.durableLog, this.writer, this.metadataCleaner, this.executor);
-        return flusher.flushToStorage(timeout);
+        val containerId = this.metadata.getContainerId();
+        log.info("{}: Starting flush to storage for container ID: {}", this.traceObjectId, containerId);
+        val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
+        val chunk = NameUtils.getContainerEpochFileName(containerId);
+        val epochBytes = serializeContainerEpoch(containerId);
+        val inputStream = new ByteArrayInputStream(epochBytes, 0, epochBytes.length);
+        val wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
+        val flusher = new LogFlusher(containerId, this.durableLog, this.writer, this.metadataCleaner, this.executor);
+        return flusher.flushToStorage(timeout).thenComposeAsync( v -> chunkedSegmentStorage.getChunkStorage().exists(chunk)
+                .thenComposeAsync(exists -> {
+                    if ( !exists ) {
+                        return chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.length, inputStream)
+                                .thenAccept( y -> log.debug("{}: Created epochInfo", this.traceObjectId));
+                    } else {
+                        return wrapper.overwriteChunk(chunk, inputStream, epochBytes.length).thenAccept(x -> log.debug("{}: Updated epochInfo", this.traceObjectId));
+                    }
+                }, this.executor)
+                .thenAcceptAsync( x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId)), this.executor);
+    }
+
+    private byte[] serializeContainerEpoch(int containerId) {
+        val epochInfo = containerId + COLON_SEPARATOR + this.metadata.getContainerEpoch();
+        val epochBytes = epochInfo.getBytes();
+        return epochBytes;
     }
 
     @SneakyThrows
