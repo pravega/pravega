@@ -73,7 +73,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * @param connector The {@link TableWriterConnector} that this instance will use to to access Table-related information.
      * @param executor  An Executor for async operations.
      */
-    WriterTableProcessor(@NonNull TableWriterConnector connector, @NonNull ScheduledExecutorService executor) {
+    protected WriterTableProcessor(@NonNull TableWriterConnector connector, @NonNull ScheduledExecutorService executor) {
         this.connector = connector;
         this.executor = executor;
         this.indexWriter = new IndexWriter(connector.getKeyHasher(), executor);
@@ -275,9 +275,19 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      */
     private void flushComplete(TableWriterFlushResult flushResult) {
         log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
-        this.aggregator.setLastIndexedOffset(flushResult.lastIndexedOffset);
+//        this.aggregator.setLastIndexedOffset(flushResult.lastIndexedOffset);
+        long lastIndexedOffset = this.aggregator.getLastIndexedOffset() >= flushResult.lastIndexedOffset? this.aggregator.getLastIndexedOffset():flushResult.lastIndexedOffset;
+        this.aggregator.setLastIndexedOffset(lastIndexedOffset);
         this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset(), flushResult.processedBytes);
     }
+
+    /**
+     *         if( this.aggregator.getLastIndexedOffset() >= flushResult.lastIndexedOffset) {
+     *             this.aggregator.setLastIndexedOffset(aggregator.getLastIndexedOffset());
+     *         } else {
+     *             this.aggregator.setLastIndexedOffset(flushResult.lastIndexedOffset);
+     *         }
+     */
 
     /**
      * Performs a single flush attempt.
