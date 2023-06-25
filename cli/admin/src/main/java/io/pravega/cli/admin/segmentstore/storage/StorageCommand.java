@@ -18,8 +18,12 @@ package io.pravega.cli.admin.segmentstore.storage;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.segmentstore.SegmentStoreCommand;
 
+/**
+ * Base class for LTS admin commands.
+ */
 public abstract class StorageCommand extends SegmentStoreCommand {
-    static final String COMPONENT = "storage";
+
+    public static final String COMPONENT = "storage";
 
     public StorageCommand(CommandArgs args) {
         super(args);

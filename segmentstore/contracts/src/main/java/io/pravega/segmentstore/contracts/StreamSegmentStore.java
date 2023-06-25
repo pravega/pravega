@@ -22,7 +22,7 @@ import java.util.concurrent.CompletableFuture;
  * Defines the StreamSegmentStore which is responsible for delegating the various
  * operations possible on a StreamSegment to their respective Container.
  */
-public interface StreamSegmentStore extends SegmentApi {
+public interface StreamSegmentStore extends SegmentApi, SegmentAdminApi {
 
     /**
      * Applies all outstanding operations in a particular SegmentContainer from the DurableLog into the underlying Storage.

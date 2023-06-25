@@ -61,4 +61,28 @@ public class AdminRequestProcessorAuthFailedTest {
         processor.listStorageChunks(new WireCommands.ListStorageChunks("dummy", "", 1));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
     }
+
+    @Test
+    public void checkChunkSanity() {
+        processor.checkChunkSanity(new WireCommands.CheckChunkSanity(0, "testChunk", 123, "", 1));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
+    }
+
+    @Test
+    public void evictStorageMetaDataCache() {
+        processor.evictStorageMetaDataCache(new WireCommands.EvictStorageMetaDataCache(0, "", 1));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
+    }
+
+    @Test
+    public void evictStorageReadIndexCache() {
+        processor.evictStorageReadIndexCache(new WireCommands.EvictStorageReadIndexCache(0, "", 1));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
+    }
+
+    @Test
+    public void evictStorageReadIndexCacheForSegment() {
+        processor.evictStorageReadIndexCacheForSegment(new WireCommands.EvictStorageReadIndexCacheForSegment(0, "dummy", "", 1));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
+    }
 }

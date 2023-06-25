@@ -32,10 +32,9 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import static io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor.TIMEOUT;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 
 @Slf4j
 @RunWith(SerializedClassRunner.class)
@@ -77,4 +76,90 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         processor.listStorageChunks(new WireCommands.ListStorageChunks("dummy", "", 1));
         order.verify(connection).send(new WireCommands.StorageChunksListed(1, List.of(chunkInfo)));
     }
+
+    @Test
+    public void testCheckChunkSanity() {
+        String chunkName = "testChunk";
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        when(store.checkChunkStorageSanity(anyInt(), anyString(), anyInt(), any())).thenReturn(CompletableFuture.completedFuture(null));
+
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
+
+        processor.checkChunkSanity(new WireCommands.CheckChunkSanity(1, "testChunk", 1, null, 123));
+        order.verify(connection).send(new WireCommands.ChunkSanityChecked(123));
+    }
+
+    @Test
+    public void testFailedArgumentCheckChunkSanity() {
+        String chunkName = "testChunk";
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        when(store.checkChunkStorageSanity(anyInt(), anyString(), anyInt(), any())).thenReturn(CompletableFuture.failedFuture(new IllegalArgumentException("test")));
+
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
+
+        processor.checkChunkSanity(new WireCommands.CheckChunkSanity(1, "testChunk", 1, null, 123));
+        order.verify(connection).send(new WireCommands.ErrorMessage(123, "testChunk", "test", WireCommands.ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION));
+    }
+
+    @Test
+    public void testFailedStateCheckChunkSanity() {
+        String chunkName = "testChunk";
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        doReturn(CompletableFuture.failedFuture(new IllegalStateException("test"))).when(store).checkChunkStorageSanity(anyInt(), anyString(), anyInt(), any());
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
+
+        processor.checkChunkSanity(new WireCommands.CheckChunkSanity(1, "testChunk", 1, null, 123));
+        order.verify(connection).send(new WireCommands.ErrorMessage(123, "testChunk", "test", WireCommands.ErrorMessage.ErrorCode.ILLEGAL_STATE_EXCEPTION));
+    }
+
+    @Test
+    public void testEvictStorageMetaDataCache() {
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        when(store.evictStorageMetaDataCache(anyInt(), any())).thenReturn(CompletableFuture.completedFuture(null));
+
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
+
+        processor.evictStorageMetaDataCache(new WireCommands.EvictStorageMetaDataCache(1, null, 123));
+        order.verify(connection).send(new WireCommands.StorageMetaDataCacheEvicted(123));
+    }
+
+    @Test
+    public void testEvictStorageReadIndexCache() {
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        when(store.evictStorageReadIndexCache(anyInt(), any())).thenReturn(CompletableFuture.completedFuture(null));
+
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
+
+        processor.evictStorageReadIndexCache(new WireCommands.EvictStorageReadIndexCache(1, null, 123));
+        order.verify(connection).send(new WireCommands.StorageReadIndexCacheEvicted(123));
+    }
+
+    @Test
+    public void testEvictStorageReadIndexCacheForSegment() {
+        String segmentName = "dummy";
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        when(store.evictStorageReadIndexCacheForSegment(anyInt(), anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
+
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
+
+        processor.evictStorageReadIndexCacheForSegment(new WireCommands.EvictStorageReadIndexCacheForSegment(1, "dummy", null, 123));
+        order.verify(connection).send(new WireCommands.StorageReadIndexCacheEvictedForSegment(123));
+    }
+
 }

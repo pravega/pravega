@@ -47,30 +47,16 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
-import io.pravega.segmentstore.server.CacheManager;
-import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.OperationLogFactory;
+import io.pravega.segmentstore.server.ReadIndexFactory;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
+import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.ContainerOfflineException;
-import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.IllegalContainerStateException;
-import io.pravega.segmentstore.server.OperationLog;
-import io.pravega.segmentstore.server.OperationLogFactory;
-import io.pravega.segmentstore.server.ReadIndex;
-import io.pravega.segmentstore.server.ReadIndexFactory;
-import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentContainerExtension;
-import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.SegmentMetadata;
-import io.pravega.segmentstore.server.SegmentMetadataComparer;
-import io.pravega.segmentstore.server.SegmentOperation;
-import io.pravega.segmentstore.server.ServiceListeners;
-import io.pravega.segmentstore.server.TestDurableDataLogFactory;
-import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.Writer;
-import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.WriterFlushResult;
-import io.pravega.segmentstore.server.WriterSegmentProcessor;
+import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
@@ -98,16 +84,35 @@ import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
+import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentMetadataComparer;
+import io.pravega.segmentstore.server.SegmentOperation;
+import io.pravega.segmentstore.server.SegmentContainerFactory;
+import io.pravega.segmentstore.server.TestDurableDataLogFactory;
+import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.server.WriterSegmentProcessor;
+import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.Writer;
+import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.ServiceListeners;
+import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -287,7 +292,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = createContext();
         context.container.startAsync().awaitRunning();
-
         // 1. Create the StreamSegments.
         ArrayList<String> segmentNames = createSegments(context);
         checkActiveSegments(context.container, 0);
@@ -2616,6 +2620,54 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
+    @Test(timeout = 30000)
+    public void testCheckChunkStorageSanity() {
+        val chunkName = "testChunk";
+        val dataSize = 10;
+        InMemorySimpleStorageFactory chunkSegmentStorageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory, metadataStore);
+        val durableLog = new AtomicReference<OperationLog>();
+        val durableLogFactory = new WatchableOperationLogFactory(context.operationLogFactory, durableLog::set);
+        @Cleanup
+        val container = new StreamSegmentContainer(CONTAINER_ID, DEFAULT_CONFIG, durableLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.newStorageFactory,
+                context.getDefaultExtensions(), executorService());
+        container.checkChunkStorageSanity(CONTAINER_ID, chunkName, dataSize, TIMEOUT).join();
+    }
+
+    @Test(timeout = 30000)
+    public void testEvictStorageMetaDataCache() throws Exception {
+        InMemorySimpleStorageFactory chunkSegmentStorageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory, metadataStore);
+        val container = (StreamSegmentContainer) context.container;
+        container.evictStorageMetaDataCache(CONTAINER_ID, TIMEOUT).join();
+    }
+
+    @Test(timeout = 30000)
+    public void testEvictStorageReadIndexCache() throws Exception {
+        InMemorySimpleStorageFactory chunkSegmentStorageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory, metadataStore);
+        val container = (StreamSegmentContainer) context.container;
+        container.evictStorageReadIndexCache(CONTAINER_ID, TIMEOUT).join();
+    }
+
+    @Test(timeout = 30000)
+    public void testEvictStorageReadIndexCacheForSegment() throws Exception {
+        val testSegmentName = "TestSegmentName";
+        InMemorySimpleStorageFactory chunkSegmentStorageFactory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService(), false);
+        val metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null, chunkSegmentStorageFactory, metadataStore);
+        val container = (StreamSegmentContainer) context.container;
+        container.evictStorageReadIndexCacheForSegment(CONTAINER_ID, testSegmentName, TIMEOUT).join();
+    }
+
     /**
      * Attempts to activate the targetSegment in the given Container. Since we do not have access to the internals of the
      * Container, we need to trigger this somehow, hence the need for this complex code. We need to trigger a truncation,
@@ -3082,6 +3134,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final CacheManager cacheManager;
         private final Storage storage;
 
+        private final SimpleStorageFactory newStorageFactory;
+
         TestContext(ContainerConfig config, SegmentContainerFactory.CreateExtensions createAdditionalExtensions) {
             this(config, DEFAULT_DURABLE_LOG_CONFIG, DEFAULT_WRITER_CONFIG, createAdditionalExtensions);
         }
@@ -3101,6 +3155,25 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     createExtensions(createAdditionalExtensions), executorService());
             this.container = this.containerFactory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = this.storageFactory.createStorageAdapter();
+            this.newStorageFactory = null;
+        }
+
+        TestContext(ContainerConfig config, DurableLogConfig durableLogConfig, WriterConfig writerConfig,
+                    SegmentContainerFactory.CreateExtensions createAdditionalExtensions, SimpleStorageFactory newStorageFactory, ChunkMetadataStore metadataStore) {
+
+            this.storageFactory = new WatchableInMemoryStorageFactory(executorService());
+            this.newStorageFactory = newStorageFactory;
+            this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
+            this.operationLogFactory = new DurableLogFactory(durableLogConfig, dataLogFactory, executorService());
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
+            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, executorService());
+            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, executorService());
+            this.writerFactory = new StorageWriterFactory(writerConfig, executorService());
+            this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory, this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.newStorageFactory,
+                    createExtensions(createAdditionalExtensions), executorService());
+            this.container = this.containerFactory.createStreamSegmentContainer(CONTAINER_ID);
+            this.storage = this.newStorageFactory.createStorageAdapter(CONTAINER_ID, metadataStore);
         }
 
         SegmentContainerFactory.CreateExtensions getDefaultExtensions() {
@@ -3404,7 +3477,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
     }
-
 
     private static class RefCountByteArraySegment extends ByteArraySegment {
         private final AtomicInteger refCount = new AtomicInteger();

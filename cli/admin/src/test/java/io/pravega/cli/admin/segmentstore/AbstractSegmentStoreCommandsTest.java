@@ -77,7 +77,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
     protected static final int CONTAINER_COUNT = 1;
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(6000, TimeUnit.SECONDS);
 
     private ClientConfig clientConfig;
 
@@ -455,6 +455,34 @@ public abstract class AbstractSegmentStoreCommandsTest {
                 STATE.get());
         Assert.assertTrue(commandResult.contains("dummy_field field does not exist."));
         Assert.assertTrue(commandResult.contains("No fields provided to modify."));
+    }
+
+    @Test
+    public void testCheckChunkStorageSanityCommand() throws Exception {
+        String commandResult = TestUtils.executeCommand("storage check-chunk-sanity localhost 0 test 100", STATE.get());
+        Assert.assertTrue(commandResult.contains("Chunk sanity checked for the Segment Container with containerId 0."));
+        Assert.assertNotNull(CheckChunkSanityCommand.descriptor());
+    }
+
+    @Test
+    public void testEvictStorageMetaDataCacheCommand() throws Exception {
+        String commandResult = TestUtils.executeCommand("storage evict-storage-meta-data-cache localhost 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("Meta Data Cache evicted for the Segment Container with containerId 0."));
+        Assert.assertNotNull(EvictStorageMetaDataCacheCommand.descriptor());
+    }
+
+    @Test
+    public void testEvictStorageReadIndexCacheCommand() throws Exception {
+        String commonResult = TestUtils.executeCommand("storage evict-storage-read-index-cache localhost 0", STATE.get());
+        Assert.assertTrue(commonResult.contains("Read Index Cache evicted for the Segment Container with containerId 0."));
+        Assert.assertNotNull(EvictStorageReadIndexCacheCommand.descriptor());
+    }
+
+    @Test
+    public void testEvictStorageReadIndexCacheForSegmentCommand() throws Exception {
+        String commonResult = TestUtils.executeCommand("storage evict-storage-read-index-cache localhost 0 testSegment", STATE.get());
+        Assert.assertTrue(commonResult.contains("Read Index Cache evicted for the Segment Container with containerId 0."));
+        Assert.assertNotNull(EvictStorageReadIndexCacheCommand.descriptor());
     }
 
     @After

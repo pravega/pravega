@@ -38,6 +38,18 @@ public enum WireCommandType {
     LIST_STORAGE_CHUNKS(-5, WireCommands.ListStorageChunks::readFrom),
     STORAGE_CHUNKS_LISTED(-6, WireCommands.StorageChunksListed::readFrom),
 
+    CHECK_CHUNK_SANITY(-7, WireCommands.CheckChunkSanity::readFrom),
+    CHUNK_SANITY_CHECKED(-8, WireCommands.ChunkSanityChecked::readFrom),
+
+    EVICT_STORAGE_METADATA_CACHE(-9, WireCommands.EvictStorageMetaDataCache::readFrom),
+    STORAGE_METADATA_CACHE_EVICTED(-10, WireCommands.StorageMetaDataCacheEvicted::readFrom),
+
+    EVICT_STORAGE_READINDEX_CACHE(-11, WireCommands.EvictStorageReadIndexCache::readFrom),
+    STORAGE_READINDEX_CACHE_EVICTED(-12, WireCommands.StorageReadIndexCacheEvicted::readFrom),
+
+    EVICT_STORAGE_READINDEX_CACHE_SEGMENT(-13, WireCommands.EvictStorageReadIndexCacheForSegment::readFrom),
+    STORAGE_READINDEX_CACHE_EVICTED_SEGMENT(-14, WireCommands.StorageReadIndexCacheEvictedForSegment::readFrom),
+
     EVENT(0, null), // Is read manually.
 
     SETUP_APPEND(1, WireCommands.SetupAppend::readFrom),

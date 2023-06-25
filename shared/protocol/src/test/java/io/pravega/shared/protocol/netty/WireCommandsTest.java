@@ -619,6 +619,46 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testCheckChunkSanity() throws IOException {
+        testCommand(new WireCommands.CheckChunkSanity(i, testString1, i, "", l));
+    }
+
+    @Test
+    public void testChunkSanityChecked() throws IOException {
+        testCommand(new WireCommands.ChunkSanityChecked(l));
+    }
+
+    @Test
+    public void testEvictStorageMetaDataCache() throws IOException {
+        testCommand(new WireCommands.EvictStorageMetaDataCache(i, "", l));
+    }
+
+    @Test
+    public void testMetaDataCacheEvicted() throws IOException {
+        testCommand(new WireCommands.StorageMetaDataCacheEvicted(l));
+    }
+
+    @Test
+    public void testEvictStorageReadIndexCache() throws IOException {
+        testCommand(new WireCommands.EvictStorageReadIndexCache(i, "", l));
+    }
+    
+    @Test
+    public void testReadIndexCacheEvicted() throws IOException {
+        testCommand(new WireCommands.StorageReadIndexCacheEvicted(l));
+    }
+
+    @Test
+    public void testEvictStorageReadIndexCacheForSegment() throws IOException {
+        testCommand(new WireCommands.EvictStorageReadIndexCacheForSegment(i, testString1, "", l));
+    }
+
+    @Test
+    public void testReadIndexCacheEvictedForSegment() throws IOException {
+        testCommand(new WireCommands.StorageReadIndexCacheEvictedForSegment(l));
+    }
+
+    @Test
     public void testReadSegment() throws IOException {
         testCommand(new WireCommands.ReadSegment(testString1, l, i, "", l));
     }

@@ -105,6 +105,38 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     }
 
     @Override
+    public CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize, Duration timeout) {
+        return invoke(
+                containerId,
+                container -> container.checkChunkStorageSanity(containerId, chunkName, dataSize, timeout),
+                "checkChunkStorageSanity", chunkName, dataSize);
+    }
+
+    @Override
+    public CompletableFuture<Void> evictStorageMetaDataCache(int containerId, Duration timeout) {
+        return invoke(
+                containerId,
+                container -> container.evictStorageMetaDataCache(containerId, timeout),
+                "evictMetaDataCache");
+    }
+
+    @Override
+    public CompletableFuture<Void> evictStorageReadIndexCache(int containerId, Duration timeout) {
+        return invoke(
+                containerId,
+                container -> container.evictStorageReadIndexCache(containerId, timeout),
+                "evictReadIndexCache");
+    }
+
+    @Override
+    public CompletableFuture<Void> evictStorageReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
+        return invoke(
+                containerId,
+                container -> container.evictStorageReadIndexCacheForSegment(containerId, segmentName, timeout),
+                "evictReadIndexCacheForSegment", segmentName);
+    }
+
+    @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         return invoke(
                 streamSegmentName,

@@ -89,6 +89,34 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
+    public CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize, Duration timeout) {
+        CompletableFuture<Void> result = impl.checkChunkStorageSanity(containerId, chunkName, dataSize, timeout);
+        Futures.await(result);
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<Void> evictStorageMetaDataCache(int containerId, Duration timeout) {
+        CompletableFuture<Void> result = impl.evictStorageMetaDataCache(containerId, timeout);
+        Futures.await(result);
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<Void> evictStorageReadIndexCache(int containerId, Duration timeout) {
+        CompletableFuture<Void> result = impl.evictStorageReadIndexCache(containerId, timeout);
+        Futures.await(result);
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<Void> evictStorageReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
+        CompletableFuture<Void> result = impl.evictStorageReadIndexCacheForSegment(containerId, segmentName, timeout);
+        Futures.await(result);
+        return result;
+    }
+
+    @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         CompletableFuture<ReadResult> result = impl.read(streamSegmentName, offset, maxLength, timeout);
         Futures.await(result);

@@ -82,7 +82,7 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.segmentIsSealed(new SegmentIsSealed(1, "", "", 1)));
         assertThrows(IllegalStateException.class, () -> rp.segmentIsTruncated(new SegmentIsTruncated(0, ":", 1, "", 2)));
         assertThrows(IllegalStateException.class, () -> rp.segmentPolicyUpdated(new SegmentPolicyUpdated(0, "")));
-        assertThrows(IllegalStateException.class, () -> rp.segmentRead(new SegmentRead("", 1, true, false, null, 0)));
+        assertThrows(IllegalStateException.class, () -> rp.segmentRead(new SegmentRead("", 1, true, false, null, 1)));
         assertThrows(IllegalStateException.class, () -> rp.segmentSealed(new SegmentSealed(0, "")));
         assertThrows(IllegalStateException.class, () -> rp.segmentsMerged(new SegmentsMerged(0, "", "", 2)));
         assertThrows(IllegalStateException.class, () -> rp.segmentTruncated(new SegmentTruncated(0, "")));
@@ -98,9 +98,13 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.tableRead(new TableRead(0, "", null)));
         assertThrows(IllegalStateException.class, () -> rp.tableSegmentNotEmpty(new TableSegmentNotEmpty(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.wrongHost(new WrongHost(0, "", "", "")));
-        assertThrows(IllegalStateException.class, () -> rp.errorMessage(new ErrorMessage(0, "", "", ErrorMessage.ErrorCode.UNSPECIFIED)));
+        assertThrows(IllegalStateException.class, () -> rp.errorMessage(new ErrorMessage(0, "", "", ErrorMessage.ErrorCode.ILLEGAL_STATE_EXCEPTION)));
         assertThrows(IllegalStateException.class, () -> rp.storageFlushed(new StorageFlushed(0)));
         assertThrows(IllegalStateException.class, () -> rp.storageChunksListed(new WireCommands.StorageChunksListed(0, new ArrayList<>())));
+        assertThrows(IllegalStateException.class, () -> rp.chunkSanityChecked(new WireCommands.ChunkSanityChecked(0)));
+        assertThrows(IllegalStateException.class, () -> rp.metaDataCacheEvicted(new WireCommands.StorageMetaDataCacheEvicted(0)));
+        assertThrows(IllegalStateException.class, () -> rp.readIndexCacheEvicted(new WireCommands.StorageReadIndexCacheEvicted(0)));
+        assertThrows(IllegalStateException.class, () -> rp.readIndexCacheEvictedForSegment(new WireCommands.StorageReadIndexCacheEvictedForSegment(0)));
     }
 
 }

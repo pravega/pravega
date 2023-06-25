@@ -442,7 +442,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         AssertExtensions.assertBlocks(() -> output.write(PendingEvent.withoutHeader(null, getBuffer("test3"), new CompletableFuture<>())),
                                       () -> cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0)));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test4"), new CompletableFuture<>()));
-        
+
         Append append1 = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null, output.getRequestId());
         Append append2 = new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(getBuffer("test2")), null, output.getRequestId());
         Append append3 = new Append(SEGMENT, cid, 3, 1, Unpooled.wrappedBuffer(getBuffer("test3")), null, output.getRequestId());
@@ -455,7 +455,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         inOrder.verify(connection).sendAsync(eq(ImmutableList.of(append1, append2)), any());
         inOrder.verify(connection).send(append3);
         inOrder.verify(connection).send(append4);
-        
         verifyNoMoreInteractions(connection);
     }
 
@@ -537,7 +536,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
-        
         CompletableFuture<Void> acked2 = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked2));
         order.verify(connection).send(new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
@@ -744,11 +742,10 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                 return null;
             }
         }).when(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
-        
-        AssertExtensions.assertBlocks(() -> {            
+        AssertExtensions.assertBlocks(() -> {
             output.write(PendingEvent.withoutHeader(null, data, acked));
             output.write(PendingEvent.withoutHeader(null, data, acked2));
-        }, () -> {            
+        }, () -> {
             cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         });
         inOrder.verify(connection).send(append);
@@ -844,7 +841,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
-        
         //Prep mock: the mockito doAnswers setup below are triggered during the close inside of the testBlocking() call.
         CompletableFuture<Void> acked = new CompletableFuture<>();
         Append append = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId());
@@ -862,7 +858,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                 callback.complete(null);
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any()); 
+        }).when(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
         //Queue up event.
         output.write(PendingEvent.withoutHeader(null, data, acked));
         inOrder.verify(connection).send(append);
@@ -1116,7 +1112,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                           cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
                                       });
         output.write(PendingEvent.withoutHeader(null, getBuffer("test4"), new CompletableFuture<>()));
-        
         Append append1 = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null, output.getRequestId());
         Append append2 = new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(getBuffer("test2")), null, output.getRequestId());
         Append append3 = new Append(SEGMENT, cid, 3, 1, Unpooled.wrappedBuffer(getBuffer("test3")), null, output.getRequestId());
@@ -1132,7 +1127,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         inOrder.verify(connection).sendAsync(eq(ImmutableList.of(append1, append2)), any());
         inOrder.verify(connection).send(append3);
         inOrder.verify(connection).send(append4);
-        
         verifyNoMoreInteractions(connection);
     }
 
@@ -1182,7 +1176,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, ack.isDone());
     }
-    
+
     @Test(timeout = 10000)
     public void testNoSuchSegment() throws Exception {
         UUID cid = UUID.randomUUID();

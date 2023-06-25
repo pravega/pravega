@@ -146,6 +146,77 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
                 .exceptionally(ex -> handleException(listStorageChunks.getRequestId(), segment, operation, ex));
     }
 
+    @Override
+    public void checkChunkSanity(WireCommands.CheckChunkSanity checkChunkSanity) {
+        final String operation = "CheckChunkSanity";
+        final String chunkName = checkChunkSanity.getChunkName();
+        final int containerId = checkChunkSanity.getContainerId();
+        final int dataSize = checkChunkSanity.getDataSize();
+
+        if (!verifyToken(chunkName, checkChunkSanity.getRequestId(), checkChunkSanity.getDelegationToken(), operation)) {
+            return;
+        }
+
+        long trace = LoggerHelpers.traceEnter(log, operation, checkChunkSanity);
+        getSegmentStore().checkChunkStorageSanity(containerId, chunkName, dataSize, TIMEOUT)
+                .thenAccept(v -> {
+                    LoggerHelpers.traceLeave(log, operation, trace);
+                    getConnection().send(new WireCommands.ChunkSanityChecked(checkChunkSanity.getRequestId()));
+                }).exceptionally(ex -> handleException(checkChunkSanity.getRequestId(), chunkName, operation, ex));
+    }
+
+    @Override
+    public void evictStorageMetaDataCache(WireCommands.EvictStorageMetaDataCache evictStorageMetaDataCache) {
+        final String operation = "EvictMetaDataCache";
+        final int containerId = evictStorageMetaDataCache.getContainerId();
+
+        if (!verifyToken(null, evictStorageMetaDataCache.getRequestId(), evictStorageMetaDataCache.getDelegationToken(), operation)) {
+            return;
+        }
+
+        long trace = LoggerHelpers.traceEnter(log, operation, evictStorageMetaDataCache);
+        getSegmentStore().evictStorageMetaDataCache(containerId, TIMEOUT)
+                .thenAccept(v -> {
+                    LoggerHelpers.traceLeave(log, operation, trace);
+                    getConnection().send(new WireCommands.StorageMetaDataCacheEvicted(evictStorageMetaDataCache.getRequestId()));
+                }).exceptionally(ex -> handleException(evictStorageMetaDataCache.getRequestId(), null, operation, ex));
+    }
+
+    @Override
+    public void evictStorageReadIndexCache(WireCommands.EvictStorageReadIndexCache evictStorageReadIndexCache) {
+        final String operation = "EvictReadIndexCache";
+        final int containerId = evictStorageReadIndexCache.getContainerId();
+
+        if (!verifyToken(null, evictStorageReadIndexCache.getRequestId(), evictStorageReadIndexCache.getDelegationToken(), operation)) {
+            return;
+        }
+
+        long trace = LoggerHelpers.traceEnter(log, operation, evictStorageReadIndexCache);
+        getSegmentStore().evictStorageReadIndexCache(containerId, TIMEOUT)
+                .thenAccept(v -> {
+                    LoggerHelpers.traceLeave(log, operation, trace);
+                    getConnection().send(new WireCommands.StorageReadIndexCacheEvicted(evictStorageReadIndexCache.getRequestId()));
+                }).exceptionally(ex -> handleException(evictStorageReadIndexCache.getRequestId(), null, operation, ex));
+    }
+
+    @Override
+    public void evictStorageReadIndexCacheForSegment(WireCommands.EvictStorageReadIndexCacheForSegment evictStorageReadIndexCacheForSegment) {
+        final String operation = "EvictReadIndexCacheForSegment";
+        final int containerId = evictStorageReadIndexCacheForSegment.getContainerId();
+        final String segmentName = evictStorageReadIndexCacheForSegment.getSegmentName();
+
+        if (!verifyToken(segmentName, evictStorageReadIndexCacheForSegment.getRequestId(), evictStorageReadIndexCacheForSegment.getDelegationToken(), operation)) {
+            return;
+        }
+
+        long trace = LoggerHelpers.traceEnter(log, operation, evictStorageReadIndexCacheForSegment);
+        getSegmentStore().evictStorageReadIndexCacheForSegment(containerId, segmentName, TIMEOUT)
+                .thenAccept(v -> {
+                    LoggerHelpers.traceLeave(log, operation, trace);
+                    getConnection().send(new WireCommands.StorageReadIndexCacheEvictedForSegment(evictStorageReadIndexCacheForSegment.getRequestId()));
+                }).exceptionally(ex -> handleException(evictStorageReadIndexCacheForSegment.getRequestId(), segmentName, operation, ex));
+    }
+
     //endregion
 
     private WireCommands.ChunkInfo convertToChunkInfo(ExtendedChunkInfo extendedChunkInfo) {

@@ -467,7 +467,6 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfo(String streamSegmentName, Duration timeout) {
             return null;
         }
-
         //endregion
     }
 

@@ -58,11 +58,14 @@ import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
 import io.pravega.cli.admin.dataRecovery.TableSegmentRecoveryCommand;
 import io.pravega.cli.admin.password.PasswordFileCreatorCommand;
 import io.pravega.cli.admin.readerGroup.ParseReaderGroupStreamCommand;
-import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
+import io.pravega.cli.admin.segmentstore.CheckChunkSanityCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
-import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
+import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
+import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
+import io.pravega.cli.admin.segmentstore.EvictStorageMetaDataCacheCommand;
+import io.pravega.cli.admin.segmentstore.EvictStorageReadIndexCacheCommand;
 import io.pravega.cli.admin.segmentstore.storage.ListChunksCommand;
 import io.pravega.cli.admin.segmentstore.storage.StorageUpdateSnapshotCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentEntryCommand;
@@ -308,9 +311,17 @@ public abstract class AdminCommand {
         return getArg(index, String::toString);
     }
 
+    protected String getArg(int index, String defaultValue) {
+        String retValue = getArg(index, String::toString);
+        return retValue != null ? retValue : defaultValue;
+    }
+
     private <T> T getArg(int index, Function<String, T> converter) {
         String s = null;
         try {
+            if (this.commandArgs.getArgs().size() <= index) {
+              return null;
+            }
             s = this.commandArgs.getArgs().get(index);
             return converter.apply(s);
         } catch (Exception ex) {
@@ -414,6 +425,9 @@ public abstract class AdminCommand {
                         .put(ControllerMetadataUpdateEntryCommand::descriptor, ControllerMetadataUpdateEntryCommand::new)
                         .put(ControllerMetadataViewReaderInfoCommand::descriptor, ControllerMetadataViewReaderInfoCommand::new)
                         .put(ListChunksCommand::descriptor, ListChunksCommand::new)
+                        .put(CheckChunkSanityCommand::descriptor, CheckChunkSanityCommand::new)
+                        .put(EvictStorageMetaDataCacheCommand::descriptor, EvictStorageMetaDataCacheCommand::new)
+                        .put(EvictStorageReadIndexCacheCommand::descriptor, EvictStorageReadIndexCacheCommand::new)
                         .put(ControllerMetadataViewPendingEventsCommand::descriptor, ControllerMetadataViewPendingEventsCommand::new)
                         .build());
 

@@ -27,20 +27,20 @@ import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.AttributeId;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
+import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
+import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
-import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
-import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
-import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
@@ -109,6 +109,7 @@ import lombok.val;
 
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage.getReference;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -230,7 +231,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> initializeStorage() {
         log.info("{}: Initializing storage.", this.traceObjectId);
         this.storage.initialize(this.metadata.getContainerEpoch());
-        val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
+        val chunkedSegmentStorage = getReference(this.storage);
         if (null != chunkedSegmentStorage) {
             val snapshotInfoStore = getStorageSnapshotInfoStore();
             // Bootstrap
@@ -314,7 +315,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
         // are not required for accepting new operations and can still start in the background.
         delayedStart.thenComposeAsync(v -> {
-                    val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
+                    val chunkedSegmentStorage = getReference(this.storage);
                     if (null != chunkedSegmentStorage) {
                         return chunkedSegmentStorage.finishBootstrap();
                     }
@@ -735,6 +736,39 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
         return wrapper.getExtendedChunkInfoList(streamSegmentName, true);
     }
+
+    @SneakyThrows
+    @Override
+    public CompletableFuture<Void> checkChunkStorageSanity(int containerId, String chunkName, int dataSize, Duration timeout) {
+        val chunkedSegmentStorage = getReference(this.storage);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
+        return wrapper.checkChunkSegmentStorageSanity(chunkName, 10);
+    }
+
+    @SneakyThrows
+    @Override
+    public CompletableFuture<Void> evictStorageMetaDataCache(int containerId, Duration timeout) {
+        val chunkedSegmentStorage = getReference(this.storage);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
+        return wrapper.evictMetadataCache();
+    }
+
+    @SneakyThrows
+    @Override
+    public CompletableFuture<Void> evictStorageReadIndexCache(int containerId, Duration timeout) {
+        val chunkedSegmentStorage = getReference(this.storage);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
+        return wrapper.evictReadIndexCache();
+    }
+
+    @SneakyThrows
+    @Override
+    public CompletableFuture<Void> evictStorageReadIndexCacheForSegment(int containerId, String segmentName, Duration timeout) {
+        val chunkedSegmentStorage = getReference(this.storage);
+        UtilsWrapper wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
+        return wrapper.evictReadIndexCacheForSegment(segmentName);
+    }
+
 
     //endregion
 

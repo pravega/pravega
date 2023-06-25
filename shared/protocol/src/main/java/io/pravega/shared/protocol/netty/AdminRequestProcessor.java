@@ -33,4 +33,32 @@ public interface AdminRequestProcessor extends RequestProcessor {
      * @param listStorageChunks {@link WireCommand} call to list storage chunks for the given segment.
      */
     void listStorageChunks(WireCommands.ListStorageChunks listStorageChunks);
+
+    /**
+     * Call to check the sanity of the chunk for the given chunkName.
+     *
+     * @param checkChunkSanity {@link WireCommand} call to list storage chunks for the given segment.
+     */
+    void checkChunkSanity(WireCommands.CheckChunkSanity checkChunkSanity);
+
+    /**
+     * Call to evict all eligible entries from buffer cache and all entries from guava cache.
+     *
+     * @param evictStorageMetaDataCache {@link WireCommand} call for evicting all entries from cache.
+     */
+    void evictStorageMetaDataCache(WireCommands.EvictStorageMetaDataCache evictStorageMetaDataCache);
+
+    /**
+     * Call to evict entire read index cache.
+     *
+     * @param evictStorageReadIndexCache {@link WireCommand} call for evicting entire ReadIndexCache.
+     */
+    void evictStorageReadIndexCache(WireCommands.EvictStorageReadIndexCache evictStorageReadIndexCache);
+
+    /**
+     * Call to evict entire read index cache for given segment.
+     *
+     * @param evictStorageReadIndexCacheForSegment {@link WireCommand} call for evicting entire read index cache for given segment.
+     */
+    void evictStorageReadIndexCacheForSegment(WireCommands.EvictStorageReadIndexCacheForSegment evictStorageReadIndexCacheForSegment);
 }

@@ -24,15 +24,15 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.Retry;
-import io.pravega.segmentstore.contracts.AttributeId;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
-import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
-import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
-import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
@@ -233,6 +233,5 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     private <T> CompletableFuture<T> unsupported(String methodName) {
         return Futures.failedFuture(new UnsupportedOperationException(methodName + " is unsupported on " + getClass().getSimpleName()));
     }
-
     //endregion
 }

@@ -1094,7 +1094,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else {
             logError(requestId, segment, operation, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
-            throw new IllegalStateException("Unknown exception.", u);
+            throw new RuntimeException("Unknown exception.", u);
         }
 
         return null;
@@ -1102,7 +1102,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private boolean errorCodeExists(Throwable e) {
         ErrorCode errorCode = WireCommands.ErrorMessage.ErrorCode.valueOf(e.getClass());
-        return errorCode != WireCommands.ErrorMessage.ErrorCode.UNSPECIFIED;
+        return errorCode != ErrorCode.UNSPECIFIED;
     }
 
     private void logError(long requestId, String segment, String operation, Throwable u) {
