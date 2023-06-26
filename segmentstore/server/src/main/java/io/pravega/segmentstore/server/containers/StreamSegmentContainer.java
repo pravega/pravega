@@ -234,11 +234,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         if (null != chunkedSegmentStorage) {
             val snapshotInfoStore = getStorageSnapshotInfoStore();
             // Bootstrap
-            StorageEventProcessor eventProcessor = new StorageEventProcessor(this.metadata.getContainerId(),
-                    this.containerEventProcessor,
-                    batch -> chunkedSegmentStorage.getGarbageCollector().processBatch(batch),
-                    chunkedSegmentStorage.getConfig().getGarbageCollectionMaxConcurrency());
-            return chunkedSegmentStorage.bootstrap(snapshotInfoStore, eventProcessor);
+            return chunkedSegmentStorage.bootstrap(snapshotInfoStore);
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -316,7 +312,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         delayedStart.thenComposeAsync(v -> {
                     val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
                     if (null != chunkedSegmentStorage) {
-                        return chunkedSegmentStorage.finishBootstrap();
+                        StorageEventProcessor eventProcessor = new StorageEventProcessor(this.metadata.getContainerId(),
+                                this.containerEventProcessor,
+                                batch -> chunkedSegmentStorage.getGarbageCollector().processBatch(batch),
+                                chunkedSegmentStorage.getConfig().getGarbageCollectionMaxConcurrency());
+                        return chunkedSegmentStorage.finishBootstrap(eventProcessor);
                     }
                     return CompletableFuture.completedFuture(null);
                 }, this.executor)

@@ -203,6 +203,11 @@ public final class NameUtils {
     private static final String SYSJOURNAL_SNAPSHOT_NAME_FORMAT = INTERNAL_CONTAINER_PREFIX + "_sysjournal.epoch%d.container%d.snapshot%d";
 
     /**
+     * Format for Container System snapshot file name.
+     */
+    private static final String SYSJOURNAL_SNAPSHOT_INFO_NAME_FORMAT = INTERNAL_CONTAINER_PREFIX + "_sysjournal.container%d.snapshot_info";
+
+    /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
      */
     private static final int TRANSACTION_PART_LENGTH = Long.BYTES * 8 / 4;
@@ -518,6 +523,15 @@ public final class NameUtils {
      */
     public static String getSystemJournalSnapshotFileName(int containerId, long epoch, long currentSnapshotIndex) {
         return String.format(SYSJOURNAL_SNAPSHOT_NAME_FORMAT, epoch, containerId, currentSnapshotIndex);
+    }
+
+    /**
+     * Gets file name of SystemJournal snapshot info file for given container instance.
+     * @param containerId The Id of the Container.
+     * @return File name of SystemJournal for given container instance
+     */
+    public static String getSystemJournalSnapshotInfoFileName(int containerId) {
+        return String.format(SYSJOURNAL_SNAPSHOT_INFO_NAME_FORMAT, containerId);
     }
 
     /**
