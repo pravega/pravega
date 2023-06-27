@@ -1,12 +1,12 @@
 /**
  * Copyright Pravega Authors.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,38 +14,39 @@
  * limitations under the License.
  */
 package io.pravega.common.util;
-
-import java.util.List;
+import java.util.function.Function;
 
 /**
  * TO-DO.
  */
 public class NewtonianSearch {
-    @FunctionalInterface
-    public interface DensityFunction<T> {
-        double getDensity(T item);
-    }
+    public static <T, R extends Comparable<R>> int newtonianSearch(Function<T, R> valueExtractor, R targetValue,
+                                                                   int lowerBoundIndex, int upperBoundIndex) {
+        int low = lowerBoundIndex;
+        int high = upperBoundIndex;
 
-    @SuppressWarnings("unchecked")
-    public static <T> int newtonianSearch(List<? extends Comparable<? super T>> list,
-                                          DensityFunction<T> densityFunction, T key) {
-        int lowerBound = 0;
-        int upperBound = list.size() - 1;
+        while (low <= high) {
+            int mid = interpolate(low, high, valueExtractor.apply((T) Integer.valueOf(low)),
+                    valueExtractor.apply((T) Integer.valueOf(high)), targetValue);
 
-        while (lowerBound <= upperBound) {
-            int mid = (lowerBound + upperBound) >>> 1;
-            Comparable<? super T> midVal = list.get(mid);
-            double midDensity = densityFunction.getDensity((T) midVal);
-            double keyDensity = densityFunction.getDensity(key);
+            R midValue = valueExtractor.apply((T) Integer.valueOf(mid));
+            int cmp = midValue.compareTo(targetValue);
 
-            if (midDensity < keyDensity) {
-                lowerBound = mid + 1;
-            } else if (midDensity > keyDensity) {
-                upperBound = mid - 1;
-            } else {
-                return mid; // Key found
-            }
+            if (cmp < 0)
+                low = mid + 1;
+            else if (cmp > 0)
+                high = mid - 1;
+            else
+                return mid;
         }
-        return -(lowerBound + 1); // Key not found
+
+        return -(low + 1);
     }
+
+    private static <T, R extends Comparable<R>> int interpolate(int low, int high, R lowValue, R highValue,
+                                                                R targetValue) {
+        return low
+                + (int) (((double) (targetValue.compareTo(lowValue)) / (highValue.compareTo(lowValue))) * (high - low));
+    }
+
 }
