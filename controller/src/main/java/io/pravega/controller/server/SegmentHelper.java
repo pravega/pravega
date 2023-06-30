@@ -546,22 +546,13 @@ public class SegmentHelper implements AutoCloseable {
                                                    final List<TableSegmentKey> keys,
                                                    String delegationToken,
                                                    final long clientRequestId) {
-
-        return removeTableKeys(tableName, ModelHelper.encode(uri), keys, delegationToken, clientRequestId);
-    }
-
-    public CompletableFuture<Void> removeTableKeys(final String tableName,
-                                                   PravegaNodeUri uri,
-                                                   final List<TableSegmentKey> keys,
-                                                   String delegationToken,
-                                                   final long clientRequestId) {
         final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
         List<WireCommands.TableKey> keyList = keys.stream().map(x -> {
             WireCommands.TableKey key = convertToWireCommand(x);
             return key;
         }).collect(Collectors.toList());
 
-        RawClient connection = new RawClient(uri, connectionPool);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(
