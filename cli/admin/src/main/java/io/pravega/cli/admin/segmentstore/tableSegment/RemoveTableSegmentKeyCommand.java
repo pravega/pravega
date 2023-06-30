@@ -20,7 +20,6 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.client.tables.impl.HashTableIteratorItem;
 import io.pravega.client.tables.impl.TableSegmentKey;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -28,7 +27,7 @@ import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Executes a RemoveTableSegmentKey request for the requested segment and its key
+ * Executes a RemoveTableSegmentKey request for the requested segment and its key.
  */
 public class RemoveTableSegmentKeyCommand extends TableSegmentCommand {
 
