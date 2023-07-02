@@ -197,6 +197,9 @@ public final class NameUtils {
      */
     private static final String SYSJOURNAL_NAME_FORMAT = INTERNAL_CONTAINER_PREFIX + "_sysjournal.epoch%d.container%d.file%d";
 
+
+    private static final String CONTAINER_EPOCH_FILE = INTERNAL_CONTAINER_PREFIX + "epoch_%d";
+
     /**
      * Format for Container System snapshot file name.
      */
@@ -512,6 +515,12 @@ public final class NameUtils {
     public static String getSystemJournalFileName(int containerId, long epoch, long currentFileIndex) {
         return String.format(SYSJOURNAL_NAME_FORMAT, epoch, containerId, currentFileIndex);
     }
+
+    public static String getContainerEpochFileName(int containerId) {
+        return String.format(CONTAINER_EPOCH_FILE, containerId);
+    }
+
+
 
 
     /**

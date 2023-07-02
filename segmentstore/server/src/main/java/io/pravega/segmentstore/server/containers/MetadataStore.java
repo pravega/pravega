@@ -127,6 +127,10 @@ public abstract class MetadataStore implements AutoCloseable {
      */
     abstract CompletableFuture<Void> initialize(Duration timeout);
 
+
+
+    abstract CompletableFuture<Void> recover(SegmentProperties segmentProperties, Duration timeout);
+
     //endregion
 
     //region Create Segments

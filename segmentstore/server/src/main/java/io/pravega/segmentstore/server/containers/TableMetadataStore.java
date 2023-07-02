@@ -24,16 +24,13 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateType;
-import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.*;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
@@ -100,6 +97,38 @@ class TableMetadataStore extends MetadataStore {
         // Container Metadata Segment is a System Table Segment. It is System, Internal, and Critical.
         val segmentType = SegmentType.builder().tableSegment().system().critical().internal().build();
         return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, segmentType, attributeUpdates), true, timeout)
+                .thenAccept(segmentId -> {
+                    this.initialized.set(true);
+                    log.info("{}: Metadata Segment pinned. Name = '{}', Id = '{}'", this.traceObjectId, this.metadataSegmentName, segmentId);
+                });
+    }
+
+    public CompletableFuture<Void> recover(SegmentProperties segmentProperties, Duration timeout) {
+        Preconditions.checkState(!this.initialized.get(), "TableMetadataStore is already initialized.");
+
+        val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
+        attributes.putAll(this.config.getDefaultCompactionAttributes()); // Make sure we enable rollover for this segment.
+        val segmentType = SegmentType.builder().tableSegment().system().critical().internal().build();
+        attributes.put(Attributes.ATTRIBUTE_SEGMENT_TYPE, segmentType.getValue());
+
+        StreamSegmentInformation properties = StreamSegmentInformation.builder()
+                .length(segmentProperties.getLength())
+                .name(segmentProperties.getName())
+                .sealed(segmentProperties.isSealed())
+                .deleted(segmentProperties.isDeleted())
+                .startOffset(segmentProperties.getStartOffset())
+                .storageLength(segmentProperties.getLength())
+                .deletedInStorage(segmentProperties.isDeleted())
+                .lastModified(segmentProperties.getLastModified())
+                .attributes(attributes)
+                .build();
+
+        SegmentInfo info = SegmentInfo.builder()
+                .segmentId(ContainerMetadata.NO_STREAM_SEGMENT_ID)
+                .properties(properties)
+                .build();
+
+        return submitAssignment(info, true, timeout)
                 .thenAccept(segmentId -> {
                     this.initialized.set(true);
                     log.info("{}: Metadata Segment pinned. Name = '{}', Id = '{}'", this.traceObjectId, this.metadataSegmentName, segmentId);

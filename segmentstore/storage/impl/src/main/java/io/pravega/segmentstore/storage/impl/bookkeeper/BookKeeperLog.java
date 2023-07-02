@@ -750,7 +750,7 @@ class BookKeeperLog implements DurableDataLog {
      * @throws DataLogInitializationException If an Exception (other than NoNodeException) occurred.
      */
     @VisibleForTesting
-    LogMetadata loadMetadata() throws DataLogInitializationException {
+    public LogMetadata loadMetadata() throws DataLogInitializationException {
         try {
             Stat storingStatIn = new Stat();
             byte[] serializedMetadata = this.zkClient.getData().storingStatIn(storingStatIn).forPath(this.logNodePath);

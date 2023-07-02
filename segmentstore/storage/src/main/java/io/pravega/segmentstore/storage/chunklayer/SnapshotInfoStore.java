@@ -26,7 +26,6 @@ import java.util.function.Supplier;
 /**
  * Stores {@link SnapshotInfo}.
  */
-@Data
 @RequiredArgsConstructor
 public class SnapshotInfoStore {
     private final long containerId;

@@ -78,5 +78,10 @@ public interface OperationLog extends Container {
      * while attempting to start (including it shutting down), this Future will be completed with the appropriate exception.
      */
     CompletableFuture<Void> awaitOnline();
+
+    /**
+     *
+     */
+    boolean isInitialized();
 }
 

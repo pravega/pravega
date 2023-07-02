@@ -134,6 +134,8 @@ public interface DurableDataLog extends AutoCloseable {
      */
     WriteSettings getWriteSettings();
 
+    ReadOnlyLogMetadata loadMetadata() throws DataLogInitializationException;
+
     /**
      * Gets a value indicating the current Epoch of this DurableDataLog.
      * <p>

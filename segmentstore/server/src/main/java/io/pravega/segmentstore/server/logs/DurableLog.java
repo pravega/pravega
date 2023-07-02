@@ -37,11 +37,8 @@ import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperatio
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
-import io.pravega.segmentstore.storage.DataLogCorruptedException;
-import io.pravega.segmentstore.storage.DataLogDisabledException;
-import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.DurableDataLogFactory;
-import io.pravega.segmentstore.storage.LogAddress;
+import io.pravega.segmentstore.storage.*;
+
 import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -292,6 +289,14 @@ public class DurableLog extends AbstractService implements OperationLog {
     public boolean isOffline() {
         return !this.delayedStart.isDone();
     }
+
+   public boolean isInitialized() {
+       try {
+           return this.durableDataLog.loadMetadata() == null;
+       } catch (DataLogInitializationException e) {
+           return false;
+       }
+   }
 
     //endregion
 
