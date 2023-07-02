@@ -44,14 +44,7 @@ import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.reading.ContainerReadIndex;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
-import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.segmentstore.storage.LogAddress;
-import io.pravega.segmentstore.storage.QueueStats;
-import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.ThrottleSourceListener;
-import io.pravega.segmentstore.storage.WriteSettings;
+import io.pravega.segmentstore.storage.*;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
@@ -1151,6 +1144,11 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Override
         public WriteSettings getWriteSettings() {
             return new WriteSettings(1024 * 1024, Duration.ofMinutes(1), Integer.MAX_VALUE);
+        }
+
+        @Override
+        public ReadOnlyLogMetadata loadMetadata() throws DataLogInitializationException {
+            throw new DataLogInitializationException("Unsupported operation");
         }
 
         @Override

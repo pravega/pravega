@@ -20,16 +20,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.CompositeArrayView;
-import io.pravega.segmentstore.storage.DataLogDisabledException;
-import io.pravega.segmentstore.storage.DataLogInitializationException;
-import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
-import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.segmentstore.storage.LogAddress;
-import io.pravega.segmentstore.storage.QueueStats;
-import io.pravega.segmentstore.storage.ThrottleSourceListener;
-import io.pravega.segmentstore.storage.WriteSettings;
-import io.pravega.segmentstore.storage.WriteTooLongException;
+import io.pravega.segmentstore.storage.*;
+
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
@@ -131,6 +123,11 @@ class InMemoryDurableDataLog implements DurableDataLog {
     @Override
     public WriteSettings getWriteSettings() {
         return new WriteSettings(this.entries.getMaxAppendSize(), Duration.ofMinutes(1), Integer.MAX_VALUE);
+    }
+
+    @Override
+    public ReadOnlyLogMetadata loadMetadata() throws DataLogInitializationException {
+        throw new DataLogInitializationException("Unsupported Operation");
     }
 
     @Override

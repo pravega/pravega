@@ -20,11 +20,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.contracts.AttributeId;
-import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.*;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.test.common.AssertExtensions;
@@ -308,6 +304,11 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
 
         @Override
         CompletableFuture<Void> initialize(Duration timeout) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        CompletableFuture<Void> recover(SegmentProperties segmentProperties, Duration timeout) {
             return CompletableFuture.completedFuture(null);
         }
 

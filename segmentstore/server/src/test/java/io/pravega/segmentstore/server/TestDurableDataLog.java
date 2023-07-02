@@ -18,12 +18,7 @@ package io.pravega.segmentstore.server;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.CompositeArrayView;
-import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.segmentstore.storage.LogAddress;
-import io.pravega.segmentstore.storage.QueueStats;
-import io.pravega.segmentstore.storage.ThrottleSourceListener;
-import io.pravega.segmentstore.storage.WriteSettings;
+import io.pravega.segmentstore.storage.*;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.test.common.ErrorInjector;
 import java.time.Duration;
@@ -115,6 +110,11 @@ public class TestDurableDataLog implements DurableDataLog {
     @Override
     public WriteSettings getWriteSettings() {
         return this.wrappedLog.getWriteSettings();
+    }
+
+    @Override
+    public ReadOnlyLogMetadata loadMetadata() throws DataLogInitializationException {
+        throw new DataLogInitializationException("Unsupported Operation");
     }
 
     @Override

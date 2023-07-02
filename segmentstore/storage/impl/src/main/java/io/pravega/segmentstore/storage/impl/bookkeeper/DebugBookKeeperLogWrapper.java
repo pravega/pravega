@@ -375,6 +375,11 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         }
 
         @Override
+        public ReadOnlyLogMetadata loadMetadata() throws DataLogInitializationException {
+            throw new DataLogInitializationException("Unsupported operation");
+        }
+
+        @Override
         public long getEpoch() {
             return this.logMetadata.getEpoch();
         }
