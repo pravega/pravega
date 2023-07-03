@@ -138,6 +138,11 @@ public final class NameUtils {
     private static final String ATTRIBUTE_SUFFIX = "$attributes.index";
 
     /**
+     * This is appended to the end of the Segment name to indicate it stores its index metadata.
+     */
+    private static final String INDEX_SEGMENT_SUFFIX = "$index";
+
+    /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its Rolling Storage Header.
      */
     private static final String HEADER_SUFFIX = "$header";
@@ -649,6 +654,27 @@ public final class NameUtils {
         sb.append(EPOCH_DELIMITER);
         sb.append(epoch);
         return sb.toString();
+    }
+
+    /**
+     * Checks whether the given name is an Index Segment or not.
+     *
+     * @param segmentName   The name of the segment.
+     * @return              True if the segment is an index Segment, false otherwise.
+     */
+    public static boolean isIndexSegment(String segmentName) {
+        return segmentName.endsWith(INDEX_SEGMENT_SUFFIX);
+    }
+
+    /**
+     * Gets the name of the index-Segment mapped to the given Segment Name that is responsible with storing index metadata.
+     *
+     * @param segmentName The name of the Segment to get the index segment name for.
+     * @return The result.
+     */
+    public static String getIndexSegmentName(String segmentName) {
+        Preconditions.checkArgument(!isIndexSegment(segmentName), "segmentName is already an index segment name");
+        return segmentName + INDEX_SEGMENT_SUFFIX;
     }
 
     /**

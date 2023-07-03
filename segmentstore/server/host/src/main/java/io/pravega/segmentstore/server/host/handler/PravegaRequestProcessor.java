@@ -126,7 +126,9 @@ import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 import static io.pravega.common.function.Callbacks.invokeSafely;
+import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
+import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.segmentstore.contracts.Attributes.ROLLOVER_SIZE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
@@ -134,6 +136,7 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
+import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -474,6 +477,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
         segmentStore.createStreamSegment(createStreamSegment.getSegment(), SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
+                    .thenCompose(result -> createIndexSegment(createStreamSegment.getSegment()))
                     .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
                     .whenComplete((res, e) -> {
                     if (e == null) {
@@ -483,6 +487,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         handleException(createStreamSegment.getRequestId(), createStreamSegment.getSegment(), operation, e);
                     }
                 });
+    }
+
+    private CompletableFuture<Void> createIndexSegment(final String segmentName) {
+        Collection<AttributeUpdate> attributes = Arrays.asList(
+                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
+                new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 0L)
+        );
+       return segmentStore.createStreamSegment(getIndexSegmentName(segmentName), SegmentType.STREAM_SEGMENT,
+               attributes, TIMEOUT);
     }
 
     @Override
