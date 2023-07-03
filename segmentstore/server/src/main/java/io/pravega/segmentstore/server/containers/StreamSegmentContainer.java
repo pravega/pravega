@@ -243,7 +243,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Long> readContainerEpoch() {
-
+        log.info("Reading container epoch from file");
         return CompletableFuture.completedFuture(2L);
 //        val snapshotInfoFileName = NameUtils.getSystemJournalSnapshotInfoFileName(this.getId());
 //        UtilsWrapper wrapper = new UtilsWrapper((ChunkedSegmentStorage) this.storage,BUFFER_SIZE, this.config.getMetadataStoreInitTimeout() );
@@ -296,7 +296,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     protected void doStart() {
         log.info("{}: Starting.", this.traceObjectId);
-        isDurableLogInitialized();
+        setDurableLogInitialized();
         Services.startAsync(this.durableLog, this.executor)
                 .thenComposeAsync(v -> startWhenDurableLogOnline(), this.executor)
                 .whenComplete((v, ex) -> {
@@ -309,7 +309,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     /**
      *
      */
-    private void isDurableLogInitialized() {
+    private void setDurableLogInitialized() {
        if( this.durableLog.isInitialized()) {
             this.isDurableLogInitialized.set(true);
        }
@@ -387,7 +387,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Boolean> shouldRecoverFromLTS() {
-        String chunkName = NameUtils.getContainerEpochFileName(this.getId());
+        String chunkName = NameUtils.getSystemJournalSnapshotInfoFileName(this.getId());
         return ((ChunkedSegmentStorage) storage).getChunkStorage().exists(chunkName)
                 .thenComposeAsync( doesExist -> {
                     boolean recover = this.isDurableLogInitialized.get() && doesExist;

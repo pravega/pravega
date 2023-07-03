@@ -106,6 +106,7 @@ class TableMetadataStore extends MetadataStore {
     public CompletableFuture<Void> recover(SegmentProperties segmentProperties, Duration timeout) {
         Preconditions.checkState(!this.initialized.get(), "TableMetadataStore is already initialized.");
 
+        log.info("container metadata segment {} recovered with length {}", segmentProperties.getName(), segmentProperties.getLength());
         val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
         attributes.putAll(this.config.getDefaultCompactionAttributes()); // Make sure we enable rollover for this segment.
         val segmentType = SegmentType.builder().tableSegment().system().critical().internal().build();
