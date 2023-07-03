@@ -25,7 +25,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+
 import lombok.Data;
+import lombok.NonNull;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -143,5 +146,46 @@ public class CollectionHelpersTests {
     @Data
     private static class TestElement {
         private final long element;
+    }
+
+    @Data
+    private static class IndexSegment {
+        private long timestamp;
+        private long offset;
+
+        public IndexSegment(long timestamp, int offset) {
+            this.timestamp = timestamp;
+            this.offset = offset;
+        }
+    }
+
+    @Test
+    public void testNewtonianSearchIndexFound() {
+        List<IndexSegment> segmentList = getIndexSegmentList();
+        int targetTImeStamp = 1698000;
+        Function<Integer, Long> valueExtractor = index -> segmentList.get(index).getTimestamp();
+        int resultIndex = CollectionHelpers.newtonianSearch(valueExtractor, targetTImeStamp, 0, segmentList.size() - 1);
+        assertEquals(2, resultIndex);
+    }
+
+    @Test
+    public void testNewtonianSearchIndexNotFound() {
+        List<IndexSegment> segmentList = getIndexSegmentList();
+        int targetTImeStamp = 169000;
+        Function<Integer, Long> valueExtractor = index -> segmentList.get(index).getTimestamp();
+        int resultIndex = CollectionHelpers.newtonianSearch(valueExtractor, targetTImeStamp, 0, segmentList.size() - 1);
+        System.out.println("resultIndex::" + resultIndex);
+        assertEquals(-1, resultIndex);
+    }
+
+    @NonNull
+    private List<IndexSegment> getIndexSegmentList() {
+        List<IndexSegment> segmentList = new ArrayList<IndexSegment>();
+        segmentList.add(new IndexSegment(1697600, 100));
+        segmentList.add(new IndexSegment(1697800, 200));
+        segmentList.add(new IndexSegment(1698000, 300));
+        segmentList.add(new IndexSegment(1698200, 400));
+        segmentList.add(new IndexSegment(1698400, 500));
+        return segmentList;
     }
 }

@@ -283,5 +283,50 @@ public final class CollectionHelpers {
         }
     }
 
+    /**
+     * Perform the lookups in the index segment to locate the desired index entry.
+     *
+     * @param valueExtractor    find the desired index by iterating the index segment.
+     * @param targetValue       lookup time stamp which suppose to find the index.
+     * @param lowerBoundIndex   lower Bound index.
+     * @param upperBoundIndex   upper bound index.
+     * @return The index of the desired item, or -1 if not found.
+     */
+    public static int newtonianSearch(Function<Integer, Long> valueExtractor, long targetValue, int lowerBoundIndex,
+                                      int upperBoundIndex) {
+        while (lowerBoundIndex <= upperBoundIndex) {
+            int midIndex = interpolate(lowerBoundIndex, upperBoundIndex, valueExtractor.apply(lowerBoundIndex),
+                    valueExtractor.apply(upperBoundIndex), targetValue);
+            if (midIndex < 0) {
+                return -1;
+            } else {
+                long midValue = valueExtractor.apply(midIndex);
+                long cmp = Long.valueOf(midValue).compareTo(Long.valueOf(targetValue));
+                if (cmp < 0) {
+                    lowerBoundIndex = midIndex + 1;
+                } else if (cmp > 0) {
+                    upperBoundIndex = midIndex - 1;
+                } else {
+                    return midIndex;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * This linear interpolation formula, used for estimating the value of a function between any two known values .
+     *
+     * @param low               starting index of the segment.
+     * @param high              last index of the segment.
+     * @param lowValue          value at @low index.
+     * @param highValue         value @high index.
+     * @param targetValue       looked up value
+     * @return The index of the desired index, or Negative value if not found.
+     */
+    private static int interpolate(int low, int high, Long lowValue, Long highValue, Long targetValue) {
+        return low + (targetValue.compareTo(lowValue)) / (highValue.compareTo(lowValue)) * (high - low);
+    }
+
     //endregion
 }
