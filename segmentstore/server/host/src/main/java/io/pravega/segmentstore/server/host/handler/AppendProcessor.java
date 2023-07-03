@@ -244,12 +244,19 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
      */
     @Override
     public void append(Append append) {
+        //TODO: check from where this value is to be read, that we can use for validation.
+        int expectedIndexRecordSize = 0;
+        String indexSegIdentifier = ".Ix";
         long traceId = LoggerHelpers.traceEnter(log, "append", append);
         UUID id = append.getWriterId();
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
         Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
+        if (append.getSegment().contains(indexSegIdentifier)) { // checks only in case of the index segment appends // TODO: check on the naming convention for index segments
+            Preconditions.checkArgument(appendLength == expectedIndexRecordSize,
+                    "Expected record/event size for the index append operation is (%s).", expectedIndexRecordSize);
+        }
         this.connection.adjustOutstandingBytes(appendLength);
         Timer timer = new Timer();
         storeAppend(append, previousEventNumber)

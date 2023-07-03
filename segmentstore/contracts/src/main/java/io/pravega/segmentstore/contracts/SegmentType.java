@@ -41,6 +41,10 @@ public class SegmentType {
      * General Transient Segment with no special roles.
      */
     public static final SegmentType TRANSIENT_SEGMENT = SegmentType.builder().transientSegment().build();
+    /**
+     * Index segment, for associating with Stream Segment, with no special roles.
+     */
+    public static final SegmentType INDEX_SEGMENT = SegmentType.builder().index().build();
 
     //endregion
 
@@ -66,6 +70,9 @@ public class SegmentType {
     static final long ROLE_CRITICAL = 0b0100_0000L;
     @VisibleForTesting
     static final long ROLE_TRANSIENT = 0b1000_0000L;
+    // TODO: check if this is needed
+    @VisibleForTesting
+    static final long ROLE_INDEX = 0b1000_0001L;
     private final long flags;
 
     //endregion
@@ -156,6 +163,17 @@ public class SegmentType {
         return (this.flags & ROLE_CRITICAL) == ROLE_CRITICAL;
     }
 
+    /**
+     * Whether this {@link SegmentType} refers to a Segment (regardless of Format) that is required for the functioning
+     * of the stream segment, as it is associated with it.
+     *
+     * @return True if an index Segment, false otherwise.
+     */
+    // TODO: check on this, do we need role?
+    public boolean isIndex() {
+        return (this.flags & ROLE_INDEX) == ROLE_INDEX;
+    }
+
     @Override
     public String toString() {
         StringBuilder result = new StringBuilder();
@@ -180,6 +198,10 @@ public class SegmentType {
 
         if (isInternal()) {
             result.append(", Internal");
+        }
+
+        if (isIndex()) {
+            result.append(", Index");
         }
 
         return result.toString();
@@ -282,6 +304,11 @@ public class SegmentType {
 
         public Builder internal() {
             this.flags |= ROLE_INTERNAL;
+            return this;
+        }
+
+        public Builder index() {
+            this.flags |= ROLE_INDEX;
             return this;
         }
 

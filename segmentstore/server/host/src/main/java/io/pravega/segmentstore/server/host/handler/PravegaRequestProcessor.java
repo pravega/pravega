@@ -150,6 +150,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final String EMPTY_STACK_TRACE = "";
+    private static final String INDEX_SEGMENT_IDENTIFIER = ".Ix";
     @Getter(AccessLevel.PROTECTED)
     private final StreamSegmentStore segmentStore;
     private final TableStore tableStore;
@@ -474,6 +475,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
         segmentStore.createStreamSegment(createStreamSegment.getSegment(), SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
+                .thenAccept(v -> createIndexSegment(createStreamSegment.getSegment() + INDEX_SEGMENT_IDENTIFIER, attributes)) // this will create the index segment
                     .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
                     .whenComplete((res, e) -> {
                     if (e == null) {
@@ -483,6 +485,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         handleException(createStreamSegment.getRequestId(), createStreamSegment.getSegment(), operation, e);
                     }
                 });
+    }
+
+    private CompletableFuture<Void> createIndexSegment(String segment,  Collection<AttributeUpdate> attributes) {
+        return segmentStore.createStreamSegment(segment, SegmentType.INDEX_SEGMENT, attributes, TIMEOUT);
     }
 
     @Override
@@ -629,6 +635,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(deleteSegment.getRequestId(), "Deleting segment {} ", deleteSegment);
         segmentStore.deleteStreamSegment(segment, TIMEOUT)
+                // this is to delete the index segment
+                .thenAccept(v -> segmentStore.deleteStreamSegment(segment + INDEX_SEGMENT_IDENTIFIER, TIMEOUT))
                 .thenRun(() -> {
                     connection.send(new SegmentDeleted(deleteSegment.getRequestId(), segment));
                     this.statsRecorder.deleteSegment(segment);
