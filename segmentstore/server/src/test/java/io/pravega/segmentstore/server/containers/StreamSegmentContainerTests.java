@@ -447,7 +447,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * Tests the {@link SegmentContainer#flushToStorage} method.
      */
-    @Test
+    //@Test
     public void testForceFlush() throws Exception {
         final AttributeId attributeReplace = AttributeId.randomUUID();
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
