@@ -772,7 +772,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                                 }
                                             }, executor);
                                 } else {
-                                    log.info("4 Creating new file: " + chunk);
+                                    log.info("4 Creating new file: " + chunk + " with Epoch info: " + epochInfo);
                                     return chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(), inputStream)
                                             .thenAccept(y -> log.debug("{}: Created epochInfo", this.traceObjectId));
                                 }
@@ -823,7 +823,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         val readAtOffset = new AtomicLong(0);
         byte[] readBuffer = new byte[readLength];
         return chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(chunk), readAtOffset.get(), readBuffer.length, readBuffer, 0)
-                .thenApplyAsync( v -> new EpochInfo(v.longValue()));
+                .thenApplyAsync( v -> {
+                    try {
+                        return EPOCH_INFO_SERIALIZER.deserialize(readBuffer);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
     }
 
     @SneakyThrows
