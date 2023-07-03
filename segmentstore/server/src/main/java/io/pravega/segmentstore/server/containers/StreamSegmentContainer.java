@@ -25,7 +25,6 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
 import io.pravega.segmentstore.contracts.AttributeId;
@@ -128,6 +127,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     // Default buffer size of 1 MB.
     private static final int BUFFER_SIZE = 1048576;
     private static final int MAX_FLUSH_ATTEMPTS = 10;
+    private static final EpochInfo.Serializer EPOCH_INFO_SERIALIZER = new EpochInfo.Serializer();
     private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
             .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
     protected final StreamSegmentContainerMetadata metadata;
@@ -146,7 +146,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final Map<Class<? extends SegmentContainerExtension>, ? extends SegmentContainerExtension> extensions;
     private final ContainerConfig config;
 
-    private static final EpochInfo.Serializer EPOCH_INFO_SERIALIZER = new EpochInfo.Serializer();
 
     //endregion
 

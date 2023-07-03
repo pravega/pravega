@@ -536,7 +536,7 @@ public final class NameUtils {
         return String.format(CONTAINER_EPOCH_INFO, containerId);
     }
   
-     /**
+    /**
      * Gets file name of SystemJournal snapshot info file for given container instance.
      * @param containerId The Id of the Container.
      * @return File name of SystemJournal for given container instance
