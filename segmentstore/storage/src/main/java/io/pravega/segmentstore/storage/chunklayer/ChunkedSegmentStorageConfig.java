@@ -66,6 +66,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
     public static final Property<Boolean> SELF_CHECK_DATA_INTEGRITY = Property.named("self.check.integrity.data", false);
     public static final Property<Boolean> SELF_CHECK_METADATA_INTEGRITY = Property.named("self.check.integrity.metadata", false);
+    public static final Property<Boolean> SELF_CHECK_SNAPSHOT_INTEGRITY = Property.named("self.check.integrity.snapshot", false);
 
     public static final Property<Long> MAX_SAFE_SIZE = Property.named("safe.size.bytes.max", Long.MAX_VALUE);
     public static final Property<Boolean> ENABLE_SAFE_SIZE_CHECK = Property.named("safe.size.check.enable", true);
@@ -301,6 +302,12 @@ public class ChunkedSegmentStorageConfig {
     final private boolean selfCheckForMetadataEnabled;
 
     /**
+     * When enabled, SLTS will perform extra validation for snapshot.
+     */
+    @Getter
+    final private boolean selfCheckForSnapshotEnabled;
+
+    /**
      * Maximum storage size in bytes below which operations are considered safe.
      * Above this value any non-critical writes are not allowed.
      */
@@ -349,6 +356,7 @@ public class ChunkedSegmentStorageConfig {
         this.selfCheckEnabled = properties.getBoolean(SELF_CHECK_ENABLED);
         this.selfCheckForDataEnabled = properties.getBoolean(SELF_CHECK_DATA_INTEGRITY);
         this.selfCheckForMetadataEnabled = properties.getBoolean(SELF_CHECK_METADATA_INTEGRITY);
+        this.selfCheckForSnapshotEnabled = properties.getBoolean(SELF_CHECK_SNAPSHOT_INTEGRITY);
         this.indexBlockSize = properties.getPositiveLong(READ_INDEX_BLOCK_SIZE);
         this.maxEntriesInTxnBuffer = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_BUFFER);
         this.maxEntriesInCache = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_CACHE);

@@ -61,6 +61,7 @@ public class FileSystemIntegrationTest extends BookKeeperIntegrationTestBase {
                                 .garbageCollectionDelay(Duration.ofMillis(10))
                                 .garbageCollectionSleep(Duration.ofMillis(10))
                                 .selfCheckEnabled(true)
+                                .selfCheckForSnapshotEnabled(true)
                                 .build(),
                                 setup.getConfig(FileSystemStorageConfig::builder),
                                 setup.getStorageExecutor()))
