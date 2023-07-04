@@ -323,7 +323,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      * segments and update their attributes. The data and attributes for each of the segment are verified to validate the
      * recovery process.
      */
-    //@Test
+    @Test
     public void testDataRecoveryContainerLevel() throws Exception {
         int attributesUpdatesPerSegment = 50;
         int segmentsCount = 10;

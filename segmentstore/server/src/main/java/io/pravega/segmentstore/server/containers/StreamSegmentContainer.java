@@ -743,6 +743,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Void> saveEpochInfo(Duration timeout) {
+        if (!(storage instanceof ChunkedSegmentStorage)) {
+            return CompletableFuture.completedFuture(null);
+        }
         val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
         val chunk = NameUtils.getContainerEpochFileName(this.metadata.getContainerId());
         val epochInfo = new EpochInfo(this.metadata.getContainerEpoch());
