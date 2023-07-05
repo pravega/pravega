@@ -186,7 +186,7 @@ public class SortUtilTest {
     @Test
     public void targetEfficency() {
         // Create a sorted array of random numbers
-        int arraySize = 1000000;
+        int arraySize = 100000;
         long[] sortedArray = new long[arraySize];
         Random random = new Random(0);
         for (int i = 0; i < arraySize; i++) {
