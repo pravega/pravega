@@ -519,11 +519,6 @@ public abstract class AbstractSegmentStoreCommandsTest {
     @Test
     public void testRemoveTableSegmentKeysCommandIncorrectKey() throws Exception {
         TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", SETUP_UTILS.getServicePort());
-        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
-        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
-        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
-        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
-
         String tableSegmentName = getMetadataSegmentName(0);
         String key = "invalidKey";
         String commandResult = TestUtils.executeCommand("table-segment remove-key " + tableSegmentName + " " + key, STATE.get());
@@ -533,11 +528,6 @@ public abstract class AbstractSegmentStoreCommandsTest {
     @Test
     public void testRemoveTableSegmentKeysCommand() throws Exception {
         TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", SETUP_UTILS.getServicePort());
-        String setSerializerResult = TestUtils.executeCommand("table-segment set-serializer container_meta", STATE.get());
-        Assert.assertTrue(setSerializerResult.contains("Serializers changed to container_meta successfully."));
-        Assert.assertTrue(STATE.get().getKeySerializer() instanceof ContainerKeySerializer);
-        Assert.assertTrue(STATE.get().getValueSerializer() instanceof ContainerMetadataSerializer);
-
         String tableSegmentName = getMetadataSegmentName(0);
         String key = "_system/_RGkvtStreamReaders/0.#epoch.0";
         String commandResult = TestUtils.executeCommand("table-segment remove-key " + tableSegmentName + " " + key, STATE.get());

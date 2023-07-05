@@ -43,7 +43,6 @@ public class RemoveTableSegmentKeyCommand extends TableSegmentCommand {
     @Override
     public void execute() {
         ensureArgCount(2);
-        ensureSerializersExist();
 
         final String fullyQualifiedTableSegmentName = getArg(0);
         final String key = getArg(1);
@@ -58,7 +57,7 @@ public class RemoveTableSegmentKeyCommand extends TableSegmentCommand {
 
             TableSegmentKey keysList = getKeysReply.join().getItems()
                     .stream()
-                    .filter(tableSegmentKey -> getCommandArgs().getState().getKeySerializer().deserialize(getByteBuffer(tableSegmentKey.getKey())).equals(key))
+                    .filter(tableSegmentKey -> tableSegmentKey.getKey().toString(Charsets.UTF_8).equals(key))
                     .findFirst().orElse(null);
 
             if (keysList != null) {
@@ -75,7 +74,7 @@ public class RemoveTableSegmentKeyCommand extends TableSegmentCommand {
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "remove-key", "Removes table segment key. Use the command \"table-segment set-serializer <serializer-name>\" to use the appropriate serializer before using this command.",
+        return new CommandDescriptor(COMPONENT, "remove-key", "Removes table segment key.",
                 new ArgDescriptor("qualified-table-segment-name", "Fully qualified name of the table segment."),
                 new ArgDescriptor("key", "The key which is to be removed."));
     }
