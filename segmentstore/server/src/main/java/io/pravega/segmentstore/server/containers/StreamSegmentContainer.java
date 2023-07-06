@@ -759,34 +759,27 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     () -> !isDone.get(),
                     () -> chunkedSegmentStorage.getChunkStorage().exists(chunk)
                             .thenComposeAsync( exists -> {
-                                log.info("1 inside exists checking if exists :" + exists);
                                 if (exists) {
                                     return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength())
                                             .thenComposeAsync(savedEpoch -> {
-                                                log.info("1.1 Read epoch info :" + savedEpoch);
                                                 if (savedEpoch.getEpoch() > epochInfo.getEpoch()) {
-                                                    log.info("2 zombie trying to write :" + savedEpoch.getEpoch() + " new epoch " + epochInfo.getEpoch());
                                                     return CompletableFuture.failedFuture(
                                                             new IllegalContainerStateException(String.format("Unexpected epoch. Expected = {} actual = {}", epochInfo, savedEpoch)));
                                                 } else {
-                                                    log.info("3 Overwriting chunk as it already exists " + chunk);
                                                     return wrapper.overwriteChunk(chunk, inputStream, epochBytes.getLength())
-                                                            .thenAccept(x -> log.debug("{}: Updated epochInfo", this.traceObjectId));
+                                                            .thenAccept(x -> log.debug("{}: Updated epochInfo {}", this.traceObjectId, epochInfo));
                                                 }
                                             }, executor);
                                 } else {
-                                    log.info("4 Creating new file: " + chunk + " with Epoch info: " + epochInfo);
                                     return chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(), inputStream)
                                             .thenAccept(y -> log.debug("{}: Created epochInfo", this.traceObjectId));
                                 }
                             }, this.executor)
                             .thenAcceptAsync( v -> log.debug("Epoch info saved to epochInfoFile. File {}. info = {}", chunk, epochInfo))
                             .thenComposeAsync( v -> {
-                                log.info("5 Reading file : return readEpochInfo(chunk, chunkedSegmentStorage, timeout) " + chunk);
                                 return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength());
                             }, executor)
                             .thenApplyAsync( readBackInfo -> {
-                                log.info("6 Read and compare readBackInfo.getEpoch(): " + readBackInfo.getEpoch() + " new epoch: " + epochInfo.getEpoch());
                                 if (readBackInfo.getEpoch() > epochInfo.getEpoch()) {
                                     return CompletableFuture.failedFuture(
                                             new IllegalContainerStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
