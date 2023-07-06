@@ -253,6 +253,8 @@ public final class NameUtils {
      */
     private static final String CONTAINER_EVENT_PROCESSOR_SEGMENT_NAME = INTERNAL_CONTAINER_PREFIX + "event_processor_%s_%d";
 
+    private static final String CONTAINER_EPOCH_INFO = INTERNAL_CONTAINER_PREFIX + "container_%d_epoch";
+
     //endregion
 
     /**
@@ -525,6 +527,15 @@ public final class NameUtils {
         return String.format(SYSJOURNAL_SNAPSHOT_NAME_FORMAT, epoch, containerId, currentSnapshotIndex);
     }
 
+    /**
+     * Gets file name of ContainerEpochInfo for the given container instance.
+     * @param containerId The Id of the Container.
+     * @return File name of ContainerEpochInfo for given container instance
+     */
+    public static String getContainerEpochFileName(int containerId) {
+        return String.format(CONTAINER_EPOCH_INFO, containerId);
+    }
+  
     /**
      * Gets file name of SystemJournal snapshot info file for given container instance.
      * @param containerId The Id of the Container.
