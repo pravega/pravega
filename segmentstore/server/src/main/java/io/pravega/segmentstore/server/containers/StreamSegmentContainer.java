@@ -775,7 +775,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                             .thenAccept(y -> log.debug("{}: Created epochInfo", this.traceObjectId));
                                 }
                             }, this.executor)
-                            .thenAcceptAsync( v -> log.debug("Epoch info saved to epochInfoFile. File {}. info = {}", chunk, epochInfo))
+                            .thenAcceptAsync( v -> log.debug("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo))
                             .thenComposeAsync( v -> {
                                 return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength());
                             }, executor)
@@ -794,17 +794,17 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                 if (null != e) {
                                     val ex = Exceptions.unwrap(e);
                                     if (ex instanceof IllegalContainerStateException) {
-                                        log.warn("Error while saving epoch info to file {}. info = {}", chunk, epochInfo, e);
+                                        log.warn("{}: Error while saving epoch info to file {}. info = {}", this.traceObjectId, chunk, epochInfo, e);
                                         throw new CompletionException(e);
                                     }
                                     if (attempts.incrementAndGet() > MAX_FLUSH_ATTEMPTS) {
-                                        log.warn("All attempts exhausted while saving epoch to File = {}. info = {}", chunk, epochInfo, e);
+                                        log.warn("{}: All attempts exhausted while saving epoch to File = {}. info = {}", this.traceObjectId, chunk, epochInfo, e);
                                         throw new CompletionException(e);
                                     }
-                                    log.warn("Error while saving epoch info to LTS. File = {}. info = {}", chunk, epochInfo, e);
+                                    log.warn("{}: Error while saving epoch info to LTS. File = {}. info = {}", this.traceObjectId, chunk, epochInfo, e);
                                 } else {
                                     // No exception we are done
-                                    log.info("Epoch info saved successfully. info = {}", chunk);
+                                    log.info("{}: Epoch info saved successfully. info = {}", this.traceObjectId, chunk);
                                     isDone.set(true);
                                 }
                                 return null;
