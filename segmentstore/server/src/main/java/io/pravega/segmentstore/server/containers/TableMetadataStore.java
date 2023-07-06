@@ -109,6 +109,7 @@ class TableMetadataStore extends MetadataStore {
         log.info("container metadata segment {} recovered with length {}", segmentProperties.getName(), segmentProperties.getLength());
         val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
         attributes.putAll(this.config.getDefaultCompactionAttributes()); // Make sure we enable rollover for this segment.
+        attributes.put(TableAttributes.INDEX_OFFSET, segmentProperties.getLength());
         val segmentType = SegmentType.builder().tableSegment().system().critical().internal().build();
         attributes.put(Attributes.ATTRIBUTE_SEGMENT_TYPE, segmentType.getValue());
 

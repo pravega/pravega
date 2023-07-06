@@ -245,7 +245,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         Exceptions.checkArgument(value >= 0, "value", "Length must be a non-negative number.");
         Exceptions.checkArgument(value >= this.length, "value", "New Length cannot be smaller than the previous one.");
 
-        log.trace("{}: Length changed from {} to {}.", this.traceObjectId, this.length, value);
+        log.info("{}: Length changed from {} to {} for {}", this.traceObjectId, this.length, value, this.name);
         this.length = value;
     }
 
