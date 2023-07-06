@@ -738,17 +738,17 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         log.info("{}: Starting flush to storage for container ID: {}", this.traceObjectId, containerId);
         val flusher = new LogFlusher(containerId, this.durableLog, this.writer, this.metadataCleaner, this.executor);
         return flusher.flushToStorage(timeout)
-                .thenComposeAsync( v -> saveEpochInfo(timeout), this.executor)
+                .thenComposeAsync( v -> saveEpochInfo(containerId, this.metadata.getContainerEpoch(), timeout), this.executor)
                 .thenAcceptAsync(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
     }
 
-    private CompletableFuture<Void> saveEpochInfo(Duration timeout) {
+    private CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, Duration timeout) {
         if (!(storage instanceof ChunkedSegmentStorage)) {
             return CompletableFuture.completedFuture(null);
         }
         val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
-        val chunk = NameUtils.getContainerEpochFileName(this.metadata.getContainerId());
-        val epochInfo = new EpochInfo(this.metadata.getContainerEpoch());
+        val chunk = NameUtils.getContainerEpochFileName(containerId);
+        val epochInfo = new EpochInfo(containerEpoch);
         val wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
         val isDone = new AtomicBoolean(false);
         val attempts = new AtomicInteger();
@@ -817,7 +817,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private CompletableFuture<EpochInfo> readEpochInfo(String chunk, ChunkedSegmentStorage chunkedSegmentStorage, int readLength) {
         val readAtOffset = new AtomicLong(0);
-        byte[] readBuffer = new byte[readLength];
+        val readBuffer = new byte[readLength];
         return chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(chunk), readAtOffset.get(), readBuffer.length, readBuffer, 0)
                 .thenApplyAsync( v -> {
                     try {

@@ -25,7 +25,7 @@ import lombok.Data;
 import java.io.IOException;
 
 /**
- * Basic info about Epoch.
+ * Basic info about Container epoch.
  */
 @Data
 @Builder
