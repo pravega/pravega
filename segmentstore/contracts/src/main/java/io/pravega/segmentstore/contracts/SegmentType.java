@@ -159,8 +159,7 @@ public class SegmentType {
     public boolean isCritical() {
         return (this.flags & ROLE_CRITICAL) == ROLE_CRITICAL;
     }
-
-
+    
     @Override
     public String toString() {
         StringBuilder result = new StringBuilder();
