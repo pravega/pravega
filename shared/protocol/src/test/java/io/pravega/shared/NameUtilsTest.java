@@ -85,6 +85,15 @@ public class NameUtilsTest {
     }
 
     @Test
+    public void testIndexSegmentName() {
+        String scope = "scope";
+        String stream = "stream";
+        String qualifiedStreamSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, 0L);
+        String indexSegmentName = NameUtils.getIndexSegmentName(qualifiedStreamSegmentName);
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateStreamName(indexSegmentName));
+    }
+
+    @Test
     public void testStreamNameVerifier() {
         NameUtils.validateStreamName("_systemstream123");
         NameUtils.validateStreamName("stream123");

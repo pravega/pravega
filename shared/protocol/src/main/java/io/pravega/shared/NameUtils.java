@@ -140,7 +140,7 @@ public final class NameUtils {
     /**
      * This is appended to the end of the Segment name to indicate it stores its index metadata.
      */
-    private static final String INDEX_SEGMENT_SUFFIX = "$index";
+    private static final String INDEX_SEGMENT_SUFFIX = "#index";
 
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its Rolling Storage Header.
