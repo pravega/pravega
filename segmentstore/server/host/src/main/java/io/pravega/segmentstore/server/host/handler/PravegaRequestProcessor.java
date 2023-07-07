@@ -134,6 +134,7 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
+import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -150,7 +151,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final String EMPTY_STACK_TRACE = "";
-    private static final String INDEX_SEGMENT_IDENTIFIER = ".Ix";
     @Getter(AccessLevel.PROTECTED)
     private final StreamSegmentStore segmentStore;
     private final TableStore tableStore;
@@ -475,7 +475,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
         segmentStore.createStreamSegment(createStreamSegment.getSegment(), SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
-                .thenAccept(v -> createIndexSegment(createStreamSegment.getSegment() + INDEX_SEGMENT_IDENTIFIER, attributes)) // this will create the index segment
+                .thenCompose(result -> createIndexSegment(createStreamSegment.getSegment())) // this creates the index segment
                     .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
                     .whenComplete((res, e) -> {
                     if (e == null) {
@@ -487,9 +487,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 });
     }
 
-    private CompletableFuture<Void> createIndexSegment(String segment,  Collection<AttributeUpdate> attributes) {
-        return segmentStore.createStreamSegment(segment, SegmentType.INDEX_SEGMENT, attributes, TIMEOUT);
+    private CompletableFuture<Void> createIndexSegment(final String segmentName) {
+        Collection<AttributeUpdate> attributes = Arrays.asList(
+                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
+                new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.INDEX_SEGMENT.getValue()),
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 0L) // to store the number of events
+        );
+        return segmentStore.createStreamSegment(getIndexSegmentName(segmentName), SegmentType.INDEX_SEGMENT,
+                attributes, TIMEOUT);
     }
+
 
     @Override
     public void mergeSegments(MergeSegments mergeSegments) {
@@ -636,7 +643,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(deleteSegment.getRequestId(), "Deleting segment {} ", deleteSegment);
         segmentStore.deleteStreamSegment(segment, TIMEOUT)
                 // this is to delete the index segment
-                .thenAccept(v -> segmentStore.deleteStreamSegment(segment + INDEX_SEGMENT_IDENTIFIER, TIMEOUT))
+                .thenAccept(v -> segmentStore.deleteStreamSegment(getIndexSegmentName(segment), TIMEOUT))
                 .thenRun(() -> {
                     connection.send(new SegmentDeleted(deleteSegment.getRequestId(), segment));
                     this.statsRecorder.deleteSegment(segment);

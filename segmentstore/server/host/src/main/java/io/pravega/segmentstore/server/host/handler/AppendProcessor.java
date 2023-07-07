@@ -83,6 +83,7 @@ import org.slf4j.LoggerFactory;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
+import static io.pravega.shared.NameUtils.isIndexSegment;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
@@ -246,14 +247,13 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     public void append(Append append) {
         //TODO: check from where this value is to be read, that we can use for validation.
         int expectedIndexRecordSize = 0;
-        String indexSegIdentifier = ".Ix";
         long traceId = LoggerHelpers.traceEnter(log, "append", append);
         UUID id = append.getWriterId();
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
         Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
-        if (append.getSegment().contains(indexSegIdentifier)) { // checks only in case of the index segment appends // TODO: check on the naming convention for index segments
+        if (isIndexSegment(append.getSegment())) {
             Preconditions.checkArgument(appendLength == expectedIndexRecordSize,
                     "Expected record/event size for the index append operation is (%s).", expectedIndexRecordSize);
         }
