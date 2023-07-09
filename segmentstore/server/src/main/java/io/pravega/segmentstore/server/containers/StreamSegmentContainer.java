@@ -251,7 +251,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Long> readContainerEpoch() {
-        log.info("Reading container epoch from file");
+        log.info(" {}: Reading container epoch from storage", this.traceObjectId);
         val containerEpochFileName = NameUtils.getContainerEpochFileName(this.getId());
         UtilsWrapper wrapper = new UtilsWrapper((ChunkedSegmentStorage) this.storage,BUFFER_SIZE, this.config.getMetadataStoreInitTimeout() );
         ByteBufferOutputStream outputStream = new ByteBufferOutputStream();
@@ -263,6 +263,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     }catch(Exception e) {
                         throw new RuntimeException(e);
                     }
+                    log.info("{}: Read container epoch {} from storage", this.traceObjectId, containerEpoch.getEpoch());
                     return CompletableFuture.completedFuture(containerEpoch.getEpoch() + 1);
                 });
     }
