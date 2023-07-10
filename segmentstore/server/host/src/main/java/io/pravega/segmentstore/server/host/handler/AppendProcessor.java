@@ -245,7 +245,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
      */
     @Override
     public void append(Append append) {
-        //TODO: check from where this value is to be read, that we can use for validation.
+        //TODO: check from where this value is to be read, which is to be used for validation.
         int expectedIndexRecordSize = 0;
         long traceId = LoggerHelpers.traceEnter(log, "append", append);
         UUID id = append.getWriterId();
@@ -254,6 +254,16 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
         if (isIndexSegment(append.getSegment())) {
+            /*String mainSegName = append.getSegment().replace("#index","").trim();
+            store.getStreamSegmentInfo(mainSegName, TIMEOUT)
+                    .thenAccept(properties -> {
+                        if (properties != null) {
+                            Map<AttributeId, Long> attributes =  properties.getAttributes();
+                            long expectedIndexRecordSize = attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE);
+                        } else {
+                            log.trace("could not find segment {}", mainSegName);
+                        }
+                    });*/
             Preconditions.checkArgument(appendLength == expectedIndexRecordSize,
                     "Expected record/event size for the index append operation is (%s).", expectedIndexRecordSize);
         }
