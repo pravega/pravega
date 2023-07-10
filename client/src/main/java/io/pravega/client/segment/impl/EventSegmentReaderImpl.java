@@ -98,6 +98,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
         headerReadingBuffer.clear();
         int read = in.read(headerReadingBuffer, firstByteTimeoutMillis);
         if (read == 0) {
+            log.debug("No of bytes read is {}", read);
             // a resend will not be triggered in-case of a firstByteTimeout.
             return null;
         }

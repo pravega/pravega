@@ -152,6 +152,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
 
             EventSegmentReader segmentReader = orderer.nextSegment(readers);
             if (segmentReader == null) {
+                log.debug("Reader have no segment to read.");
                 if (groupState.reachedEndOfStream()) {
                     log.info("Empty event returned for reader {} as it reached end of stream ", groupState.getReaderId());
                     return createEmptyEventEndOfStream();
