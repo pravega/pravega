@@ -254,14 +254,14 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
         if (isIndexSegment(append.getSegment())) {
-            /*String mainSegName = append.getSegment().replace("#index","").trim();
-            store.getStreamSegmentInfo(mainSegName, TIMEOUT)
+            /*
+            store.getStreamSegmentInfo(append.getSegment(), TIMEOUT)
                     .thenAccept(properties -> {
                         if (properties != null) {
                             Map<AttributeId, Long> attributes =  properties.getAttributes();
                             long expectedIndexRecordSize = attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE);
                         } else {
-                            log.trace("could not find segment {}", mainSegName);
+                            log.trace("could not find segment {}", append.getSegment());
                         }
                     });*/
             Preconditions.checkArgument(appendLength == expectedIndexRecordSize,

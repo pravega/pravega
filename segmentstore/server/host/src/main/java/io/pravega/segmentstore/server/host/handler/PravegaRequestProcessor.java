@@ -469,8 +469,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamSegment.getScaleType()).longValue()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamSegment.getTargetRate()).longValue()),
                 new AttributeUpdate(ROLLOVER_SIZE, AttributeUpdateType.Replace, rolloverSizeBytes),
-                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
-                new AttributeUpdate(ALLOWED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.Replace, 0L)
+                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis())
         );
 
         if (!verifyToken(createStreamSegment.getSegment(), createStreamSegment.getRequestId(), createStreamSegment.getDelegationToken(), operation)) {
@@ -495,7 +494,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                 new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.INDEX_SEGMENT.getValue()),
-                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 0L) // to store the number of events
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 0L), // to store the number of events
+                new AttributeUpdate(ALLOWED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.Replace, 0L)
         );
         return segmentStore.createStreamSegment(getIndexSegmentName(segmentName), SegmentType.INDEX_SEGMENT,
                 attributes, TIMEOUT);
