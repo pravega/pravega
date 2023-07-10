@@ -227,4 +227,13 @@ public class NameUtilsTest {
         Assert.assertEquals("localhost", NameUtils.getConnectionDetails("localhost :12345")[0].trim());
         Assert.assertEquals("12345", NameUtils.getConnectionDetails("localhost :12345")[1].trim());
     }
+
+    @Test
+    public void testIndexSegmentName() {
+        String scope = "scope";
+        String stream = "stream";
+        String qualifiedStreamSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, 0L);
+        String indexSegmentName = NameUtils.getIndexSegmentName(qualifiedStreamSegmentName);
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateStreamName(indexSegmentName));
+    }
 }
