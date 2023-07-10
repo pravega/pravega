@@ -234,6 +234,8 @@ public class NameUtilsTest {
         String stream = "stream";
         String qualifiedStreamSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, 0L);
         String indexSegmentName = NameUtils.getIndexSegmentName(qualifiedStreamSegmentName);
+        Assert.assertTrue("Passed segment is an index segment", NameUtils.isIndexSegment(indexSegmentName));
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateStreamName(indexSegmentName));
+        AssertExtensions.assertThrows("", () -> NameUtils.getIndexSegmentName(indexSegmentName), ex -> ex instanceof IllegalArgumentException);
     }
 }
