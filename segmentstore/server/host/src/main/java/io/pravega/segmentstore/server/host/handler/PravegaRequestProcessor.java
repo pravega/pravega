@@ -495,7 +495,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                 new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.INDEX_SEGMENT.getValue()),
-                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 0L), // to store the number of events
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 0L),
                 new AttributeUpdate(ALLOWED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, maxEventSize)
         );
         return segmentStore.createStreamSegment(getIndexSegmentName(segmentName), SegmentType.INDEX_SEGMENT,
