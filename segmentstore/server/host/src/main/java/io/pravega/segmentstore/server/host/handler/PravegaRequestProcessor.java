@@ -74,6 +74,7 @@ import io.pravega.shared.protocol.netty.WireCommands.DeleteTableSegment;
 import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage.ErrorCode;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
+import io.pravega.shared.protocol.netty.WireCommands.LocateOffset;
 import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
@@ -662,6 +663,26 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 });
     }
 
+    @Override
+    public void locateOffset(LocateOffset locateOffset) {
+        final String operation = "locateOffset";
+        
+        if (!verifyToken(locateOffset.getSegment(), locateOffset.getRequestId(), locateOffset.getDelegationToken(), operation)) {
+            return;
+        }
+        
+        log.debug(locateOffset.getRequestId(), "Locating offset {} ", locateOffset);
+        
+        segmentStore.getStreamSegmentInfo(locateOffset.getSegment(), TIMEOUT).thenApply(properties -> {
+            //TODO:
+            //invoke search on index
+            //on index stream, readIndex entry to search.
+            // TODO: modify search to return next larger element. Or max element if not found.
+            //      if off the end of index return length of segment
+            return null;
+        });
+    }
+    
     @Override
     public void getTableSegmentInfo(WireCommands.GetTableSegmentInfo getInfo) {
         final String operation = "getTableSegmentInfo";
