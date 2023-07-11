@@ -69,11 +69,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.UUID;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
@@ -83,6 +86,7 @@ import org.slf4j.LoggerFactory;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
+import static io.pravega.shared.NameUtils.getIndexSegmentName;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
@@ -101,6 +105,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Pair<String, UUID>, Long> indexWriterState = new ConcurrentHashMap<>();
     private final ScheduledExecutorService tokenExpiryHandlerExecutor;
     private final Collection<String> transientSegmentNames;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -195,11 +200,15 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                     // Last event number stored according to Segment store.
                                     long eventNumber = attributes.getOrDefault(writerAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
 
+                                    String indexSegment = getIndexSegmentName(newSegment);
+                                    Long maxEventSizeIndexSegment = getMaxEventSizeForIndexSegment(indexSegment);
+
                                     // Create a new WriterState object based on the attribute value for the last event number for the writer.
                                     // It should be noted that only one connection for a given segment writer is created by the client.
                                     // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
                                     // below the specified event number.
                                     WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber));
+                                    Long maxEventSize = this.indexWriterState.put(Pair.of(newSegment, writer), maxEventSizeIndexSegment); // TODO: To be used for validation in index segment
                                     if (current != null) {
                                         log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
                                                 writer, eventNumber, current);
@@ -210,6 +219,20 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                 handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
                             }
                         });
+    }
+
+    private Long getMaxEventSizeForIndexSegment(final String segment) {
+        AtomicReference<Long> expectedIndexRecordSize = new AtomicReference<>(0L);
+        store.getStreamSegmentInfo(segment, TIMEOUT)
+                .thenAccept(properties -> {
+                    if (properties != null) {
+                        Map<AttributeId, Long> attributes =  properties.getAttributes();
+                        expectedIndexRecordSize.set(attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE));
+                    } else {
+                        log.trace("could not find segment {}", segment);
+                    }
+                });
+        return expectedIndexRecordSize.get();
     }
 
     @VisibleForTesting
