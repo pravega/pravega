@@ -208,7 +208,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                     // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
                                     // below the specified event number.
                                     WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber));
-                                    Long maxEventSize = this.indexWriterState.put(Pair.of(newSegment, writer), maxEventSizeIndexSegment); // TODO: To be used for validation in index segment
+                                    Long maxEventSize = this.indexWriterState.put(Pair.of(indexSegment, writer), maxEventSizeIndexSegment); // TODO: To be used for validation in index segment
                                     if (current != null) {
                                         log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
                                                 writer, eventNumber, current);
@@ -270,6 +270,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         long traceId = LoggerHelpers.traceEnter(log, "append", append);
         UUID id = append.getWriterId();
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
+        //Long maxEventSize = this.indexWriterState.get(Pair.of(getIndexSegmentName(append.getSegment()), id));
         Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
