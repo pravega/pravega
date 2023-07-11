@@ -255,7 +255,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         val containerEpochFileName = NameUtils.getContainerEpochFileName(this.getId());
         UtilsWrapper wrapper = new UtilsWrapper((ChunkedSegmentStorage) this.storage,BUFFER_SIZE, this.config.getMetadataStoreInitTimeout() );
         ByteBufferOutputStream outputStream = new ByteBufferOutputStream();
-        return wrapper.copyFromSegment(containerEpochFileName, outputStream)
+        return wrapper.copyFromChunk(containerEpochFileName, outputStream)
                 .thenComposeAsync( v -> {
                     EpochInfo containerEpoch;
                     try {
