@@ -55,7 +55,6 @@ public class Orderer {
     @VisibleForTesting
     public <T extends EventSegmentReader> T nextSegment(List<T> segments) {
         if (segments.isEmpty()) {
-            log.debug("List of segments is empty.");
             return null;
         }
         for (int i = 0; i < segments.size(); i++) {
