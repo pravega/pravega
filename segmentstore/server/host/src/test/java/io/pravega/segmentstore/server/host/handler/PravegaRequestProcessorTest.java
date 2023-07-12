@@ -764,6 +764,7 @@ public class PravegaRequestProcessorTest {
     public void testCreateSealTruncateDelete() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against.
         String streamSegmentName = "scope/stream/testCreateSealDelete";
+        String indexStreamSegmentName = NameUtils.getIndexSegmentName(streamSegmentName);
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
         serviceBuilder.initialize();
@@ -777,12 +778,24 @@ public class PravegaRequestProcessorTest {
         assertTrue(append(streamSegmentName, 1, store));
         assertTrue(append(streamSegmentName, 2, store));
 
+        //Append 2 bytes to the index segment
+        assertTrue(append(indexStreamSegmentName, 1, store));
+        assertTrue(append(indexStreamSegmentName, 2, store));
+
         processor.sealSegment(new WireCommands.SealSegment(requestId, streamSegmentName, ""));
         assertFalse(append(streamSegmentName, 2, store));
+
+        //Seal the index segment
+        processor.sealSegment(new WireCommands.SealSegment(requestId, indexStreamSegmentName, ""));
+        assertFalse(append(indexStreamSegmentName, 3, store));
 
         // Truncate half.
         final long truncateOffset = store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
                 .join().getLength() / 2;
+        // Truncate half of the index segment.
+        final long truncateOffsetForIndexSegment = store.getStreamSegmentInfo(indexStreamSegmentName, PravegaRequestProcessor.TIMEOUT)
+                .join().getLength() / 2;
+
         AssertExtensions.assertGreaterThan("Nothing to truncate.", 0, truncateOffset);
         processor.truncateSegment(new WireCommands.TruncateSegment(requestId, streamSegmentName, truncateOffset, ""));
         assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
@@ -796,6 +809,20 @@ public class PravegaRequestProcessorTest {
         // Truncate at a lower offset - verify failure.
         processor.truncateSegment(new WireCommands.TruncateSegment(requestId, streamSegmentName, truncateOffset - 1, ""));
         assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
+                .join().getStartOffset());
+
+        //For the index segment
+        assertEquals(truncateOffsetForIndexSegment, store.getStreamSegmentInfo(indexStreamSegmentName, PravegaRequestProcessor.TIMEOUT)
+                .join().getStartOffset());
+
+        // Truncate at the same offset - verify idempotence.
+        processor.truncateSegment(new WireCommands.TruncateSegment(requestId, indexStreamSegmentName, truncateOffsetForIndexSegment, ""));
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
+                .join().getStartOffset());
+
+        // Truncate at a lower offset - verify failure.
+        processor.truncateSegment(new WireCommands.TruncateSegment(requestId, indexStreamSegmentName, truncateOffset - 1, ""));
+        assertEquals(truncateOffsetForIndexSegment, store.getStreamSegmentInfo(indexStreamSegmentName, PravegaRequestProcessor.TIMEOUT)
                 .join().getStartOffset());
 
         // Delete.
