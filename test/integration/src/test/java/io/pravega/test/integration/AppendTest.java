@@ -203,8 +203,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         // validates that index segment is created
         SegmentProperties properties = store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(segment), Duration.ofMinutes(1)).join();
         Map<AttributeId, Long> attributes =  properties.getAttributes();
-        Long expected = 10L;
-        assertEquals(expected, attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE));
+        assertEquals(Long.valueOf(10L), attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE));
 
         UUID uuid = UUID.randomUUID();
         AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(2, uuid, segment, ""));
