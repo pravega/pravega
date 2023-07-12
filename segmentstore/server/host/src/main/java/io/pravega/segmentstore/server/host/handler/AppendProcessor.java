@@ -75,7 +75,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -201,14 +200,13 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                     long eventNumber = attributes.getOrDefault(writerAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
 
                                     String indexSegment = getIndexSegmentName(newSegment);
-                                    Long maxEventSizeIndexSegment = getMaxEventSizeForIndexSegment(indexSegment);
+                                    getEventSizeForIndexSegmentAppends(writer, indexSegment);
 
                                     // Create a new WriterState object based on the attribute value for the last event number for the writer.
                                     // It should be noted that only one connection for a given segment writer is created by the client.
                                     // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
                                     // below the specified event number.
                                     WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber));
-                                    Long maxEventSize = this.indexWriterState.put(Pair.of(indexSegment, writer), maxEventSizeIndexSegment); // TODO: To be used for validation in index segment
                                     if (current != null) {
                                         log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
                                                 writer, eventNumber, current);
@@ -221,19 +219,18 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                         });
     }
 
-    private Long getMaxEventSizeForIndexSegment(final String segment) {
-        AtomicReference<Long> expectedIndexRecordSize = new AtomicReference<>(0L);
-        store.getStreamSegmentInfo(segment, TIMEOUT)
+    private void getEventSizeForIndexSegmentAppends(UUID writer, String indexSegment) {
+        store.getStreamSegmentInfo(indexSegment, TIMEOUT)
                 .thenAccept(properties -> {
                     if (properties != null) {
                         Map<AttributeId, Long> attributes =  properties.getAttributes();
-                        expectedIndexRecordSize.set(attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE));
+                        this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE)));
                     } else {
-                        log.trace("could not find segment {}", segment);
+                        log.trace("could not find the segment {}", indexSegment);
                     }
                 });
-        return expectedIndexRecordSize.get();
     }
+
 
     @VisibleForTesting
     CompletableFuture<Void> setupTokenExpiryTask(@NonNull SetupAppend setupAppend, @NonNull JsonWebToken token) {
@@ -269,8 +266,9 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     public void append(Append append) {
         long traceId = LoggerHelpers.traceEnter(log, "append", append);
         UUID id = append.getWriterId();
+        String segment = append.getSegment();
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
-        //Long maxEventSize = this.indexWriterState.get(Pair.of(getIndexSegmentName(append.getSegment()), id));
+        WriterState writerState = this.writerStates.get(Pair.of(getIndexSegmentName(segment), id)); // gets the cached index segment attribute value
         Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();

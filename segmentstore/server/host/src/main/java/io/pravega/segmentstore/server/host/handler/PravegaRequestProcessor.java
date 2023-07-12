@@ -491,7 +491,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private CompletableFuture<Void> createIndexSegment(final String segmentName) {
-        final long maxEventSize = 0L;
+        final long maxEventSize = 10L;
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                 new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.INDEX_SEGMENT.getValue()),
