@@ -879,9 +879,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     log.info("{}: Read container epoch {} from storage", this.traceObjectId, containerEpoch.getEpoch());
                     return CompletableFuture.completedFuture(containerEpoch.getEpoch() + 1);
                 })
-                .handleAsync( (v, ex) -> {
-                   log.error("{}: There was an error while reading the saved container epoch", this.traceObjectId );
-                   throw new CompletionException(ex);
+                .handleAsync( (epoch, ex) -> {
+                   if( ex != null ) {
+                       log.error("{}: There was an error while reading the saved container epoch: {}", this.traceObjectId, ex);
+                       throw new CompletionException(ex);
+                   }
+                   return epoch;
                 });
     }
 
