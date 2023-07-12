@@ -611,9 +611,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         long offset = truncateSegment.getTruncationOffset();
+        //Need to get the offset of the index-segment by calling Newtonian-Search method, same have to pass in the below call.
+        long indexSegmentOffset = offset;
         log.info(truncateSegment.getRequestId(), "Truncating segment {} at offset {}.",
                 segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
+                //This is to truncate the index-segment.
+                .thenAccept(v -> segmentStore.truncateStreamSegment(getIndexSegmentName(segment), indexSegmentOffset, TIMEOUT))
                 .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
                 .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, offset, operation, e));
     }
