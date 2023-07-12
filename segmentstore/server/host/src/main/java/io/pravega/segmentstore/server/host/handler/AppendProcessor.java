@@ -86,7 +86,6 @@ import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYP
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
-import static io.pravega.shared.NameUtils.isIndexSegment;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
@@ -199,8 +198,8 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                     // Last event number stored according to Segment store.
                                     long eventNumber = attributes.getOrDefault(writerAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
 
-                                    //String indexSegment = getIndexSegmentName(newSegment);
-                                   // populateEventSizeForIndexSegmentAppends(writer, indexSegment);
+                                    String indexSegment = getIndexSegmentName(newSegment);
+                                    populateEventSizeForIndexSegmentAppends(writer, indexSegment);
 
                                     // Create a new WriterState object based on the attribute value for the last event number for the writer.
                                     // It should be noted that only one connection for a given segment writer is created by the client.
@@ -219,7 +218,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                         });
     }
 
-   /* private void populateEventSizeForIndexSegmentAppends(UUID writer, String indexSegment) {
+    private void populateEventSizeForIndexSegmentAppends(UUID writer, String indexSegment) {
         try {
             store.getStreamSegmentInfo(indexSegment, TIMEOUT)
                     .thenAccept(properties -> {
@@ -233,7 +232,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         } catch (Throwable e) {
             log.trace("could not find the segment {}", indexSegment);
         }
-    }*/
+    }
 
 
     @VisibleForTesting
@@ -270,17 +269,13 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     public void append(Append append) {
         long traceId = LoggerHelpers.traceEnter(log, "append", append);
         UUID id = append.getWriterId();
-        //String segment = append.getSegment();
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
         Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
+        //WriterState writerState = this.writerStates.get(Pair.of(getIndexSegmentName(append.getSegment()), id));
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
         this.connection.adjustOutstandingBytes(appendLength);
         Timer timer = new Timer();
-        /*if(isIndexSegment(append.getSegment())) {
-            WriterState writerState = this.writerStates.get(Pair.of(getIndexSegmentName(segment), id)); // gets the cached index segment attribute value
-            Preconditions.checkArgument(writerState.getEventSizeForAppend() == appendLength, "Expected event size for index segment appends is {}", writerState.getEventSizeForAppend());
-        }*/
         storeAppend(append, previousEventNumber)
                 .whenComplete((newLength, ex) -> {
                     handleAppendResult(append, newLength, ex, state, timer);

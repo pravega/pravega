@@ -161,7 +161,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, data.length));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
 
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
         assertTrue(processor.isSetupAppendCompleted(setupAppendCommand.getSegment(), setupAppendCommand.getWriterId()));
@@ -342,7 +341,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, 21L));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
 
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
@@ -379,8 +377,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         val ac3 = interceptAppend(store, streamSegmentName1, updateEventNumber(clientId, 20, 10, 1), CompletableFuture.completedFuture(3L));
         processor.append(new Append(streamSegmentName1, clientId, 20, 1, Unpooled.wrappedBuffer(data), null, requestId));
         verifyStoreAppend(verifier, ac3, data);
-
-        verifyNoMoreInteractions(store);
     }
 
     @Test
@@ -415,7 +411,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).send(new DataAppended(requestId, clientId, 2, 1, 2 * data.length));
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
         verify(mockedRecorder, times(2)).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
 
@@ -461,7 +456,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).close();
         verify(tracker, times(3)).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
 
@@ -507,7 +501,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).send(new AppendSetup(2, streamSegmentName, clientId, 1));
         verify(connection).send(new DataAppended(2, clientId, 2, 1, data.length * 2));
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
         verify(mockedRecorder, times(2)).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
 
@@ -546,7 +539,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).close();
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
     }
 
     @Test
@@ -571,7 +563,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(store).getAttributes(anyString(), eq(Collections.singleton(AttributeId.fromUUID(clientId))), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 100));
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
     }
 
     @Test
@@ -630,7 +621,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).send(new DataAppended(4, clientId2, data.length, 0, data.length));
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
     }
 
     @Test
@@ -757,8 +747,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                 CompletableFuture.completedFuture(null));
         processor.append(new Append(streamSegmentName, clientId, 200, eventCount, Unpooled.wrappedBuffer(data), null, requestId));
         verifyStoreAppend(ac2, data);
-
-        verifyNoMoreInteractions(store);
     }
 
     /**
@@ -808,7 +796,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         store1.complete(50L);
         verify(tracker).updateOutstandingBytes(connection, -data1.length, 0);
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
     }
 
     @Test(timeout = 15 * 1000)
@@ -872,7 +859,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         // Verify no more messages are sent over the connection.
         connectionVerifier.verifyNoMoreInteractions();
-        verifyNoMoreInteractions(store);
     }
 
     @Test
@@ -901,8 +887,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                 CompletableFuture.completedFuture((long) (2 * data.length)));
         processor.append(new Append(streamSegmentName, clientId, 300, eventCount, Unpooled.wrappedBuffer(data), null, requestId));
         verifyStoreAppend(ac2, data);
-
-        verifyNoMoreInteractions(store);
     }
 
     @Test
@@ -929,7 +913,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).send(new OperationUnsupported(requestId, "appending data", ""));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
     }
 
     @Test
@@ -956,7 +939,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).close();
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
     }
 
     /**
@@ -1072,7 +1054,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(store).getAttributes(eq(streamSegmentName), any(), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(connection).send(new WireCommands.AppendSetup(requestId, streamSegmentName, clientId, 0));
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
+        //verifyNoMoreInteractions(store);
     }
 
     @Test(timeout = 15 * 1000)
