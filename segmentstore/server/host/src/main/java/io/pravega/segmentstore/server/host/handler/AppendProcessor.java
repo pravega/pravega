@@ -104,7 +104,6 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Pair<String, UUID>, Long> indexWriterState = new ConcurrentHashMap<>();
     private final ScheduledExecutorService tokenExpiryHandlerExecutor;
     private final Collection<String> transientSegmentNames;
     private final AtomicBoolean closed = new AtomicBoolean(false);
