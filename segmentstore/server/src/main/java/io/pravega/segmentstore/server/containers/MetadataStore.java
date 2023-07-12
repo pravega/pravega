@@ -127,8 +127,12 @@ public abstract class MetadataStore implements AutoCloseable {
      */
     abstract CompletableFuture<Void> initialize(Duration timeout);
 
-
-
+    /**
+     * Recovers metadata store with what is saved in storage.
+     * @param segmentProperties SegmentProperties of the recovered container metadata.
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the initialization is done.
+     */
     abstract CompletableFuture<Void> recover(SegmentProperties segmentProperties, Duration timeout);
 
     //endregion

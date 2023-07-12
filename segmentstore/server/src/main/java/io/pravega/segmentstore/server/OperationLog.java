@@ -80,7 +80,8 @@ public interface OperationLog extends Container {
     CompletableFuture<Void> awaitOnline();
 
     /**
-     *
+     * Provides a method to determine if the OperationLog is initialized for the first time.
+     * @return True if initializing for the first time.
      */
     boolean isInitialized();
 }

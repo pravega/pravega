@@ -109,8 +109,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.glassfish.grizzly.http.util.Chunk;
-import org.glassfish.jersey.message.internal.Utils;
 
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID;
@@ -239,7 +237,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      */
     private CompletableFuture<Void> initializeStorage() throws Exception {
         log.info("{}: Initializing storage.", this.traceObjectId);
-        long containerEpoch = shouldRecoverFromLTS().get() ? readContainerEpoch().get(): this.metadata.getContainerEpoch();
+        long containerEpoch = shouldRecoverFromStorage().get() ? readContainerEpoch().get(): this.metadata.getContainerEpoch();
         this.storage.initialize(containerEpoch);
         val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
         if (null != chunkedSegmentStorage) {
@@ -248,24 +246,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             return chunkedSegmentStorage.bootstrap(snapshotInfoStore);
         }
         return CompletableFuture.completedFuture(null);
-    }
-
-    private CompletableFuture<Long> readContainerEpoch() {
-        log.info(" {}: Reading container epoch from storage", this.traceObjectId);
-        val containerEpochFileName = NameUtils.getContainerEpochFileName(this.getId());
-        UtilsWrapper wrapper = new UtilsWrapper((ChunkedSegmentStorage) this.storage,BUFFER_SIZE, this.config.getMetadataStoreInitTimeout() );
-        ByteBufferOutputStream outputStream = new ByteBufferOutputStream();
-        return wrapper.copyFromChunk(containerEpochFileName, outputStream)
-                .thenComposeAsync( v -> {
-                    EpochInfo containerEpoch;
-                    try {
-                        containerEpoch = EPOCH_INFO_SERIALIZER.deserialize(outputStream.getData());
-                    }catch(Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                    log.info("{}: Read container epoch {} from storage", this.traceObjectId, containerEpoch.getEpoch());
-                    return CompletableFuture.completedFuture(containerEpoch.getEpoch() + 1);
-                });
     }
 
     /**
@@ -319,7 +299,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     /**
-     *
+     *  Sets isDurableLogInitialized to true if we dont see any metadata in ZK for BK Log.
+     *  It asserts if ZK/BK are empty which can be used later to determine if we can
+     *  initialize containers in recovery(data stored in storage) mode.
      */
     private void setDurableLogInitialized() {
        if( this.durableLog.isInitialized()) {
@@ -379,15 +361,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> initializeSecondaryServices() {
         try {
             return initializeStorage()
-                    .thenComposeAsync(v -> shouldRecoverFromLTS()
+                    .thenComposeAsync(v -> shouldRecoverFromStorage()
                              .thenComposeAsync( recover -> {
                                   if(recover) {
                                       //recover metadata store.
-                                      log.info("{}: Recovering Metaadata Store.", this.traceObjectId);
+                                      log.info("{}: Recovering Metadata Store.", this.traceObjectId);
                                      return this.storage.getStreamSegmentInfo(NameUtils.getMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout())
-                                              .thenComposeAsync( info -> {
-                                                  return this.metadataStore.recover(info,this.config.getMetadataStoreInitTimeout());
-                                              });
+                                              .thenComposeAsync( info -> this.metadataStore.recover(info,this.config.getMetadataStoreInitTimeout()));
                                   } else {
                                       log.info("{}: Initializing Metadata Store.", this.traceObjectId);
                                       return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
@@ -398,8 +378,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         }
     }
 
-    private CompletableFuture<Boolean> shouldRecoverFromLTS() {
-        String chunkName = NameUtils.getSystemJournalSnapshotInfoFileName(this.getId());
+    /**
+     * Decision to start a container with fresh initialization or
+     * to start it with storage data( recover-from-storage) is made here.
+     * Recover-from-storage is true based on the presence of the container
+     * epoch file generated during backup.
+     * @return True if we choose to start container in recover-from-storage mode.
+     */
+    private CompletableFuture<Boolean> shouldRecoverFromStorage() {
+        String chunkName = NameUtils.getContainerEpochFileName(this.getId());
         return ((ChunkedSegmentStorage) storage).getChunkStorage().exists(chunkName)
                 .thenComposeAsync( doesExist -> {
                     boolean recover = this.isDurableLogInitialized.get() && doesExist;
@@ -865,7 +852,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<EpochInfo> readEpochInfo(String chunk, ChunkedSegmentStorage chunkedSegmentStorage, int readLength) {
         val readAtOffset = new AtomicLong(0);
         val readBuffer = new byte[readLength];
-        return chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(chunk), readAtOffset.get(), readBuffer.length, readBuffer, 0)
+        return chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(chunk), readAtOffset.get(), readLength, readBuffer, 0)
                 .thenApplyAsync( v -> {
                     try {
                         return EPOCH_INFO_SERIALIZER.deserialize(readBuffer);
@@ -874,6 +861,28 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     }
                 });
 
+    }
+
+    private CompletableFuture<Long> readContainerEpoch() {
+        log.info(" {}: Reading container epoch from storage", this.traceObjectId);
+        val containerEpochFileName = NameUtils.getContainerEpochFileName(this.getId());
+        UtilsWrapper wrapper = new UtilsWrapper((ChunkedSegmentStorage) this.storage,BUFFER_SIZE, this.config.getMetadataStoreInitTimeout() );
+        ByteBufferOutputStream outputStream = new ByteBufferOutputStream();
+        return wrapper.copyFromChunk(containerEpochFileName, outputStream)
+                .thenComposeAsync( v -> {
+                    EpochInfo containerEpoch;
+                    try {
+                        containerEpoch = EPOCH_INFO_SERIALIZER.deserialize(outputStream.getData());
+                    }catch(Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                    log.info("{}: Read container epoch {} from storage", this.traceObjectId, containerEpoch.getEpoch());
+                    return CompletableFuture.completedFuture(containerEpoch.getEpoch() + 1);
+                })
+                .handleAsync( (v, ex) -> {
+                   log.error("{}: There was an error while reading the saved container epoch", this.traceObjectId );
+                   throw new CompletionException(ex);
+                });
     }
 
     @SneakyThrows

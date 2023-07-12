@@ -290,6 +290,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         return !this.delayedStart.isDone();
     }
 
+    @Override
    public boolean isInitialized() {
        try {
            return this.durableDataLog.loadMetadata() == null;

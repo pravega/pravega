@@ -103,6 +103,7 @@ class TableMetadataStore extends MetadataStore {
                 });
     }
 
+    @Override
     public CompletableFuture<Void> recover(SegmentProperties segmentProperties, Duration timeout) {
         Preconditions.checkState(!this.initialized.get(), "TableMetadataStore is already initialized.");
 
