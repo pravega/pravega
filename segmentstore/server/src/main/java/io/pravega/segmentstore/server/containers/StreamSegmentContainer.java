@@ -301,7 +301,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     /**
      *  Sets isDurableLogInitialized to true if we dont see any metadata in ZK for BK Log.
      *  It asserts if ZK/BK are empty which can be used later to determine if we can
-     *  initialize containers in recovery(data stored in storage) mode.
+     *  initialize containers in recovery(recover from data stored in storage) mode.
      */
     private void setDurableLogInitialized() {
        if( this.durableLog.isInitialized()) {
@@ -863,6 +863,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     }
 
+    /**
+     * Read the container epoch saved in "container_<containerid>_epoch file
+     * saved on storage that is created while generating the backup.
+     * Container startup in case of recovery mode uses this saved epoch information
+     * @return epoch read from storage.
+     */
     private CompletableFuture<Long> readContainerEpoch() {
         log.info(" {}: Reading container epoch from storage", this.traceObjectId);
         val containerEpochFileName = NameUtils.getContainerEpochFileName(this.getId());

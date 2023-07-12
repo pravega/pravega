@@ -134,6 +134,11 @@ public interface DurableDataLog extends AutoCloseable {
      */
     WriteSettings getWriteSettings();
 
+    /**
+     * Fetch the metadata for this log.
+     * @return the metadata persisted for this DurableDataLog.
+     * @throws DataLogInitializationException any exception with ZK while fetching metadata.
+     */
     ReadOnlyLogMetadata loadMetadata() throws DataLogInitializationException;
 
     /**

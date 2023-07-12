@@ -197,9 +197,6 @@ public final class NameUtils {
      */
     private static final String SYSJOURNAL_NAME_FORMAT = INTERNAL_CONTAINER_PREFIX + "_sysjournal.epoch%d.container%d.file%d";
 
-
-    private static final String CONTAINER_EPOCH_FILE = INTERNAL_CONTAINER_PREFIX + "epoch_%d";
-
     /**
      * Format for Container System snapshot file name.
      */
