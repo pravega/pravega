@@ -103,4 +103,12 @@ public interface BatchClientFactory extends AutoCloseable {
      * @return A list of segment range in between a start and end stream cut.
      */
     List<SegmentRange> getSegmentRangeBetweenStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut);
+
+    /**
+     * Provides a nextStreamCut to an approxDistance based on the startingStreamCut
+     * @param startingStreamCut Starting streamcut
+     * @param approxDistanceToNextOffset approx distance to nextoffset in bytes
+     * @return A streamcut
+     */
+    StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset);
 }

@@ -26,6 +26,7 @@ import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
@@ -39,10 +40,15 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.protocol.netty.Reply;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.security.auth.AccessOperation;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -52,6 +58,7 @@ import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getThrowingException;
 
 @Beta
 @Slf4j
@@ -172,6 +179,42 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         Stream stream = startStreamCut.asImpl().getStream();
         List<SegmentRange> segmentRanges = getSegmentRanges(stream, startStreamCut, endStreamCut);
         return segmentRanges;
+    }
+
+    @Override
+    public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) {
+        log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
+        Stream stream = startingStreamCut.asImpl().getStream();
+        Map<Segment, Long> newPositions = new HashMap<>();
+        for (Map.Entry<Segment, Long> positions : startingStreamCut.asImpl().getPositions().entrySet()) {
+            Segment segment = positions.getKey();
+            RawClient client = new RawClient(controller, connectionPool, segment);
+            long requestId = client.getFlow().getNextSequenceNumber();
+            final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
+                    .create(controller, segment, AccessOperation.READ);
+            long newOffset = getNextOffsetForSegment(client, segment, approxDistanceToNextOffset, tokenProvider, requestId);
+            boolean isSegmentScaled = checkIfSegmentScaled(positions.getValue(), newOffset);
+            if (isSegmentScaled) {
+                //TODO: To add the logic to fetch the successor segments and add them to return streamcut
+                controller.getSuccessors(segment);
+            }
+            newPositions.put(segment, newOffset);
+        }
+        return new StreamCutImpl(stream,newPositions);
+    }
+
+    public long getNextOffsetForSegment(RawClient client, Segment segment, long targetOffset,
+                                                      DelegationTokenProvider tokenProvider, long requestId) {
+        String token = getThrowingException(tokenProvider.retrieveToken());
+        WireCommands.LocateOffset locateOffset = new WireCommands.LocateOffset(requestId,
+                segment, targetOffset,
+                token);
+        Reply offsetLocated = getThrowingException(client.sendRequest(requestId, locateOffset));
+        return offsetLocated.getOffset;
+    }
+
+    public boolean checkIfSegmentScaled(long existingOffset, long newOffset) {
+        return existingOffset == newOffset;
     }
 
 }
