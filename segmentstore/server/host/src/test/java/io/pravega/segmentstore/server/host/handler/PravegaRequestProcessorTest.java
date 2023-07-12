@@ -817,7 +817,7 @@ public class PravegaRequestProcessorTest {
 
         // Truncate at the same offset - verify idempotence.
         processor.truncateSegment(new WireCommands.TruncateSegment(requestId, indexStreamSegmentName, truncateOffsetForIndexSegment, ""));
-        assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
+        assertEquals(truncateOffsetForIndexSegment, store.getStreamSegmentInfo(indexStreamSegmentName, PravegaRequestProcessor.TIMEOUT)
                 .join().getStartOffset());
 
         // Truncate at a lower offset - verify failure.
