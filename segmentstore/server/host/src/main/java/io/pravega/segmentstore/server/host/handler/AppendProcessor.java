@@ -234,6 +234,10 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         }
     }
 
+    @VisibleForTesting
+    void populateEventSizeForIndexSegmentAppendsTask(UUID writer, String indexSegment) {
+        populateEventSizeForIndexSegmentAppends(writer, indexSegment);
+    }
 
     @VisibleForTesting
     CompletableFuture<Void> setupTokenExpiryTask(@NonNull SetupAppend setupAppend, @NonNull JsonWebToken token) {

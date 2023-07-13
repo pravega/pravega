@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
@@ -35,6 +36,8 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
@@ -160,10 +163,19 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, data.length));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
-        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        CompletableFuture<SegmentProperties> toBeReturned = CompletableFuture.completedFuture(
+                StreamSegmentInformation.builder()
+                        .name(streamSegmentName)
+                        .attributes(ImmutableMap.<AttributeId, Long>builder()
+                                .put(Attributes.SCALE_POLICY_TYPE, 0L)
+                                .put(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE, 5L)
+                                .put(Attributes.SCALE_POLICY_RATE, 10L).build())
+                        .build());
+        when(store.getStreamSegmentInfo(streamSegmentName, Duration.ofMinutes(1))).thenReturn(toBeReturned);
+        processor.populateEventSizeForIndexSegmentAppendsTask(clientId, streamSegmentName);
+        verify(store, times(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
-
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
         assertTrue(processor.isSetupAppendCompleted(setupAppendCommand.getSegment(), setupAppendCommand.getWriterId()));
     }
