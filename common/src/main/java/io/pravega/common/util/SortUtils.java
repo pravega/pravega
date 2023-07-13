@@ -35,11 +35,13 @@ public class SortUtils {
      * @param fromIdx The index from which to start the search
      * @param toIdx The index at which to end the search
      * @param target The value to search for
+     * @param greater If the element is not in the list true indicates that the next larger element
+     *            should be returned false indicates the next smaller element should be returned
      * @return an Entry object containing the closest index and its value
      * @throws IllegalArgumentException if the input list is empty
      */
     public static Map.Entry<Integer, Long> newtonianSearch(LongFunction<Long> getValue, int fromIdx, int toIdx,
-                                                           long target) {
+                                                           long target, boolean greater) {
         if (fromIdx > toIdx || fromIdx < 0) {
             throw new IllegalArgumentException("Index size was negative");
         } else if (fromIdx == toIdx) {
@@ -82,7 +84,11 @@ public class SortUtils {
                 return new AbstractMap.SimpleEntry<>(guessIdx, guessValue);
             }
         }
-        return new AbstractMap.SimpleEntry<>(fromIdx, fromValue);
+        if (greater) {
+            return new AbstractMap.SimpleEntry<>(toIdx, toValue);
+        } else {            
+            return new AbstractMap.SimpleEntry<>(fromIdx, fromValue);
+        }
     }
 
     private static double calculateSlope(int fromIdx, int toIdx, long fromValue, long toValue) {
