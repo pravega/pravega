@@ -80,7 +80,12 @@ import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.chunklayer.*;
+import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
+import io.pravega.segmentstore.storage.chunklayer.SnapshotInfoStore;
+import io.pravega.segmentstore.storage.chunklayer.UtilsWrapper;
 import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
 
@@ -112,7 +117,6 @@ import lombok.val;
 
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID;
-
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
  * same StreamSegmentContainer. Handles all operations that can be performed on such streams.
@@ -237,7 +241,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      */
     private CompletableFuture<Void> initializeStorage() throws Exception {
         log.info("{}: Initializing storage.", this.traceObjectId);
-        long containerEpoch = shouldRecoverFromStorage().get() ? readContainerEpoch().get(): this.metadata.getContainerEpoch();
+        long containerEpoch = shouldRecoverFromStorage().get() ? readContainerEpoch().get() : this.metadata.getContainerEpoch();
         this.storage.initialize(containerEpoch);
         val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
         if (null != chunkedSegmentStorage) {
@@ -304,7 +308,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      *  initialize containers in recovery(recover from data stored in storage) mode.
      */
     private void setDurableLogInitialized() {
-       if( this.durableLog.isInitialized()) {
+       if ( this.durableLog.isInitialized()) {
             this.isDurableLogInitialized.set(true);
        }
     }
@@ -363,11 +367,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             return initializeStorage()
                     .thenComposeAsync(v -> shouldRecoverFromStorage()
                              .thenComposeAsync( recover -> {
-                                  if(recover) {
+                                  if (recover) {
                                       //recover metadata store.
                                       log.info("{}: Recovering Metadata Store.", this.traceObjectId);
                                      return this.storage.getStreamSegmentInfo(NameUtils.getMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout())
-                                              .thenComposeAsync( info -> this.metadataStore.recover(info,this.config.getMetadataStoreInitTimeout()));
+                                              .thenComposeAsync( info -> this.metadataStore.recover(info, this.config.getMetadataStoreInitTimeout()));
                                   } else {
                                       log.info("{}: Initializing Metadata Store.", this.traceObjectId);
                                       return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
@@ -872,21 +876,21 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Long> readContainerEpoch() {
         log.info(" {}: Reading container epoch from storage", this.traceObjectId);
         val containerEpochFileName = NameUtils.getContainerEpochFileName(this.getId());
-        UtilsWrapper wrapper = new UtilsWrapper((ChunkedSegmentStorage) this.storage,BUFFER_SIZE, this.config.getMetadataStoreInitTimeout() );
+        UtilsWrapper wrapper = new UtilsWrapper((ChunkedSegmentStorage) this.storage, BUFFER_SIZE, this.config.getMetadataStoreInitTimeout());
         ByteBufferOutputStream outputStream = new ByteBufferOutputStream();
         return wrapper.copyFromChunk(containerEpochFileName, outputStream)
                 .thenComposeAsync( v -> {
                     EpochInfo containerEpoch;
                     try {
                         containerEpoch = EPOCH_INFO_SERIALIZER.deserialize(outputStream.getData());
-                    }catch(Exception e) {
+                    } catch(Exception e) {
                         throw new RuntimeException(e);
                     }
                     log.info("{}: Read container epoch {} from storage", this.traceObjectId, containerEpoch.getEpoch());
                     return CompletableFuture.completedFuture(containerEpoch.getEpoch() + 1);
                 })
                 .handleAsync( (epoch, ex) -> {
-                   if( ex != null ) {
+                   if ( ex != null ) {
                        log.error("{}: There was an error while reading the saved container epoch: {}", this.traceObjectId, ex);
                        throw new CompletionException(ex);
                    }

@@ -15,7 +15,6 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
-import lombok.Data;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
