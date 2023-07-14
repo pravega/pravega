@@ -26,7 +26,6 @@ import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
@@ -40,11 +39,11 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
+import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.protocol.netty.Reply;
-import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.security.auth.AccessOperation;
 import java.util.HashMap;
 import java.util.List;
@@ -58,7 +57,6 @@ import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
-import static io.pravega.common.concurrent.Futures.getThrowingException;
 
 @Beta
 @Slf4j
@@ -184,37 +182,80 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     @Override
     public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) {
         log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
+        Preconditions.checkArgument(approxDistanceToNextOffset > 0, "Ensure approxDistanceToNextOffset must be greater than 0");
         Stream stream = startingStreamCut.asImpl().getStream();
-        Map<Segment, Long> newPositions = new HashMap<>();
+        Map<Segment, Long> nextPositionsMap = new HashMap<>();
+        Map<Segment, Long> scaledSegmentsMap = new HashMap<>();
         for (Map.Entry<Segment, Long> positions : startingStreamCut.asImpl().getPositions().entrySet()) {
             Segment segment = positions.getKey();
-            RawClient client = new RawClient(controller, connectionPool, segment);
-            long requestId = client.getFlow().getNextSequenceNumber();
-            final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
-                    .create(controller, segment, AccessOperation.READ);
-            long newOffset = getNextOffsetForSegment(client, segment, approxDistanceToNextOffset, tokenProvider, requestId);
-            boolean isSegmentScaled = checkIfSegmentScaled(positions.getValue(), newOffset);
-            if (isSegmentScaled) {
-                //TODO: To add the logic to fetch the successor segments and add them to return streamcut
-                controller.getSuccessors(segment);
+            long nextOffset = getNextOffsetForSegment(segment, approxDistanceToNextOffset);
+            boolean isNextOffsetSame = checkIfNextOffsetSame(positions.getValue(), nextOffset);
+            if (isNextOffsetSame) {
+                // Probably this segment has scaled, so putting it here to later check for its successors
+                scaledSegmentsMap.put(segment, nextOffset);
             }
-            newPositions.put(segment, newOffset);
+            else {
+                nextPositionsMap.put(segment, nextOffset);
+            }
         }
-        return new StreamCutImpl(stream,newPositions);
+        checkSuccessorSegmentOffset(nextPositionsMap, scaledSegmentsMap, approxDistanceToNextOffset);
+        log.debug("Next positions of the segments in the streamcut = {}", nextPositionsMap);
+        return new StreamCutImpl(stream,nextPositionsMap);
     }
 
-    public long getNextOffsetForSegment(RawClient client, Segment segment, long targetOffset,
-                                                      DelegationTokenProvider tokenProvider, long requestId) {
-        String token = getThrowingException(tokenProvider.retrieveToken());
-        WireCommands.LocateOffset locateOffset = new WireCommands.LocateOffset(requestId,
-                segment, targetOffset,
-                token);
-        Reply offsetLocated = getThrowingException(client.sendRequest(requestId, locateOffset));
-        return offsetLocated.getOffset;
+    public long getNextOffsetForSegment(Segment segment, long targetOffset) {
+        /*RawClient client = new RawClient(controller, connectionPool, segment);
+        long requestId = client.getFlow().getNextSequenceNumber();
+        final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
+                .create(controller, segment, AccessOperation.READ);
+        CompletableFuture<Reply> reply = tokenProvider.retrieveToken().thenCompose(token -> {
+            WireCommands.LocateOffset locateOffset = new WireCommands.LocateOffset(requestId,
+                            segment, targetOffset, token);
+            return client.sendRequest(requestId, locateOffset);
+                });
+        WireCommands.OffsetLocated offsetLocated = (OffsetLocated) reply.join();
+        return offsetLocated.getOffset;*/
+        //TODO: Commenting the above block of code for the time being. Later during code integration Uncomment the above code block and remove the below return
+        return 0;
     }
 
-    public boolean checkIfSegmentScaled(long existingOffset, long newOffset) {
-        return existingOffset == newOffset;
+    public boolean checkIfNextOffsetSame(long existingOffset, long nextOffset) {
+        return existingOffset == nextOffset;
     }
 
+    public void checkSuccessorSegmentOffset(Map<Segment, Long> nextPositionsMap, Map<Segment, Long> scaledSegmentsMap, long approxDistanceToNextOffset) {
+        log.debug("checkSuccessorSegmentOffset() -> Segments that may have scaled = {}", scaledSegmentsMap);
+        scaledSegmentsMap.entrySet().stream().forEach(entry -> {
+            CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors = controller.getSuccessors(entry.getKey());
+            Map<SegmentWithRange, List<Long>> segmentToPredecessorMap = getSuccessors.join().getSegmentToPredecessor();
+            int size = segmentToPredecessorMap.size();
+            if(size > 1) { //scale up happened to the segment
+                for (SegmentWithRange segmentWithRange : segmentToPredecessorMap.keySet()) {
+                    Segment segment = segmentWithRange.getSegment();
+                    long nextOffset = getNextOffsetForSegment(segment, approxDistanceToNextOffset);
+                    nextPositionsMap.put(segment, nextOffset);
+                }
+            }
+            else if (size == 1) { //scale down happened to the segments
+                List<Long> segmentIds = nextPositionsMap.keySet().stream().map(x -> x.getSegmentId()).collect(Collectors.toList());
+                // Check for any of the predecessor which is present in nextPositionsMap. If so, we will not proceed to successor segment
+                boolean isJoint  = segmentToPredecessorMap.values().stream().findFirst().get().stream().anyMatch(segmentIds::contains);
+                if (!isJoint) {
+                    Long segmentId = segmentToPredecessorMap.keySet().stream().findFirst().get().getSegment().getSegmentId();
+                    if (!segmentIds.contains(segmentId)) {
+                        Segment segment = segmentToPredecessorMap.keySet().stream().findFirst().get().getSegment();
+                        long nextOffset = getNextOffsetForSegment(segment, approxDistanceToNextOffset);
+                        nextPositionsMap.put(segment, nextOffset);
+                    }
+                }
+                else {
+                    nextPositionsMap.put(entry.getKey(), entry.getValue());
+                }
+            }
+            else { //Segment is neither sealed and nor scaled
+                nextPositionsMap.put(entry.getKey(), entry.getValue());
+            }
+
+        });
+    }
 }

@@ -19,13 +19,16 @@ import com.google.common.collect.ImmutableSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -34,6 +37,8 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -51,9 +56,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class BatchClientImplTest {
 
@@ -164,6 +171,165 @@ public class BatchClientImplTest {
         assertNotNull(segRanges);
         assertEquals(3, segRanges.size());
         assertEquals("stream", segRanges.get(2).getSegment().getStream().getStreamName());
+    }
+
+    @Test
+    public void testGetNextStreamCut() throws Exception {
+        Segment segment1 = new Segment("scope", "stream", 1L);
+        Segment segment2 = new Segment("scope", "stream", 2L);
+        Map<Segment, Long> positionMap = new HashMap<>();
+        positionMap.put(segment1, 20L);
+        positionMap.put(segment2, 30L);
+        StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
+        MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory, false);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
+        BatchClientFactoryImpl clientSpy = spy(client);
+        when(clientSpy.getNextOffsetForSegment(any(Segment.class), anyLong())).thenReturn(90L);
+        StreamCut nextSC = clientSpy.getNextStreamCut(startingSC, 50L);
+        assertNotNull(nextSC);
+        assertEquals(2, nextSC.asImpl().getPositions().size());
+        assertTrue(nextSC.asImpl().getPositions().containsKey(segment1));
+        assertTrue(nextSC.asImpl().getPositions().containsKey(segment2));
+    }
+
+    @Test
+    public void testGetNextStreamCut_Segment_ScaleUp() throws Exception {
+        Segment segment1 = new Segment("scope", "stream", 1L);
+        Segment segment2 = new Segment("scope", "stream", 2L);
+        Segment segment3 = new Segment("scope", "stream", 3L);
+        Segment segment4 = new Segment("scope", "stream", 4L);
+        Segment segment5 = new Segment("scope", "stream", 5L);
+        Map<Segment, Long> positionMap = new HashMap<>();
+        positionMap.put(segment1, 20L);
+        positionMap.put(segment2, 90L);
+        positionMap.put(segment3, 50L);
+        StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
+        Controller controller = Mockito.mock(Controller.class);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
+        BatchClientFactoryImpl clientSpy = spy(client);
+        when(clientSpy.getNextOffsetForSegment(any(Segment.class), anyLong())).thenReturn(90L);
+        when(controller.getSuccessors(segment2)).thenReturn(getScaleUpReplacement(segment2, segment4, segment5));
+        StreamCut nextSC = clientSpy.getNextStreamCut(startingSC, 50L);
+        assertNotNull(nextSC);
+        assertEquals(4, nextSC.asImpl().getPositions().size());
+        assertTrue(nextSC.asImpl().getPositions().containsKey(segment1)
+                    && nextSC.asImpl().getPositions().containsKey(segment3)
+                    && nextSC.asImpl().getPositions().containsKey(segment4)
+                    && nextSC.asImpl().getPositions().containsKey(segment5));
+    }
+
+    @Test
+    public void testGetNextStreamCut_Segments_Scale_UpAndDown() throws Exception {
+        Segment segment1 = new Segment("scope", "stream", 1L);
+        Segment segment2 = new Segment("scope", "stream", 2L);
+        Segment segment3 = new Segment("scope", "stream", 3L);
+        Segment segment4 = new Segment("scope", "stream", 4L);
+        Segment segment5 = new Segment("scope", "stream", 5L);
+        Segment segment6 = new Segment("scope", "stream", 6L);
+
+        Map<Segment, Long> positionMap = new HashMap<>();
+        positionMap.put(segment1, 90L);
+        positionMap.put(segment2, 90L);
+        positionMap.put(segment3, 90L);
+        StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
+        Controller controller = Mockito.mock(Controller.class);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
+        BatchClientFactoryImpl clientSpy = spy(client);
+        when(clientSpy.getNextOffsetForSegment(any(Segment.class), anyLong())).thenReturn(90L);
+        when(controller.getSuccessors(segment2)).thenReturn(getScaleDownReplacement(segment2, segment3, segment4));
+        when(controller.getSuccessors(segment3)).thenReturn(getScaleDownReplacement(segment2, segment3, segment4));
+        when(controller.getSuccessors(segment1)).thenReturn(getScaleUpReplacement(segment1, segment5, segment6));
+        StreamCut nextSC = clientSpy.getNextStreamCut(startingSC, 50L);
+        assertNotNull(nextSC);
+        assertEquals(3, nextSC.asImpl().getPositions().size());
+        assertTrue(nextSC.asImpl().getPositions().containsKey(segment4)
+                && nextSC.asImpl().getPositions().containsKey(segment6)
+                && nextSC.asImpl().getPositions().containsKey(segment5));
+    }
+
+    @Test
+    public void testGetNextStreamCut_Segment_ScaleDown() throws Exception {
+        Segment segment1 = new Segment("scope", "stream", 1L);
+        Segment segment2 = new Segment("scope", "stream", 2L);
+        Segment segment3 = new Segment("scope", "stream", 3L);
+        Segment segment4 = new Segment("scope", "stream", 4L);
+
+        Map<Segment, Long> positionMap = new HashMap<>();
+        positionMap.put(segment1, 30L);
+        positionMap.put(segment2, 90L);
+        positionMap.put(segment3, 90L);
+        StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
+        Controller controller = Mockito.mock(Controller.class);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
+        BatchClientFactoryImpl clientSpy = spy(client);
+        when(clientSpy.getNextOffsetForSegment(any(Segment.class), anyLong())).thenReturn(90L);
+        when(controller.getSuccessors(segment2)).thenReturn(getScaleDownReplacement(segment2, segment3, segment4));
+        when(controller.getSuccessors(segment3)).thenReturn(getScaleDownReplacement(segment2, segment3, segment4));
+        StreamCut nextSC = clientSpy.getNextStreamCut(startingSC, 50L);
+        assertNotNull(nextSC);
+        assertEquals(2, nextSC.asImpl().getPositions().size());
+        assertTrue(nextSC.asImpl().getPositions().containsKey(segment1)
+                && nextSC.asImpl().getPositions().containsKey(segment4));
+    }
+
+    @Test
+    public void testGetNextStreamCut_NoScaling() throws Exception {
+        Segment segment1 = new Segment("scope", "stream", 1L);
+        Segment segment2 = new Segment("scope", "stream", 2L);
+        Segment segment3 = new Segment("scope", "stream", 3L);
+
+        Map<Segment, Long> positionMap = new HashMap<>();
+        positionMap.put(segment1, 30L);
+        positionMap.put(segment2, 90L);
+        positionMap.put(segment3, 40L);
+        StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
+        Controller controller = Mockito.mock(Controller.class);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
+        BatchClientFactoryImpl clientSpy = spy(client);
+        when(clientSpy.getNextOffsetForSegment(any(Segment.class), anyLong())).thenReturn(90L);
+        when(controller.getSuccessors(segment2)).thenReturn(getEmptyReplacement());
+        StreamCut nextSC = clientSpy.getNextStreamCut(startingSC, 50L);
+        assertNotNull(nextSC);
+        assertEquals(3, nextSC.asImpl().getPositions().size());
+        assertTrue(nextSC.asImpl().getPositions().containsKey(segment1)
+                && nextSC.asImpl().getPositions().containsKey(segment2)
+                && nextSC.asImpl().getPositions().containsKey(segment3));
+    }
+
+    private CompletableFuture<StreamSegmentsWithPredecessors> getEmptyReplacement() {
+        Map<SegmentWithRange, List<Long>> segments = new HashMap<>();
+        return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(segments, ""));
+    }
+    private CompletableFuture<StreamSegmentsWithPredecessors> getScaleDownReplacement(Segment old1, Segment old2, Segment repacement1) {
+        Map<SegmentWithRange, List<Long>> segments = new HashMap<>();
+        segments.put(new SegmentWithRange(repacement1, 0, 0.35), Arrays.asList(old1.getSegmentId(), old2.getSegmentId()));
+        return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(segments, ""));
+    }
+    private CompletableFuture<StreamSegmentsWithPredecessors> getScaleUpReplacement(Segment old, Segment repacement1, Segment repacement2) {
+        Map<SegmentWithRange, List<Long>> segments = new HashMap<>();
+        segments.put(new SegmentWithRange(repacement1, 0, 0.25), Collections.singletonList(old.getSegmentId()));
+        segments.put(new SegmentWithRange(repacement2, 0.25, 0.5), Collections.singletonList(old.getSegmentId()));
+        return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(segments, ""));
     }
 
     private Stream createStream(String scope, String streamName, int numSegments, MockController mockController) {
