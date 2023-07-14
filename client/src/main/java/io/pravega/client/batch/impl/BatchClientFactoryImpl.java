@@ -193,14 +193,13 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
             if (isNextOffsetSame) {
                 // Probably this segment has scaled, so putting it here to later check for its successors
                 scaledSegmentsMap.put(segment, nextOffset);
-            }
-            else {
+            } else {
                 nextPositionsMap.put(segment, nextOffset);
             }
         }
         checkSuccessorSegmentOffset(nextPositionsMap, scaledSegmentsMap, approxDistanceToNextOffset);
         log.debug("Next positions of the segments in the streamcut = {}", nextPositionsMap);
-        return new StreamCutImpl(stream,nextPositionsMap);
+        return new StreamCutImpl(stream, nextPositionsMap);
     }
 
     public long getNextOffsetForSegment(Segment segment, long targetOffset) {
@@ -229,14 +228,13 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
             CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors = controller.getSuccessors(entry.getKey());
             Map<SegmentWithRange, List<Long>> segmentToPredecessorMap = getSuccessors.join().getSegmentToPredecessor();
             int size = segmentToPredecessorMap.size();
-            if(size > 1) { //scale up happened to the segment
+            if (size > 1) { //scale up happened to the segment
                 for (SegmentWithRange segmentWithRange : segmentToPredecessorMap.keySet()) {
                     Segment segment = segmentWithRange.getSegment();
                     long nextOffset = getNextOffsetForSegment(segment, approxDistanceToNextOffset);
                     nextPositionsMap.put(segment, nextOffset);
                 }
-            }
-            else if (size == 1) { //scale down happened to the segments
+            } else if (size == 1) { //scale down happened to the segments
                 List<Long> segmentIds = nextPositionsMap.keySet().stream().map(x -> x.getSegmentId()).collect(Collectors.toList());
                 // Check for any of the predecessor which is present in nextPositionsMap. If so, we will not proceed to successor segment
                 boolean isJoint  = segmentToPredecessorMap.values().stream().findFirst().get().stream().anyMatch(segmentIds::contains);
@@ -247,12 +245,10 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                         long nextOffset = getNextOffsetForSegment(segment, approxDistanceToNextOffset);
                         nextPositionsMap.put(segment, nextOffset);
                     }
-                }
-                else {
+                } else {
                     nextPositionsMap.put(entry.getKey(), entry.getValue());
                 }
-            }
-            else { //Segment is neither sealed and nor scaled
+            } else { //Segment is neither sealed and nor scaled
                 nextPositionsMap.put(entry.getKey(), entry.getValue());
             }
 

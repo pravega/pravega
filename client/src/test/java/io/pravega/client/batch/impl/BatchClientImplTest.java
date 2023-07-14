@@ -320,11 +320,13 @@ public class BatchClientImplTest {
         Map<SegmentWithRange, List<Long>> segments = new HashMap<>();
         return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(segments, ""));
     }
+
     private CompletableFuture<StreamSegmentsWithPredecessors> getScaleDownReplacement(Segment old1, Segment old2, Segment repacement1) {
         Map<SegmentWithRange, List<Long>> segments = new HashMap<>();
         segments.put(new SegmentWithRange(repacement1, 0, 0.35), Arrays.asList(old1.getSegmentId(), old2.getSegmentId()));
         return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(segments, ""));
     }
+    
     private CompletableFuture<StreamSegmentsWithPredecessors> getScaleUpReplacement(Segment old, Segment repacement1, Segment repacement2) {
         Map<SegmentWithRange, List<Long>> segments = new HashMap<>();
         segments.put(new SegmentWithRange(repacement1, 0, 0.25), Collections.singletonList(old.getSegmentId()));
