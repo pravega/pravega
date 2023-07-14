@@ -13,11 +13,11 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.MathHelpers;
 import io.pravega.test.common.AssertExtensions;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.function.LongFunction;
 import lombok.Data;
@@ -40,7 +40,7 @@ public class SortUtilTest {
         int end = 9;
         long target = 8;
 
-        Map.Entry<Integer, Long> result = newtonianSearch(getValue, start, end, target, false);
+        Entry<Long, Long> result = newtonianSearch(getValue, start, end, target, false);
 
         assertNotNull(result);
         assertEquals(4, result.getKey().intValue()); // Expected index of the target
@@ -60,7 +60,7 @@ public class SortUtilTest {
         int start = 0;
         int end = 1;
 
-        Map.Entry<Integer, Long> result = newtonianSearch(getValue, start, end, 3, false);
+        Entry<Long, Long> result = newtonianSearch(getValue, start, end, 3, false);
         assertEquals(1, result.getKey().intValue());
         assertEquals(2, result.getValue().longValue());
 
@@ -123,11 +123,11 @@ public class SortUtilTest {
     private void testNewtonianSearchForLengthAndPosition(int multiple, int length, int target) {
         CountingFunction getValue = new CountingFunction(i -> i * multiple);
 
-        int fromIdx = 0;
-        int toIdx = length - 1;
+        long fromIdx = 0;
+        long toIdx = length - 1;
         int maxExpectedInvocationCount;
         
-        Map.Entry<Integer, Long> expected;
+        Map.Entry<Long, Long> expected;
         if (target <= 0) {
             maxExpectedInvocationCount = Math.min(length, 2);
             expected = new AbstractMap.SimpleEntry<>(fromIdx, getValue.apply(fromIdx));
@@ -136,13 +136,13 @@ public class SortUtilTest {
             expected = new AbstractMap.SimpleEntry<>(toIdx, getValue.apply(toIdx));
         } else {
             maxExpectedInvocationCount = Math.min(length, 4);
-            int expected_idx = (target/multiple);
+            long expected_idx = (target/multiple);
             expected = new AbstractMap.SimpleEntry<>(expected_idx, getValue.apply(expected_idx));
         }
 
         getValue.resetInvocationCount();
 
-        Map.Entry<Integer, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, false);
+        Entry<Long, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, false);
 
         assertEquals("Incorrect index for length " + length + " multiple " + multiple + " and target " + target,
                 expected.getKey(), actual.getKey());
@@ -265,7 +265,7 @@ public class SortUtilTest {
         int end = 9;
         long target = 7;
 
-        Map.Entry<Integer, Long> result = newtonianSearch(getValue, start, end, target, false);
+        Entry<Long, Long> result = newtonianSearch(getValue, start, end, target, false);
 
         Assert.assertNotNull(result);
         assertEquals(3, result.getKey().intValue()); // Expected index of the closest value
@@ -285,16 +285,16 @@ public class SortUtilTest {
         int toIdx = 9;
         long target = 7;
 
-        Map.Entry<Integer, Long> expected = new AbstractMap.SimpleEntry<>(7, 7L);
-        Map.Entry<Integer, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, false);
+        Entry<Long, Long> expected = new AbstractMap.SimpleEntry<>(7L, 7L);
+        Entry<Long, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, false);
 
-        Assert.assertEquals("Incorrect index", expected.getKey(), actual.getKey());
-        Assert.assertEquals("Incorrect value", expected.getValue(), actual.getValue());
+        assertEquals("Incorrect index", expected.getKey(), actual.getKey());
+        assertEquals("Incorrect value", expected.getValue(), actual.getValue());
         
         actual = newtonianSearch(getValue, fromIdx, toIdx, target, true);
 
-        Assert.assertEquals("Incorrect index", expected.getKey(), actual.getKey());
-        Assert.assertEquals("Incorrect value", expected.getValue(), actual.getValue());
+        assertEquals("Incorrect index", expected.getKey(), actual.getKey());
+        assertEquals("Incorrect value", expected.getValue(), actual.getValue());
     }
 
     @Test
@@ -304,22 +304,22 @@ public class SortUtilTest {
         int toIdx = 9;
         long target = 75;
 
-        Map.Entry<Integer, Long> expected = new AbstractMap.SimpleEntry<>(7, 70L);
-        Map.Entry<Integer, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, false);
+        Entry<Long, Long> expected = new AbstractMap.SimpleEntry<>(7L, 70L);
+        Entry<Long, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, false);
 
-        Assert.assertEquals("Incorrect index", expected.getKey(), actual.getKey());
-        Assert.assertEquals("Incorrect value", expected.getValue(), actual.getValue());
+        assertEquals("Incorrect index", expected.getKey(), actual.getKey());
+        assertEquals("Incorrect value", expected.getValue(), actual.getValue());
 
         getValue = idx -> (long) (idx * 5);
         fromIdx = 0;
         toIdx = 5;
         target = 18;
 
-        expected = new AbstractMap.SimpleEntry<>(3, 15L);
+        expected = new AbstractMap.SimpleEntry<>(3L, 15L);
         actual = newtonianSearch(getValue, fromIdx, toIdx, target, false);
 
-        Assert.assertEquals("Incorrect index", expected.getKey(), actual.getKey());
-        Assert.assertEquals("Incorrect value", expected.getValue(), actual.getValue());
+        assertEquals("Incorrect index", expected.getKey(), actual.getKey());
+        assertEquals("Incorrect value", expected.getValue(), actual.getValue());
     }
     
     @Test
@@ -329,8 +329,8 @@ public class SortUtilTest {
         int toIdx = 9;
         long target = 75;
 
-        Map.Entry<Integer, Long> expected = new AbstractMap.SimpleEntry<>(8, 80L);
-        Map.Entry<Integer, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, true);
+        Entry<Long, Long> expected = new AbstractMap.SimpleEntry<>(8L, 80L);
+        Entry<Long, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, true);
 
         Assert.assertEquals("Incorrect index", expected.getKey(), actual.getKey());
         Assert.assertEquals("Incorrect value", expected.getValue(), actual.getValue());
@@ -340,7 +340,7 @@ public class SortUtilTest {
         toIdx = 5;
         target = 18;
 
-        expected = new AbstractMap.SimpleEntry<>(4, 20L);
+        expected = new AbstractMap.SimpleEntry<>(4L, 20L);
         actual = newtonianSearch(getValue, fromIdx, toIdx, target, true);
 
         Assert.assertEquals("Incorrect index", expected.getKey(), actual.getKey());
@@ -363,11 +363,11 @@ public class SortUtilTest {
         int fromIdx = 0;
         int toIdx = 0;
         long target = 7;
-        Map.Entry<Integer, Long> expected = new AbstractMap.SimpleEntry<>(0, 0L);
-        Map.Entry<Integer, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, false);
+        Entry<Long, Long> expected = new AbstractMap.SimpleEntry<>(0L, 0L);
+        Entry<Long, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, false);
 
-        Assert.assertEquals("Incorrect index", expected.getKey(), actual.getKey());
-        Assert.assertEquals("Incorrect value", expected.getValue(), actual.getValue());
+        assertEquals("Incorrect index", expected.getKey(), actual.getKey());
+        assertEquals("Incorrect value", expected.getValue(), actual.getValue());
     }
 
     @Test
@@ -377,11 +377,11 @@ public class SortUtilTest {
         int toIdx = 10;
         long target = 3; // Target is before the range of values
 
-        Map.Entry<Integer, Long> expected = new AbstractMap.SimpleEntry<>(5, 5L);
-        Map.Entry<Integer, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, false);
+        Entry<Long, Long> expected = new AbstractMap.SimpleEntry<>(5L, 5L);
+        Entry<Long, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, false);
 
-        Assert.assertEquals("Incorrect index", expected.getKey(), actual.getKey());
-        Assert.assertEquals("Incorrect value", expected.getValue(), actual.getValue());
+        assertEquals("Incorrect index", expected.getKey(), actual.getKey());
+        assertEquals("Incorrect value", expected.getValue(), actual.getValue());
     }
 
     @Test
@@ -391,11 +391,11 @@ public class SortUtilTest {
         int toIdx = 5;
         long target = 10; // Target is after the range of values
 
-        Map.Entry<Integer, Long> expected = new AbstractMap.SimpleEntry<>(5, 5L);
-        Map.Entry<Integer, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, true);
+        Entry<Long, Long> expected = new AbstractMap.SimpleEntry<>(5L, 5L);
+        Entry<Long, Long> actual = newtonianSearch(getValue, fromIdx, toIdx, target, true);
 
-        Assert.assertEquals("Incorrect index", expected.getKey(), actual.getKey());
-        Assert.assertEquals("Incorrect value", expected.getValue(), actual.getValue());
+        assertEquals("Incorrect index", expected.getKey(), actual.getKey());
+        assertEquals("Incorrect value", expected.getValue(), actual.getValue());
     }
 
     @Test
@@ -406,7 +406,7 @@ public class SortUtilTest {
 
         // Test a target value within the range
         long target = 10_000;
-        Map.Entry<Integer, Long> result = newtonianSearch(getValue, 0, rangeSize, target, false);
+        Entry<Long, Long> result = newtonianSearch(getValue, 0, rangeSize, target, false);
         assertEquals(100, result.getKey().intValue());
         assertEquals(10_000, result.getValue().longValue());
         

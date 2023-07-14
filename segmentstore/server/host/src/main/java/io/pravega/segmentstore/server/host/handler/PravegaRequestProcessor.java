@@ -59,9 +59,11 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
+import io.pravega.segmentstore.server.host.handler.IndexRequestProcessor.SearchFailedException;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.tables.DeltaIteratorState;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
@@ -666,21 +668,19 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void locateOffset(LocateOffset locateOffset) {
         final String operation = "locateOffset";
-        
-        if (!verifyToken(locateOffset.getSegment(), locateOffset.getRequestId(), locateOffset.getDelegationToken(), operation)) {
+        long requestId = locateOffset.getRequestId();
+        String segment = locateOffset.getSegment();
+        if (!verifyToken(segment, requestId, locateOffset.getDelegationToken(), operation)) {
             return;
         }
         
-        log.debug(locateOffset.getRequestId(), "Locating offset {} ", locateOffset);
-        
-        segmentStore.getStreamSegmentInfo(locateOffset.getSegment(), TIMEOUT).thenApply(properties -> {
-            //TODO:
-            //invoke search on index
-            //on index stream, readIndex entry to search.
-            // TODO: modify search to return next larger element. Or max element if not found.
-            //      if off the end of index return length of segment
-            return null;
-        });
+        log.debug(requestId, "Locating offset {} ", locateOffset);
+        try {
+            long offset = IndexRequestProcessor.locateOffsetForStream(segmentStore, segment, locateOffset.getTargetOffset());
+            connection.send(new WireCommands.OffsetLocated(requestId, segment, offset));
+        } catch (Exception e) {
+            handleException(requestId, segment, operation, e);
+        }
     }
     
     @Override

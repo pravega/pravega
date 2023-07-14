@@ -40,7 +40,7 @@ public class SortUtils {
      * @return an Entry object containing the closest index and its value
      * @throws IllegalArgumentException if the input list is empty
      */
-    public static Map.Entry<Integer, Long> newtonianSearch(LongFunction<Long> getValue, int fromIdx, int toIdx,
+    public static Map.Entry<Long, Long> newtonianSearch(LongFunction<Long> getValue, long fromIdx, long toIdx,
                                                            long target, boolean greater) {
         if (fromIdx > toIdx || fromIdx < 0) {
             throw new IllegalArgumentException("Index size was negative");
@@ -62,11 +62,11 @@ public class SortUtils {
         while (toIdx > fromIdx + 1) {
             double guessProportion = ((double) target - (double) fromValue) / ((double) toValue - (double) fromValue);
             double slope = (1.0 - guessProportion) * beginSlope + (guessProportion) * endSlope;
-            int guessIdx;
+            long guessIdx;
             if (guessProportion < 0.5) {
-                guessIdx = fromIdx + (int) (((double) (target - fromValue)) / slope);
+                guessIdx = fromIdx + (long) (((double) (target - fromValue)) / slope);
             } else {
-                guessIdx = toIdx - (int) (((double) (toValue - target)) / slope);
+                guessIdx = toIdx - (long) (((double) (toValue - target)) / slope);
             }
             guessIdx = MathHelpers.minMax(guessIdx, fromIdx + 1, toIdx - 1);
 
@@ -91,7 +91,7 @@ public class SortUtils {
         }
     }
 
-    private static double calculateSlope(int fromIdx, int toIdx, long fromValue, long toValue) {
+    private static double calculateSlope(long fromIdx, long toIdx, long fromValue, long toValue) {
         //Divide and multiply by 2 to prevent wrapping issues for large values.
         return 2 * ((double) (toValue/2 - fromValue/2) / (double) (toIdx - fromIdx));
     }
