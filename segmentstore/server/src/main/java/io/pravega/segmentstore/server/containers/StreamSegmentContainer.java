@@ -390,10 +390,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @return True if we choose to start container in recover-from-storage mode.
      */
     private CompletableFuture<Boolean> shouldRecoverFromStorage() {
+        if ( !( storage instanceof ChunkedSegmentStorage) ) {
+            log.warn("{}: Storage is not of ChunkedStorage type. Recover from storage not supported for this type.", this.traceObjectId);
+            return CompletableFuture.completedFuture(false);
+        }
         String chunkName = NameUtils.getContainerEpochFileName(this.getId());
         return ((ChunkedSegmentStorage) storage).getChunkStorage().exists(chunkName)
                 .thenComposeAsync( doesExist -> {
                     boolean recover = this.isDurableLogInitialized.get() && doesExist;
+                    log.info("{}: RecoverFromStorage mode is {} ", this.traceObjectId, recover);
                     return CompletableFuture.completedFuture(recover);
                 });
     }
