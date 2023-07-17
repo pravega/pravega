@@ -153,16 +153,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
 
-        SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, "");
-        processor.setupAppend(setupAppendCommand);
-        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
-
-        verify(store).getAttributes(anyString(), eq(Collections.singleton(AttributeId.fromUUID(clientId))), eq(true), eq(AppendProcessor.TIMEOUT));
-        verifyStoreAppend(ac, data);
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
-        verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
-        verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, data.length));
-        verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
         CompletableFuture<SegmentProperties> toBeReturned = CompletableFuture.completedFuture(
                 StreamSegmentInformation.builder()
                         .name(streamSegmentName)
@@ -171,9 +161,17 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                                 .put(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE, 5L)
                                 .put(Attributes.SCALE_POLICY_RATE, 10L).build())
                         .build());
-        when(store.getStreamSegmentInfo(streamSegmentName, Duration.ofMinutes(1))).thenReturn(toBeReturned);
-        processor.populateEventSizeForIndexSegmentAppendsTask(clientId, streamSegmentName);
-        verify(store, times(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        when(store.getStreamSegmentInfo(anyString(), any())).thenReturn(toBeReturned);
+        SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, "");
+        processor.setupAppend(setupAppendCommand);
+        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        verify(store).getAttributes(anyString(), eq(Collections.singleton(AttributeId.fromUUID(clientId))), eq(true), eq(AppendProcessor.TIMEOUT));
+        verifyStoreAppend(ac, data);
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
+        verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, data.length));
+        verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
