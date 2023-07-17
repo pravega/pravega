@@ -20,7 +20,12 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.contracts.*;
+import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.test.common.AssertExtensions;
@@ -49,7 +54,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
 /**
  * Unit tests for the {@link MetadataCleaner} class.
  */
