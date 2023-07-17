@@ -223,7 +223,8 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         store.getStreamSegmentInfo(indexSegment, TIMEOUT)
                 .whenComplete((properties, u) -> {
                     if (u != null) {
-                        if (u instanceof NoSuchSegmentException) {
+                        u = Exceptions.unwrap(u);
+                        if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
                             log.error("could not find the segment {}", indexSegment);
                         } else {
                             handleException(writer, requestId, indexSegment, "populating event size for index appends", u);
