@@ -883,7 +883,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     EpochInfo containerEpoch;
                     try {
                         containerEpoch = EPOCH_INFO_SERIALIZER.deserialize(outputStream.getData());
-                    } catch(Exception e) {
+                    } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                     log.info("{}: Read container epoch {} from storage", this.traceObjectId, containerEpoch.getEpoch());
