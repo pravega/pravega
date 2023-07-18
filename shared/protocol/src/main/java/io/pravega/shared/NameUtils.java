@@ -165,7 +165,7 @@ public final class NameUtils {
     /**
      * Format for chunk name with segment name , epoch and offset.
      */
-    private static final String CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET = "%s.E-%d-O-%d.%s";
+    private static final String CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET = "%s/E-%d-O-%d.%s";
 
     /**
      * Format for name of read index block index entry.
