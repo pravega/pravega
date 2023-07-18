@@ -274,7 +274,6 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         UUID id = append.getWriterId();
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
         Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
-        //WriterState writerState = this.writerStates.get(Pair.of(getIndexSegmentName(append.getSegment()), id));
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
         this.connection.adjustOutstandingBytes(appendLength);
