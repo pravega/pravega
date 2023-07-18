@@ -225,7 +225,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                     if (u != null) {
                         u = Exceptions.unwrap(u);
                         if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
-                            log.error("could not find the segment {}", indexSegment);
+                            log.warn("could not find the segment {}", indexSegment);
                         } else {
                             handleException(writer, requestId, indexSegment, "populating event size for index appends", u);
                         }
@@ -233,6 +233,8 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                         if (properties != null) {
                             Map<AttributeId, Long> attributes =  properties.getAttributes();
                             this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE)));
+                        } else {
+                            log.debug("could not get properties for a given segment {}", indexSegment);
                         }
                     }
                 });
