@@ -58,11 +58,12 @@ import io.pravega.cli.admin.cluster.ListContainersCommand;
 import io.pravega.cli.admin.config.ConfigListCommand;
 import io.pravega.cli.admin.config.ConfigSetCommand;
 import io.pravega.cli.admin.readerGroup.ParseReaderGroupStreamCommand;
-import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
+import io.pravega.cli.admin.segmentstore.GetContainerIdOfSegmentCommand;
+import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
+import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
-import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.storage.ListChunksCommand;
 import io.pravega.cli.admin.segmentstore.storage.StorageUpdateSnapshotCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentEntryCommand;
@@ -401,6 +402,7 @@ public abstract class AdminCommand {
                         .put(GetSegmentAttributeCommand::descriptor, GetSegmentAttributeCommand::new)
                         .put(UpdateSegmentAttributeCommand::descriptor, UpdateSegmentAttributeCommand::new)
                         .put(FlushToStorageCommand::descriptor, FlushToStorageCommand::new)
+                        .put(GetContainerIdOfSegmentCommand::descriptor, GetContainerIdOfSegmentCommand::new)
                         .put(GetTableSegmentInfoCommand::descriptor, GetTableSegmentInfoCommand::new)
                         .put(GetTableSegmentEntryCommand::descriptor, GetTableSegmentEntryCommand::new)
                         .put(PutTableSegmentEntryCommand::descriptor, PutTableSegmentEntryCommand::new)
