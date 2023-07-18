@@ -605,6 +605,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void truncateSegment(TruncateSegment truncateSegment) {
         String segment = truncateSegment.getSegment();
         final String operation = "truncateSegment";
+        String indexSegmentName = "scope/stream/testCreateSealDelete#index";//getIndexSegmentName(segment);
 
         if (!verifyToken(segment, truncateSegment.getRequestId(), truncateSegment.getDelegationToken(), operation)) {
             return;
@@ -617,7 +618,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
                 //This is to truncate the index-segment.
-                .thenAccept(v -> segmentStore.truncateStreamSegment(getIndexSegmentName(segment), indexSegmentOffset, TIMEOUT))
+                .thenAccept(v -> segmentStore.truncateStreamSegment(indexSegmentName, indexSegmentOffset, TIMEOUT))
                 .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
                 .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, offset, operation, e));
     }
