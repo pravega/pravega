@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import lombok.Data;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
@@ -25,6 +26,7 @@ import java.util.function.Supplier;
 /**
  * Stores {@link SnapshotInfo}.
  */
+@Data
 @RequiredArgsConstructor
 public class SnapshotInfoStore {
     private final long containerId;
