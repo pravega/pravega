@@ -605,7 +605,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void truncateSegment(TruncateSegment truncateSegment) {
         String segment = truncateSegment.getSegment();
         final String operation = "truncateSegment";
-        String indexSegmentName = "scope/stream/testCreateSealDelete#index";//getIndexSegmentName(segment);
+        //TO-DO getIndexSegmentName(segment);
+        String indexSegmentName = "scope/stream/testCreateSealDelete#index";
 
         if (!verifyToken(segment, truncateSegment.getRequestId(), truncateSegment.getDelegationToken(), operation)) {
             return;

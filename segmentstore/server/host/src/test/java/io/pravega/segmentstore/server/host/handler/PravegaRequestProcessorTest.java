@@ -1491,7 +1491,7 @@ public class PravegaRequestProcessorTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         ServerConnection connection = mock(ServerConnection.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection);
 
         // Create a main segment it will create the index segment as well.
         processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
@@ -1528,6 +1528,7 @@ public class PravegaRequestProcessorTest {
         assertFalse(append(indexStreamSegmentName, 4, store));
         assertFalse(append(streamSegmentName, 4, store));
     }
+    
     private ArrayView generateData(int length, Random rnd) {
         byte[] keyData = new byte[length];
         rnd.nextBytes(keyData);
