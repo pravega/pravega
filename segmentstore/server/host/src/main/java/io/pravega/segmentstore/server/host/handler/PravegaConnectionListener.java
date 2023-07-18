@@ -57,6 +57,7 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
     private final ScheduledExecutorService tokenExpiryHandlerExecutor; // Used for running token expiry handling tasks.
 
     private final boolean replyWithStackTraceOnError;
+    private final ScheduledExecutorService indexAppendExecutor;
 
     //endregion
 
@@ -71,13 +72,15 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
      * @param tableStore          The SegmentStore to delegate all requests to.
      * @param tokenExpiryExecutor The executor to be used for running token expiration handling tasks.
      * @param tlsProtocolVersion the version of the TLS protocol
+     * @param indexAppendExecutor The executor service to process index append.
      */
     @VisibleForTesting
     public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore,
-                                     TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor, String[] tlsProtocolVersion) {
+                                     TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor,
+                                     String[] tlsProtocolVersion, ScheduledExecutorService indexAppendExecutor) {
         this(enableTls, false, "localhost", port, streamSegmentStore, tableStore,
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null,
-                null, true, tokenExpiryExecutor, tlsProtocolVersion, null);
+                null, true, tokenExpiryExecutor, tlsProtocolVersion, indexAppendExecutor);
     }
 
     /**
@@ -88,11 +91,12 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
      * @param streamSegmentStore  The SegmentStore to delegate all requests to.
      * @param tableStore          The SegmentStore to delegate all requests to.
      * @param tokenExpiryExecutor The executor to be used for running token expiration handling tasks.
+     * @param indexAppendExecutor The executor service to process index append.
      */
     @VisibleForTesting
     public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore,
-                                     TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor) {
-        this(enableTls, port, streamSegmentStore, tableStore, tokenExpiryExecutor, TLS_PROTOCOL_VERSION.getDefaultValue().split(","));
+                                     TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor, ScheduledExecutorService indexAppendExecutor) {
+        this(enableTls, port, streamSegmentStore, tableStore, tokenExpiryExecutor, TLS_PROTOCOL_VERSION.getDefaultValue().split(","), indexAppendExecutor);
     }
 
     /**
@@ -113,12 +117,13 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
      * @param executor           The executor to be used for running token expiration handling tasks.
      * @param tlsProtocolVersion the version of the TLS protocol
      * @param healthServiceManager The healthService to register new health contributors related to the listeners.
+     * @param indexAppendExecutor The executor service to process index append.
      */
     public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
                                      DelegationTokenVerifier tokenVerifier, String certFile, String keyFile,
                                      boolean replyWithStackTraceOnError, ScheduledExecutorService executor, String[] tlsProtocolVersion,
-                                     HealthServiceManager healthServiceManager) {
+                                     HealthServiceManager healthServiceManager, ScheduledExecutorService indexAppendExecutor) {
         super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion, healthServiceManager);
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
@@ -127,6 +132,7 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.tokenVerifier = (tokenVerifier != null) ? tokenVerifier : new PassingTokenVerifier();
         this.tokenExpiryHandlerExecutor = executor;
+        this.indexAppendExecutor = indexAppendExecutor;
     }
 
     /**
@@ -146,21 +152,22 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
      * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
      * @param executor           The executor to be used for running token expiration handling tasks.
      * @param tlsProtocolVersion the version of the TLS protocol
+     * @param indexAppendExecutor The executor service to process index append.
      */
     public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
                                      DelegationTokenVerifier tokenVerifier, String certFile, String keyFile,
-                                     boolean replyWithStackTraceOnError, ScheduledExecutorService executor, String[] tlsProtocolVersion) {
+                                     boolean replyWithStackTraceOnError, ScheduledExecutorService executor, String[] tlsProtocolVersion, ScheduledExecutorService indexAppendExecutor) {
         this(enableTls, enableTlsReload, host, port, streamSegmentStore, tableStore, statsRecorder, tableStatsRecorder,
-                 tokenVerifier, certFile, keyFile, replyWithStackTraceOnError, executor, tlsProtocolVersion, null);
+                 tokenVerifier, certFile, keyFile, replyWithStackTraceOnError, executor, tlsProtocolVersion, null, indexAppendExecutor);
     }
 
     @Override
     public RequestProcessor createRequestProcessor(TrackedConnection c) {
         PravegaRequestProcessor prp = new PravegaRequestProcessor(store, tableStore, c, statsRecorder,
-                tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError);
+                tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError, indexAppendExecutor);
         return new AppendProcessor(store, c, prp, statsRecorder, tokenVerifier, replyWithStackTraceOnError,
-                tokenExpiryHandlerExecutor);
+                tokenExpiryHandlerExecutor, indexAppendExecutor);
     }
 
     @Override

@@ -125,7 +125,8 @@ public class StreamMetricsTest {
 
         this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
-                null, null, true, this.serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+                null, null, true, this.serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION,
+                serviceBuilder.getIndexAppendExecutor());
         this.server.startListening();
 
         // 4. Start Pravega Controller service

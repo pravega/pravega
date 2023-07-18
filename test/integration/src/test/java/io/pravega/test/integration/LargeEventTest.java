@@ -143,7 +143,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         store = serviceBuilder.createStreamSegmentService();
         tableStore = serviceBuilder.createTableStoreService();
         // Start up server.
-        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
+                serviceBuilder.getIndexAppendExecutor());
         this.server.startListening();
         // 3. Start Pravega Controller service
         this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
@@ -279,7 +280,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         Runnable restart = () -> {
             // Reset the server, in effect clearing the AppendProcessor and PravegaRequestProcessor.
             this.server.close();
-            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
+                    serviceBuilder.getIndexAppendExecutor());
             this.server.startListening();
         };
         restart.run();

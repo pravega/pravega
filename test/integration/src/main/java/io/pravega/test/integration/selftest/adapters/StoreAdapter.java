@@ -230,9 +230,11 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      *                      instance to create.
      * @param builderConfig A ServiceBuilderConfig to use for the SegmentStore.
      * @param executor      An Executor to use for test-related async operations.
+     * @param indexAppendExecutor The executor service to process index append.
      * @return The created StoreAdapter Instance.
      */
-    public static StoreAdapter create(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService executor) {
+    public static StoreAdapter create(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService executor,
+                                      ScheduledExecutorService indexAppendExecutor) {
         StoreAdapter result;
         switch (testConfig.getTestType()) {
             case SegmentStore:
@@ -244,11 +246,11 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
                 break;
             case InProcessMock:
             case InProcessMockTable:
-                result = new InProcessMockClientAdapter(testConfig, executor);
+                result = new InProcessMockClientAdapter(testConfig, executor, indexAppendExecutor);
                 break;
             case InProcessStore:
             case InProcessStoreTable:
-                result = new InProcessListenerWithRealStoreAdapter(testConfig, builderConfig, executor);
+                result = new InProcessListenerWithRealStoreAdapter(testConfig, builderConfig, executor, indexAppendExecutor);
                 break;
             case OutOfProcess:
                 result = new OutOfProcessAdapter(testConfig, builderConfig, executor);

@@ -78,7 +78,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), SERVICE_BUILDER.getIndexAppendExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -155,7 +155,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), SERVICE_BUILDER.getIndexAppendExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -191,7 +191,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), SERVICE_BUILDER.getIndexAppendExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -244,7 +244,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                                                                         SERVICE_BUILDER.getLowPriorityExecutor());
+                                                                         SERVICE_BUILDER.getLowPriorityExecutor(), SERVICE_BUILDER.getIndexAppendExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scopeName, endpoint, port);

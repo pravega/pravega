@@ -36,9 +36,11 @@ class InProcessListenerWithRealStoreAdapter extends InProcessMockClientAdapter {
      * @param testConfig    The TestConfig to use.
      * @param builderConfig The ServiceBuilderConfig to use.
      * @param testExecutor  An Executor to use for test-related async operations.
+     * @param indexAppendExecutor The executor service to process index append.
      */
-    InProcessListenerWithRealStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
-        super(testConfig, testExecutor);
+    InProcessListenerWithRealStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor,
+                                          ScheduledExecutorService indexAppendExecutor) {
+        super(testConfig, testExecutor, indexAppendExecutor);
         this.segmentStoreAdapter = new SegmentStoreAdapter(testConfig, builderConfig, testExecutor);
     }
 

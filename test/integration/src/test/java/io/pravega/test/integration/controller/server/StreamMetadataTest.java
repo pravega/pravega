@@ -56,7 +56,7 @@ public class StreamMetadataTest {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), serviceBuilder.getIndexAppendExecutor());
         server.startListening();
         int controllerPort = TestUtils.getAvailableListenPort();
         @Cleanup

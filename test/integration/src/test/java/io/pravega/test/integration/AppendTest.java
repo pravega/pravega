@@ -45,11 +45,8 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.contracts.AttributeId;
-import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -79,13 +76,12 @@ import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
-import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.time.Duration;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -96,12 +92,17 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.server.host.handler.IndexAppend;
+import lombok.val;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -114,6 +115,7 @@ public class AppendTest extends LeakDetectorTestSuite {
                                                                               .include(ServiceConfig.builder().with(ServiceConfig.CONTAINER_COUNT, 1))
                                                                               .include(WriterConfig.builder().with(WriterConfig.MAX_ROLLOVER_SIZE, 10485760L))
                                                                               .build());
+    private static final Duration TIMEOUT = Duration.ofMinutes(1);
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     @BeforeClass
@@ -200,11 +202,6 @@ public class AppendTest extends LeakDetectorTestSuite {
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
 
-        // validates that index segment is created
-        SegmentProperties properties = store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(segment), Duration.ofMinutes(1)).join();
-        Map<AttributeId, Long> attributes =  properties.getAttributes();
-        assertEquals(Long.valueOf(10L), attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE));
-
         UUID uuid = UUID.randomUUID();
         AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(2, uuid, segment, ""));
 
@@ -228,7 +225,100 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertEquals(segment, deleted.getSegment());
 
         //validates that index segment is deleted
-        AssertExtensions.assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(segment), Duration.ofMinutes(1)).join());
+        assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(segment), Duration.ofMinutes(1)).join());
+    }
+
+    @Test(timeout = 10000)
+    public void testMultipleIndexAppends() throws Exception {
+        String segment = "testMultipleIndexAppends";
+        String indexSegment = "testMultipleIndexAppends#index";
+        ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store);
+
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
+        assertEquals(segment, created.getSegment());
+
+        UUID uuid = UUID.randomUUID();
+        AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(2, uuid, segment, ""));
+
+        assertEquals(segment, setup.getSegment());
+        assertEquals(uuid, setup.getWriterId());
+
+        data.retain();
+        // Append 1 on main Segment
+        DataAppended ack = (DataAppended) sendRequest(channel,
+                new Append(segment, uuid, 1, new Event(data), 1L));
+        assertEquals(uuid, ack.getWriterId());
+        assertEquals(1, ack.getEventNumber());
+        assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
+
+        // Read the Actual data from main Segment. Will be helpful in asserting the indexdata
+        WireCommands.SegmentRead result = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(segment, 0, 20, "", 1L));
+        ByteBuf resultAfterOneAppend = result.getData();
+        System.out.println("dataResult : " + resultAfterOneAppend.toString(Charset.defaultCharset()));
+
+        // As only one append is done on Main segment we should have Event_count on index segment as 1
+        assertEventCountAttributeforSegment(indexSegment, store, 1);
+
+        //Append 2 on main segment
+        DataAppended ack2 = (DataAppended) sendRequest(channel,
+                new Append(segment, uuid, 2, new Event(data), 1L));
+        assertEquals(uuid, ack2.getWriterId());
+        assertEquals(2, ack2.getEventNumber());
+        assertEquals(1, ack2.getPreviousEventNumber());
+        //Thread.sleep(10L);
+
+        // Read the Actual data from main Segment. Will be helpfull in asserting the indexdata
+        WireCommands.SegmentRead resultMain = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(segment, 0, 100, "", 1L));
+        ByteBuf resultAfterTwoAppend = resultMain.getData();
+        assertEquals(2 * resultAfterOneAppend.readableBytes(), resultAfterTwoAppend.readableBytes());
+        System.out.println("dataResult Main : " + resultAfterTwoAppend.toString(Charset.defaultCharset()));
+
+        // Read IndexSegment from 0 Offset.
+        int readOffset = 0;
+        WireCommands.SegmentRead resultIndexSegment1 = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(indexSegment, readOffset, 40, "", 1L));
+        ByteBuf actual1 = Unpooled.buffer(100);
+        actual1.writeBytes(resultIndexSegment1.getData());
+        IndexAppend indexAppend1 = IndexAppend.fromBytes(actual1.array());
+        assertEquals(1, indexAppend1.getEventCount());
+        assertEquals(resultAfterOneAppend.readableBytes(), indexAppend1.getEventLength());
+
+        System.out.println("dataResult index data 1 event number : " + indexAppend1.getEventLength() + " eventCount : " + indexAppend1.getEventCount() + " timestamp : " + indexAppend1.getTimeStamp()
+                + " offset from readResult " + resultIndexSegment1.getOffset() + " length of data returned " + indexAppend1.toBytes().length);
+
+        // Read IndexSegment from next Offset this will give second append info
+        readOffset += indexAppend1.toBytes().length;
+        WireCommands.SegmentRead resultIndexSegment2 = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(indexSegment, readOffset, 32, "", 1L));
+        ByteBuf actual2 = Unpooled.buffer(32);
+        actual2.writeBytes(resultIndexSegment2.getData());
+        IndexAppend indexAppend2 = IndexAppend.fromBytes(actual2.array());
+
+        // check the getSegment info and chck the attribute EVENt_COUNT
+
+        assertEquals(2, indexAppend2.getEventCount());
+        assertEquals(resultAfterTwoAppend.readableBytes(), indexAppend2.getEventLength());
+
+        System.out.println("dataResult index data 2 event number : " + indexAppend2.getEventLength() + " eventCount : " + indexAppend2.getEventCount() + " timestamp : " + indexAppend2.getTimeStamp()
+                + " offset from readResult " + resultIndexSegment2.getOffset() + " length of data returned " + indexAppend1.toBytes().length);
+
+        // Two appends are done on Main segment we should have Event_count on index segment as 2
+        assertEventCountAttributeforSegment(indexSegment, store, 2);
+    }
+
+    private void assertEventCountAttributeforSegment(String segment, StreamSegmentStore store, long expectedEventCount) {
+        // Assert Index Segment attribute values.
+        val si = store.getStreamSegmentInfo(segment, TIMEOUT).join();
+        val segmentType = SegmentType.fromAttributes(si.getAttributes());
+        assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem() || segmentType.isTableSegment());
+        assertEquals(SegmentType.STREAM_SEGMENT, segmentType);
+
+        val attributes = si.getAttributes();
+        assertEquals(expectedEventCount, (long) attributes.get(Attributes.EVENT_COUNT));
+
+        System.out.println("%% index segment IndexCount : " + (long) attributes.get(Attributes.EVENT_COUNT));
     }
 
     static Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
@@ -261,7 +351,8 @@ public class AppendTest extends LeakDetectorTestSuite {
         lsh.setRequestProcessor(AppendProcessor.defaultBuilder()
                                                .store(store)
                                                .connection(new TrackedConnection(lsh))
-                                               .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh))
+                                               .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh,
+                                                       SERVICE_BUILDER.getIndexAppendExecutor()))
                                                .build());
         return channel;
     }
@@ -277,7 +368,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), SERVICE_BUILDER.getIndexAppendExecutor());
         server.startListening();
 
         @Cleanup
@@ -311,7 +402,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), SERVICE_BUILDER.getIndexAppendExecutor());
         server.startListening();
 
         @Cleanup
@@ -343,7 +434,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), SERVICE_BUILDER.getIndexAppendExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
@@ -372,7 +463,8 @@ public class AppendTest extends LeakDetectorTestSuite {
         @Cleanup("shutdown")
         InlineExecutor tokenExpiryExecutor = new InlineExecutor();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, tokenExpiryExecutor);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, tokenExpiryExecutor,
+                SERVICE_BUILDER.getIndexAppendExecutor());
         server.startListening();
         ClientConfig config = ClientConfig.builder().build();
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(config);
@@ -416,7 +508,8 @@ public class AppendTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, SERVICE_BUILDER.getLowPriorityExecutor());
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, SERVICE_BUILDER.getLowPriorityExecutor(),
+                SERVICE_BUILDER.getIndexAppendExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
@@ -429,7 +522,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         long blockingTime = timeWrites(testPayload, 3000, producer, true);
         long nonBlockingTime = timeWrites(testPayload, 60000, producer, false);
         System.out.println("Blocking took: " + blockingTime + "ms.");
-        System.out.println("Non blocking took: " + nonBlockingTime + "ms.");        
+        System.out.println("Non blocking took: " + nonBlockingTime + "ms.");
         assertTrue(blockingTime < 10000);
         assertTrue(nonBlockingTime < 10000);
     }

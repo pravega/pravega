@@ -178,14 +178,14 @@ public final class SetupUtils {
                 servicePort, store, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),  new PassingTokenVerifier(),
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME,
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME, true,
-                serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+                serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION, serviceBuilder.getIndexAppendExecutor());
 
         this.server.startListening();
         log.info("Started Pravega Service");
 
         this.adminListener = new AdminConnectionListener(enableTls, false, "localhost", adminPort,
                 store, tableStore, new PassingTokenVerifier(), pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME,
-                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME, SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME, SecurityConfigDefaults.TLS_PROTOCOL_VERSION, serviceBuilder.getIndexAppendExecutor());
         this.adminListener.startListening();
         log.info("AdminConnectionListener started successfully.");
 
