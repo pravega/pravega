@@ -23,7 +23,8 @@ The online method currently only supports filesystem storage type.
 ## Prerequisites
 Having pravega installed with data generated on it.
 
-## Steps
+## Backup
+* ## Stop traffic
 * ## Enabling admin gateway.
   ### Execute the below command
   ```
@@ -39,18 +40,17 @@ Having pravega installed with data generated on it.
   ```
   kubectl edit pk -n <namespace>
   ```  
-  We need to make sure that Pravega does not receive any new traffic.
 * ## Executing backup script.
   ```
   ./lts_recovery_backup.sh
   ```
   This script will call `flush-to-storage` command and save epochs to LTS.
-* ## [Reattaching LTS](reattaching-lts.md) to new cluster.
-  This is an optional step and only required when you want to migrate to different cluster.
-
-* ## Make sure `persistentVolumeReclaimPolicy` is set to `Retain` in PV.
-  We can execute the command `kubectl get pv <pv name> -o yaml`, to get the yaml of the pv and verify the value of the field `persistentVolumeReclaimPolicy`.
+* ## [Enable Retain](reattaching-lts.md) on PV.
+* ## [Save PV and PVC](reattaching-lts.md).
 * ## Uninstall Pravega services.
   Uninstall **pravega**, **pravega-operator**, **bookkeeper**, **bookkeeper-operator**, **zookeeper**, and **zookeeper-operator**.
-* ## Reinstall pravega
-  I         nstall **zookeeper-operator**, **zookeeper**, **bookkeeper-operator**, **bookkeeper**, **pravega-operator** and **pravega** and start using it.
+## Restore
+* ## [Reattach PV and PVC](reattaching-lts.md).
+* ## Start pravega
+  Install **zookeeper-operator**, **zookeeper**, **bookkeeper-operator**, **bookkeeper**, **pravega-operator** and **pravega** and start using it.
+* ## Start traffic.

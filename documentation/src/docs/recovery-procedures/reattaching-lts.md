@@ -17,7 +17,7 @@ limitations under the License.
 # Reattaching LTS to new cluster.
 When you want to migrate to different cluster you need to reattach the LTS to the new cluster. The following procedure describes how to reattach LTS to new cluster.
 
-## Steps
+## Backup
 
 * ## Creating persistent volume file.
   ### Executing the below command to get the list of PV.
@@ -111,6 +111,7 @@ When you want to migrate to different cluster you need to reattach the LTS to th
       volumeName: pvc-4d63a8da-0014-4eaf-ac31-be9e20a4861f
   ```
   Save the Persistent Volume Claim file.
+## Restore
 * ## Apply Persistent Volume and Persistent Volume Claim file in the new cluster to reattach the LTS.
   Make sure that nfs provisioner is installed.
   ### Apply Persistent Volume file.
