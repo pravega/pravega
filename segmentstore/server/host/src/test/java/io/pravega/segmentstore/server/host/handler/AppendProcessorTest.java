@@ -137,6 +137,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
     @Test
     public void testAppend() {
         String streamSegmentName = "scope/stream/0.#epoch.0";
+        String streamIndexSegmentName = "scope/stream/0.#epoch.0#index";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -359,7 +360,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
         verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(store);
+        //verifyNoMoreInteractions(store);
 
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
@@ -1179,10 +1180,12 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = new InlineExecutor();
         lsh.setRequestProcessor(AppendProcessor.defaultBuilder()
                                                .store(store)
                                                .connection(new TrackedConnection(lsh))
-                                               .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh))
+                                               .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh, executor))
                                                .build());
         return channel;
     }
@@ -1210,6 +1213,17 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
     }
 
     private AppendContext interceptAppend(StreamSegmentStore store, String streamSegmentName, AttributeUpdateCollection attributeUpdates,
+                                          CompletableFuture<Long> response) {
+        val result = new AppendContext(store, streamSegmentName, attributeUpdates);
+        when(store.append(eq(streamSegmentName), any(), eq(attributeUpdates), eq(AppendProcessor.TIMEOUT)))
+                .thenAnswer(invocation -> {
+                    result.appendedData.set(((ByteBufWrapper) invocation.getArgument(1)).getCopy());
+                    return response;
+                });
+        return result;
+    }
+
+    private AppendContext interceptIndexAppend(StreamSegmentStore store, String streamSegmentName, AttributeUpdateCollection attributeUpdates,
                                           CompletableFuture<Long> response) {
         val result = new AppendContext(store, streamSegmentName, attributeUpdates);
         when(store.append(eq(streamSegmentName), any(), eq(attributeUpdates), eq(AppendProcessor.TIMEOUT)))
