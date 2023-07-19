@@ -1223,17 +1223,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         return result;
     }
 
-    private AppendContext interceptIndexAppend(StreamSegmentStore store, String streamSegmentName, AttributeUpdateCollection attributeUpdates,
-                                          CompletableFuture<Long> response) {
-        val result = new AppendContext(store, streamSegmentName, attributeUpdates);
-        when(store.append(eq(streamSegmentName), any(), eq(attributeUpdates), eq(AppendProcessor.TIMEOUT)))
-                .thenAnswer(invocation -> {
-                    result.appendedData.set(((ByteBufWrapper) invocation.getArgument(1)).getCopy());
-                    return response;
-                });
-        return result;
-    }
-
     private AppendContext interceptAppend(StreamSegmentStore store, String streamSegmentName, long offset, AttributeUpdateCollection attributeUpdates,
                                           CompletableFuture<Long> response) {
         val result = new AppendContext(store, streamSegmentName, offset, attributeUpdates);

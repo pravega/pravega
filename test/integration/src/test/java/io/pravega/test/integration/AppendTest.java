@@ -45,6 +45,8 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -93,9 +95,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.server.host.handler.IndexAppend;
 import lombok.val;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -447,16 +446,16 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertEquals(uuid, ack2.getWriterId());
         assertEquals(2, ack2.getEventNumber());
         assertEquals(1, ack2.getPreviousEventNumber());
-       //Thread.sleep(10L);
+        //Thread.sleep(10L);
 
         // Read the Actual data from main Segment. Will be helpfull in asserting the indexdata
         WireCommands.SegmentRead resultMain = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(segment, 0, 100, "", 1L));
         ByteBuf resultAfterTwoAppend = resultMain.getData();
-        assertEquals(2*resultAfterOneAppend.readableBytes(), resultAfterTwoAppend.readableBytes());
+        assertEquals(2 * resultAfterOneAppend.readableBytes(), resultAfterTwoAppend.readableBytes());
         System.out.println("dataResult Main : " + resultAfterTwoAppend.toString(Charset.defaultCharset()));
 
         // Read IndexSegment from 0 Offset.
-        int readOffset =0;
+        int readOffset = 0;
         WireCommands.SegmentRead resultIndexSegment1 = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(indexSegment, readOffset, 40, "", 1L));
         ByteBuf actual1 = Unpooled.buffer(100);
         actual1.writeBytes(resultIndexSegment1.getData());
@@ -465,7 +464,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertEquals(resultAfterOneAppend.readableBytes(), indexAppend1.getEventLength());
 
         System.out.println("dataResult index data 1 event number : " + indexAppend1.getEventLength() + " eventCount : " + indexAppend1.getEventCount() + " timestamp : " + indexAppend1.getTimeStamp()
-                + " offset from readResult "+ resultIndexSegment1.getOffset() + " length of data returned "+ indexAppend1.toBytes().length);
+                + " offset from readResult " + resultIndexSegment1.getOffset() + " length of data returned " + indexAppend1.toBytes().length);
 
         // Read IndexSegment from next Offset this will give second append info
         readOffset += indexAppend1.toBytes().length;
@@ -480,13 +479,13 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertEquals(resultAfterTwoAppend.readableBytes(), indexAppend2.getEventLength());
 
         System.out.println("dataResult index data 2 event number : " + indexAppend2.getEventLength() + " eventCount : " + indexAppend2.getEventCount() + " timestamp : " + indexAppend2.getTimeStamp()
-                + " offset from readResult "+ resultIndexSegment2.getOffset() + " length of data returned "+ indexAppend1.toBytes().length);
+                + " offset from readResult " + resultIndexSegment2.getOffset() + " length of data returned " + indexAppend1.toBytes().length);
 
         // Two appends are done on Main segment we should have Event_count on index segment as 2
         assertEventCountAttributeforSegment(indexSegment, store, 2);
     }
 
-    private void assertEventCountAttributeforSegment(String segment, StreamSegmentStore store, long expectedEventCount){
+    private void assertEventCountAttributeforSegment(String segment, StreamSegmentStore store, long expectedEventCount) {
         // Assert Index Segment attribute values.
         val si = store.getStreamSegmentInfo(segment, TIMEOUT).join();
         val segmentType = SegmentType.fromAttributes(si.getAttributes());
@@ -496,7 +495,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         val attributes = si.getAttributes();
         assertEquals(expectedEventCount, (long) attributes.get(Attributes.EVENT_COUNT));
 
-        System.out.println("%% index segment IndexCount : "+(long) attributes.get(Attributes.EVENT_COUNT));
+        System.out.println("%% index segment IndexCount : " + (long) attributes.get(Attributes.EVENT_COUNT));
     }
 
     @Test(timeout = 20000)
