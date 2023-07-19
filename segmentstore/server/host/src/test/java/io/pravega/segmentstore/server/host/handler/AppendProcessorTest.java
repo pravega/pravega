@@ -176,9 +176,10 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                 StreamSegmentInformation.builder()
                         .name(streamSegmentName)
                         .attributes(ImmutableMap.<AttributeId, Long>builder()
-                                .put(Attributes.SCALE_POLICY_TYPE, 0L)
-                                .put(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE, 5L)
-                                .put(Attributes.SCALE_POLICY_RATE, 10L).build())
+                                                .put(Attributes.SCALE_POLICY_TYPE, 0L)
+                                                .put(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE, 5L)
+                                                .put(Attributes.SCALE_POLICY_RATE, 10L)
+                                                .put(EVENT_COUNT, 5L).build())
                         .build());
         when(store.getStreamSegmentInfo(anyString(), any())).thenReturn(toBeReturned);
     }
@@ -399,7 +400,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         val ac3 = interceptAppend(store, streamSegmentName1, updateEventNumber(clientId, 20, 10, 1), CompletableFuture.completedFuture(3L));
         processor.append(new Append(streamSegmentName1, clientId, 20, 1, Unpooled.wrappedBuffer(data), null, requestId));
         verifyStoreAppend(verifier, ac3, data);
-        verify(store, times(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(3)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(store);
     }
 
