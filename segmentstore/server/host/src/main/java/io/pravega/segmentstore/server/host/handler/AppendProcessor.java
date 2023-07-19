@@ -82,6 +82,7 @@ import lombok.NonNull;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
+import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
@@ -139,6 +140,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         return builder()
                 .nextRequestProcessor(new FailingRequestProcessor())
                 .statsRecorder(SegmentStatsRecorder.noOp())
+                .indexAppendExecutor(newScheduledThreadPool(1, "index-append"))
                 .replyWithStackTraceOnError(false);
     }
 

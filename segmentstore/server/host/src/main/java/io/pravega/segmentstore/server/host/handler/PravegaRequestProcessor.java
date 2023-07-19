@@ -487,6 +487,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
                     .whenComplete((res, e) -> {
                     if (e == null) {
+                        log.debug(createStreamSegment.getRequestId(), "Stream segment {} created successfully.",
+                                createStreamSegment);
                         statsRecorder.createSegment(createStreamSegment.getSegment(),
                                 createStreamSegment.getScaleType(), createStreamSegment.getTargetRate(), timer.getElapsed());
                     } else {
@@ -496,6 +498,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private CompletableFuture<Void> createIndexSegment(final String segmentName) {
+        log.info("Creating index segment {}.", getIndexSegmentName(segmentName));
         final long maxEventSize = 10L;
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),

@@ -60,7 +60,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
-import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
@@ -100,6 +99,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -225,7 +225,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertEquals(segment, deleted.getSegment());
 
         //validates that index segment is deleted
-        assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(segment), Duration.ofMinutes(1)).join());
+        assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(getIndexSegmentName(segment), Duration.ofMinutes(1)).join());
     }
 
     static Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
@@ -408,7 +408,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     @Test(timeout = 10000)
     public void testMultipleIndexAppends() throws Exception {
         String segment = "testMultipleIndexAppends";
-        String indexSegment = "testMultipleIndexAppends#index";
+        String indexSegment = getIndexSegmentName(segment);
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
 
