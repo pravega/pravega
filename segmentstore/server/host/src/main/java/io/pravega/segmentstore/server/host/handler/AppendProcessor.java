@@ -21,6 +21,7 @@ import com.google.common.base.Throwables;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -68,13 +69,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.UUID;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
@@ -209,7 +211,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                     long eventNumber = attributes.getOrDefault(writerAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
 
                                     String indexSegment = getIndexSegmentName(newSegment);
-                                    populateEventSizeForIndexSegmentAppends(writer, indexSegment);
+                                    populateEventSizeForIndexSegmentAppends(writer, indexSegment, setupAppend.getRequestId());
 
                                     // Create a new WriterState object based on the attribute value for the last event number for the writer.
                                     // It should be noted that only one connection for a given segment writer is created by the client.
@@ -228,25 +230,25 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                         });
     }
 
-    private void populateEventSizeForIndexSegmentAppends(UUID writer, String indexSegment) {
-        try {
-            store.getStreamSegmentInfo(indexSegment, TIMEOUT)
-                    .thenAccept(properties -> {
+    private void populateEventSizeForIndexSegmentAppends(UUID writer, String indexSegment, long requestId) {
+        store.getStreamSegmentInfo(indexSegment, TIMEOUT)
+                .whenComplete((properties, u) -> {
+                    if (u != null) {
+                        u = Exceptions.unwrap(u);
+                        if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
+                            log.warn("could not find the segment {}", indexSegment);
+                        } else {
+                            handleException(writer, requestId, indexSegment, "populating event size for index appends", u);
+                        }
+                    } else {
                         if (properties != null) {
                             Map<AttributeId, Long> attributes =  properties.getAttributes();
                             this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE)));
                         } else {
-                            log.trace("could not find the segment {}", indexSegment);
+                            log.debug("could not get properties for a given segment {}", indexSegment);
                         }
-                    });
-        } catch (Throwable e) {
-            log.trace("could not find the segment {}", indexSegment);
-        }
-    }
-
-    @VisibleForTesting
-    void populateEventSizeForIndexSegmentAppendsTask(UUID writer, String indexSegment) {
-        populateEventSizeForIndexSegmentAppends(writer, indexSegment);
+                    }
+                });
     }
 
     @VisibleForTesting
@@ -301,8 +303,6 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                     append.getData().release();
                 });
     }
-
-
 
     @Override
     public void createTransientSegment(CreateTransientSegment createTransientSegment) {

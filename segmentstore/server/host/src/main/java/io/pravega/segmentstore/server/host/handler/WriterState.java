@@ -75,7 +75,7 @@ class WriterState {
      * Allowed number of events for index segment append
      */
     @GuardedBy("this")
-    private long eventSize;
+    private final long eventSize;
 
     //endregion
 
@@ -262,14 +262,6 @@ class WriterState {
         private final int handlersRemaining;
     }
 
-    /**
-     * Gets the expected Event size for index segment appends.
-     *
-     * @return The expected event size for index segment appends.
-     */
-    synchronized long getEventSizeForAppend() {
-        return this.eventSize;
-    }
     //endregion
 
     //region ErrorContext
@@ -340,5 +332,13 @@ class WriterState {
         }
     }
 
+    /**
+     * Gets the expected Event size for index segment appends.
+     *
+     * @return The expected event size for index segment appends.
+     */
+    synchronized long getEventSizeForAppend() {
+        return this.eventSize;
+    }
     //endregion
 }
