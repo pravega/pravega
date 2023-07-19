@@ -56,6 +56,7 @@ public class WriterStateTests {
         val ack2 = ws.appendSuccessful(event2);
         Assert.assertEquals("appendSuccessful(2) returned unexpected PreviousLastAcked.", event3, ack2);
         Assert.assertEquals(WriterState.NO_FAILED_EVENT_NUMBER, ws.getLowestFailedEventNumber());
+        Assert.assertEquals(initialEventNumber, ws.getEventSizeForAppend());
     }
 
     /**

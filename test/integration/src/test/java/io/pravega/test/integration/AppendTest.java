@@ -45,7 +45,11 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -56,6 +60,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
@@ -74,10 +79,13 @@ import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -192,6 +200,11 @@ public class AppendTest extends LeakDetectorTestSuite {
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
 
+        // validates that index segment is created
+        SegmentProperties properties = store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(segment), Duration.ofMinutes(1)).join();
+        Map<AttributeId, Long> attributes =  properties.getAttributes();
+        assertEquals(Long.valueOf(10L), attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE));
+
         UUID uuid = UUID.randomUUID();
         AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(2, uuid, segment, ""));
 
@@ -210,8 +223,13 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertEquals(uuid, ack2.getWriterId());
         assertEquals(2, ack2.getEventNumber());
         assertEquals(1, ack2.getPreviousEventNumber());
-    }
 
+        WireCommands.SegmentDeleted deleted = (WireCommands.SegmentDeleted) sendRequest(channel, new WireCommands.DeleteSegment(1, segment, ""));
+        assertEquals(segment, deleted.getSegment());
+
+        //validates that index segment is deleted
+        AssertExtensions.assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(segment), Duration.ofMinutes(1)).join());
+    }
 
     static Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
         channel.writeInbound(request);
