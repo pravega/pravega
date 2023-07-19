@@ -26,7 +26,7 @@ Having pravega installed with data generated on it.
 ## Backup
 * ## Stop traffic
 * ## Enabling admin gateway.
-  ### Execute the below command
+  ### Execute the below command.
   ```
   kubectl edit pk -n <namespace>
   ```
@@ -36,10 +36,11 @@ Having pravega installed with data generated on it.
   pravegaservice.admin.gateway.enable: "true"
   ```
 * ## Bringing down controller replicas to 0.
-  ### Execute the below command and change the value of `controllerReplicas` to 0.
+  ### Execute the below command.
   ```
   kubectl edit pk -n <namespace>
   ```  
+  And change the value of `controllerReplicas`  to 0.
 * ## Executing backup script.
   ```
   ./lts_recovery_backup.sh
@@ -53,4 +54,4 @@ Having pravega installed with data generated on it.
 * ## [Reattach PV and PVC](reattaching-lts.md).
 * ## Start pravega
   Install **zookeeper-operator**, **zookeeper**, **bookkeeper-operator**, **bookkeeper**, **pravega-operator** and **pravega** and start using it.
-* ## Start traffic.
+* ## Start traffic
