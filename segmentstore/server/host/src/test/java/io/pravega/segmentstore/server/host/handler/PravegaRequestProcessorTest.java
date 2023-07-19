@@ -1484,9 +1484,8 @@ public class PravegaRequestProcessorTest {
     public void testCreateSealTruncateDeleteIndexSegment() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against.
         String streamSegmentName = "scope/stream/testCreateSealDelete";
-        String indexStreamSegmentName = "scope/stream/testCreateSealDelete#index";
-        //String indexStreamSegmentName = NameUtils.getIndexSegmentName(streamSegmentName);
-
+        String indexStreamSegmentName = NameUtils.getIndexSegmentName(streamSegmentName);
+        @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
