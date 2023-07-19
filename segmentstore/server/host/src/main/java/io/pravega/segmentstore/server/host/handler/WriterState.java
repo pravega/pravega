@@ -71,6 +71,12 @@ class WriterState {
     @GuardedBy("this")
     private ArrayList<ErrorContext> errorContexts;
 
+    /**
+     * Allowed number of events for index segment append
+     */
+    @GuardedBy("this")
+    private long eventSize;
+
     //endregion
 
     //region Constructor
@@ -85,6 +91,7 @@ class WriterState {
         this.smallestFailedEventNumber = NO_FAILED_EVENT_NUMBER; // Nothing failed yet.
         this.lastStoredEventNumber = initialEventNumber;
         this.lastAckedEventNumber = initialEventNumber;
+        this.eventSize = initialEventNumber;
     }
 
     //endregion
@@ -255,6 +262,14 @@ class WriterState {
         private final int handlersRemaining;
     }
 
+    /**
+     * Gets the expected Event size for index segment appends.
+     *
+     * @return The expected event size for index segment appends.
+     */
+    synchronized long getEventSizeForAppend() {
+        return this.eventSize;
+    }
     //endregion
 
     //region ErrorContext

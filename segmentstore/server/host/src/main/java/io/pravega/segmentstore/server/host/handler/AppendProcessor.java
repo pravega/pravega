@@ -68,6 +68,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -80,9 +81,11 @@ import lombok.NonNull;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
+import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
+import static io.pravega.shared.NameUtils.getIndexSegmentName;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
@@ -101,9 +104,11 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Pair<String, UUID>, Long> indexWriterState = new ConcurrentHashMap<>();
     private final ScheduledExecutorService tokenExpiryHandlerExecutor;
     private final Collection<String> transientSegmentNames;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final IndexAppendProcessor indexAppendProcessor;
 
     //endregion
 
@@ -113,6 +118,13 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     AppendProcessor(@NonNull StreamSegmentStore store, @NonNull TrackedConnection connection, @NonNull RequestProcessor nextRequestProcessor,
                     @NonNull SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
                     boolean replyWithStackTraceOnError, ScheduledExecutorService tokenExpiryHandlerExecutor) {
+        this(store, connection, nextRequestProcessor, statsRecorder, tokenVerifier, replyWithStackTraceOnError, tokenExpiryHandlerExecutor, new IndexAppendProcessor(newScheduledThreadPool(1, "indexSegmentUpdater"), store));
+    }
+
+    @VisibleForTesting
+    AppendProcessor(@NonNull StreamSegmentStore store, @NonNull TrackedConnection connection, @NonNull RequestProcessor nextRequestProcessor,
+                    @NonNull SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
+                    boolean replyWithStackTraceOnError, ScheduledExecutorService tokenExpiryHandlerExecutor, IndexAppendProcessor indexAppendProcessor) {
         this.store = store;
         this.connection = connection;
         this.nextRequestProcessor = nextRequestProcessor;
@@ -121,6 +133,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.tokenExpiryHandlerExecutor = tokenExpiryHandlerExecutor;
         this.transientSegmentNames = Collections.synchronizedSet(new HashSet<>());
+        this.indexAppendProcessor = indexAppendProcessor;
     }
 
     /**
@@ -195,6 +208,9 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                     // Last event number stored according to Segment store.
                                     long eventNumber = attributes.getOrDefault(writerAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
 
+                                    String indexSegment = getIndexSegmentName(newSegment);
+                                    populateEventSizeForIndexSegmentAppends(writer, indexSegment);
+
                                     // Create a new WriterState object based on the attribute value for the last event number for the writer.
                                     // It should be noted that only one connection for a given segment writer is created by the client.
                                     // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
@@ -210,6 +226,27 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                 handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
                             }
                         });
+    }
+
+    private void populateEventSizeForIndexSegmentAppends(UUID writer, String indexSegment) {
+        try {
+            store.getStreamSegmentInfo(indexSegment, TIMEOUT)
+                    .thenAccept(properties -> {
+                        if (properties != null) {
+                            Map<AttributeId, Long> attributes =  properties.getAttributes();
+                            this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE)));
+                        } else {
+                            log.trace("could not find the segment {}", indexSegment);
+                        }
+                    });
+        } catch (Throwable e) {
+            log.trace("could not find the segment {}", indexSegment);
+        }
+    }
+
+    @VisibleForTesting
+    void populateEventSizeForIndexSegmentAppendsTask(UUID writer, String indexSegment) {
+        populateEventSizeForIndexSegmentAppends(writer, indexSegment);
     }
 
     @VisibleForTesting
@@ -255,6 +292,8 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         storeAppend(append, previousEventNumber)
                 .whenComplete((newLength, ex) -> {
                     handleAppendResult(append, newLength, ex, state, timer);
+                    //TODO : Improve this by making it probabilistic. Currently it will be called for each main segment append.
+                    indexAppendProcessor.processAppend(append.getSegment(), append.getEventCount());
                     LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, ex);
                 })
                 .whenComplete((v, e) -> {
@@ -262,6 +301,8 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                     append.getData().release();
                 });
     }
+
+
 
     @Override
     public void createTransientSegment(CreateTransientSegment createTransientSegment) {

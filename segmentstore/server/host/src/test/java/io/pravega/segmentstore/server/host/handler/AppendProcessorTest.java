@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
@@ -35,6 +36,8 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
@@ -45,6 +48,7 @@ import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
@@ -84,6 +88,7 @@ import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
+import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
@@ -160,6 +165,74 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, data.length));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
+        CompletableFuture<SegmentProperties> toBeReturned = CompletableFuture.completedFuture(
+                StreamSegmentInformation.builder()
+                        .name(streamSegmentName)
+                        .attributes(ImmutableMap.<AttributeId, Long>builder()
+                                .put(Attributes.SCALE_POLICY_TYPE, 0L)
+                                .put(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE, 5L)
+                                .put(Attributes.SCALE_POLICY_RATE, 10L).build())
+                        .build());
+        when(store.getStreamSegmentInfo(streamSegmentName, Duration.ofMinutes(1))).thenReturn(toBeReturned);
+        processor.populateEventSizeForIndexSegmentAppendsTask(clientId, streamSegmentName);
+        verify(store, times(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verifyNoMoreInteractions(connection);
+        //verifyNoMoreInteractions(store);
+
+        verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
+        assertTrue(processor.isSetupAppendCompleted(setupAppendCommand.getSegment(), setupAppendCommand.getWriterId()));
+    }
+
+    @Test
+    public void testAppendIndex() {
+        String streamSegmentName = "scope/stream/0.#epoch.0";
+        String streamIndexSegmentName = "scope/stream/0.#epoch.0#index";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
+        IndexAppend iaData = new IndexAppend(data.length, 1, 0);
+        byte[] iaDataBytes = iaData.toBytes();
+
+        IndexAppendProcessor indexAppendProcessor =  new IndexAppendProcessor(newScheduledThreadPool(1, "indexSegmentUpdater"), store);
+
+        @Cleanup
+        AppendProcessor processor = new AppendProcessor(store, new TrackedConnection(connection, tracker), new FailingRequestProcessor(), mockedRecorder, null,
+                false, null, indexAppendProcessor);
+
+        setupGetAttributes(streamSegmentName, clientId, store);
+        val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
+        val acIndex = interceptAppend(store, streamIndexSegmentName, updateIndexEventNumber(clientId, 1), CompletableFuture.completedFuture((long) iaDataBytes.length));
+
+        SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, "");
+        processor.setupAppend(setupAppendCommand);
+        CompletableFuture<SegmentProperties> toBeReturned = CompletableFuture.completedFuture(
+                StreamSegmentInformation.builder()
+                        .name(streamIndexSegmentName)
+                        .attributes(ImmutableMap.<AttributeId, Long>builder()
+                        .put(EVENT_COUNT, 1L).build())
+                        .length(8)
+                        .build());
+        when(store.getStreamSegmentInfo(streamSegmentName, Duration.ofMinutes(1))).thenReturn(toBeReturned);
+
+        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+
+        verify(store).getAttributes(anyString(), eq(Collections.singleton(AttributeId.fromUUID(clientId))), eq(true), eq(AppendProcessor.TIMEOUT));
+        verifyStoreAppend(ac, data);
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
+        verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, data.length));
+        verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
+
+        // Assert IndexSegment data
+        IndexAppend indexAppendActual = IndexAppend.fromBytes(acIndex.appendedData.get());
+        assertEquals(iaData.getEventLength(), indexAppendActual.getEventLength());
+        assertEquals(iaData.getEventCount(), indexAppendActual.getEventCount());
+
+        verify(store, times(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(2)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
 
@@ -341,9 +414,9 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, 21L));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
-
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
 
@@ -379,7 +452,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         val ac3 = interceptAppend(store, streamSegmentName1, updateEventNumber(clientId, 20, 10, 1), CompletableFuture.completedFuture(3L));
         processor.append(new Append(streamSegmentName1, clientId, 20, 1, Unpooled.wrappedBuffer(data), null, requestId));
         verifyStoreAppend(verifier, ac3, data);
-
+        verify(store, times(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(store);
     }
 
@@ -414,6 +487,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).send(new DataAppended(requestId, clientId, 1, 0, data.length));
         verify(connection).send(new DataAppended(requestId, clientId, 2, 1, 2 * data.length));
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         verify(mockedRecorder, times(2)).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
@@ -460,6 +534,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).send(new InvalidEventNumber(clientId, requestId, "test", 3));
         verify(connection).close();
         verify(tracker, times(3)).updateOutstandingBytes(connection, -data.length, 0);
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
@@ -507,6 +582,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).send(new AppendSetup(2, streamSegmentName, clientId, 1));
         verify(connection).send(new DataAppended(2, clientId, 2, 1, data.length * 2));
         verifyNoMoreInteractions(connection);
+        verify(store, times(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(store);
         verify(mockedRecorder, times(2)).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
@@ -545,6 +621,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).send(new DataAppended(requestId, clientId, 1, 0, data.length));
         verify(connection).close();
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -570,6 +647,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         }
         verify(store).getAttributes(anyString(), eq(Collections.singleton(AttributeId.fromUUID(clientId))), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 100));
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -629,6 +707,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(connection).send(new AppendSetup(3, segment2, clientId2, 0));
         verify(connection).send(new DataAppended(4, clientId2, data.length, 0, data.length));
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
+        verify(store, times(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -667,6 +746,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         verify(store, atMost(1)).append(any(), any(), any(), any());
         verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
 
         verify(mockedRecorder, never()).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
@@ -757,7 +837,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                 CompletableFuture.completedFuture(null));
         processor.append(new Append(streamSegmentName, clientId, 200, eventCount, Unpooled.wrappedBuffer(data), null, requestId));
         verifyStoreAppend(ac2, data);
-
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(store);
     }
 
@@ -807,6 +887,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         // length is subtracted from the outstanding bytes.
         store1.complete(50L);
         verify(tracker).updateOutstandingBytes(connection, -data1.length, 0);
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -869,7 +950,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                 "append() accepted a new request after sending a SegmentIsSealed message.",
                 () -> processor.append(new Append(streamSegmentName, clientId, 4, 1, Unpooled.wrappedBuffer(data1), null, requestId)),
                 ex -> ex instanceof IllegalStateException);
-
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         // Verify no more messages are sent over the connection.
         connectionVerifier.verifyNoMoreInteractions();
         verifyNoMoreInteractions(store);
@@ -901,7 +982,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                 CompletableFuture.completedFuture((long) (2 * data.length)));
         processor.append(new Append(streamSegmentName, clientId, 300, eventCount, Unpooled.wrappedBuffer(data), null, requestId));
         verifyStoreAppend(ac2, data);
-
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(store);
     }
 
@@ -928,6 +1009,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new OperationUnsupported(requestId, "appending data", ""));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -955,6 +1037,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).close();
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -1071,6 +1154,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         processor.setupAppend(new SetupAppend(requestId, clientId, streamSegmentName, ""));
         verify(store).getAttributes(eq(streamSegmentName), any(), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(connection).send(new WireCommands.AppendSetup(requestId, streamSegmentName, clientId, 0));
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -1115,6 +1199,12 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                 new AttributeUpdate(AttributeId.fromUUID(clientId), AttributeUpdateType.ReplaceIfEquals, eventNum, previousValue),
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
     }
+
+    private AttributeUpdateCollection updateIndexEventNumber(UUID clientId, long eventNum) {
+        return AttributeUpdateCollection.from(
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));
+    }
+
 
     private void setupGetAttributes(String streamSegmentName, UUID clientId, StreamSegmentStore store) {
         setupGetAttributes(streamSegmentName, clientId, 0, store);
@@ -1208,6 +1298,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         }
         assertArrayEquals(expectedData, appendContext.appendedData.get());
     }
+
 
     @RequiredArgsConstructor
     private static class AppendContext {
