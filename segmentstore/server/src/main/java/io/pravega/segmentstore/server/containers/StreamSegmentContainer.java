@@ -376,7 +376,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                       log.info("{}: Initializing Metadata Store.", this.traceObjectId);
                                       return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
                                   }
-                             }), this.executor);
+                             }, this.executor), this.executor);
         } catch (Exception ex) {
             return Futures.failedFuture(ex);
         }
@@ -400,7 +400,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     boolean recover = this.isDurableLogInitialized.get() && doesExist;
                     log.info("{}: RecoverFromStorage mode is {} ", this.traceObjectId, recover);
                     return CompletableFuture.completedFuture(recover);
-                });
+                }, this.executor);
     }
 
     private CompletableFuture<Void> startSecondaryServicesAsync() {
