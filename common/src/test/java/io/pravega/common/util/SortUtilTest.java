@@ -1,15 +1,17 @@
 /**
  * Copyright Pravega Authors.
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
@@ -400,7 +402,7 @@ public class SortUtilTest {
     public void testLargeRange() {
         // Create a large range of values from 1 to 1 million
         int rangeSize = 1_000;
-        LongFunction<Long> getValue = idx -> idx * (long) idx;
+        LongFunction<Long> getValue = idx -> idx * idx;
 
         // Test a target value within the range
         long target = 10_000;
@@ -429,7 +431,7 @@ public class SortUtilTest {
         target = 1_000_000 + 100;
         result = newtonianSearch(getValue, 0, rangeSize, target, false);
         assertEquals(rangeSize, result.getKey().intValue());
-        assertEquals(rangeSize * rangeSize, result.getValue().longValue());
+        assertEquals((long) rangeSize * rangeSize, result.getValue().longValue());
     }
 
 }
