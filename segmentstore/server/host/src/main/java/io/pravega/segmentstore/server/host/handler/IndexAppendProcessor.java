@@ -66,8 +66,8 @@ public class IndexAppendProcessor {
     }
 
     private ByteBufWrapper getIndexAppendBuf(Long eventLength, Long eventCount) {
-        IndexAppend indexAppend = new IndexAppend(eventLength, eventCount, System.currentTimeMillis());
-        return new ByteBufWrapper(Unpooled.wrappedBuffer( indexAppend.toBytes()));
+        IndexEntry indexEntry = new IndexEntry(eventLength, eventCount, System.currentTimeMillis());
+        return new ByteBufWrapper(Unpooled.wrappedBuffer( indexEntry.toBytes()));
     }
 
     @Data

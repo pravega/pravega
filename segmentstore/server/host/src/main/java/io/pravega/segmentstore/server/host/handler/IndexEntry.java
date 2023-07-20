@@ -19,28 +19,25 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.SneakyThrows;
-
 import java.io.IOException;
+import lombok.Builder;
+import lombok.Data;
+import lombok.SneakyThrows;
 
 /**
  * Index Segment associated with main segment.
  */
+@Data
 @Builder
-public class IndexAppend {
-    static final IndexAppend.IndexAppendSerializer SERIALIZER = new IndexAppend.IndexAppendSerializer();
+public class IndexEntry {
+    static final IndexEntry.IndexAppendSerializer SERIALIZER = new IndexEntry.IndexAppendSerializer();
 
-    @Getter
     private long eventLength;
-    @Getter
     private long eventCount;
-    @Getter
     private long timeStamp;
 
     @SneakyThrows(IOException.class)
-    public static IndexAppend fromBytes(final byte[] data) {
+    public static IndexEntry fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
@@ -49,11 +46,11 @@ public class IndexAppend {
         return SERIALIZER.serialize(this).getCopy();
     }
 
-    public static class IndexAppendBuilder implements ObjectBuilder<IndexAppend> {
+    public static class IndexEntryBuilder implements ObjectBuilder<IndexEntry> {
     }
 
     static class IndexAppendSerializer
-            extends VersionedSerializer.WithBuilder<IndexAppend, IndexAppend.IndexAppendBuilder> {
+            extends VersionedSerializer.WithBuilder<IndexEntry, IndexEntryBuilder> {
 
         @Override
         protected byte getWriteVersion() {
@@ -65,21 +62,21 @@ public class IndexAppend {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void read00(RevisionDataInput revisionDataInput, IndexAppend.IndexAppendBuilder indexAppendBuilder) throws IOException {
-            indexAppendBuilder.eventLength(revisionDataInput.readLong());
-            indexAppendBuilder.eventCount(revisionDataInput.readLong());
-            indexAppendBuilder.timeStamp(revisionDataInput.readLong());
+        private void read00(RevisionDataInput revisionDataInput, IndexEntryBuilder indexEntryBuilder) throws IOException {
+            indexEntryBuilder.eventLength(revisionDataInput.readLong());
+            indexEntryBuilder.eventCount(revisionDataInput.readLong());
+            indexEntryBuilder.timeStamp(revisionDataInput.readLong());
         }
 
-        private void write00(IndexAppend indexAppend, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeLong(indexAppend.getEventLength());
-            revisionDataOutput.writeLong(indexAppend.getEventCount());
-            revisionDataOutput.writeLong(indexAppend.getTimeStamp());
+        private void write00(IndexEntry indexEntry, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(indexEntry.getEventLength());
+            revisionDataOutput.writeLong(indexEntry.getEventCount());
+            revisionDataOutput.writeLong(indexEntry.getTimeStamp());
         }
 
         @Override
-        protected IndexAppend.IndexAppendBuilder newBuilder() {
-            return IndexAppend.builder();
+        protected IndexEntryBuilder newBuilder() {
+            return IndexEntry.builder();
         }
     }
 }
