@@ -1,4 +1,3 @@
-
 /**
  * Copyright Pravega Authors.
  *
@@ -22,8 +21,7 @@ import java.util.Map;
 import java.util.function.LongFunction;
 
 public class SortUtils {
-
-    /**
+     /**
      * Newtonian search: Identical to binary search, but specialized to searching lists of longs.
      * The difference is in how the midpoint is chosen. In a standard binary search, the middle
      * element is always chosen for the guess. In Newtonian search, the midpoint is chosen to be the
@@ -40,8 +38,7 @@ public class SortUtils {
      * @return an Entry object containing the closest index and its value
      * @throws IllegalArgumentException if the input list is empty
      */
-    public static Map.Entry<Long, Long> newtonianSearch(LongFunction<Long> getValue, long fromIdx, long toIdx,
-                                                        long target, boolean greater) {
+     public static Map.Entry<Long, Long> newtonianSearch(LongFunction<Long> getValue, long fromIdx, long toIdx, long target, boolean greater) {
         if (fromIdx > toIdx || fromIdx < 0) {
             throw new IllegalArgumentException("Index size was negative");
         } else if (fromIdx == toIdx) {
@@ -51,19 +48,18 @@ public class SortUtils {
         long fromValue = getValue.apply(fromIdx);
         long toValue = getValue.apply(toIdx);
 
-        if (target <= fromValue) {
-            return new AbstractMap.SimpleEntry<>(fromIdx, fromValue);
-        }
-        if (target >= toValue) {
-            return new AbstractMap.SimpleEntry<>(toIdx, toValue);
+        AbstractMap.SimpleEntry<Long, Long> fromIdx1 = getSimpleEntry(fromIdx, toIdx, target, greater, fromValue, toValue);
+
+        if (fromIdx1 != null) {
+            return fromIdx1;
         }
         double beginSlope = calculateSlope(fromIdx, toIdx, fromValue, toValue);
         double endSlope = beginSlope;
         while (toIdx > fromIdx + 1) {
             double guessProportion = ((double) target - (double) fromValue) / ((double) toValue - (double) fromValue);
-            double slope = (1.0 - guessProportion) * beginSlope + (guessProportion) * endSlope;
+            double slope = (1.0 - guessProportion) * beginSlope + guessProportion * endSlope;
             long guessIdx;
-            if (guessProportion < 0.5) {
+            if ( guessProportion < 0.5 ) {
                 guessIdx = fromIdx + (long) (((double) (target - fromValue)) / slope);
             } else {
                 guessIdx = toIdx - (long) (((double) (toValue - target)) / slope);
@@ -84,6 +80,10 @@ public class SortUtils {
                 return new AbstractMap.SimpleEntry<>(guessIdx, guessValue);
             }
         }
+         return getSimpleEntryBasedOnGreater(fromIdx, toIdx, greater, fromValue, toValue);
+     }
+
+    private static AbstractMap.SimpleEntry<Long, Long> getSimpleEntryBasedOnGreater(long fromIdx, long toIdx, boolean greater, long fromValue, long toValue) {
         if (greater) {
             return new AbstractMap.SimpleEntry<>(toIdx, toValue);
         } else {
@@ -91,14 +91,23 @@ public class SortUtils {
         }
     }
 
+    private static AbstractMap.SimpleEntry<Long, Long> getSimpleEntry(long fromIdx, long toIdx, long target, boolean greater, long fromValue, long toValue) {
+        if (target <= fromValue) {
+            return new AbstractMap.SimpleEntry<>(fromIdx, fromValue);
+        } else if (target >= toValue) {
+            return new AbstractMap.SimpleEntry<>(toIdx, toValue);
+        }
+        return null;
+    }
+
     private static double calculateSlope(long fromIdx, long toIdx, long fromValue, long toValue) {
         //Divide and multiply by 2 to prevent wrapping issues for large values.
-        return 2 * ((double) (toValue/2 - fromValue/2) / (double) (toIdx - fromIdx));
+        return 2 * ((double) (toValue / 2 - fromValue / 2) / (double) (toIdx - fromIdx));
     }
 
     /**
      * Binary search over an external collection of longs.
-     * This is mainly a tests function for reference. Use {@link #newtonianSearch(LongFunction, int, int, long)}
+     * This is mainly a tests function for reference. Use {@link #newtonianSearch(LongFunction, long, long, long, boolean)}
      * If there is an approximately uniform or slowly changing value density.
      *
      * @param getValue The function that returns a long given an index
@@ -109,8 +118,7 @@ public class SortUtils {
      * @throws IllegalArgumentException if the input list is empty
      */
     @VisibleForTesting
-    static Map.Entry<Integer, Long> binarySearch(LongFunction<Long> getValue, int fromIdx, int toIdx,
-                                                 long target) {
+    static Map.Entry<Integer, Long> binarySearch(LongFunction<Long> getValue, int fromIdx, int toIdx, long target) {
         if (fromIdx > toIdx) {
             throw new IllegalArgumentException("Index size was negitive");
         } else if (fromIdx == toIdx) {
@@ -119,11 +127,9 @@ public class SortUtils {
         long fromValue = getValue.apply(fromIdx);
         long toValue = getValue.apply(toIdx);
 
-        if (target <= fromValue) {
-            return new AbstractMap.SimpleEntry<>(fromIdx, fromValue);
-        }
-        if (target >= toValue) {
-            return new AbstractMap.SimpleEntry<>(toIdx, toValue);
+        AbstractMap.SimpleEntry<Integer, Long> fromIdx1 = getIntLongSimpleEntry(fromIdx, toIdx, target, fromValue, toValue);
+        if (fromIdx1 != null) {
+            return fromIdx1;
         }
 
         while (toIdx > fromIdx + 1) {
@@ -141,6 +147,16 @@ public class SortUtils {
             }
         }
         return new AbstractMap.SimpleEntry<>(fromIdx, fromValue);
+    }
+
+    private static AbstractMap.SimpleEntry<Integer, Long> getIntLongSimpleEntry(int fromIdx, int toIdx, long target, long fromValue, long toValue) {
+        if (target <= fromValue) {
+            return new AbstractMap.SimpleEntry<>(fromIdx, fromValue);
+        }
+        if (target >= toValue) {
+            return new AbstractMap.SimpleEntry<>(toIdx, toValue);
+        }
+        return null;
     }
 
 }

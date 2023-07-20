@@ -136,8 +136,8 @@ public class SortUtilTest {
             expected = new AbstractMap.SimpleEntry<>(toIdx, getValue.apply(toIdx));
         } else {
             maxExpectedInvocationCount = Math.min(length, 4);
-            long expected_idx = (target/multiple);
-            expected = new AbstractMap.SimpleEntry<>(expected_idx, getValue.apply(expected_idx));
+            long expectedIdx = target / multiple;
+            expected = new AbstractMap.SimpleEntry<>(expectedIdx, getValue.apply(expectedIdx));
         }
 
         getValue.resetInvocationCount();
@@ -148,8 +148,6 @@ public class SortUtilTest {
                 expected.getKey(), actual.getKey());
         assertEquals("Incorrect value for length " + length + " multiple " + multiple + " and target " + target,
                 expected.getValue(), actual.getValue());
-
-
         assertTrue("Incorrect number of invocations for length " + length + " multiple " + multiple + " and target " + target,
                 getValue.getInvocationCount() <= maxExpectedInvocationCount);
     }
@@ -205,7 +203,7 @@ public class SortUtilTest {
 
     @Test
     public void testNonUniformDistrobution() {
-        CountingFunction getValue = new CountingFunction(i -> i*i);
+        CountingFunction getValue = new CountingFunction(i -> i * i);
         binarySearch(getValue, 0, 10_000, 1234);
         int baseline = getValue.getInvocationCount();
         getValue.resetInvocationCount();
@@ -220,7 +218,7 @@ public class SortUtilTest {
         long[] sortedArray = new long[arraySize];
         Random random = new Random(0);
         for (int i = 0; i < arraySize; i++) {
-            sortedArray[i] = (random.nextLong());
+            sortedArray[i] = random.nextLong();
         }
         Arrays.sort(sortedArray);
 
@@ -229,7 +227,7 @@ public class SortUtilTest {
 
         // Test the efficiency of the search
 
-        long target = (random.nextLong());
+        long target = random.nextLong();
         countingFunction.resetInvocationCount();
         newtonianSearch(countingFunction, 0, arraySize - 1, target, true);
         long newtonianCount = countingFunction.invocationCount;
@@ -237,7 +235,7 @@ public class SortUtilTest {
         binarySearch(countingFunction, 0, arraySize - 1, target);
         long binaryCount = countingFunction.invocationCount;
 
-        double ratio = (double) newtonianCount / (double ) binaryCount;
+        double ratio = (double) newtonianCount / (double) binaryCount;
         System.out.println("Cost: " + newtonianCount + " compared to binary search: " + binaryCount);
         assertTrue(ratio < 0.5);
 
@@ -246,9 +244,9 @@ public class SortUtilTest {
         long totalInvocationCount = 0;
         for (int i = 0; i < iterations; i++) {
             countingFunction.resetInvocationCount();
-            target = (random.nextLong());
+            target = random.nextLong();
             newtonianSearch(countingFunction, 0, arraySize - 1, target, true);
-            System.out.println("Count: "+ countingFunction.invocationCount);
+            System.out.println("Count: " + countingFunction.invocationCount);
             totalInvocationCount += countingFunction.invocationCount;
         }
 

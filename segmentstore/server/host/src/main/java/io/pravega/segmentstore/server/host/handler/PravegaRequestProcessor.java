@@ -59,11 +59,9 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
-import io.pravega.segmentstore.server.host.handler.IndexRequestProcessor.SearchFailedException;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.tables.DeltaIteratorState;
-import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
@@ -698,7 +696,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             handleException(requestId, segment, operation, e);
         }
     }
-    s
+
     @Override
     public void getTableSegmentInfo(WireCommands.GetTableSegmentInfo getInfo) {
         final String operation = "getTableSegmentInfo";
