@@ -22,6 +22,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -53,7 +54,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
 /**
  * Unit tests for the {@link MetadataCleaner} class.
  */
@@ -308,6 +308,11 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
 
         @Override
         CompletableFuture<Void> initialize(Duration timeout) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        CompletableFuture<Void> recover(SegmentProperties segmentProperties, Duration timeout) {
             return CompletableFuture.completedFuture(null);
         }
 

@@ -78,5 +78,11 @@ public interface OperationLog extends Container {
      * while attempting to start (including it shutting down), this Future will be completed with the appropriate exception.
      */
     CompletableFuture<Void> awaitOnline();
+
+    /**
+     * Provides a method to determine if the OperationLog is initialized for the first time.
+     * @return True if initializing for the first time.
+     */
+    boolean isInitialized();
 }
 

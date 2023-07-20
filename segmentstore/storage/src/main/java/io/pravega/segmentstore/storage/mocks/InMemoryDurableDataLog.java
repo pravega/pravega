@@ -27,6 +27,7 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.ReadOnlyLogMetadata;
 import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.segmentstore.storage.WriteTooLongException;
@@ -131,6 +132,11 @@ class InMemoryDurableDataLog implements DurableDataLog {
     @Override
     public WriteSettings getWriteSettings() {
         return new WriteSettings(this.entries.getMaxAppendSize(), Duration.ofMinutes(1), Integer.MAX_VALUE);
+    }
+
+    @Override
+    public ReadOnlyLogMetadata loadMetadata() throws DataLogInitializationException {
+        throw new DataLogInitializationException("Unsupported Operation");
     }
 
     @Override
