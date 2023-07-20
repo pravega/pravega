@@ -35,6 +35,7 @@ public class AdminCLIRunnerTests {
 
     @Test
     public void testDoMain() throws IOException {
+        System.setProperty("pravega.configurationFile", "../../config/admin-cli.properties");
         AdminCLIRunner.doMain(new String[]{"scope", "wrongCommand"});
     }
 
