@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# LTS Recovery
+# LTS Auto Recovery
 The following procedure describes online method of doing the LTS recovery.
 The online method of recovering Pravega from the data in LTS does not require the admin to manually copy metadata chunks.
 
@@ -24,9 +24,9 @@ The online method currently only supports filesystem storage type.
 Having pravega installed with data generated on it.
 
 ## Backup
-* ## Stop traffic
-* ## Enabling admin gateway.
-  ### Execute the below command.
+* ### Stop traffic
+* ### Enabling admin gateway.
+  #### Execute the below command.
   ```
   kubectl edit pk -n <namespace>
   ```
@@ -35,23 +35,23 @@ Having pravega installed with data generated on it.
   pravegaservice.admin.gateway.port: "9999"
   pravegaservice.admin.gateway.enable: "true"
   ```
-* ## Bringing down controller replicas to 0.
-  ### Execute the below command.
+* ### Bringing down controller replicas to 0.
+  #### Execute the below command.
   ```
   kubectl edit pk -n <namespace>
   ```  
   And change the value of `controllerReplicas`  to 0.
-* ## Executing backup script.
+* ### Executing backup script.
   ```
   ./lts_recovery_backup.sh
   ```
   This script will call `flush-to-storage` command and save epochs to LTS.
-* ## [Enable Retain](reattaching-lts.md) on PV.
-* ## [Save PV and PVC](reattaching-lts.md).
-* ## Uninstall Pravega services.
+* ### [Enable Retain](reattaching-lts.md) on PV.
+* ### [Save PV and PVC](reattaching-lts.md).
+* ### Uninstall Pravega services.
   Uninstall **pravega**, **pravega-operator**, **bookkeeper**, **bookkeeper-operator**, **zookeeper**, and **zookeeper-operator**.
 ## Restore
-* ## [Reattach PV and PVC](reattaching-lts.md).
-* ## Start pravega
+* ### [Reattach PV and PVC](reattaching-lts.md).
+* ### Start pravega
   Install **zookeeper-operator**, **zookeeper**, **bookkeeper-operator**, **bookkeeper**, **pravega-operator** and **pravega** and start using it.
-* ## Start traffic
+* ### Start traffic
