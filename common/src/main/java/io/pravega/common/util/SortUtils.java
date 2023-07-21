@@ -20,6 +20,9 @@ import java.util.AbstractMap;
 import java.util.Map;
 import java.util.function.LongFunction;
 
+/**
+ * A utility class to hold the searching/sorting functions.
+ */
 public class SortUtils {
      /**
      * Newtonian search: Identical to binary search, but specialized to searching lists of longs.
