@@ -82,7 +82,6 @@ import lombok.NonNull;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
-import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
@@ -133,14 +132,15 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     /**
      * Creates a new {@link AppendProcessorBuilder} instance with all optional arguments set to default values.
      * These default values may not be appropriate for production use and should be used for testing purposes only.
+     * @param indexExecutor Segment index executor service.
      * @return A {@link AppendProcessorBuilder} instance.
      */
     @VisibleForTesting
-    public static AppendProcessorBuilder defaultBuilder() {
+    public static AppendProcessorBuilder defaultBuilder(ScheduledExecutorService indexExecutor) {
         return builder()
                 .nextRequestProcessor(new FailingRequestProcessor())
                 .statsRecorder(SegmentStatsRecorder.noOp())
-                .indexAppendExecutor(newScheduledThreadPool(1, "index-append"))
+                .indexAppendExecutor(indexExecutor)
                 .replyWithStackTraceOnError(false);
     }
 
@@ -286,7 +286,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         Timer timer = new Timer();
         storeAppend(append, previousEventNumber)
                 .whenComplete((newLength, ex) -> {
-                    indexAppendProcessor.processAppend(append.getSegment(), append.getEventCount());
+                    //indexAppendProcessor.processAppend(append.getSegment(), append.getEventCount());
                     handleAppendResult(append, newLength, ex, state, timer);
                     LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, ex);
                 })
@@ -337,6 +337,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         boolean success = exception == null;
         try {
             if (success) {
+                indexAppendProcessor.processAppend(append.getSegment(), append.getEventCount());
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
                     long previousLastAcked = state.appendSuccessful(append.getEventNumber());

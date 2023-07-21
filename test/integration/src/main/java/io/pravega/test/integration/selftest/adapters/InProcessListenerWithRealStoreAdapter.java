@@ -41,7 +41,7 @@ class InProcessListenerWithRealStoreAdapter extends InProcessMockClientAdapter {
     InProcessListenerWithRealStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor,
                                           ScheduledExecutorService indexAppendExecutor) {
         super(testConfig, testExecutor, indexAppendExecutor);
-        this.segmentStoreAdapter = new SegmentStoreAdapter(testConfig, builderConfig, testExecutor);
+        this.segmentStoreAdapter = new SegmentStoreAdapter(testConfig, builderConfig, testExecutor, indexAppendExecutor);
     }
 
     //endregion

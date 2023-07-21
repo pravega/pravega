@@ -255,7 +255,7 @@ public class AppendTest extends LeakDetectorTestSuite {
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
-        lsh.setRequestProcessor(AppendProcessor.defaultBuilder()
+        lsh.setRequestProcessor(AppendProcessor.defaultBuilder(SERVICE_BUILDER.getIndexAppendExecutor())
                                                .store(store)
                                                .connection(new TrackedConnection(lsh))
                                                .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh,

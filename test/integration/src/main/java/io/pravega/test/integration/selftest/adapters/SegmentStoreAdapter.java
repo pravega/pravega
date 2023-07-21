@@ -90,6 +90,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     private final AtomicReference<SingletonStorageFactory> storageFactory;
     private final AtomicReference<ScheduledExecutorService> storeExecutor;
     private final Thread stopBookKeeperProcess;
+    private final ScheduledExecutorService indexExecutor;
     private Process bookKeeperService;
     private StreamSegmentStore streamSegmentStore;
     private TableStore tableStore;
@@ -107,13 +108,15 @@ class SegmentStoreAdapter extends StoreAdapter {
      * @param testConfig    The Test Configuration to use.
      * @param builderConfig The ServiceBuilderConfig to use.
      * @param testExecutor  An Executor to use for test-related async operations.
+     * @param indexExecutor  An Executor to used for index segment append operation.
      */
-    SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
+    SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor, ScheduledExecutorService indexExecutor) {
         this.config = Preconditions.checkNotNull(testConfig, "testConfig");
         this.builderConfig = Preconditions.checkNotNull(builderConfig, "builderConfig");
         this.storageFactory = new AtomicReference<>();
         this.storeExecutor = new AtomicReference<>();
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
+        this.indexExecutor = Preconditions.checkNotNull(indexExecutor, "indexExecutor");;
         this.serviceBuilder = attachDataLogFactory(ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withStorageFactory(setup -> {

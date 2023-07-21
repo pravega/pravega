@@ -101,7 +101,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
      */
     InProcessMockClientAdapter(TestConfig testConfig, ScheduledExecutorService testExecutor,
                                ScheduledExecutorService indexAppendExecutor) {
-        super(testConfig, testExecutor);
+        super(testConfig, testExecutor, indexAppendExecutor);
         this.executor = testExecutor;
         this.indexAppendExecutor = indexAppendExecutor;
     }

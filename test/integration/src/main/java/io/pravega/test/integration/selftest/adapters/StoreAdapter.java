@@ -239,10 +239,10 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
         switch (testConfig.getTestType()) {
             case SegmentStore:
             case SegmentStoreTable:
-                result = new SegmentStoreAdapter(testConfig, builderConfig, executor);
+                result = new SegmentStoreAdapter(testConfig, builderConfig, executor, indexAppendExecutor);
                 break;
             case AppendProcessor:
-                result = new AppendProcessorAdapter(testConfig, builderConfig, executor);
+                result = new AppendProcessorAdapter(testConfig, builderConfig, executor, indexAppendExecutor);
                 break;
             case InProcessMock:
             case InProcessMockTable:
@@ -253,13 +253,13 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
                 result = new InProcessListenerWithRealStoreAdapter(testConfig, builderConfig, executor, indexAppendExecutor);
                 break;
             case OutOfProcess:
-                result = new OutOfProcessAdapter(testConfig, builderConfig, executor);
+                result = new OutOfProcessAdapter(testConfig, builderConfig, executor, indexAppendExecutor);
                 break;
             case External:
-                result = new ExternalAdapter(testConfig, executor);
+                result = new ExternalAdapter(testConfig, executor, indexAppendExecutor);
                 break;
             case BookKeeper:
-                result = new BookKeeperAdapter(testConfig, builderConfig.getConfig(BookKeeperConfig::builder), executor);
+                result = new BookKeeperAdapter(testConfig, builderConfig.getConfig(BookKeeperConfig::builder), executor, indexAppendExecutor);
                 break;
             default:
                 throw new UnsupportedOperationException("Cannot create a StoreAdapter for TestType " + testConfig.getTestType());
