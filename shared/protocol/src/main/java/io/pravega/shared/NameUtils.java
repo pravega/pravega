@@ -968,7 +968,6 @@ public final class NameUtils {
         sb.append(stream);
         return sb.toString();
     }
-    // endregion
 
     /**
      * Parse the connection name to fetch the connection details.
