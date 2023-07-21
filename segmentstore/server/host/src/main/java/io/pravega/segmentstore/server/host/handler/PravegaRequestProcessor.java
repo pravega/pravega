@@ -1009,7 +1009,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private WireCommands.TableEntries getTableEntriesCommand(final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {
-        Preconditions.checkArgument(resultEntries.size() == inputKeys.size(), "Number of input keys should match result entry count.");
+        Preconditions.checkArgument(resultEntries.size() == inputKeys.size(), "Number of  input keys should match result entry count.");
         final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries =
                 IntStream.range(0, resultEntries.size())
                          .mapToObj(i -> {
