@@ -25,7 +25,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
@@ -42,18 +41,16 @@ public class IndexAppendProcessor {
         this.store = store;
     }
 
-    protected void processAppend(String segmentName, int eventCount) {
-        IndexInfo indexInfo = new IndexInfo(segmentName, eventCount);
-        LatestItemSequentialProcessor<IndexInfo> latestItemProcessor = new LatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
-        latestItemProcessor.updateItem(indexInfo);
+    protected void processAppend(String segmentName) {
+        LatestItemSequentialProcessor<String> latestItemProcessor = new LatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
+        latestItemProcessor.updateItem(segmentName);
     }
 
-    private void handleIndexAppend(IndexInfo indexInfo) {
+    private void handleIndexAppend(String segmentName) {
         //TODO : Update the index segment Attribute as needed going forward.
         // Keeping Event count of index segment same as main segment event count as we will not be updating indexsegment for each main segment append.
         AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
-                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, indexInfo.getEventCount()));
-        String segmentName = indexInfo.getSegmentName();
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));
         store.getStreamSegmentInfo(segmentName, TIMEOUT)
              .thenCompose(info -> store.append(getIndexSegmentName(segmentName), getIndexAppendBuf(info.getLength(), info.getAttributes().get(EVENT_COUNT)), attributes, TIMEOUT))
              .whenComplete((length, ex) -> {
@@ -67,13 +64,7 @@ public class IndexAppendProcessor {
 
     private ByteBufWrapper getIndexAppendBuf(Long eventLength, Long eventCount) {
         IndexEntry indexEntry = new IndexEntry(eventLength, eventCount, System.currentTimeMillis());
-        return new ByteBufWrapper(Unpooled.wrappedBuffer( indexEntry.toBytes()));
-    }
-
-    @Data
-    private class IndexInfo {
-        final String segmentName;
-        final int eventCount;
+        return new ByteBufWrapper(Unpooled.wrappedBuffer( indexEntry.toBytes().getCopy()));
     }
 
 }

@@ -337,7 +337,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         boolean success = exception == null;
         try {
             if (success) {
-                indexAppendProcessor.processAppend(append.getSegment(), append.getEventCount());
+                indexAppendProcessor.processAppend(append.getSegment());
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
                     long previousLastAcked = state.appendSuccessful(append.getEventNumber());

@@ -45,6 +45,7 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -459,27 +460,27 @@ public class AppendTest extends LeakDetectorTestSuite {
         WireCommands.SegmentRead resultIndexSegment1 = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(indexSegment, readOffset, 40, "", 1L));
         ByteBuf actual1 = Unpooled.buffer(100);
         actual1.writeBytes(resultIndexSegment1.getData());
-        IndexEntry indexEntry1 = IndexEntry.fromBytes(actual1.array());
+        IndexEntry indexEntry1 = IndexEntry.fromBytes(BufferView.wrap(actual1.array()));
         assertEquals(1, indexEntry1.getEventCount());
-        assertEquals(resultAfterOneAppend.readableBytes(), indexEntry1.getEventLength());
+        assertEquals(resultAfterOneAppend.readableBytes(), indexEntry1.getOffset());
 
-        System.out.println("dataResult index data 1 event number : " + indexEntry1.getEventLength() + " eventCount : " + indexEntry1.getEventCount() + " timestamp : " + indexEntry1.getTimeStamp()
-                + " offset from readResult " + resultIndexSegment1.getOffset() + " length of data returned " + indexEntry1.toBytes().length);
+        System.out.println("dataResult index data 1 event number : " + indexEntry1.getOffset() + " eventCount : " + indexEntry1.getEventCount() + " timestamp : " + indexEntry1.getTimeStamp()
+                + " offset from readResult " + resultIndexSegment1.getOffset() + " length of data returned " + indexEntry1.toBytes().getLength());
 
         // Read IndexSegment from next Offset this will give second append info
-        readOffset += indexEntry1.toBytes().length;
+        readOffset += indexEntry1.toBytes().getLength();
         WireCommands.SegmentRead resultIndexSegment2 = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(indexSegment, readOffset, 32, "", 1L));
         ByteBuf actual2 = Unpooled.buffer(32);
         actual2.writeBytes(resultIndexSegment2.getData());
-        IndexEntry indexEntry2 = IndexEntry.fromBytes(actual2.array());
+        IndexEntry indexEntry2 = IndexEntry.fromBytes(BufferView.wrap(actual2.array()));
 
         // check the getSegment info and chck the attribute EVENt_COUNT
 
         assertEquals(2, indexEntry2.getEventCount());
-        assertEquals(resultAfterTwoAppend.readableBytes(), indexEntry2.getEventLength());
+        assertEquals(resultAfterTwoAppend.readableBytes(), indexEntry2.getOffset());
 
-        System.out.println("dataResult index data 2 event number : " + indexEntry2.getEventLength() + " eventCount : " + indexEntry2.getEventCount() + " timestamp : " + indexEntry2.getTimeStamp()
-                + " offset from readResult " + resultIndexSegment2.getOffset() + " length of data returned " + indexEntry1.toBytes().length);
+        System.out.println("dataResult index data 2 event number : " + indexEntry2.getOffset() + " eventCount : " + indexEntry2.getEventCount() + " timestamp : " + indexEntry2.getTimeStamp()
+                + " offset from readResult " + resultIndexSegment2.getOffset() + " length of data returned " + indexEntry1.toBytes().getLength());
 
         // Two appends are done on Main segment we should have Event_count on index segment as 2
         assertEventCountAttributeforSegment(indexSegment, store, 2);

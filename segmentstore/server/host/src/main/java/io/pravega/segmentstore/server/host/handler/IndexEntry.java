@@ -15,68 +15,32 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
-import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.RevisionDataInput;
-import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.common.io.serialization.VersionedSerializer;
-import java.io.IOException;
-import lombok.Builder;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import lombok.Data;
-import lombok.SneakyThrows;
 
 /**
  * Index Segment associated with main segment.
  */
 @Data
-@Builder
 public class IndexEntry {
-    static final IndexEntry.IndexAppendSerializer SERIALIZER = new IndexEntry.IndexAppendSerializer();
+    private final long offset;
+    private final long eventCount;
+    private final long timeStamp;
 
-    private long eventLength;
-    private long eventCount;
-    private long timeStamp;
-
-    @SneakyThrows(IOException.class)
-    public static IndexEntry fromBytes(final byte[] data) {
-        return SERIALIZER.deserialize(data);
+    public BufferView toBytes() {
+        ByteArraySegment result = new ByteArraySegment(new byte[24]);
+        result.setLong(0, offset);
+        result.setLong(8, eventCount);
+        result.setLong(16, timeStamp);
+        return result;
     }
 
-    @SneakyThrows(IOException.class)
-    public byte[] toBytes() {
-        return SERIALIZER.serialize(this).getCopy();
-    }
-
-    public static class IndexEntryBuilder implements ObjectBuilder<IndexEntry> {
-    }
-
-    static class IndexAppendSerializer
-            extends VersionedSerializer.WithBuilder<IndexEntry, IndexEntryBuilder> {
-
-        @Override
-        protected byte getWriteVersion() {
-            return 0;
-        }
-
-        @Override
-        protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00);
-        }
-
-        private void read00(RevisionDataInput revisionDataInput, IndexEntryBuilder indexEntryBuilder) throws IOException {
-            indexEntryBuilder.eventLength(revisionDataInput.readLong());
-            indexEntryBuilder.eventCount(revisionDataInput.readLong());
-            indexEntryBuilder.timeStamp(revisionDataInput.readLong());
-        }
-
-        private void write00(IndexEntry indexEntry, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeLong(indexEntry.getEventLength());
-            revisionDataOutput.writeLong(indexEntry.getEventCount());
-            revisionDataOutput.writeLong(indexEntry.getTimeStamp());
-        }
-
-        @Override
-        protected IndexEntryBuilder newBuilder() {
-            return IndexEntry.builder();
-        }
+    public static IndexEntry fromBytes(BufferView view) {
+        BufferView.Reader reader = view.getBufferViewReader();
+        long offset = reader.readLong();
+        long eventCount = reader.readLong();
+        long timestamp = reader.readLong();
+        return new IndexEntry(offset, eventCount, timestamp);
     }
 }

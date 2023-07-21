@@ -531,8 +531,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), attributeUpdates, TIMEOUT)
                     .thenAccept(mergeResult -> {
-                        //TODO: mergeSegments don't have number of event.
-                        indexAppendProcessor.processAppend(mergeSegments.getTarget(), 1);
+                        indexAppendProcessor.processAppend(mergeSegments.getTarget());
                         recordStatForTransaction(mergeResult, mergeSegments.getTarget());
                         connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
                                                                         mergeSegments.getTarget(),
@@ -593,8 +592,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         throw new CompletionException(e);
                     } else {
                         recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
-                        // TODO: mergeSegments don't have number of event.
-                        indexAppendProcessor.processAppend(mergeSegments.getTargetSegmentId(), 1);
+                        indexAppendProcessor.processAppend(mergeSegments.getTargetSegmentId());
                         return CompletableFuture.completedFuture(r.getTargetSegmentLength());
                     }
                 })).collect(Collectors.toUnmodifiableList())).thenAccept(mergeResults -> {

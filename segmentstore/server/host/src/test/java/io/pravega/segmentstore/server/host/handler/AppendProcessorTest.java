@@ -26,6 +26,7 @@ import io.netty.channel.EventLoop;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
@@ -187,8 +188,8 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         ServerConnection connection = mock(ServerConnection.class);
         ConnectionTracker tracker = mock(ConnectionTracker.class);
         val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
-        IndexEntry iaData = new IndexEntry(data.length, 1, 0);
-        byte[] iaDataBytes = iaData.toBytes();
+        IndexEntry indexEntry1 = new IndexEntry(data.length, 1, 0);
+        byte[] iaDataBytes = indexEntry1.toBytes().getCopy();
         @Cleanup("shutdown")
         ScheduledExecutorService executor = new InlineExecutor();
 
@@ -216,9 +217,9 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
 
         // Assert IndexSegment data
-        IndexEntry indexEntry = IndexEntry.fromBytes(acIndex.appendedData.get());
-        assertEquals(iaData.getEventLength(), indexEntry.getEventLength());
-        assertEquals(iaData.getEventCount(), indexEntry.getEventCount());
+        IndexEntry indexEntry = IndexEntry.fromBytes(BufferView.wrap(acIndex.appendedData.get()));
+        assertEquals(indexEntry1.getOffset(), indexEntry.getOffset());
+        assertEquals(indexEntry1.getEventCount(), indexEntry.getEventCount());
 
         verify(store, times(2)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verify(store, times(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
