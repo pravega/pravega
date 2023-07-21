@@ -690,7 +690,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         
         log.debug(requestId, "Locating offset {} ", locateOffset);
         try {
-            long offset = IndexRequestProcessor.locateOffsetForStream(segmentStore, segment, locateOffset.getTargetOffset(), true);
+            long offset = IndexRequestProcessor.locateOffsetForSegment(segmentStore, segment, locateOffset.getTargetOffset(), true);
             connection.send(new WireCommands.OffsetLocated(requestId, segment, offset));
         } catch (Exception e) {
             handleException(requestId, segment, operation, e);

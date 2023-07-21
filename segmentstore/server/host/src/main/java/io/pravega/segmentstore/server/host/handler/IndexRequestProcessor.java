@@ -75,7 +75,7 @@ public final class IndexRequestProcessor {
      * @return the corresponding offset position from the index segment entry.
      * @throws SearchFailedException if the index segment is of unexpected size or if the search fails.
      */
-    public static long locateOffsetForStream(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SearchFailedException {
+    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SearchFailedException {
         String indexSegmentName = NameUtils.getIndexSegmentName(segment);
 
         //Fetch start and end idx.
