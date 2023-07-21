@@ -116,7 +116,7 @@ class SegmentStoreAdapter extends StoreAdapter {
         this.storageFactory = new AtomicReference<>();
         this.storeExecutor = new AtomicReference<>();
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
-        this.indexExecutor = Preconditions.checkNotNull(indexExecutor, "indexExecutor");;
+        this.indexExecutor = Preconditions.checkNotNull(indexExecutor, "indexExecutor");
         this.serviceBuilder = attachDataLogFactory(ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withStorageFactory(setup -> {
