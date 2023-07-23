@@ -29,6 +29,7 @@ import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.SortUtils;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
@@ -112,6 +113,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
@@ -626,9 +628,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
+        long endIndex = segmentStore.getStreamSegmentInfo(getIndexSegmentName(segment), PravegaRequestProcessor.TIMEOUT).join().getLength();
         long offset = truncateSegment.getTruncationOffset();
-        //Need to get the offset of the index-segment by calling Newtonian-Search method, same have to pass in the below call.
-        long indexSegmentOffset = offset;
+        LongFunction<Long> getValue = i -> (long) (i * 2);
+        Map.Entry<Long, Long> result = SortUtils.newtonianSearch(getValue, 0, endIndex, offset, true);
+        long indexSegmentOffset = result.getValue().longValue();
+
         log.info(truncateSegment.getRequestId(), "Truncating segment {} at offset {}.",
                 segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)

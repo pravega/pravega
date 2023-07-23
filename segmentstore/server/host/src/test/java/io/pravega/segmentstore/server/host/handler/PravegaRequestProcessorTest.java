@@ -1492,40 +1492,47 @@ public class PravegaRequestProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection);
 
-        // Create a main segment it will create the index segment as well.
+        // Create a segment and append 6 bytes.
         processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        assertTrue(append(streamSegmentName, 1, store));
+        assertTrue(append(streamSegmentName, 2, store));
+        assertTrue(append(streamSegmentName, 3, store));
+        assertTrue(append(streamSegmentName, 4, store));
+        assertTrue(append(streamSegmentName, 5, store));
+        assertTrue(append(streamSegmentName, 6, store));
 
-        //Append 4 bytes to the index segment
+        // Create a index segment and append 6 bytes.
+        processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         assertTrue(append(indexStreamSegmentName, 1, store));
         assertTrue(append(indexStreamSegmentName, 2, store));
         assertTrue(append(indexStreamSegmentName, 3, store));
         assertTrue(append(indexStreamSegmentName, 4, store));
+        assertTrue(append(indexStreamSegmentName, 5, store));
+        assertTrue(append(indexStreamSegmentName, 6, store));
 
-        //Seal the index segment and validating
+        processor.sealSegment(new WireCommands.SealSegment(requestId, streamSegmentName, ""));
+        assertFalse(append(streamSegmentName, 2, store));
+
         processor.sealSegment(new WireCommands.SealSegment(requestId, indexStreamSegmentName, ""));
-        assertFalse(append(indexStreamSegmentName, 3, store));
+        assertFalse(append(indexStreamSegmentName, 2, store));
 
-        // Truncate half of the index segment.
-        final long truncateOffsetForIndexSegment = store.getStreamSegmentInfo(indexStreamSegmentName, PravegaRequestProcessor.TIMEOUT).join().getLength() / 2;
+        // Truncate half.
+        final long truncateOffset = store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT).join().getLength() / 2;
 
-        //performing truncation on index segment of its half-length
-        processor.truncateSegment(new WireCommands.TruncateSegment(requestId, indexStreamSegmentName, truncateOffsetForIndexSegment, ""));
-        assertEquals(truncateOffsetForIndexSegment, store.getStreamSegmentInfo(indexStreamSegmentName, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
+        AssertExtensions.assertGreaterThan("Nothing to truncate.", 0, truncateOffset);
+        processor.truncateSegment(new WireCommands.TruncateSegment(requestId, streamSegmentName, truncateOffset, ""));
+        assertEquals(truncateOffset + 1, store.getStreamSegmentInfo(indexStreamSegmentName, PravegaRequestProcessor.TIMEOUT)
+                .join().getStartOffset());
 
         // Truncate at the same offset - verify idempotence.
-        processor.truncateSegment(new WireCommands.TruncateSegment(requestId, indexStreamSegmentName, truncateOffsetForIndexSegment, ""));
-        assertEquals(truncateOffsetForIndexSegment, store.getStreamSegmentInfo(indexStreamSegmentName, PravegaRequestProcessor.TIMEOUT)
+        processor.truncateSegment(new WireCommands.TruncateSegment(requestId, streamSegmentName, truncateOffset, ""));
+        assertEquals(truncateOffset + 1, store.getStreamSegmentInfo(indexStreamSegmentName, PravegaRequestProcessor.TIMEOUT)
                 .join().getStartOffset());
 
-        // Truncate at a lower offset
-        processor.truncateSegment(new WireCommands.TruncateSegment(requestId, indexStreamSegmentName, truncateOffsetForIndexSegment - 1, ""));
-        assertEquals(truncateOffsetForIndexSegment, store.getStreamSegmentInfo(indexStreamSegmentName, PravegaRequestProcessor.TIMEOUT)
-                .join().getStartOffset());
-
-        // Deleting the main segment it will also delete the index-segment.
+        // Deleting the main segment it will also delete the index segment
         processor.deleteSegment(new WireCommands.DeleteSegment(requestId, streamSegmentName, ""));
-        assertFalse(append(indexStreamSegmentName, 4, store));
         assertFalse(append(streamSegmentName, 4, store));
+        assertFalse(append(indexStreamSegmentName, 4, store));
     }
     
     private ArrayView generateData(int length, Random rnd) {
