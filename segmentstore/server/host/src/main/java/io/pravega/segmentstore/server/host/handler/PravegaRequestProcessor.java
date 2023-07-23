@@ -74,6 +74,7 @@ import io.pravega.shared.protocol.netty.WireCommands.DeleteTableSegment;
 import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage.ErrorCode;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
+import io.pravega.shared.protocol.netty.WireCommands.LocateOffset;
 import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
@@ -680,6 +681,24 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                 updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate());
                     }
                 });
+    }
+
+    @Override
+    public void locateOffset(LocateOffset locateOffset) {
+        final String operation = "locateOffset";
+        long requestId = locateOffset.getRequestId();
+        String segment = locateOffset.getSegment();
+        if (!verifyToken(segment, requestId, locateOffset.getDelegationToken(), operation)) {
+            return;
+        }
+        
+        log.debug(requestId, "Locating offset {} ", locateOffset);
+        try {
+            long offset = IndexRequestProcessor.locateOffsetForSegment(segmentStore, segment, locateOffset.getTargetOffset(), true);
+            connection.send(new WireCommands.OffsetLocated(requestId, segment, offset));
+        } catch (Exception e) {
+            handleException(requestId, segment, operation, e);
+        }
     }
 
     @Override

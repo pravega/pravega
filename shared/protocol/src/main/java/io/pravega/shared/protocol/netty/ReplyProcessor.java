@@ -101,6 +101,8 @@ public interface ReplyProcessor {
     void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead);
 
     void tableEntriesDeltaRead(WireCommands.TableEntriesDeltaRead tableEntriesDeltaRead);
+    
+    void offsetLocated(WireCommands.OffsetLocated offsetLocated);
 
     void errorMessage(WireCommands.ErrorMessage errorMessage);
 }
