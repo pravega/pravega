@@ -89,9 +89,11 @@ public abstract class AbstractSegmentStoreCommandsTest {
         Properties pravegaProperties = new Properties();
         pravegaProperties.setProperty("cli.controller.rest.uri", SETUP_UTILS.getControllerRestUri().toString());
         pravegaProperties.setProperty("cli.controller.grpc.uri", SETUP_UTILS.getControllerUri().toString());
+        pravegaProperties.setProperty("cli.controller.connect.grpc.uri", SETUP_UTILS.getControllerUri().getHost() + ":" + SETUP_UTILS.getControllerUri().getPort());
         pravegaProperties.setProperty("pravegaservice.zk.connect.uri", SETUP_UTILS.getZkTestServer().getConnectString());
         pravegaProperties.setProperty("pravegaservice.container.count", String.valueOf(CONTAINER_COUNT));
         pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(SETUP_UTILS.getAdminPort()));
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega/pravega-cluster");
 
         if (enableAuth) {
             clientConfigBuilder = clientConfigBuilder.credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
@@ -229,7 +231,8 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testFlushToStorageCommandAllCase() throws Exception {
-        String commandResult = TestUtils.executeCommand("container flush-to-storage all localhost", STATE.get());
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        String commandResult = TestUtils.executeCommand("container flush-to-storage all", STATE.get());
         for (int id = 0; id < CONTAINER_COUNT; id++) {
             Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId " + id + " to Storage."));
         }
@@ -238,9 +241,93 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testFlushToStorageCommand() throws Exception {
-        String commandResult = TestUtils.executeCommand("container flush-to-storage 0 localhost", STATE.get());
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        String commandResult = TestUtils.executeCommand("container flush-to-storage 0", STATE.get());
         Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId 0 to Storage."));
         Assert.assertNotNull(FlushToStorageCommand.descriptor());
+    }
+
+    @Test
+    public void testFlushToStorageCommandRangeCase() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        String commandResult = TestUtils.executeCommand("container flush-to-storage 0 " + (CONTAINER_COUNT - 1), STATE.get());
+        Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId 0 to Storage."));
+        Assert.assertNotNull(FlushToStorageCommand.descriptor());
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithEndContainerNotNumber() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("End container id must be a number.", () -> TestUtils.executeCommand("container flush-to-storage 0 all", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithoutGettingSegmentStoreHost() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("Error getting segment store hosts for containers.", () -> TestUtils.executeCommand("container flush-to-storage 0 all", STATE.get()),
+                ex -> ex instanceof RuntimeException);
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithThreeArguments() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("container flush-to-storage 0 1 1", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithoutGettingSegmentStoreHostForGivenContainer() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "8");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        AssertExtensions.assertThrows("No host found for given container", () -> TestUtils.executeCommand("container flush-to-storage 4", STATE.get()),
+                ex -> ex instanceof RuntimeException);
+        pravegaProperties.setProperty("pravegaservice.container.count", String.valueOf(CONTAINER_COUNT));
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithoutArguments() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("container flush-to-storage", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testFlushToStorageCommandAllCaseWithRange() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("container flush-to-storage all 0", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithInvalidStartContainer() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("container flush-to-storage 100", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithInvalidEndContainer() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("container flush-to-storage 0 100", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithNegativeStartContainerId() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("The start container id must be a positive number.", () -> TestUtils.executeCommand("container flush-to-storage -1", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithNegativeEndContainerId() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        AssertExtensions.assertThrows("The end container id must be a positive number.", () -> TestUtils.executeCommand("container flush-to-storage 0 -1", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
@@ -369,6 +456,82 @@ public abstract class AbstractSegmentStoreCommandsTest {
                 STATE.get());
         Assert.assertTrue(commandResult.contains("dummy_field field does not exist."));
         Assert.assertTrue(commandResult.contains("No fields provided to modify."));
+    }
+
+    @Test
+    public void testDeleteSegmentCommandWithIncorrectArgs() {
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "deleteSegmentWrongArgTest", StreamConfiguration.builder().build());
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentWrongArgTest/0.#epoch.0 localhost", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testDeleteSegmentInvalidSegmentName() {
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "deleteSegmentInvalidSegmentName", StreamConfiguration.builder().build());
+        AssertExtensions.assertThrows("Invalid qualified-segment-name.", () -> TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentInvalidSegmentName", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testDeleteSegmentCommand() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", SETUP_UTILS.getServicePort());
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "deleteSegmentTest", StreamConfiguration.builder().build());
+        String commandResult = TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentTest/0.#epoch.0", STATE.get());
+        Assert.assertTrue(commandResult.contains("deleted successfully"));
+        // here trying to delete the already deleted segment
+        String commandResult2 = TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentTest/0.#epoch.0", STATE.get());
+        Assert.assertTrue(commandResult2.contains("DeleteSegment failed"));
+        Assert.assertNotNull(DeleteSegmentCommand.descriptor());
+    }
+
+    @Test
+    public void testCreateSegmentCommandWithIncorrectArgs() throws Exception {
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "createSegmentWrongArgTest", StreamConfiguration.builder().build());
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("segmentstore create-segment segmentstore/createSegmentWrongArgTest/0.#epoch.0 localhost", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testCreateSegmentCommandInvalidSegmentName() throws Exception {
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "createSegmentInvalidSegmentName", StreamConfiguration.builder().build());
+        AssertExtensions.assertThrows("Invalid qualified-segment-name", () -> TestUtils.executeCommand("segmentstore create-segment segmentstore/InvalidSegmentName", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testCreateSegmentAlreadyExist() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", SETUP_UTILS.getServicePort());
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "createSegmentAlreadyExist", StreamConfiguration.builder().build());
+        String commandResult = TestUtils.executeCommand("segmentstore create-segment segmentstore/createSegmentAlreadyExist/0.#epoch.0", STATE.get());
+        Assert.assertTrue(commandResult.contains("already exists"));
+    }
+
+    @Test
+    public void testCreateSegmentCommand() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", SETUP_UTILS.getServicePort());
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "createSegmentTest", StreamConfiguration.builder().build());
+        String commandResult = TestUtils.executeCommand("segmentstore create-segment segmentstore/createSegmentTest/5.#epoch.0", STATE.get());
+        Assert.assertTrue(commandResult.contains("created successfully"));
+
+        Assert.assertNotNull(CreateSegmentCommand.descriptor());
+    }
+
+    @Test
+    public void testRemoveTableSegmentKeysCommandIncorrectKey() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", SETUP_UTILS.getServicePort());
+        String tableSegmentName = getMetadataSegmentName(0);
+        String key = "invalidKey";
+        String commandResult = TestUtils.executeCommand("table-segment remove-key " + tableSegmentName + " " + key, STATE.get());
+        Assert.assertTrue(commandResult.contains("RemoveTableKey failed: " + key + " does not exist"));
+    }
+
+    @Test
+    public void testRemoveTableSegmentKeysCommand() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", SETUP_UTILS.getServicePort());
+        String tableSegmentName = getMetadataSegmentName(0);
+        String key = "_system/_RGkvtStreamReaders/0.#epoch.0";
+        String commandResult = TestUtils.executeCommand("table-segment remove-key " + tableSegmentName + " " + key, STATE.get());
+        Assert.assertTrue(commandResult.contains("RemoveTableKey: " + key + " removed successfully from " + tableSegmentName));
     }
 
     @After

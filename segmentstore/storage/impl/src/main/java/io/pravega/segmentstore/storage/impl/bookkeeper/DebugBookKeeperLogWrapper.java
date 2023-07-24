@@ -264,6 +264,25 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
     }
 
     /**
+     * Gets the current log metadata and overrides the epoch in it with the passed epoch.
+     *
+     * @param epoch Epoch to be overridden
+     * @throws DurableDataLogException thrown in case of issues persisting the metadata.
+     */
+    public void overrideEpochInMetadata(long epoch) throws DurableDataLogException {
+        LogMetadata metadata = this.bkLog.loadMetadata();
+        val newMetadata = LogMetadata
+                .builder()
+                .enabled(true)
+                .epoch(epoch)
+                .truncationAddress(getOrDefault(metadata, LogMetadata::getTruncationAddress, LogMetadata.INITIAL_TRUNCATION_ADDRESS))
+                .updateVersion(getOrDefault(metadata, LogMetadata::getUpdateVersion, LogMetadata.INITIAL_VERSION))
+                .ledgers(getOrDefault(metadata, LogMetadata::getLedgers, new ArrayList<LedgerMetadata>()))
+                .build();
+        forceMetadataOverWrite(newMetadata);
+    }
+
+    /**
      * Delete the metadata of the BookkeeperLog in Zookeeper. CAUTION: This is a destructive operation and should be
      * used wisely for administration purposes (e.g., repair a damaged BookkeeperLog).
      *
