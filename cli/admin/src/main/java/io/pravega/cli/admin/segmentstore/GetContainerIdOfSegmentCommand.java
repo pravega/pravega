@@ -19,7 +19,16 @@ package io.pravega.cli.admin.segmentstore;
 
 
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.controller.server.SegmentHelper;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+import com.google.common.base.Preconditions;
+import lombok.Cleanup;
+import org.apache.curator.framework.CuratorFramework;
+
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Gets the container id of the given segment.
@@ -28,18 +37,44 @@ import io.pravega.shared.segment.SegmentToContainerMapper;
 public class GetContainerIdOfSegmentCommand extends SegmentStoreCommand {
 
     private final SegmentToContainerMapper segToConMapper;
-    private final int containerCount;
+
     public GetContainerIdOfSegmentCommand(CommandArgs args) {
         super(args);
-        this.containerCount = getServiceConfig().getContainerCount();
-        this.segToConMapper = new SegmentToContainerMapper(this.containerCount, true);
+        int containerCount = getServiceConfig().getContainerCount();
+        this.segToConMapper = new SegmentToContainerMapper(containerCount, true);
     }
 
     @Override
     public void execute() throws Exception {
+        ensureArgCount(1);
+        @Cleanup
+        CuratorFramework zkClient = createZKClient();
+        @Cleanup
+        ConnectionPool pool = createConnectionPool();
+        @Cleanup
+        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient, pool);
         final String fullyQualifiedSegmentName = getArg(0);
-        int containerId = segToConMapper.getContainerId(fullyQualifiedSegmentName);
-        System.out.println("Container Id for the given Segment is :" + containerId);
+
+        String[] inputParam = fullyQualifiedSegmentName.split("/");
+        Preconditions.checkArgument(inputParam.length == 3, "Invalid qualified-segment-name  '%s'", fullyQualifiedSegmentName);
+        String scope = inputParam[0];
+        String stream = inputParam[1];
+        String[] segmentArr = inputParam[2].split("\\.");
+
+        try {
+            int segmentNumber = Integer.parseInt(segmentArr[0]);
+            int epoch = Integer.parseInt(segmentArr[2]);
+            long segmentId = NameUtils.computeSegmentId(segmentNumber, epoch);
+            CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfoFuture = segmentHelper.getSegmentInfo(scope, stream, segmentId, super.authHelper.retrieveMasterToken(), 0L);
+            segmentInfoFuture.join();
+            
+            int containerId = segToConMapper.getContainerId(fullyQualifiedSegmentName);
+            output("Container Id for the given Segment is :" + containerId);
+        } catch (Exception ex) {
+
+            output("Error : %s Segment does not exist %s", fullyQualifiedSegmentName, ex);
+
+              }
 }
 
     public static CommandDescriptor descriptor() {

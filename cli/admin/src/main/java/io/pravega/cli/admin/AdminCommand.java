@@ -65,7 +65,6 @@ import io.pravega.cli.admin.segmentstore.GetContainerIdOfSegmentCommand;
 import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
-import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.segmentstore.storage.ListChunksCommand;
 import io.pravega.cli.admin.segmentstore.storage.StorageUpdateSnapshotCommand;

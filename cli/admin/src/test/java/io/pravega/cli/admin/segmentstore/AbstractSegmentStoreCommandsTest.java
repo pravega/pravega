@@ -459,6 +459,37 @@ public abstract class AbstractSegmentStoreCommandsTest {
     }
 
     @Test
+    public void testGetContainerIdOfSegmentCommandWithIncorrectArgs() {
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getContainerIdOfSegmentCommandWrongArgTest", StreamConfiguration.builder().build());
+        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("segmentstore get-container-id segmentstore/getContainerIdOfSegmentCommandWrongArgTest/0.#epoch.0 localhost", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testGetContainerIdOfSegmentCommandWithInvalidSegmentName() {
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getContainerIdOfSegmentCommandInvalidSegmentName", StreamConfiguration.builder().build());
+        AssertExtensions.assertThrows("Invalid qualified-segment-name.", () -> TestUtils.executeCommand("segmentstore get-container-id segmentstore/getContainerIdOfSegmentCommandInvalidSegmentName", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testGetContainerIdOfSegmentCommand() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", SETUP_UTILS.getServicePort());
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getContainerIdTest", StreamConfiguration.builder().build());
+        String commandResult = TestUtils.executeCommand("segmentstore get-container-id segmentstore/getContainerIdTest/0.#epoch.0", STATE.get());
+        Assert.assertTrue(commandResult.contains("Container Id"));
+        Assert.assertNotNull(GetContainerIdOfSegmentCommand.descriptor());
+    }
+
+    @Test
+    public void testGetContainerIdOfNonSegmentCommand() throws Exception {
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getContainerIdTest", StreamConfiguration.builder().build());
+        String commandResult = TestUtils.executeCommand("segmentstore get-container-id segmentstores/notAStream/test", STATE.get());
+        Assert.assertTrue(commandResult.contains("Segment does not exist"));
+        Assert.assertNotNull(GetContainerIdOfSegmentCommand.descriptor());
+    }
+
+    @Test
     public void testDeleteSegmentCommandWithIncorrectArgs() {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "deleteSegmentWrongArgTest", StreamConfiguration.builder().build());
         AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("segmentstore delete-segment segmentstore/deleteSegmentWrongArgTest/0.#epoch.0 localhost", STATE.get()),
