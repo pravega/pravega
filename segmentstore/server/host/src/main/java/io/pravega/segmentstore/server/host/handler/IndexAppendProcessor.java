@@ -30,6 +30,9 @@ import lombok.extern.slf4j.Slf4j;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
 
+/**
+ * Process incoming Append request for index segment.
+ */
 @Slf4j
 public class IndexAppendProcessor {
     static final Duration TIMEOUT = Duration.ofMinutes(1);
@@ -41,6 +44,10 @@ public class IndexAppendProcessor {
         this.store = store;
     }
 
+    /**
+     * Appends index segment on a separate thread.
+     * @param segmentName  segment name.
+     */
     protected void processAppend(String segmentName) {
         LatestItemSequentialProcessor<String> latestItemProcessor = new LatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
         latestItemProcessor.updateItem(segmentName);
