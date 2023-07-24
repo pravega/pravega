@@ -55,7 +55,6 @@ public class IndexAppendProcessor {
 
     private void handleIndexAppend(String segmentName) {
         //TODO : Update the index segment Attribute as needed going forward.
-        // Keeping Event count of index segment same as main segment event count as we will not be updating indexsegment for each main segment append.
         AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));
         store.getStreamSegmentInfo(segmentName, TIMEOUT)
