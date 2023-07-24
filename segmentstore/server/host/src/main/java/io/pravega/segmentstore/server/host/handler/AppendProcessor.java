@@ -286,7 +286,6 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         Timer timer = new Timer();
         storeAppend(append, previousEventNumber)
                 .whenComplete((newLength, ex) -> {
-                    //indexAppendProcessor.processAppend(append.getSegment(), append.getEventCount());
                     handleAppendResult(append, newLength, ex, state, timer);
                     LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, ex);
                 })
