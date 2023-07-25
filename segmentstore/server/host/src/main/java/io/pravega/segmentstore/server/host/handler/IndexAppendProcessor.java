@@ -29,6 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
+import static io.pravega.shared.NameUtils.isTransactionSegment;
+import static io.pravega.shared.NameUtils.isTransientSegment;
 
 /**
  * Process incoming Append request for index segment.
@@ -49,16 +51,21 @@ public class IndexAppendProcessor {
      * @param segmentName  segment name.
      */
     protected void processAppend(String segmentName) {
+        // Not updating index segment for transient and transaction type.
+        if (isTransientSegment(segmentName) || isTransactionSegment(segmentName)) {
+            return;
+        }
         LatestItemSequentialProcessor<String> latestItemProcessor = new LatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
         latestItemProcessor.updateItem(segmentName);
     }
 
     private void handleIndexAppend(String segmentName) {
-        //TODO : Update the index segment Attribute as needed going forward.
+        //TODO : Update the index segment Attribute as needed going forward. If eventcount for main segment is null then we are passing it as 0 in index segment.
         AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));
         store.getStreamSegmentInfo(segmentName, TIMEOUT)
-             .thenCompose(info -> store.append(getIndexSegmentName(segmentName), getIndexAppendBuf(info.getLength(), info.getAttributes().get(EVENT_COUNT)), attributes, TIMEOUT))
+             .thenCompose(info -> store.append(getIndexSegmentName(segmentName), getIndexAppendBuf(info.getLength(),
+                     (info.getAttributes().get(EVENT_COUNT) != null) ? info.getAttributes().get(EVENT_COUNT) : 0), attributes, TIMEOUT))
              .whenComplete((length, ex) -> {
                  if (ex == null) {
                      log.trace("Index segment append successful for Segment : {} with length {} ", segmentName, length);

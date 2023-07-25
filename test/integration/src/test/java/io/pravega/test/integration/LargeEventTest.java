@@ -44,6 +44,8 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -56,6 +58,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
@@ -93,6 +96,7 @@ import java.util.stream.Collectors;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -129,6 +133,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         String serviceHost = "localhost";
         int containerCount = 1;
 
+        @Cleanup
+        InlineExecutor indexExecutor = new InlineExecutor();
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         eventsWrittenToPravega = new ConcurrentHashMap<>();
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
@@ -144,7 +150,7 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         tableStore = serviceBuilder.createTableStoreService();
         // Start up server.
         this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
-                serviceBuilder.getIndexAppendExecutor());
+                indexExecutor);
         this.server.startListening();
         // 3. Start Pravega Controller service
         this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
@@ -201,7 +207,20 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 0, events, LARGE_EVENT_SIZE);
 
         readWriteCycle(streamName, readerGroupName, data);
+        assertIndexSegment(NameUtils.getIndexSegmentName(NameUtils.getQualifiedStreamSegmentName(SCOPE_NAME, streamName, 0)), 2, 48);
         validateCleanUp(streamName);
+
+    }
+
+    private void assertIndexSegment(String segment, long expectedEventCount, long eventLength) {
+        val si = store.getStreamSegmentInfo(segment, Duration.ofMinutes(1)).join();
+        val segmentType = SegmentType.fromAttributes(si.getAttributes());
+        assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem() || segmentType.isTableSegment());
+        assertEquals(SegmentType.STREAM_SEGMENT, segmentType);
+
+        val attributes = si.getAttributes();
+        assertEquals(expectedEventCount, (long) attributes.get(Attributes.EVENT_COUNT));
+        assertEquals(eventLength, si.getLength());
     }
 
     @Test(timeout = 60000)
