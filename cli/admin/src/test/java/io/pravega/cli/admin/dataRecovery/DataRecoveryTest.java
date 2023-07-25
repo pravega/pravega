@@ -1244,7 +1244,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Map<Long, Long> origOperationsCountMap = getOperationsCountMapByAttributes(originalOperations);
         Mockito.doReturn(false)
                 .when(command).confirmContinue();
-        Mockito.doReturn(1L).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn(0L).when(command).getLongUserInput(Mockito.any());
         Mockito.doReturn("Attributes").doReturn("value").doReturn("no")
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
