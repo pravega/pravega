@@ -436,9 +436,9 @@ public class BatchClientImplTest {
         Stream stream = new StreamImpl(scope, streamName);
         mockController.createScope(scope);
         mockController.createStream(scope, streamName, StreamConfiguration.builder()
-                        .scalingPolicy(ScalingPolicy.fixed(numSegments))
-                        .build())
-                .join();
+                                                       .scalingPolicy(ScalingPolicy.fixed(numSegments))
+                                                       .build())
+                       .join();
         return stream;
     }
 
@@ -450,7 +450,7 @@ public class BatchClientImplTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 GetStreamSegmentInfo request = (GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
-                        .process(new StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
+                                 .process(new StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
                                 false, false, 0, 0, 0));
                 return null;
             }

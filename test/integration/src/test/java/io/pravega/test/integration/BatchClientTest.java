@@ -364,7 +364,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE+"-3", 0L).get();
+        controllerWrapper.getControllerService().createScope(SCOPE + "-3", 0L).get();
         controller.createStream(SCOPE + "-3", STREAM + "-3", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
