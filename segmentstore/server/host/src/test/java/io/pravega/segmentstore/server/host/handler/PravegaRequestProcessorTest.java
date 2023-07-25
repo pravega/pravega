@@ -20,23 +20,26 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.contracts.AttributeId;
-import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryType;
-import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.contracts.StreamSegmentInformation;
-import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.ReadResultEntryType;
+import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
+import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
+import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
+
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
@@ -52,15 +55,25 @@ import io.pravega.segmentstore.server.store.StreamSegmentService;
 import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.protocol.netty.ByteBufWrapper;
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.AppendDecoder;
+import io.pravega.shared.protocol.netty.CommandDecoder;
+import io.pravega.shared.protocol.netty.CommandEncoder;
+import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import io.pravega.shared.protocol.netty.Reply;
+import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
+
+import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -87,12 +100,13 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static io.pravega.shared.NameUtils.getIndexSegmentName;
+import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1506,6 +1520,64 @@ public class PravegaRequestProcessorTest {
         assertFalse(results.contains(e5));
     }
 
+    @Test
+    public void testCreateSealTruncateDeleteIndexSegment() throws Exception {
+        String segment = "testMultipleIndexAppends";
+        String indexSegment = getIndexSegmentName(segment);
+        ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store);
+        WireCommands.SegmentCreated created = (WireCommands.SegmentCreated) sendRequest(channel, new WireCommands.CreateSegment(1, segment, WireCommands.CreateSegment.NO_SCALE, 0, "", 1024L));
+        assertEquals(segment, created.getSegment());
+
+        UUID uuid = UUID.randomUUID();
+        WireCommands.AppendSetup setup = (WireCommands.AppendSetup) sendRequest(channel, new WireCommands.SetupAppend(2, uuid, segment, ""));
+
+        assertEquals(segment, setup.getSegment());
+        assertEquals(uuid, setup.getWriterId());
+
+        data.retain();
+
+        //Append 40 bytes of data
+        sendRequest(channel, new Append(segment, uuid, 1, new WireCommands.Event(data), 1L));
+        sendRequest(channel, new Append(segment, uuid, 2, new WireCommands.Event(data), 1L));
+
+        //Total length
+        assertEquals(store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getLength(), 40);
+
+        //Validating the data append data
+        WireCommands.SegmentRead result = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(segment, 0, 20, "", 1L));
+        ByteBuf resultAfterOneAppend = result.getData();
+        assertEquals("Hello world", resultAfterOneAppend.toString(Charset.defaultCharset()).trim());
+
+        // Truncate half.
+        final long truncateOffset = store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getLength() / 2;
+
+        //Before truncation validation
+        assertEquals(0, store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
+        assertEquals(0, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
+
+        AssertExtensions.assertGreaterThan("Nothing to truncate.", 0, truncateOffset);
+        //After truncation validation
+        sendRequest(channel, new WireCommands.TruncateSegment(requestId, segment, truncateOffset, ""));
+
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
+
+        // Truncate at the same offset - verify idempotence.
+        sendRequest(channel, new WireCommands.TruncateSegment(requestId, segment, truncateOffset, ""));
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
+
+        //Deleting the main segment and validating
+        sendRequest(channel, new WireCommands.DeleteSegment(1, segment, ""));
+        assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join());
+    }
+
     private ArrayView generateData(int length, Random rnd) {
         byte[] keyData = new byte[length];
         rnd.nextBytes(keyData);
@@ -1552,6 +1624,44 @@ public class PravegaRequestProcessorTest {
         verify(tracker).updateOutstandingBytes(connection, len, len);
         verify(tracker).updateOutstandingBytes(connection, -len, 0);
         clearInvocations(tracker);
+    }
+
+    private static Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
+        channel.writeInbound(request);
+        log.info("Request {} sent to Segment store", request);
+        Object encodedReply = channel.readOutbound();
+        for (int i = 0; encodedReply == null && i < 500; i++) {
+            channel.runPendingTasks();
+            Thread.sleep(10);
+            encodedReply = channel.readOutbound();
+        }
+        if (encodedReply == null) {
+            log.error("Error while try waiting for a response from Segment Store");
+            throw new IllegalStateException("No reply to request: " + request);
+        }
+        WireCommand decoded = CommandDecoder.parseCommand((ByteBuf) encodedReply);
+        ((ByteBuf) encodedReply).release();
+        assertNotNull(decoded);
+        return (Reply) decoded;
+    }
+
+    static EmbeddedChannel createChannel(StreamSegmentStore store) {
+        ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
+        EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
+                new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
+                new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
+                new CommandDecoder(),
+                new AppendDecoder(),
+                lsh);
+        @Cleanup
+        InlineExecutor indexExecutor = new InlineExecutor();
+        lsh.setRequestProcessor(AppendProcessor.defaultBuilder(indexExecutor)
+                .store(store)
+                .connection(new TrackedConnection(lsh))
+                .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh,
+                        indexExecutor))
+                .build());
+        return channel;
     }
 
     //endregion
