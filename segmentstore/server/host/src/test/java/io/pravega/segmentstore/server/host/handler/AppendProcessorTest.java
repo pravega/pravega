@@ -434,8 +434,8 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, 21L));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
-        verify(store, times(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
-        verify(store, times(2)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
 
