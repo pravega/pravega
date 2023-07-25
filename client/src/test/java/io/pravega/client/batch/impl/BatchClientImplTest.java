@@ -19,7 +19,8 @@ import com.google.common.collect.ImmutableSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.connection.impl.ClientConnection;
-import io.pravega.client.control.impl.Controller;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -34,6 +35,8 @@ import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import java.util.Arrays;
@@ -45,27 +48,42 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+
+import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 public class BatchClientImplTest {
 
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
+
+    private static class MockControllerWithSuccessors extends MockController {
+        private StreamSegmentsWithPredecessors successors;
+
+        public MockControllerWithSuccessors(String endpoint, int port, ConnectionPool connectionPool, StreamSegmentsWithPredecessors successors) {
+            super(endpoint, port, connectionPool, false);
+            this.successors = successors;
+        }
+
+        @Override
+        public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
+            return completedFuture(successors);
+        }
+    }
 
     @Test(timeout = 5000)
     public void testGetSegmentsWithUnboundedStreamCut() throws Exception {
@@ -173,7 +191,7 @@ public class BatchClientImplTest {
         assertEquals("stream", segRanges.get(2).getSegment().getStream().getStreamName());
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testGetNextStreamCut() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Segment segment2 = new Segment("scope", "stream", 2L);
@@ -181,22 +199,34 @@ public class BatchClientImplTest {
         positionMap.put(segment1, 20L);
         positionMap.put(segment2, 30L);
         StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
-        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup
-        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
-        MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory, false);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
-        BatchClientFactoryImpl clientSpy = spy(client);
-        when(clientSpy.getNextOffsetForSegment(any(Segment.class), anyLong())).thenReturn(90L);
-        StreamCut nextSC = clientSpy.getNextStreamCut(startingSC, 50L);
+        MockControllerWithSuccessors controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(), cf, getEmptyReplacement().join());
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
+        client.getConnection(segment1);
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) {
+
+                WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                processor.process(new WireCommands.OffsetLocated(locateOffset.getRequestId(), locateOffset.getSegment(), 90L));
+                return null;
+            }
+        }).when(connection).send(any(WireCommands.LocateOffset.class));
+        StreamCut nextSC = client.getNextStreamCut(startingSC, 50L);
         assertNotNull(nextSC);
         assertEquals(2, nextSC.asImpl().getPositions().size());
         assertTrue(nextSC.asImpl().getPositions().containsKey(segment1));
         assertTrue(nextSC.asImpl().getPositions().containsKey(segment2));
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testGetNextStreamCut_Segment_ScaleUp() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Segment segment2 = new Segment("scope", "stream", 2L);
@@ -208,58 +238,76 @@ public class BatchClientImplTest {
         positionMap.put(segment2, 90L);
         positionMap.put(segment3, 50L);
         StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
-        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup
-        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
-        Controller controller = Mockito.mock(Controller.class);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
-        BatchClientFactoryImpl clientSpy = spy(client);
-        when(clientSpy.getNextOffsetForSegment(any(Segment.class), anyLong())).thenReturn(90L);
-        when(controller.getSuccessors(segment2)).thenReturn(getScaleUpReplacement(segment2, segment4, segment5));
-        StreamCut nextSC = clientSpy.getNextStreamCut(startingSC, 50L);
+        MockControllerWithSuccessors controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(), cf, getScaleUpReplacement(segment2, segment4, segment5).join());
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
+        client.getConnection(segment1);
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) {
+
+                WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                processor.process(new WireCommands.OffsetLocated(locateOffset.getRequestId(), locateOffset.getSegment(), 90L));
+                return null;
+            }
+        }).when(connection).send(any(WireCommands.LocateOffset.class));
+        StreamCut nextSC = client.getNextStreamCut(startingSC, 50L);
         assertNotNull(nextSC);
         assertEquals(4, nextSC.asImpl().getPositions().size());
         assertTrue(nextSC.asImpl().getPositions().containsKey(segment1)
-                    && nextSC.asImpl().getPositions().containsKey(segment3)
-                    && nextSC.asImpl().getPositions().containsKey(segment4)
-                    && nextSC.asImpl().getPositions().containsKey(segment5));
+                && nextSC.asImpl().getPositions().containsKey(segment3)
+                && nextSC.asImpl().getPositions().containsKey(segment4)
+                && nextSC.asImpl().getPositions().containsKey(segment5));
     }
 
-    @Test
-    public void testGetNextStreamCut_Segments_Scale_UpAndDown() throws Exception {
+    @Test(timeout = 5000)
+    public void testGetNextStreamCut_Segments_ScaleDown_NotForwarded() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Segment segment2 = new Segment("scope", "stream", 2L);
         Segment segment3 = new Segment("scope", "stream", 3L);
         Segment segment4 = new Segment("scope", "stream", 4L);
-        Segment segment5 = new Segment("scope", "stream", 5L);
-        Segment segment6 = new Segment("scope", "stream", 6L);
 
         Map<Segment, Long> positionMap = new HashMap<>();
-        positionMap.put(segment1, 90L);
+        positionMap.put(segment1, 20L);
         positionMap.put(segment2, 90L);
-        positionMap.put(segment3, 90L);
+        positionMap.put(segment3, 40L);
         StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
-        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup
-        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
-        Controller controller = Mockito.mock(Controller.class);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
-        BatchClientFactoryImpl clientSpy = spy(client);
-        when(clientSpy.getNextOffsetForSegment(any(Segment.class), anyLong())).thenReturn(90L);
-        when(controller.getSuccessors(segment2)).thenReturn(getScaleDownReplacement(segment2, segment3, segment4));
-        when(controller.getSuccessors(segment3)).thenReturn(getScaleDownReplacement(segment2, segment3, segment4));
-        when(controller.getSuccessors(segment1)).thenReturn(getScaleUpReplacement(segment1, segment5, segment6));
-        StreamCut nextSC = clientSpy.getNextStreamCut(startingSC, 50L);
+        MockControllerWithSuccessors controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(), cf, getScaleDownReplacement(segment2, segment3, segment4).join());
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
+        client.getConnection(segment1);
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) {
+
+                WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                processor.process(new WireCommands.OffsetLocated(locateOffset.getRequestId(), locateOffset.getSegment(), 90L));
+                return null;
+            }
+        }).when(connection).send(any(WireCommands.LocateOffset.class));
+        StreamCut nextSC = client.getNextStreamCut(startingSC, 50L);
         assertNotNull(nextSC);
         assertEquals(3, nextSC.asImpl().getPositions().size());
-        assertTrue(nextSC.asImpl().getPositions().containsKey(segment4)
-                && nextSC.asImpl().getPositions().containsKey(segment6)
-                && nextSC.asImpl().getPositions().containsKey(segment5));
+        assertTrue(nextSC.asImpl().getPositions().containsKey(segment1)
+                && nextSC.asImpl().getPositions().containsKey(segment2)
+                && nextSC.asImpl().getPositions().containsKey(segment3));
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testGetNextStreamCut_Segment_ScaleDown() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Segment segment2 = new Segment("scope", "stream", 2L);
@@ -271,24 +319,34 @@ public class BatchClientImplTest {
         positionMap.put(segment2, 90L);
         positionMap.put(segment3, 90L);
         StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
-        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup
-        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
-        Controller controller = Mockito.mock(Controller.class);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
-        BatchClientFactoryImpl clientSpy = spy(client);
-        when(clientSpy.getNextOffsetForSegment(any(Segment.class), anyLong())).thenReturn(90L);
-        when(controller.getSuccessors(segment2)).thenReturn(getScaleDownReplacement(segment2, segment3, segment4));
-        when(controller.getSuccessors(segment3)).thenReturn(getScaleDownReplacement(segment2, segment3, segment4));
-        StreamCut nextSC = clientSpy.getNextStreamCut(startingSC, 50L);
+        MockControllerWithSuccessors controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(), cf, getScaleDownReplacement(segment2, segment3, segment4).join());
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
+        client.getConnection(segment1);
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) {
+
+                WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                processor.process(new WireCommands.OffsetLocated(locateOffset.getRequestId(), locateOffset.getSegment(), 90L));
+                return null;
+            }
+        }).when(connection).send(any(WireCommands.LocateOffset.class));
+        StreamCut nextSC = client.getNextStreamCut(startingSC, 50L);
         assertNotNull(nextSC);
         assertEquals(2, nextSC.asImpl().getPositions().size());
         assertTrue(nextSC.asImpl().getPositions().containsKey(segment1)
                 && nextSC.asImpl().getPositions().containsKey(segment4));
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testGetNextStreamCut_NoScaling() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Segment segment2 = new Segment("scope", "stream", 2L);
@@ -299,21 +357,61 @@ public class BatchClientImplTest {
         positionMap.put(segment2, 90L);
         positionMap.put(segment3, 40L);
         StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
-        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup
-        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
-        Controller controller = Mockito.mock(Controller.class);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
-        BatchClientFactoryImpl clientSpy = spy(client);
-        when(clientSpy.getNextOffsetForSegment(any(Segment.class), anyLong())).thenReturn(90L);
-        when(controller.getSuccessors(segment2)).thenReturn(getEmptyReplacement());
-        StreamCut nextSC = clientSpy.getNextStreamCut(startingSC, 50L);
+        MockControllerWithSuccessors controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(), cf, getEmptyReplacement().join());
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
+        client.getConnection(segment1);
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) {
+
+                WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                processor.process(new WireCommands.OffsetLocated(locateOffset.getRequestId(), locateOffset.getSegment(), 90L));
+                return null;
+            }
+        }).when(connection).send(any(WireCommands.LocateOffset.class));
+        StreamCut nextSC = client.getNextStreamCut(startingSC, 50L);
         assertNotNull(nextSC);
         assertEquals(3, nextSC.asImpl().getPositions().size());
         assertTrue(nextSC.asImpl().getPositions().containsKey(segment1)
                 && nextSC.asImpl().getPositions().containsKey(segment2)
                 && nextSC.asImpl().getPositions().containsKey(segment3));
+    }
+
+    @Test(timeout = 5000)
+    public void testGetNextStreamCut_NoSuchSegmentException() throws Exception {
+        Segment segment1 = new Segment("scope", "stream", 1L);
+        Map<Segment, Long> positionMap = new HashMap<>();
+        positionMap.put(segment1, 30L);
+        StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockControllerWithSuccessors controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(), cf, getEmptyReplacement().join());
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
+        client.getConnection(segment1);
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) {
+
+                WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                processor.process(new WireCommands.NoSuchSegment(locateOffset.getRequestId(), locateOffset.getSegment(), "", 30L));
+                return null;
+            }
+        }).when(connection).send(any(WireCommands.LocateOffset.class));
+        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> client.getNextStreamCut(startingSC, 50L));
     }
 
     private CompletableFuture<StreamSegmentsWithPredecessors> getEmptyReplacement() {
@@ -326,7 +424,7 @@ public class BatchClientImplTest {
         segments.put(new SegmentWithRange(repacement1, 0, 0.35), Arrays.asList(old1.getSegmentId(), old2.getSegmentId()));
         return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(segments, ""));
     }
-    
+
     private CompletableFuture<StreamSegmentsWithPredecessors> getScaleUpReplacement(Segment old, Segment repacement1, Segment repacement2) {
         Map<SegmentWithRange, List<Long>> segments = new HashMap<>();
         segments.put(new SegmentWithRange(repacement1, 0, 0.25), Collections.singletonList(old.getSegmentId()));
@@ -338,9 +436,9 @@ public class BatchClientImplTest {
         Stream stream = new StreamImpl(scope, streamName);
         mockController.createScope(scope);
         mockController.createStream(scope, streamName, StreamConfiguration.builder()
-                                                       .scalingPolicy(ScalingPolicy.fixed(numSegments))
-                                                       .build())
-                      .join();
+                        .scalingPolicy(ScalingPolicy.fixed(numSegments))
+                        .build())
+                .join();
         return stream;
     }
 
@@ -352,8 +450,8 @@ public class BatchClientImplTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 GetStreamSegmentInfo request = (GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
-                                 .process(new StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
-                                                                false, false, 0, 0, 0));
+                        .process(new StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
+                                false, false, 0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(GetStreamSegmentInfo.class));
@@ -363,8 +461,8 @@ public class BatchClientImplTest {
 
     private StreamCut getStreamCut(long offset, int... segments) {
         final Map<Segment, Long> positionMap = Arrays.stream(segments).boxed()
-                                                     .collect(Collectors.toMap(s -> new Segment("scope", STREAM, s),
-                                                             s -> offset));
+                .collect(Collectors.toMap(s -> new Segment("scope", STREAM, s),
+                        s -> offset));
 
         return new StreamCutImpl(Stream.of("scope", STREAM), positionMap);
     }

@@ -25,6 +25,10 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.impl.SegmentRangeImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -33,6 +37,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.TruncatedDataException;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -42,6 +47,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -57,6 +63,7 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -263,6 +270,241 @@ public class BatchClientTest extends ThreadPooledTestSuite {
 
         CompletableFuture<Long> distance =  streamManager.getDistanceBetweenTwoStreamCuts(stream, StreamCut.UNBOUNDED, streamCut30L);
         assertEquals(Long.valueOf(20), distance.join());
+    }
+
+    @Test(timeout = 50000)
+    public void testNextStreamCut() throws ExecutionException, InterruptedException {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(SCOPE + "-1", 0L).get();
+        controller.createStream(SCOPE + "-1", STREAM + "-1", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE + "-1", controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM + "-1", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        // write events to stream
+        write30ByteEvents(10, writer);
+        Segment segment = new Segment(SCOPE + "-1", STREAM + "-1", 0);
+        StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-1", STREAM + "-1"),
+                ImmutableMap.of(segment, 270L));
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-1", clientConfig);
+        log.info("Done creating batch client factory");
+
+        StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 93L);
+        assertTrue(nextStreamCut != null);
+        assertTrue(nextStreamCut.asImpl().getPositions().size() == 1);
+        assertTrue(nextStreamCut.asImpl().getPositions().get(segment).equals(300L));
+    }
+
+    @Test(timeout = 50000)
+    public void testNextStreamCut_ScaleUp() throws ExecutionException, InterruptedException {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 1))
+                .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(SCOPE + "-2", 0L).get();
+        controller.createStream(SCOPE + "-2", STREAM + "-2", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE + "-2", controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM + "-2", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        // write events to stream
+        write30ByteEvents(4, writer);
+
+        Map<Double, Double> keyRanges = new HashMap<>();
+        keyRanges.put(0.0, 0.5);
+        keyRanges.put(0.5, 1.0);
+        Stream stream = new StreamImpl(SCOPE + "-2", STREAM + "-2");
+        // Stream scaling up
+        Boolean status = controller.scaleStream(stream,
+                Collections.singletonList(0L),
+                keyRanges,
+                executorService()).getFuture().get();
+        assertTrue(status);
+
+        write30ByteEvents(6, writer);
+
+        Segment segment0 = new Segment(SCOPE + "-2", STREAM + "-2", 0);
+        Segment segment1 = Segment.fromScopedName(SCOPE + "-2/" + STREAM + "-2/1.#epoch.1");
+        Segment segment2 = Segment.fromScopedName(SCOPE + "-2/" + STREAM + "-2/2.#epoch.1");
+        StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-2", STREAM + "-2"),
+                ImmutableMap.of(segment0, 120L));
+
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-2", clientConfig);
+        log.info("Done creating batch client factory");
+
+        ArrayList<SegmentRange> allSegmentsList = Lists.newArrayList(
+                batchClient.getSegments(Stream.of(SCOPE + "-2", STREAM + "-2"), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+        long approxDistanceToNextOffset = 80L;
+        Map<Segment, Long> map = allSegmentsList.stream().collect(
+                Collectors.toMap(SegmentRange::getSegment, value -> value.getEndOffset() > approxDistanceToNextOffset ? 90L : value.getEndOffset()));
+
+        StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, approxDistanceToNextOffset);
+        assertTrue(nextStreamCut != null);
+        assertTrue(nextStreamCut.asImpl().getPositions().size() == 2);
+        assertTrue(nextStreamCut.asImpl().getPositions().containsKey(segment1) &&
+                nextStreamCut.asImpl().getPositions().containsKey(segment2));
+        assertTrue(nextStreamCut.asImpl().getPositions().get(segment1).equals(map.get(segment1)) &&
+                nextStreamCut.asImpl().getPositions().get(segment2).equals(map.get(segment2)));
+    }
+
+    @Test(timeout = 50000)
+    public void testNextStreamCut_ScaleDown() throws ExecutionException, InterruptedException {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(SCOPE+"-3", 0L).get();
+        controller.createStream(SCOPE + "-3", STREAM + "-3", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE + "-3", controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM + "-3", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        // write events to stream with 1 segment.
+        write30ByteEvents(4, writer);
+
+        Map<Double, Double> keyRanges = new HashMap<>();
+        keyRanges.put(0.0, 0.5);
+        keyRanges.put(0.5, 1.0);
+        Stream stream = new StreamImpl(SCOPE + "-3", STREAM + "-3");
+        // Stream scaling up
+        Boolean status = controller.scaleStream(stream,
+                Collections.singletonList(0L),
+                keyRanges,
+                executorService()).getFuture().get();
+        assertTrue(status);
+
+        write30ByteEvents(7, writer);
+        ArrayList<Long> toSeal = new ArrayList<>();
+        toSeal.add(computeSegmentId(1, 1));
+        toSeal.add(computeSegmentId(2, 1));
+
+        Map<Double, Double> keyRanges1 = new HashMap<>();
+        keyRanges1.put(0.0, 1.0);
+        Stream stream1 = new StreamImpl(SCOPE + "-3", STREAM + "-3");
+        // Stream scaling down
+        Boolean status1 = controller.scaleStream(stream1,
+                Collections.unmodifiableList(toSeal),
+                keyRanges1,
+                executorService()).getFuture().get();
+        assertTrue(status1);
+
+        write30ByteEvents(5, writer);
+
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-3", clientConfig);
+        log.info("Done creating batch client factory");
+        Segment segment1 = Segment.fromScopedName(SCOPE + "-3/" + STREAM + "-3/1.#epoch.1");
+        Segment segment2 = Segment.fromScopedName(SCOPE + "-3/" + STREAM + "-3/2.#epoch.1");
+        Segment segment3 = Segment.fromScopedName(SCOPE + "-3/" + STREAM + "-3/3.#epoch.2");
+
+        ArrayList<SegmentRange> allSegmentsList = Lists.newArrayList(
+                batchClient.getSegments(Stream.of(SCOPE + "-3", STREAM + "-3"), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+
+        Map<Segment, Long> map = allSegmentsList.stream().collect(
+                Collectors.toMap(SegmentRange::getSegment, SegmentRange::getEndOffset));
+        StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-3", STREAM + "-3"),
+                ImmutableMap.of(segment1, map.get(segment1), segment2, map.get(segment2)));
+
+        StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 80L);
+        assertTrue(nextStreamCut != null);
+        assertTrue(nextStreamCut.asImpl().getPositions().size() == 1);
+        assertTrue(nextStreamCut.asImpl().getPositions().get(segment3).equals(90L));
+    }
+
+    @Test(timeout = 50000)
+    public void testNextStreamCut_ScaleDown_NotForwarded() throws ExecutionException, InterruptedException {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(SCOPE + "-4", 0L).get();
+        controller.createStream(SCOPE + "-4", STREAM + "-4", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE + "-4", controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM + "-4", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        // write events to stream with 1 segment.
+        write30ByteEvents(4, writer);
+
+        Map<Double, Double> keyRanges = new HashMap<>();
+        keyRanges.put(0.0, 0.5);
+        keyRanges.put(0.5, 1.0);
+        Stream stream = new StreamImpl(SCOPE + "-4", STREAM + "-4");
+        // Stream scaling up
+        Boolean status = controller.scaleStream(stream,
+                Collections.singletonList(0L),
+                keyRanges,
+                executorService()).getFuture().get();
+        assertTrue(status);
+
+        write30ByteEvents(7, writer);
+        ArrayList<Long> toSeal = new ArrayList<>();
+        toSeal.add(computeSegmentId(1, 1));
+        toSeal.add(computeSegmentId(2, 1));
+
+        Map<Double, Double> keyRanges1 = new HashMap<>();
+        keyRanges1.put(0.0, 1.0);
+        Stream stream1 = new StreamImpl(SCOPE + "-4", STREAM + "-4");
+        // Stream scaling down
+        Boolean status1 = controller.scaleStream(stream1,
+                Collections.unmodifiableList(toSeal),
+                keyRanges1,
+                executorService()).getFuture().get();
+        assertTrue(status1);
+
+        write30ByteEvents(5, writer);
+
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-4", clientConfig);
+        log.info("Done creating batch client factory");
+        Segment segment1 = Segment.fromScopedName(SCOPE + "-4/" + STREAM + "-4/1.#epoch.1");
+        Segment segment2 = Segment.fromScopedName(SCOPE + "-4/" + STREAM + "-4/2.#epoch.1");
+
+        ArrayList<SegmentRange> allSegmentsList = Lists.newArrayList(
+                batchClient.getSegments(Stream.of(SCOPE + "-4", STREAM + "-4"), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+
+        Map<Segment, Long> map = allSegmentsList.stream().collect(
+                Collectors.toMap(SegmentRange::getSegment, SegmentRange::getEndOffset));
+        StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-4", STREAM + "-4"),
+                ImmutableMap.of(segment1, map.get(segment1)-30L, segment2, map.get(segment2)));
+
+        StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 80L);
+        assertTrue(nextStreamCut != null);
+        assertTrue(nextStreamCut.asImpl().getPositions().size() == 2);
+        assertTrue(nextStreamCut.asImpl().getPositions().containsKey(segment1) &&
+                nextStreamCut.asImpl().getPositions().containsKey(segment2));
+        assertTrue(nextStreamCut.asImpl().getPositions().get(segment1).equals(map.get(segment1)) &&
+                nextStreamCut.asImpl().getPositions().get(segment2).equals(map.get(segment2)));
+    }
+
+    @Test(timeout = 50000)
+    public void testNextStreamCut_Exception() {
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-4", clientConfig);
+        log.info("Done creating batch client factory");
+        Segment segment0 = new Segment(SCOPE + "-5", STREAM + "-5", 0);
+        StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-5", STREAM + "-5"),
+                ImmutableMap.of(segment0, 120L));
+
+        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> batchClient.getNextStreamCut(streamCut, 80L));
+
     }
 
     //region Private helper methods
