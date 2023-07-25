@@ -1241,14 +1241,14 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
-        Map<Long, Long> origOperationsCountMap = getOperationsCountMapByAttributes(originalOperations);
+        Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
         Mockito.doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doReturn(1L).when(command).getLongUserInput(Mockito.any());
-        Mockito.doReturn("Attributes").doReturn("value").doReturn("no")
+        Mockito.doReturn("SequenceNumber").doReturn("value").doReturn("no")
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
-        Map<Long, Long> savedOpCountMap = getOperationsCountMapByAttributes(getSavedResult(testDataFile.getAbsolutePath()));
+        Map<Long, Long> savedOpCountMap = getOperationsCountMapBySequenceNumber(getSavedResult(testDataFile.getAbsolutePath()));
         Assert.assertEquals(origOperationsCountMap.get(1L), savedOpCountMap.get(1L));
 
         this.factory.close();
@@ -1318,8 +1318,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .doReturn(true).doReturn(false).doReturn(false)
                 .doReturn(true).doReturn(false).doReturn(false)
                 .when(command).confirmContinue();
-        Mockito.doReturn(1L).doReturn(1000L)
-                .doReturn(1L).doReturn(1000L)
+        Mockito.doReturn(1L).doReturn(2000L)
+                .doReturn(1L).doReturn(2000L)
                 .doReturn(1L).doReturn(10000L)
                 .when(command).getLongUserInput(Mockito.any());
         Mockito.doReturn("SequenceNumber").doReturn("range").doReturn(">").doReturn("and")

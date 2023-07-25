@@ -49,6 +49,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
     private final AtomicReference<CompletableFuture<Void>> testCompletion;
     private final StoreAdapter store;
     private ServiceManager actorManager;
+    private ScheduledExecutorService indexAppendExecutor;
 
     //endregion
 
@@ -69,7 +70,8 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.testCompletion = new AtomicReference<>();
         this.state = new TestState();
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(testConfig.getThreadPoolSize(), "self-test");
-        this.store = StoreAdapter.create(testConfig, builderConfig, this.executor);
+        this.indexAppendExecutor = ExecutorServiceHelpers.newScheduledThreadPool(testConfig.getIndexAppendThreadPoolSize(), "index-append");
+        this.store = StoreAdapter.create(testConfig, builderConfig, this.executor, this.indexAppendExecutor);
         this.dataSource = createProducerDataSource(this.testConfig, this.state, this.store);
         Services.onStop(this, this::shutdownCallback, this::shutdownCallback, this.executor);
         this.reporter = new Reporter(this.state, this.testConfig, this.store::getStorePoolSnapshot, this.executor);

@@ -27,6 +27,7 @@ import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.RequestProcessor;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -44,6 +45,7 @@ public class AdminConnectionListener extends AbstractConnectionListener {
     private final StreamSegmentStore store;
     private final TableStore tableStore;
     private final DelegationTokenVerifier tokenVerifier;
+    private final ScheduledExecutorService indexAppendExecutor;
 
     /**
      * Creates a new instance of the PravegaConnectionListener class.
@@ -58,12 +60,14 @@ public class AdminConnectionListener extends AbstractConnectionListener {
      * @param certFile           Path to the certificate file to be used for TLS.
      * @param keyFile            Path to be key file to be used for TLS.
      * @param tlsProtocolVersion the version of the TLS protocol
+     * @param indexAppendExecutor Executor service to process index append.
      */
     public AdminConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port,
                                    StreamSegmentStore streamSegmentStore, TableStore tableStore,
-                                   DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, String[] tlsProtocolVersion) {
+                                   DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, String[] tlsProtocolVersion,
+                                   ScheduledExecutorService indexAppendExecutor) {
         this(enableTls, enableTlsReload, host, port, streamSegmentStore, tableStore, tokenVerifier, certFile, keyFile,
-                tlsProtocolVersion, null);
+                tlsProtocolVersion, null, indexAppendExecutor);
     }
 
     /**
@@ -80,20 +84,22 @@ public class AdminConnectionListener extends AbstractConnectionListener {
      * @param keyFile            Path to be key file to be used for TLS.
      * @param tlsProtocolVersion the version of the TLS protocol
      * @param healthServiceManager The healService to register new health contributors related to the listeners.
+     * @param indexAppendExecutor Executor service to process index append.
      */
     public AdminConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port,
                                    StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                    DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, String[] tlsProtocolVersion,
-                                   HealthServiceManager healthServiceManager) {
+                                   HealthServiceManager healthServiceManager, ScheduledExecutorService indexAppendExecutor) {
         super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion, healthServiceManager);
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.tokenVerifier = (tokenVerifier != null) ? tokenVerifier : new PassingTokenVerifier();
+        this.indexAppendExecutor = indexAppendExecutor;
     }
 
     @Override
     public RequestProcessor createRequestProcessor(TrackedConnection c) {
-        return new AdminRequestProcessorImpl(store, tableStore, c, tokenVerifier);
+        return new AdminRequestProcessorImpl(store, tableStore, c, tokenVerifier, indexAppendExecutor);
     }
 
     @Override

@@ -93,7 +93,8 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         serviceBuilder.initialize();
         this.tableStore = serviceBuilder.createTableStoreService();
 
-        this.serverListener = new PravegaConnectionListener(false, servicePort, serviceBuilder.createStreamSegmentService(), this.tableStore, executorService());
+        this.serverListener = new PravegaConnectionListener(false, servicePort, serviceBuilder.createStreamSegmentService(), this.tableStore, executorService(),
+                serviceBuilder.getIndexAppendExecutor());
         this.serverListener.startListening();
 
         // 3. Start Pravega Controller service

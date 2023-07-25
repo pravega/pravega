@@ -82,6 +82,8 @@ public class ServiceBuilder implements AutoCloseable {
     private final ScheduledExecutorService coreExecutor;
     private final ScheduledExecutorService storageExecutor;
     @Getter(AccessLevel.PUBLIC)
+    private final ScheduledExecutorService indexAppendExecutor;
+    @Getter(AccessLevel.PUBLIC)
     private final ScheduledExecutorService lowPriorityExecutor;
     @Getter(AccessLevel.PUBLIC)
     private final CacheManager cacheManager;
@@ -135,6 +137,7 @@ public class ServiceBuilder implements AutoCloseable {
         String instancePrefix = getInstanceIdPrefix(serviceConfig);
         this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), instancePrefix + "core", Thread.NORM_PRIORITY);
         this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), instancePrefix + "storage-io", Thread.NORM_PRIORITY);
+        this.indexAppendExecutor = executorBuilder.apply(serviceConfig.getIndexAppendThreadPoolSize(), instancePrefix + "index-append", Thread.NORM_PRIORITY);
         this.lowPriorityExecutor = executorBuilder.apply(serviceConfig.getLowPriorityThreadPoolSize(),
                 instancePrefix + "low-priority-cleanup", Thread.MIN_PRIORITY);
         this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor, this.storageExecutor);
@@ -160,7 +163,7 @@ public class ServiceBuilder implements AutoCloseable {
         this.cacheManager.close();
         this.threadPoolMetrics.close();
         ExecutorServiceHelpers.shutdown(SHUTDOWN_TIMEOUT, this.storageExecutor, this.coreExecutor,
-                this.lowPriorityExecutor);
+                this.lowPriorityExecutor, this.indexAppendExecutor);
     }
 
     //endregion

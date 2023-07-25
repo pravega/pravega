@@ -64,7 +64,7 @@ public class ScaleTest {
             int port = Config.SERVICE_PORT;
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                    serviceBuilder.getLowPriorityExecutor());
+                    serviceBuilder.getLowPriorityExecutor(), serviceBuilder.getIndexAppendExecutor());
             server.startListening();
 
             // Create controller object for testing against a separate controller report.
