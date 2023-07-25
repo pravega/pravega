@@ -630,8 +630,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         long endIndex = segmentStore.getStreamSegmentInfo(getIndexSegmentName(segment), PravegaRequestProcessor.TIMEOUT).join().getLength();
         long offset = truncateSegment.getTruncationOffset();
-        LongFunction<Long> getValue = i -> (long) (i * 2);
-        Map.Entry<Long, Long> result = SortUtils.newtonianSearch(getValue, 0, endIndex, offset, true);
+        LongFunction<Long> indexSegmentFunc = i -> (long) (i * 2);
+        Map.Entry<Long, Long> result = SortUtils.newtonianSearch(indexSegmentFunc, 0, endIndex, offset, true);
         long indexSegmentOffset = result.getValue().longValue();
 
         log.info(truncateSegment.getRequestId(), "Truncating segment {} at offset {}.",
