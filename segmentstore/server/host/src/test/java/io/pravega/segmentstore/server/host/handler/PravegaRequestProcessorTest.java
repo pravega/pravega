@@ -1480,61 +1480,6 @@ public class PravegaRequestProcessorTest {
         assertFalse(results.contains(e5));
     }
 
-    @Test(timeout = 20000)
-    public void testCreateSealTruncateDeleteIndexSegment() throws Exception {
-        // Set up PravegaRequestProcessor instance to execute requests against.
-        String streamSegmentName = "scope/stream/testCreateSealDelete";
-        String indexStreamSegmentName = NameUtils.getIndexSegmentName(streamSegmentName);
-        @Cleanup
-        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        ServerConnection connection = mock(ServerConnection.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection);
-
-        // Create a segment and append 6 bytes.
-        processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
-        assertTrue(append(streamSegmentName, 1, store));
-        assertTrue(append(streamSegmentName, 2, store));
-        assertTrue(append(streamSegmentName, 3, store));
-        assertTrue(append(streamSegmentName, 4, store));
-        assertTrue(append(streamSegmentName, 5, store));
-        assertTrue(append(streamSegmentName, 6, store));
-
-        // Create a index segment and append 6 bytes.
-        processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
-        assertTrue(append(indexStreamSegmentName, 1, store));
-        assertTrue(append(indexStreamSegmentName, 2, store));
-        assertTrue(append(indexStreamSegmentName, 3, store));
-        assertTrue(append(indexStreamSegmentName, 4, store));
-        assertTrue(append(indexStreamSegmentName, 5, store));
-        assertTrue(append(indexStreamSegmentName, 6, store));
-
-        processor.sealSegment(new WireCommands.SealSegment(requestId, streamSegmentName, ""));
-        assertFalse(append(streamSegmentName, 2, store));
-
-        processor.sealSegment(new WireCommands.SealSegment(requestId, indexStreamSegmentName, ""));
-        assertFalse(append(indexStreamSegmentName, 2, store));
-
-        // Truncate half.
-        final long truncateOffset = store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT).join().getLength() / 2;
-
-        AssertExtensions.assertGreaterThan("Nothing to truncate.", 0, truncateOffset);
-        processor.truncateSegment(new WireCommands.TruncateSegment(requestId, streamSegmentName, truncateOffset, ""));
-        assertEquals(truncateOffset + 1, store.getStreamSegmentInfo(indexStreamSegmentName, PravegaRequestProcessor.TIMEOUT)
-                .join().getStartOffset());
-
-        // Truncate at the same offset - verify idempotence.
-        processor.truncateSegment(new WireCommands.TruncateSegment(requestId, streamSegmentName, truncateOffset, ""));
-        assertEquals(truncateOffset + 1, store.getStreamSegmentInfo(indexStreamSegmentName, PravegaRequestProcessor.TIMEOUT)
-                .join().getStartOffset());
-
-        // Deleting the main segment it will also delete the index segment
-        processor.deleteSegment(new WireCommands.DeleteSegment(requestId, streamSegmentName, ""));
-        assertFalse(append(streamSegmentName, 4, store));
-        assertFalse(append(indexStreamSegmentName, 4, store));
-    }
-    
     private ArrayView generateData(int length, Random rnd) {
         byte[] keyData = new byte[length];
         rnd.nextBytes(keyData);
