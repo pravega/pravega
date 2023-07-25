@@ -240,7 +240,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         return new StreamCutImpl(stream, nextPositionsMap);
     }
 
-    public long getNextOffsetForSegment(Segment segment, long targetOffset) {
+    private long getNextOffsetForSegment(Segment segment, long targetOffset) {
         RawClient connection = getConnection(segment);
         long requestId = connection.getFlow().getNextSequenceNumber();
         final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
@@ -252,11 +252,11 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         return offsetLocated.getOffset();
     }
 
-    public boolean checkIfNextOffsetSame(long existingOffset, long nextOffset) {
+    private boolean checkIfNextOffsetSame(long existingOffset, long nextOffset) {
         return existingOffset == nextOffset;
     }
 
-    public void checkSuccessorSegmentOffset(Map<Segment, Long> nextPositionsMap, Map<Segment, Long> scaledSegmentsMap, long approxDistanceToNextOffset) {
+    private void checkSuccessorSegmentOffset(Map<Segment, Long> nextPositionsMap, Map<Segment, Long> scaledSegmentsMap, long approxDistanceToNextOffset) {
         log.debug("checkSuccessorSegmentOffset() -> Segments that may have scaled = {}", scaledSegmentsMap);
         scaledSegmentsMap.entrySet().stream().forEach(entry -> {
             CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors = controller.getSuccessors(entry.getKey());
