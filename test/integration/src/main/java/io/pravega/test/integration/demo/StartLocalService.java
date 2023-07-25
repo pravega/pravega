@@ -37,7 +37,7 @@ public class StartLocalService {
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.SERVICE_PORT,
-                store, tableStore, serviceBuilder.getLowPriorityExecutor());
+                store, tableStore, serviceBuilder.getLowPriorityExecutor(), serviceBuilder.getIndexAppendExecutor());
         server.startListening();
         
         @Cleanup

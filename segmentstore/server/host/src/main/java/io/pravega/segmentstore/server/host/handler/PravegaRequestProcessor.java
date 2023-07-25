@@ -109,6 +109,7 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -127,6 +128,8 @@ import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 import static io.pravega.common.function.Callbacks.invokeSafely;
+import static io.pravega.segmentstore.contracts.Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE;
+import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.ROLLOVER_SIZE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
@@ -134,11 +137,9 @@ import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
-import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
-import static io.pravega.segmentstore.contracts.Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
-import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
+import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.stream.Collectors.toList;
@@ -163,6 +164,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private final boolean replyWithStackTraceOnError;
     @Getter(AccessLevel.PROTECTED)
     private final TrackedConnection connection;
+    private final IndexAppendProcessor indexAppendProcessor;
 
     //endregion
 
@@ -174,11 +176,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * @param segmentStore The StreamSegmentStore to attach to (and issue requests to).
      * @param tableStore The TableStore to attach to (and issue requests to).
      * @param connection   The ServerConnection to attach to (and send responses to).
+     * @param indexAppendExecutor The executor service to process index append.
      */
     @VisibleForTesting
-    public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection) {
+    public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
+                                   ScheduledExecutorService indexAppendExecutor) {
         this(segmentStore, tableStore, new TrackedConnection(connection, new ConnectionTracker()), SegmentStatsRecorder.noOp(),
-                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
+                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, indexAppendExecutor);
     }
 
     /**
@@ -194,7 +198,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     PravegaRequestProcessor(@NonNull StreamSegmentStore segmentStore, @NonNull TableStore tableStore, @NonNull TrackedConnection connection,
                             @NonNull SegmentStatsRecorder statsRecorder, @NonNull TableSegmentStatsRecorder tableStatsRecorder,
-                            @NonNull DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
+                            @NonNull DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError,
+                            @NonNull ScheduledExecutorService indexAppendExecutor) {
         this.segmentStore = segmentStore;
         this.tableStore = tableStore;
         this.connection = connection;
@@ -202,6 +207,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         this.statsRecorder = statsRecorder;
         this.tableStatsRecorder = tableStatsRecorder;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
+        this.indexAppendProcessor = new IndexAppendProcessor(indexAppendExecutor, segmentStore);
     }
 
     //endregion
@@ -482,6 +488,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
                     .whenComplete((res, e) -> {
                     if (e == null) {
+                        log.debug(createStreamSegment.getRequestId(), "Stream segment {} created successfully.",
+                                createStreamSegment);
                         statsRecorder.createSegment(createStreamSegment.getSegment(),
                                 createStreamSegment.getScaleType(), createStreamSegment.getTargetRate(), timer.getElapsed());
                     } else {
@@ -491,6 +499,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private CompletableFuture<Void> createIndexSegment(final String segmentName) {
+        log.info("Creating index segment {}.", getIndexSegmentName(segmentName));
         final long maxEventSize = 10L;
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
@@ -522,6 +531,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), attributeUpdates, TIMEOUT)
                     .thenAccept(mergeResult -> {
+                        indexAppendProcessor.processAppend(mergeSegments.getTarget());
                         recordStatForTransaction(mergeResult, mergeSegments.getTarget());
                         connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
                                                                         mergeSegments.getTarget(),
@@ -582,6 +592,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         throw new CompletionException(e);
                     } else {
                         recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
+                        indexAppendProcessor.processAppend(mergeSegments.getTargetSegmentId());
                         return CompletableFuture.completedFuture(r.getTargetSegmentLength());
                     }
                 })).collect(Collectors.toUnmodifiableList())).thenAccept(mergeResults -> {

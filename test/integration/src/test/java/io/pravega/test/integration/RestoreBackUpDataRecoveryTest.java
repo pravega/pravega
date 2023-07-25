@@ -297,7 +297,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
             this.tableStore = this.serviceBuilder.createTableStoreService();
             this.server = new PravegaConnectionListener(false, servicePort, this.streamSegmentStore, this.tableStore,
-                    this.serviceBuilder.getLowPriorityExecutor());
+                    this.serviceBuilder.getLowPriorityExecutor(), serviceBuilder.getIndexAppendExecutor());
             this.server.startListening();
         }
 

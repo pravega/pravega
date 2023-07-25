@@ -69,14 +69,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.UUID;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
@@ -107,6 +106,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
     private final ScheduledExecutorService tokenExpiryHandlerExecutor;
     private final Collection<String> transientSegmentNames;
+    private final IndexAppendProcessor indexAppendProcessor;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     //endregion
@@ -116,7 +116,8 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     @Builder
     AppendProcessor(@NonNull StreamSegmentStore store, @NonNull TrackedConnection connection, @NonNull RequestProcessor nextRequestProcessor,
                     @NonNull SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
-                    boolean replyWithStackTraceOnError, ScheduledExecutorService tokenExpiryHandlerExecutor) {
+                    boolean replyWithStackTraceOnError, ScheduledExecutorService tokenExpiryHandlerExecutor,
+                    ScheduledExecutorService indexAppendExecutor) {
         this.store = store;
         this.connection = connection;
         this.nextRequestProcessor = nextRequestProcessor;
@@ -125,18 +126,21 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.tokenExpiryHandlerExecutor = tokenExpiryHandlerExecutor;
         this.transientSegmentNames = Collections.synchronizedSet(new HashSet<>());
+        this.indexAppendProcessor = new IndexAppendProcessor(indexAppendExecutor, store);
     }
 
     /**
      * Creates a new {@link AppendProcessorBuilder} instance with all optional arguments set to default values.
      * These default values may not be appropriate for production use and should be used for testing purposes only.
+     * @param indexExecutor Segment index executor service.
      * @return A {@link AppendProcessorBuilder} instance.
      */
     @VisibleForTesting
-    public static AppendProcessorBuilder defaultBuilder() {
+    public static AppendProcessorBuilder defaultBuilder(ScheduledExecutorService indexExecutor) {
         return builder()
                 .nextRequestProcessor(new FailingRequestProcessor())
                 .statsRecorder(SegmentStatsRecorder.noOp())
+                .indexAppendExecutor(indexExecutor)
                 .replyWithStackTraceOnError(false);
     }
 
@@ -332,6 +336,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         boolean success = exception == null;
         try {
             if (success) {
+                indexAppendProcessor.processAppend(append.getSegment());
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
                     long previousLastAcked = state.appendSuccessful(append.getEventNumber());

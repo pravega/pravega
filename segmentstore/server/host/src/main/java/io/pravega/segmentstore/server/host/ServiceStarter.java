@@ -157,7 +157,7 @@ public final class ServiceStarter {
                                                       autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
                                                       this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getLowPriorityExecutor(),
-                                                      this.serviceConfig.getTlsProtocolVersion(), healthServiceManager);
+                                                      this.serviceConfig.getTlsProtocolVersion(), healthServiceManager, serviceBuilder.getIndexAppendExecutor());
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
@@ -166,7 +166,7 @@ public final class ServiceStarter {
             this.adminListener = new AdminConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.isEnableTlsReload(),
                     this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getAdminGatewayPort(), service, tableStoreService,
                     tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(), this.serviceConfig.getTlsProtocolVersion(),
-                    healthServiceManager);
+                    healthServiceManager, serviceBuilder.getIndexAppendExecutor());
             this.adminListener.startListening();
             log.info("AdminConnectionListener started successfully.");
         }
