@@ -72,7 +72,7 @@ public class GetContainerIdOfSegmentCommand extends SegmentStoreCommand {
             output("Container Id for the given Segment is :" + containerId);
         } catch (Exception ex) {
 
-            output("Error : %s Segment does not exist %s", fullyQualifiedSegmentName, ex);
+            output("Error occurred while fetching containerId : %s", ex);
 
               }
 }

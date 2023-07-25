@@ -485,7 +485,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
     public void testGetContainerIdOfNonSegmentCommand() throws Exception {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getContainerIdTest", StreamConfiguration.builder().build());
         String commandResult = TestUtils.executeCommand("segmentstore get-container-id segmentstores/notAStream/test", STATE.get());
-        Assert.assertTrue(commandResult.contains("Segment does not exist"));
+        Assert.assertTrue(commandResult.contains("Error occurred while fetching containerId"));
         Assert.assertNotNull(GetContainerIdOfSegmentCommand.descriptor());
     }
 
