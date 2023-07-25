@@ -1255,7 +1255,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testDurableLogInspectCommandWithRange() throws Exception {
+    public void testDurableLogInspectCommandWithValueAll() throws Exception {
         int instanceId = 0;
         int bookieCount = 3;
         int containerCount = 1;
@@ -1313,34 +1313,479 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
-        Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
+        DurableLogInspectCommand.OperationInspectInfo op = originalOperations.get(0);
+        Assert.assertNotNull(op);
+        Mockito.doReturn(true).doReturn(true).doReturn(true)
+                .doReturn(true).doReturn(false).when(command).confirmContinue();
+        Mockito.doReturn(op.getSequenceNumber()).doReturn(op.getSegmentId())
+                .doReturn(op.getOffset()).doReturn(op.getLength())
+                .doReturn(op.getAttributes()).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("SequenceNumber").doReturn("value").doReturn("and")
+               .doReturn("SegmentId").doReturn("value").doReturn("and")
+                .doReturn("Offset").doReturn("value").doReturn("and")
+                .doReturn("Length").doReturn("value").doReturn("and")
+                .doReturn("Attributes").doReturn("value").doReturn("no")
+                .when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        Assert.assertEquals(getSavedResult(testDataFile.getAbsolutePath()).get(0).getSequenceNumber(), op.getSequenceNumber());
+
+        this.factory.close();
+    }
+
+    @Test
+    public void testDurableLogInspectCommandWithRangeSequenceNumber() throws Exception {
+        int instanceId = 0;
+        int bookieCount = 3;
+        int containerCount = 1;
+        File testDataFile = new File("myfile");
+
+        @Cleanup
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
+        pravegaRunner.startBookKeeperRunner(instanceId);
+        val bkConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
+                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
+                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner.getBookKeeperRunner().getLogMetaNamespace())
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .build();
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
+
+        String streamName = "testInspectCommand";
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
+            // Write events to the streams.
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
+        }
+        // Shut down services, we assume that the cluster is in very bad shape in this test.
+        pravegaRunner.shutDownControllerRunner();
+        pravegaRunner.shutDownSegmentStoreRunner();
+
+        // set Pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner.getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner.getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Execute basic command workflow for inspect DurableLog.
+        CommandArgs args = new CommandArgs(List.of("0", testDataFile.getName()), STATE.get());
+        DurableLogInspectCommand command = Mockito.spy(new DurableLogInspectCommand(args));
+
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        this.factory.initialize();
+
+        // First, keep all the Operations of Container 0 in this list, so we can compare with the modified one.
+        List<DurableLogInspectCommand.OperationInspectInfo> originalOperations = new ArrayList<>();
+
+        @Cleanup
+        DebugDurableDataLogWrapper wrapper = this.factory.createDebugLogWrapper(0);
+        command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
+                0, wrapper.asReadOnly());
+
+        DurableLogInspectCommand.OperationInspectInfo op = originalOperations.get(originalOperations.size() - 1);
+        Assert.assertNotNull(op);
         Mockito.doReturn(true).doReturn(false).doReturn(false)
                 .doReturn(true).doReturn(false).doReturn(false)
                 .doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(false).doReturn(false)
                 .when(command).confirmContinue();
-        Mockito.doReturn(1L).doReturn(1000L)
-                .doReturn(1L).doReturn(1000L)
-                .doReturn(1L).doReturn(10000L)
+        Mockito.doReturn(op.getSequenceNumber() - 1).doReturn(op.getSequenceNumber() + 1)
+                .doReturn(op.getSequenceNumber()).doReturn(op.getSequenceNumber())
+                .doReturn(op.getSequenceNumber() - 1).doReturn(op.getSequenceNumber() - 1)
+                .doReturn(op.getSequenceNumber()).doReturn(op.getSequenceNumber())
                 .when(command).getLongUserInput(Mockito.any());
         Mockito.doReturn("SequenceNumber").doReturn("range").doReturn(">").doReturn("and")
                 .doReturn("<").when(command).getStringUserInput(Mockito.any());
         command.execute();
-
-        List<DurableLogInspectCommand.OperationInspectInfo> savedList = getSavedResult(testDataFile.getAbsolutePath());
-        Map<Long, Long> savedOpCountMap = getOperationsCountMapBySequenceNumber(savedList);
-        Assert.assertEquals(origOperationsCountMap.size()-1, savedOpCountMap.size());
+        Assert.assertEquals(op.getSequenceNumber(), getSavedResult(testDataFile.getAbsolutePath()).get(0).getSequenceNumber());
 
         Mockito.doReturn("SequenceNumber").doReturn("range").doReturn(">=").doReturn("and")
                 .doReturn("<=").when(command).getStringUserInput(Mockito.any());
         command.execute();
-        savedOpCountMap = getOperationsCountMapBySequenceNumber(getSavedResult(testDataFile.getAbsolutePath()));
-        Assert.assertEquals(origOperationsCountMap.size(), savedOpCountMap.size());
+        Assert.assertEquals(op.getSequenceNumber(), getSavedResult(testDataFile.getAbsolutePath()).get(0).getSequenceNumber());
 
         Mockito.doReturn("SequenceNumber").doReturn("range").doReturn("!=").doReturn("and")
                 .doReturn(">").when(command).getStringUserInput(Mockito.any());
         command.execute();
-        savedOpCountMap = getOperationsCountMapBySequenceNumber(getSavedResult(testDataFile.getAbsolutePath()));
-        Assert.assertEquals(0, savedOpCountMap.size());
+        Assert.assertEquals(op.getSequenceNumber(), getSavedResult(testDataFile.getAbsolutePath()).get(0).getSequenceNumber());
+
+        Mockito.doReturn("SequenceNumber").doReturn("range").doReturn(">").doReturn("or")
+                .doReturn("<").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        Assert.assertEquals(originalOperations.size() - 1, getSavedResult(testDataFile.getAbsolutePath()).size());
+
+        this.factory.close();
+    }
+
+    @Test
+    public void testDurableLogInspectCommandWithRangeSegId() throws Exception {
+        int instanceId = 0;
+        int bookieCount = 3;
+        int containerCount = 1;
+        File testDataFile = new File("myfile");
+
+        @Cleanup
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
+        pravegaRunner.startBookKeeperRunner(instanceId);
+        val bkConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
+                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
+                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner.getBookKeeperRunner().getLogMetaNamespace())
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .build();
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
+
+        String streamName = "testInspectCommand";
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
+            // Write events to the streams.
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
+        }
+        // Shut down services, we assume that the cluster is in very bad shape in this test.
+        pravegaRunner.shutDownControllerRunner();
+        pravegaRunner.shutDownSegmentStoreRunner();
+
+        // set Pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner.getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner.getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Execute basic command workflow for inspect DurableLog.
+        CommandArgs args = new CommandArgs(List.of("0", testDataFile.getName()), STATE.get());
+        DurableLogInspectCommand command = Mockito.spy(new DurableLogInspectCommand(args));
+
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        this.factory.initialize();
+
+        // First, keep all the Operations of Container 0 in this list, so we can compare with the modified one.
+        List<DurableLogInspectCommand.OperationInspectInfo> originalOperations = new ArrayList<>();
+
+        @Cleanup
+        DebugDurableDataLogWrapper wrapper = this.factory.createDebugLogWrapper(0);
+        command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
+                0, wrapper.asReadOnly());
+
+        DurableLogInspectCommand.OperationInspectInfo op = originalOperations.get(originalOperations.size() - 1);
+        Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySegmentId(originalOperations);
+        Assert.assertNotNull(op);
+        Mockito.doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(false).doReturn(false)
+                .when(command).confirmContinue();
+        Mockito.doReturn(op.getSegmentId() - 1).doReturn(op.getSegmentId() + 1)
+                .doReturn(op.getSegmentId()).doReturn(op.getSegmentId())
+                .doReturn(op.getSegmentId() - 1).doReturn(op.getSegmentId() - 1)
+                .when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("SegmentId").doReturn("range").doReturn(">").doReturn("and")
+                .doReturn("<").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        Map<Long, Long> savedOpCountMap = getOperationsCountMapBySegmentId(getSavedResult(testDataFile.getAbsolutePath()));
+        Assert.assertEquals(origOperationsCountMap.get(op.getSegmentId()), savedOpCountMap.get(op.getSegmentId()));
+
+        Mockito.doReturn("SegmentId").doReturn("range").doReturn(">=").doReturn("and")
+                .doReturn("<=").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        savedOpCountMap = getOperationsCountMapBySegmentId(getSavedResult(testDataFile.getAbsolutePath()));
+        Assert.assertEquals(origOperationsCountMap.get(op.getSegmentId()), savedOpCountMap.get(op.getSegmentId()));
+
+        Mockito.doReturn("SegmentId").doReturn("range").doReturn("!=").doReturn("and")
+                .doReturn(">").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        savedOpCountMap = getOperationsCountMapBySegmentId(getSavedResult(testDataFile.getAbsolutePath()));
+        Assert.assertEquals(origOperationsCountMap.get(op.getSegmentId()), savedOpCountMap.get(op.getSegmentId()));
+
+        this.factory.close();
+    }
+
+    @Test
+    public void testDurableLogInspectCommandWithRangeOffset() throws Exception {
+        int instanceId = 0;
+        int bookieCount = 3;
+        int containerCount = 1;
+        File testDataFile = new File("myfile");
+
+        @Cleanup
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
+        pravegaRunner.startBookKeeperRunner(instanceId);
+        val bkConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
+                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
+                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner.getBookKeeperRunner().getLogMetaNamespace())
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .build();
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
+
+        String streamName = "testInspectCommand";
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
+            // Write events to the streams.
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
+        }
+        // Shut down services, we assume that the cluster is in very bad shape in this test.
+        pravegaRunner.shutDownControllerRunner();
+        pravegaRunner.shutDownSegmentStoreRunner();
+
+        // set Pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner.getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner.getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Execute basic command workflow for inspect DurableLog.
+        CommandArgs args = new CommandArgs(List.of("0", testDataFile.getName()), STATE.get());
+        DurableLogInspectCommand command = Mockito.spy(new DurableLogInspectCommand(args));
+
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        this.factory.initialize();
+
+        // First, keep all the Operations of Container 0 in this list, so we can compare with the modified one.
+        List<DurableLogInspectCommand.OperationInspectInfo> originalOperations = new ArrayList<>();
+
+        @Cleanup
+        DebugDurableDataLogWrapper wrapper = this.factory.createDebugLogWrapper(0);
+        command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
+                0, wrapper.asReadOnly());
+
+        Map<Long, Long> origOperationsCountMap = getOperationsCountMapByOffset(originalOperations);
+        DurableLogInspectCommand.OperationInspectInfo op = originalOperations.get(originalOperations.size() - 1);
+        Assert.assertNotNull(op);
+        Mockito.doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(false).doReturn(false)
+                .when(command).confirmContinue();
+        Mockito.doReturn(op.getOffset() - 1).doReturn(op.getOffset() + 1)
+                .doReturn(op.getOffset()).doReturn(op.getOffset())
+                .doReturn(op.getOffset() - 1).doReturn(op.getOffset() - 1)
+                .when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("Offset").doReturn("range").doReturn(">").doReturn("and")
+                .doReturn("<").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        Map<Long, Long> savedOpCountMap = getOperationsCountMapByOffset(getSavedResult(testDataFile.getAbsolutePath()));
+        Assert.assertEquals(origOperationsCountMap.get(op.getOffset()), savedOpCountMap.get(op.getOffset()));
+
+        Mockito.doReturn("Offset").doReturn("range").doReturn(">=").doReturn("and")
+                .doReturn("<=").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        savedOpCountMap = getOperationsCountMapByOffset(getSavedResult(testDataFile.getAbsolutePath()));
+        Assert.assertEquals(origOperationsCountMap.get(op.getOffset()), savedOpCountMap.get(op.getOffset()));
+
+        Mockito.doReturn("Offset").doReturn("range").doReturn("!=").doReturn("and")
+                .doReturn(">").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        savedOpCountMap = getOperationsCountMapByOffset(getSavedResult(testDataFile.getAbsolutePath()));
+        Assert.assertEquals(origOperationsCountMap.get(op.getOffset()), savedOpCountMap.get(op.getOffset()));
+
+        this.factory.close();
+    }
+
+    @Test
+    public void testDurableLogInspectCommandWithRangeLength() throws Exception {
+        int instanceId = 0;
+        int bookieCount = 3;
+        int containerCount = 1;
+        File testDataFile = new File("myfile");
+
+        @Cleanup
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
+        pravegaRunner.startBookKeeperRunner(instanceId);
+        val bkConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
+                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
+                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner.getBookKeeperRunner().getLogMetaNamespace())
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .build();
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
+
+        String streamName = "testInspectCommand";
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
+            // Write events to the streams.
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
+        }
+        // Shut down services, we assume that the cluster is in very bad shape in this test.
+        pravegaRunner.shutDownControllerRunner();
+        pravegaRunner.shutDownSegmentStoreRunner();
+
+        // set Pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner.getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner.getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Execute basic command workflow for inspect DurableLog.
+        CommandArgs args = new CommandArgs(List.of("0", testDataFile.getName()), STATE.get());
+        DurableLogInspectCommand command = Mockito.spy(new DurableLogInspectCommand(args));
+
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        this.factory.initialize();
+
+        // First, keep all the Operations of Container 0 in this list, so we can compare with the modified one.
+        List<DurableLogInspectCommand.OperationInspectInfo> originalOperations = new ArrayList<>();
+
+        @Cleanup
+        DebugDurableDataLogWrapper wrapper = this.factory.createDebugLogWrapper(0);
+        command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
+                0, wrapper.asReadOnly());
+
+        Map<Long, Long> origOperationsCountMap = getOperationsCountMapByLength(originalOperations);
+        DurableLogInspectCommand.OperationInspectInfo op = originalOperations.get(originalOperations.size() - 1);
+        Assert.assertNotNull(op);
+        Mockito.doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(false).doReturn(false)
+                .when(command).confirmContinue();
+        Mockito.doReturn(op.getLength() - 1).doReturn(op.getLength() + 1)
+                .doReturn(op.getLength()).doReturn(op.getLength())
+                .doReturn(op.getLength() - 1).doReturn(op.getLength() - 1)
+                .when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("Length").doReturn("range").doReturn(">").doReturn("and")
+                .doReturn("<").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        Map<Long, Long> savedOpCountMap = getOperationsCountMapByLength(getSavedResult(testDataFile.getAbsolutePath()));
+        Assert.assertEquals(origOperationsCountMap.get(op.getLength()), savedOpCountMap.get(op.getLength()));
+
+        Mockito.doReturn("Length").doReturn("range").doReturn(">=").doReturn("and")
+                .doReturn("<=").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        savedOpCountMap = getOperationsCountMapByLength(getSavedResult(testDataFile.getAbsolutePath()));
+        Assert.assertEquals(origOperationsCountMap.get(op.getLength()), savedOpCountMap.get(op.getLength()));
+
+        Mockito.doReturn("Length").doReturn("range").doReturn("!=").doReturn("and")
+                .doReturn(">").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        savedOpCountMap = getOperationsCountMapByLength(getSavedResult(testDataFile.getAbsolutePath()));
+        Assert.assertEquals(origOperationsCountMap.get(op.getLength()), savedOpCountMap.get(op.getLength()));
+
+        this.factory.close();
+    }
+
+    @Test
+    public void testDurableLogInspectCommandWithRangeAttributes() throws Exception {
+        int instanceId = 0;
+        int bookieCount = 3;
+        int containerCount = 1;
+        File testDataFile = new File("myfile");
+
+        @Cleanup
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
+        pravegaRunner.startBookKeeperRunner(instanceId);
+        val bkConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
+                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
+                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner.getBookKeeperRunner().getLogMetaNamespace())
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .build();
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory);
+
+        String streamName = "testInspectCommand";
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
+            // Write events to the streams.
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
+        }
+        // Shut down services, we assume that the cluster is in very bad shape in this test.
+        pravegaRunner.shutDownControllerRunner();
+        pravegaRunner.shutDownSegmentStoreRunner();
+
+        // set Pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner.getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner.getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega0");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Execute basic command workflow for inspect DurableLog.
+        CommandArgs args = new CommandArgs(List.of("0", testDataFile.getName()), STATE.get());
+        DurableLogInspectCommand command = Mockito.spy(new DurableLogInspectCommand(args));
+
+        this.factory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
+        this.factory.initialize();
+
+        // First, keep all the Operations of Container 0 in this list, so we can compare with the modified one.
+        List<DurableLogInspectCommand.OperationInspectInfo> originalOperations = new ArrayList<>();
+
+        @Cleanup
+        DebugDurableDataLogWrapper wrapper = this.factory.createDebugLogWrapper(0);
+        command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
+                0, wrapper.asReadOnly());
+
+        Map<Long, Long> origOperationsCountMap = getOperationsCountMapByAttributes(originalOperations);
+        DurableLogInspectCommand.OperationInspectInfo op = originalOperations.get(originalOperations.size() - 1);
+        Assert.assertNotNull(op);
+        Mockito.doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(false).doReturn(false)
+                .doReturn(true).doReturn(false).doReturn(false)
+                .when(command).confirmContinue();
+        Mockito.doReturn(op.getAttributes() - 1).doReturn(op.getAttributes() + 1)
+                .doReturn(op.getAttributes()).doReturn(op.getAttributes())
+                .doReturn(op.getAttributes() - 1).doReturn(op.getAttributes() - 1)
+                .when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn("Attributes").doReturn("range").doReturn(">").doReturn("and")
+                .doReturn("<").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        Map<Long, Long> savedOpCountMap = getOperationsCountMapByAttributes(getSavedResult(testDataFile.getAbsolutePath()));
+        Assert.assertEquals(origOperationsCountMap.get(op.getAttributes()), savedOpCountMap.get(op.getAttributes()));
+
+        Mockito.doReturn("Attributes").doReturn("range").doReturn(">=").doReturn("and")
+                .doReturn("<=").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        savedOpCountMap = getOperationsCountMapByAttributes(getSavedResult(testDataFile.getAbsolutePath()));
+        Assert.assertEquals(origOperationsCountMap.get(op.getAttributes()), savedOpCountMap.get(op.getAttributes()));
+
+        Mockito.doReturn("Attributes").doReturn("range").doReturn("!=").doReturn("and")
+                .doReturn(">").when(command).getStringUserInput(Mockito.any());
+        command.execute();
+        savedOpCountMap = getOperationsCountMapByAttributes(getSavedResult(testDataFile.getAbsolutePath()));
+        Assert.assertEquals(origOperationsCountMap.get(op.getAttributes()), savedOpCountMap.get(op.getAttributes()));
 
         this.factory.close();
     }
@@ -1404,18 +1849,18 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
+        DurableLogInspectCommand.OperationInspectInfo op = originalOperations.get(0);
         Mockito.doReturn(true).doReturn(false).doReturn(false)
                 .when(command).confirmContinue();
-        Mockito.doReturn(1L).doReturn(3L).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn(op.getSequenceNumber() - 1).doReturn(op.getSequenceNumber() + 1).when(command).getLongUserInput(Mockito.any());
 
         Mockito.doReturn("SequenceNumber").doReturn("range").doReturn("!=")
                 .doReturn("and").doReturn("<")
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
         List<DurableLogInspectCommand.OperationInspectInfo> savedList = getSavedResult(testDataFile.getAbsolutePath());
-        Map<Long, Long> savedOpCountMap = getOperationsCountMapBySequenceNumber(savedList);
 
-        Assert.assertEquals(1, savedOpCountMap.size());
+        Assert.assertEquals(op.getSequenceNumber(), savedList.size());
         this.factory.close();
     }
 
@@ -1478,10 +1923,13 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
+        DurableLogInspectCommand.OperationInspectInfo op = originalOperations.get(0);
         Mockito.doReturn(true).doReturn(true)
                 .doReturn(true).doReturn(false)
                 .doReturn(false).when(command).confirmContinue();
-        Mockito.doReturn(1L).doReturn(4L).doReturn(2L).doReturn(3L).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn(op.getSequenceNumber() - 1).doReturn(op.getSequenceNumber() + 1)
+                .doReturn(op.getSequenceNumber()).doReturn(op.getSequenceNumber())
+                .when(command).getLongUserInput(Mockito.any());
 
         Mockito.doReturn("SequenceNumber").doReturn("range").doReturn("!=")
                 .doReturn("and").doReturn("<")
@@ -1490,9 +1938,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
         List<DurableLogInspectCommand.OperationInspectInfo> savedList = getSavedResult(testDataFile.getAbsolutePath());
-        Map<Long, Long> savedOpCountMap = getOperationsCountMapBySequenceNumber(savedList);
 
-        Assert.assertEquals(2, savedOpCountMap.size());
+        Assert.assertEquals(1, savedList.size());
         this.factory.close();
     }
 
@@ -1555,18 +2002,19 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
+        DurableLogInspectCommand.OperationInspectInfo op = originalOperations.get(0);
         Mockito.doReturn(true).doReturn(false)
                 .doReturn(true).doReturn(false).when(command).confirmContinue();
-        Mockito.doReturn(11L).doReturn(9L).when(command).getLongUserInput(Mockito.any());
+        Mockito.doReturn(op.getSequenceNumber() + 1).doReturn(op.getSequenceNumber() - 1).when(command).getLongUserInput(Mockito.any());
 
         Mockito.doReturn("SequenceNumber").doReturn("range")
                 .doReturn("<").doReturn("and")
                 .doReturn(">").doReturn("OperationType")
-                .doReturn("value").doReturn("StreamSegmentAppendOperation")
+                .doReturn("value").doReturn(op.getOperationTypeString())
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
         List<DurableLogInspectCommand.OperationInspectInfo> savedList = getSavedResult(testDataFile.getAbsolutePath());
-        Map<Long, Long> savedOpCountMap = getOperationsCountMapBySequenceNumber(savedList);
+        Map<String, Long> savedOpCountMap = getOperationsCountMapByOperationType(savedList);
 
         Assert.assertEquals(1, savedOpCountMap.size());
         this.factory.close();
@@ -1863,11 +2311,24 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         return resultMap;
     }
 
-    private Map<Long, Long> getOperationsCountMapBySequenceNumber(List<DurableLogInspectCommand.OperationInspectInfo> originalOperations) {
+    private Map<Long, Long> getOperationsCountMapBySegmentId(List<DurableLogInspectCommand.OperationInspectInfo> originalOperations) {
         Map<Long, Long> resultMap = originalOperations.size() == 0 ? new HashMap<>() :
-                originalOperations.stream().collect(Collectors.groupingBy(op -> op.getSequenceNumber(), Collectors.counting()));
+                originalOperations.stream().collect(Collectors.groupingBy(op -> op.getSegmentId(), Collectors.counting()));
         return resultMap;
     }
+
+    private Map<Long, Long> getOperationsCountMapByOffset(List<DurableLogInspectCommand.OperationInspectInfo> originalOperations) {
+        Map<Long, Long> resultMap = originalOperations.size() == 0 ? new HashMap<>() :
+                originalOperations.stream().collect(Collectors.groupingBy(op -> op.getOffset(), Collectors.counting()));
+        return resultMap;
+    }
+
+    private Map<Long, Long> getOperationsCountMapByLength(List<DurableLogInspectCommand.OperationInspectInfo> originalOperations) {
+        Map<Long, Long> resultMap = originalOperations.size() == 0 ? new HashMap<>() :
+                originalOperations.stream().collect(Collectors.groupingBy(op -> op.getLength(), Collectors.counting()));
+        return resultMap;
+    }
+
 
     /*
      * Creating a test version of EntrySerializer to serialize Table Segment entry
