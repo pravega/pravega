@@ -189,34 +189,12 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
 
     private void closeConnection(Reply badReply) {
         log.info("Closing connection as a result of receiving: {}", badReply);
-        RawClient c;
-        synchronized (lock) {
-            c = client;
-            client = null;
-        }
-        if (c != null) {
-            try {
-                c.close();
-            } catch (Exception e) {
-                log.warn("Exception tearing down connection: ", e);
-            }
-        }
+        closeClientConnection();
     }
 
     private void closeConnection(Throwable exceptionToInflightRequests) {
         log.debug("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
-        RawClient c;
-        synchronized (lock) {
-            c = client;
-            client = null;
-        }
-        if (c != null) {
-            try {
-                c.close();
-            } catch (Exception e) {
-                log.warn("Exception tearing down connection: ", e);
-            }
-        }
+        closeClientConnection();
     }
 
     RawClient getConnection(Segment segment) {
@@ -323,6 +301,21 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         } else {
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting a "
                     + klass.getName());
+        }
+    }
+
+    private void closeClientConnection() {
+        RawClient c;
+        synchronized (lock) {
+            c = client;
+            client = null;
+        }
+        if (c != null) {
+            try {
+                c.close();
+            } catch (Exception e) {
+                log.warn("Exception tearing down connection: ", e);
+            }
         }
     }
 }
