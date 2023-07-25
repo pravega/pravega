@@ -847,7 +847,7 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
         order.verify(connection).send(new WireCommands.SegmentSealed(requestId, streamSegmentName));
         order.verify(connection, times(2)).send(new WireCommands.SegmentTruncated(requestId, streamSegmentName));
-        order.verify(connection).send(new WireCommands.SegmentIsTruncated(requestId, streamSegmentName, truncateOffset, "", 0));
+        order.verify(connection, times(2)).send(new WireCommands.SegmentIsTruncated(requestId, streamSegmentName, truncateOffset, "", 0));
         order.verify(connection).send(new WireCommands.SegmentDeleted(requestId, streamSegmentName));
         order.verifyNoMoreInteractions();
     }
