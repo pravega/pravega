@@ -29,6 +29,7 @@ import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.SortUtils;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
@@ -113,6 +114,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
@@ -641,7 +643,30 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(truncateSegment.getRequestId(), "Truncating segment {} at offset {}.",
                 segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
-                .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
+                .whenComplete((properties, exp) -> {
+                    if (exp != null) {
+                        handleException(truncateSegment.getRequestId(), segment, offset, operation, exp);
+                    } else {
+                        segmentStore.getStreamSegmentInfo(getIndexSegmentName(segment), PravegaRequestProcessor.TIMEOUT)
+                                .whenComplete((p, ex) -> {
+                                    if (ex != null) {
+                                        handleException(truncateSegment.getRequestId(), getIndexSegmentName(segment), offset, "truncateIndexSegment", ex);
+                                    } else {
+                                        try {
+                                            long endIndex = p.getLength();
+                                            //TO-DO
+                                            LongFunction<Long> indexSegmentFunc = i -> (long) (i * 2);
+                                            Map.Entry<Long, Long> result = SortUtils.newtonianSearch(indexSegmentFunc, 0, endIndex, offset, true);
+                                            long indexSegmentOffset = result.getValue().longValue();
+                                            log.info("Index segment offset:{}", indexSegmentOffset);
+                                            segmentStore.truncateStreamSegment(getIndexSegmentName(segment), indexSegmentOffset, TIMEOUT);
+                                        } catch (Throwable e) {
+                                            log.debug("Exception while truncating the index segment {}", e);
+                                        }
+                                    }
+                                });
+                    }
+                }).thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
                 .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, offset, operation, e));
     }
 
