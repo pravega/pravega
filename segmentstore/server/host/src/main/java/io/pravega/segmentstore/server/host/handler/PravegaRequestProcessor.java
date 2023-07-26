@@ -650,11 +650,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         segmentStore.getStreamSegmentInfo(getIndexSegmentName(segment), PravegaRequestProcessor.TIMEOUT)
                                 .whenComplete((p, ex) -> {
                                     if (ex != null) {
-                                        handleException(truncateSegment.getRequestId(), getIndexSegmentName(segment), offset, "truncateIndexSegment", ex);
+                                        handleException(truncateSegment.getRequestId(), getIndexSegmentName(segment), offset, "IndexSegmentInfo", ex);
                                     } else {
                                         try {
                                             long endIndex = p.getLength();
-                                            //TO-DO
+                                            //TO-DO This is to be verified with Tom.
                                             LongFunction<Long> indexSegmentFunc = i -> (long) (i * 2);
                                             Map.Entry<Long, Long> result = SortUtils.newtonianSearch(indexSegmentFunc, 0, endIndex, offset, true);
                                             long indexSegmentOffset = result.getValue().longValue();
