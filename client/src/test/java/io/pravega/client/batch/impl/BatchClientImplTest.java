@@ -227,7 +227,7 @@ public class BatchClientImplTest {
     }
 
     @Test(timeout = 5000)
-    public void testGetNextStreamCut_Segment_ScaleUp() throws Exception {
+    public void testGetNextStreamCutSegmentScaleUp() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Segment segment2 = new Segment("scope", "stream", 2L);
         Segment segment3 = new Segment("scope", "stream", 3L);
@@ -268,7 +268,7 @@ public class BatchClientImplTest {
     }
 
     @Test(timeout = 5000)
-    public void testGetNextStreamCut_Segments_ScaleDown_NotForwarded() throws Exception {
+    public void testGetNextStreamCutSegmentsScaleDownNotForwarded() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Segment segment2 = new Segment("scope", "stream", 2L);
         Segment segment3 = new Segment("scope", "stream", 3L);
@@ -308,7 +308,7 @@ public class BatchClientImplTest {
     }
 
     @Test(timeout = 5000)
-    public void testGetNextStreamCut_Segment_ScaleDown() throws Exception {
+    public void testGetNextStreamCutSegmentScaleDown() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Segment segment2 = new Segment("scope", "stream", 2L);
         Segment segment3 = new Segment("scope", "stream", 3L);
@@ -347,7 +347,7 @@ public class BatchClientImplTest {
     }
 
     @Test(timeout = 5000)
-    public void testGetNextStreamCut_NoScaling() throws Exception {
+    public void testGetNextStreamCutNoScaling() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Segment segment2 = new Segment("scope", "stream", 2L);
         Segment segment3 = new Segment("scope", "stream", 3L);
@@ -445,7 +445,7 @@ public class BatchClientImplTest {
     }
 
     @Test(timeout = 5000)
-    public void testGetNextStreamCut_ApproxOffsetGreaterThan0() {
+    public void testGetNextStreamCutWithApproxOffsetGreaterThanZero() {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Map<Segment, Long> positionMap = new HashMap<>();
         positionMap.put(segment1, 30L);
@@ -486,7 +486,7 @@ public class BatchClientImplTest {
         mockController.createStream(scope, streamName, StreamConfiguration.builder()
                                                        .scalingPolicy(ScalingPolicy.fixed(numSegments))
                                                        .build())
-                       .join();
+                      .join();
         return stream;
     }
 
@@ -499,7 +499,7 @@ public class BatchClientImplTest {
                 GetStreamSegmentInfo request = (GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
                                  .process(new StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
-                                false, false, 0, 0, 0));
+                                                        false, false, 0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(GetStreamSegmentInfo.class));
@@ -509,8 +509,8 @@ public class BatchClientImplTest {
 
     private StreamCut getStreamCut(long offset, int... segments) {
         final Map<Segment, Long> positionMap = Arrays.stream(segments).boxed()
-                .collect(Collectors.toMap(s -> new Segment("scope", STREAM, s),
-                        s -> offset));
+                                                     .collect(Collectors.toMap(s -> new Segment("scope", STREAM, s),
+                                                             s -> offset));
 
         return new StreamCutImpl(Stream.of("scope", STREAM), positionMap);
     }

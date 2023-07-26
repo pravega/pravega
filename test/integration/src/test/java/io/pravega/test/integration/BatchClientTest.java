@@ -303,7 +303,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 50000)
-    public void testNextStreamCut_ScaleUp() throws ExecutionException, InterruptedException {
+    public void testNextStreamCutWithScaleUp() throws ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 1))
                 .build();
@@ -359,7 +359,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 50000)
-    public void testNextStreamCut_ScaleDown() throws ExecutionException, InterruptedException {
+    public void testNextStreamCutWithScaleDown() throws ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
@@ -426,7 +426,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 50000)
-    public void testNextStreamCut_ScaleDown_NotForwarded() throws ExecutionException, InterruptedException {
+    public void testNextStreamCutScaleDownNotForwarded() throws ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
@@ -495,7 +495,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 50000)
-    public void testNextStreamCut_Exception() {
+    public void testNextStreamCutException() {
         @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-4", clientConfig);
         log.info("Done creating batch client factory");
