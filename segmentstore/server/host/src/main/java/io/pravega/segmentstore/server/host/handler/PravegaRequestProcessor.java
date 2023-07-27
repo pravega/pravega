@@ -643,30 +643,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(truncateSegment.getRequestId(), "Truncating segment {} at offset {}.",
                 segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
-                .whenComplete((properties, exp) -> {
-                    if (exp != null) {
-                        handleException(truncateSegment.getRequestId(), segment, offset, operation, exp);
-                    } else {
-                        segmentStore.getStreamSegmentInfo(getIndexSegmentName(segment), PravegaRequestProcessor.TIMEOUT)
-                                .whenComplete((p, ex) -> {
-                                    if (ex != null) {
-                                        handleException(truncateSegment.getRequestId(), getIndexSegmentName(segment), offset, "IndexSegmentInfo", ex);
-                                    } else {
-                                        try {
-                                            long endIndex = p.getLength();
-                                            //TO-DO This is to be verified with Tom.
-                                            LongFunction<Long> indexSegmentFunc = i -> (long) (i * 2);
-                                            Map.Entry<Long, Long> result = SortUtils.newtonianSearch(indexSegmentFunc, 0, endIndex, offset, true);
-                                            long indexSegmentOffset = result.getValue().longValue();
-                                            log.info("Index segment offset:{}", indexSegmentOffset);
-                                            segmentStore.truncateStreamSegment(getIndexSegmentName(segment), indexSegmentOffset, TIMEOUT);
-                                        } catch (Throwable e) {
-                                            log.debug("Exception while truncating the index segment {}", e);
-                                        }
-                                    }
-                                });
-                    }
-                }).thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
+                .thenAcceptAsync(v ->truncateIndexSegment(segment, offset))
+                .thenAccept(v ->connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
                 .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, offset, operation, e));
     }
 
@@ -1061,6 +1039,23 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     this.tableStatsRecorder.iterateEntries(readTableEntriesDelta.getSegment(), result.getItemCount(), timer.getElapsed());
                 }).exceptionally(e -> handleException(readTableEntriesDelta.getRequestId(), segment, operation, e));
 
+    }
+
+    private void truncateIndexSegment(String segment, long offset) {
+        String indexSegment = getIndexSegmentName(segment);
+        try {
+            long indexSegmentOffset = IndexRequestProcessor.locateOffsetForSegment(segmentStore, segment, offset, false);
+            segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT)
+                    .whenComplete((v, exp) -> {
+                        if (exp != null) {
+                            log.warn("Truncation of index segment {} at offset {} can not be performed.", indexSegment, indexSegmentOffset);
+                        } else {
+                            log.info("Truncation index segment {} at offset {}.", indexSegment, indexSegmentOffset);
+                        }
+                    });
+        } catch (IndexRequestProcessor.SearchFailedException e) {
+            log.warn("Unable to locate offset for index segment {}  for offset {} due to ", indexSegment, offset, e);
+        }
     }
 
     private WireCommands.TableEntries getTableEntriesCommand(final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {
