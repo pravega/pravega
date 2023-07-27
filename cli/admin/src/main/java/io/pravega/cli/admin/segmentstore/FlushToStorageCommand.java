@@ -20,13 +20,16 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.utils.ZKHelper;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.apache.commons.lang.math.NumberUtils;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -69,16 +72,21 @@ public class FlushToStorageCommand extends ContainerCommand {
             endContainerId = getArgCount() == 2 ? parseInt(getArg(1)) : startContainerId;
         }
 
+        List<CompletableFuture<WireCommands.StorageFlushed>> completableFutures = new ArrayList<>();
         for (int id = startContainerId; id <= endContainerId; id++) {
-            flushContainerToStorage(adminSegmentHelper, id);
+            completableFutures.add(flushContainerToStorage(adminSegmentHelper, id));
         }
+        Futures.allOf(completableFutures).get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        output("Flushed all the given segment container to storage.");
     }
 
-    private void flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId) throws Exception {
+    private CompletableFuture<WireCommands.StorageFlushed> flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId) throws Exception {
         CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(containerId,
                 new PravegaNodeUri(this.getHostByContainer(containerId), getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
-        reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        output("Flushed the Segment Container with containerId %d to Storage.", containerId);
+        return reply.thenApply(result -> {
+            output("Flushed the Segment Container with containerId %d to Storage.", containerId);
+            return result;
+        });
     }
 
     public static CommandDescriptor descriptor() {
