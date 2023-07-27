@@ -337,7 +337,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         Segment segment1 = Segment.fromScopedName(SCOPE + "-2/" + STREAM + "-2/1.#epoch.1");
         Segment segment2 = Segment.fromScopedName(SCOPE + "-2/" + STREAM + "-2/2.#epoch.1");
         StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-2", STREAM + "-2"),
-                ImmutableMap.of(segment0, 120L));
+                ImmutableMap.of(segment0, 60L));
 
         @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-2", clientConfig);
@@ -347,15 +347,20 @@ public class BatchClientTest extends ThreadPooledTestSuite {
                 batchClient.getSegments(Stream.of(SCOPE + "-2", STREAM + "-2"), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         long approxDistanceToNextOffset = 80L;
         Map<Segment, Long> map = allSegmentsList.stream().collect(
-                Collectors.toMap(SegmentRange::getSegment, value -> value.getEndOffset() > approxDistanceToNextOffset ? 90L : value.getEndOffset()));
+                Collectors.toMap(SegmentRange::getSegment, value -> value.getEndOffset() > approxDistanceToNextOffset / 2 ? 60L : value.getEndOffset()));
 
         StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, approxDistanceToNextOffset);
         assertTrue(nextStreamCut != null);
-        assertTrue(nextStreamCut.asImpl().getPositions().size() == 2);
-        assertTrue(nextStreamCut.asImpl().getPositions().containsKey(segment1) &&
-                nextStreamCut.asImpl().getPositions().containsKey(segment2));
-        assertTrue(nextStreamCut.asImpl().getPositions().get(segment1).equals(map.get(segment1)) &&
-                nextStreamCut.asImpl().getPositions().get(segment2).equals(map.get(segment2)));
+        assertTrue(nextStreamCut.asImpl().getPositions().size() == 1);
+        assertTrue(nextStreamCut.asImpl().getPositions().get(segment0).equals(120L));
+
+        StreamCut  nextStreamCut2 = batchClient.getNextStreamCut(nextStreamCut, approxDistanceToNextOffset);
+        assertTrue(nextStreamCut2 != null);
+        assertTrue(nextStreamCut2.asImpl().getPositions().size() == 2);
+        assertTrue(nextStreamCut2.asImpl().getPositions().containsKey(segment1) &&
+                nextStreamCut2.asImpl().getPositions().containsKey(segment2));
+        assertTrue(nextStreamCut2.asImpl().getPositions().get(segment1).equals(map.get(segment1)) &&
+                nextStreamCut2.asImpl().getPositions().get(segment2).equals(map.get(segment2)));
     }
 
     @Test(timeout = 50000)
@@ -416,6 +421,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
 
         Map<Segment, Long> map = allSegmentsList.stream().collect(
                 Collectors.toMap(SegmentRange::getSegment, SegmentRange::getEndOffset));
+        // Getting streamcut at the tail of segment 1 and segment 2
         StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-3", STREAM + "-3"),
                 ImmutableMap.of(segment1, map.get(segment1), segment2, map.get(segment2)));
 
@@ -482,16 +488,37 @@ public class BatchClientTest extends ThreadPooledTestSuite {
 
         Map<Segment, Long> map = allSegmentsList.stream().collect(
                 Collectors.toMap(SegmentRange::getSegment, SegmentRange::getEndOffset));
+        // Getting streamcut at prior to tail of segment 1 and prior to tail for segment 2.
+        long segment1Offset = map.get(segment1) > 0L ? map.get(segment1)-30L : 0L;
+        long segment2Offset = map.get(segment2) > 0L ? map.get(segment2)-30L : 0L;
         StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-4", STREAM + "-4"),
-                ImmutableMap.of(segment1, map.get(segment1)-30L, segment2, map.get(segment2)));
+                ImmutableMap.of(segment1, segment1Offset, segment2, segment2Offset));
 
+        long expectedSegment1Offset = map.get(segment1) > 0L ? (segment1Offset + 30L) : 0;
+        long expectedSegment2Offset = map.get(segment2) > 0L ? (segment2Offset + 30L) : 0;
         StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 80L);
         assertTrue(nextStreamCut != null);
         assertTrue(nextStreamCut.asImpl().getPositions().size() == 2);
         assertTrue(nextStreamCut.asImpl().getPositions().containsKey(segment1) &&
                 nextStreamCut.asImpl().getPositions().containsKey(segment2));
-        assertTrue(nextStreamCut.asImpl().getPositions().get(segment1).equals(map.get(segment1)) &&
-                nextStreamCut.asImpl().getPositions().get(segment2).equals(map.get(segment2)));
+        assertTrue(nextStreamCut.asImpl().getPositions().get(segment1).equals(expectedSegment1Offset) &&
+                nextStreamCut.asImpl().getPositions().get(segment2).equals(expectedSegment2Offset));
+
+        // Getting streamcut at prior to tail of one of the segment.
+        streamCut = map.get(segment1) == 0L ? new StreamCutImpl(Stream.of(SCOPE + "-4", STREAM + "-4"),
+                ImmutableMap.of(segment1, 0L, segment2, map.get(segment2)-30L)) : new StreamCutImpl(Stream.of(SCOPE + "-4", STREAM + "-4"),
+                ImmutableMap.of(segment1, map.get(segment1)-30L, segment2, map.get(segment2)));
+
+        expectedSegment1Offset = map.get(segment1) == 0L ? 0L : map.get(segment1);
+        expectedSegment2Offset = map.get(segment2);
+
+        nextStreamCut = batchClient.getNextStreamCut(streamCut, 80L);
+        assertTrue(nextStreamCut != null);
+        assertTrue(nextStreamCut.asImpl().getPositions().size() == 2);
+        assertTrue(nextStreamCut.asImpl().getPositions().containsKey(segment1) &&
+                nextStreamCut.asImpl().getPositions().containsKey(segment2));
+        assertTrue(nextStreamCut.asImpl().getPositions().get(segment1).equals(expectedSegment1Offset) &&
+                nextStreamCut.asImpl().getPositions().get(segment2).equals(expectedSegment2Offset));
     }
 
     @Test(timeout = 50000)
@@ -504,7 +531,107 @@ public class BatchClientTest extends ThreadPooledTestSuite {
                 ImmutableMap.of(segment0, 120L));
 
         AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> batchClient.getNextStreamCut(streamCut, 80L));
+    }
 
+    @Test(timeout = 50000)
+    public void testNextStreamCutScaleUpAndDown() throws ExecutionException, InterruptedException {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(SCOPE + "-6", 0L).get();
+        controller.createStream(SCOPE + "-6", STREAM + "-6", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE + "-6", controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM + "-6", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        // write events to stream with 1 segment.
+        write30ByteEvents(4, writer);
+
+        Map<Double, Double> keyRanges = new HashMap<>();
+        keyRanges.put(0.0, 0.25);
+        keyRanges.put(0.25, 0.5);
+        keyRanges.put(0.5, 0.75);
+        keyRanges.put(0.75, 1.0);
+        Stream stream = new StreamImpl(SCOPE + "-6", STREAM + "-6");
+        // Stream scaling up
+        Boolean status = controller.scaleStream(stream,
+                Collections.singletonList(0L),
+                keyRanges,
+                executorService()).getFuture().get();
+        assertTrue(status);
+
+        write30ByteEvents(17, writer);
+        ArrayList<Long> toSeal = new ArrayList<>();
+        toSeal.add(computeSegmentId(2, 1));
+        toSeal.add(computeSegmentId(3, 1));
+
+        Map<Double, Double> keyRanges1 = new HashMap<>();
+        keyRanges1.put(0.25, 0.75);
+        Stream stream1 = new StreamImpl(SCOPE + "-6", STREAM + "-6");
+        // Stream scaling down
+        Boolean status1 = controller.scaleStream(stream1,
+                Collections.unmodifiableList(toSeal),
+                keyRanges1,
+                executorService()).getFuture().get();
+        assertTrue(status1);
+
+        Map<Double, Double> keyRanges2 = new HashMap<>();
+        keyRanges2.put(0., 0.12);
+        keyRanges2.put(0.12, 0.25);
+        // Stream scaling up
+        Boolean status2 = controller.scaleStream(stream,
+                Collections.singletonList(computeSegmentId(1, 1)),
+                keyRanges2,
+                executorService()).getFuture().get();
+        assertTrue(status2);
+
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-6", clientConfig);
+        log.info("Done creating batch client factory");
+        Segment segment1 = Segment.fromScopedName(SCOPE + "-6/" + STREAM + "-6/1.#epoch.1");
+        Segment segment2 = Segment.fromScopedName(SCOPE + "-6/" + STREAM + "-6/2.#epoch.1");
+        Segment segment3 = Segment.fromScopedName(SCOPE + "-6/" + STREAM + "-6/3.#epoch.1");
+        Segment segment4 = Segment.fromScopedName(SCOPE + "-6/" + STREAM + "-6/4.#epoch.1");
+        Segment segment5 = Segment.fromScopedName(SCOPE + "-6/" + STREAM + "-6/5.#epoch.2");
+        Segment segment6 = Segment.fromScopedName(SCOPE + "-6/" + STREAM + "-6/6.#epoch.3");
+        Segment segment7 = Segment.fromScopedName(SCOPE + "-6/" + STREAM + "-6/7.#epoch.3");
+
+        ArrayList<SegmentRange> allSegmentsList = Lists.newArrayList(
+                batchClient.getSegments(Stream.of(SCOPE + "-6", STREAM + "-6"), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+
+        Map<Segment, Long> map = allSegmentsList.stream().collect(
+                Collectors.toMap(SegmentRange::getSegment, SegmentRange::getEndOffset));
+
+        // writing to segments 4,5,6,7
+        write30ByteEvents(15, writer);
+
+        StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-6", STREAM + "-6"),
+                ImmutableMap.of(segment1, map.get(segment1), segment2, map.get(segment2), segment3, map.get(segment3), segment4, map.get(segment4)));
+
+        allSegmentsList = Lists.newArrayList(
+                batchClient.getSegments(Stream.of(SCOPE + "-6", STREAM + "-6"), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+        Map<Segment, Long> newPositionMap = allSegmentsList.stream().collect(
+                Collectors.toMap(SegmentRange::getSegment, SegmentRange::getEndOffset));
+        long expectedSegment4Offset = newPositionMap.get(segment4) - map.get(segment4) > 30L ? map.get(segment4) + 30L : map.get(segment4);
+        long expectedSegment5Offset = newPositionMap.get(segment5) > 60L ? 60L : newPositionMap.get(segment5);
+        long expectedSegment6Offset = newPositionMap.get(segment6) > 30L ? 30L : newPositionMap.get(segment6);
+        long expectedSegment7Offset = newPositionMap.get(segment7) > 30L ? 30L : newPositionMap.get(segment7);
+
+        StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 80L);
+        assertTrue(nextStreamCut != null);
+        assertTrue(nextStreamCut.asImpl().getPositions().size() == 4);
+        assertTrue(nextStreamCut.asImpl().getPositions().containsKey(segment4) &&
+                nextStreamCut.asImpl().getPositions().containsKey(segment5) &&
+                nextStreamCut.asImpl().getPositions().containsKey(segment6) &&
+                nextStreamCut.asImpl().getPositions().containsKey(segment7));
+        assertTrue(nextStreamCut.asImpl().getPositions().get(segment4).equals(expectedSegment4Offset) &&
+                nextStreamCut.asImpl().getPositions().get(segment5).equals(expectedSegment5Offset) &&
+                nextStreamCut.asImpl().getPositions().get(segment6).equals(expectedSegment6Offset) &&
+                nextStreamCut.asImpl().getPositions().get(segment7).equals(expectedSegment7Offset));
     }
 
     //region Private helper methods

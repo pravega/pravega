@@ -223,9 +223,11 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         Stream stream = startingStreamCut.asImpl().getStream();
         Map<Segment, Long> nextPositionsMap = new HashMap<>();
         Map<Segment, Long> scaledSegmentsMap = new HashMap<>();
+        int numberOfSegments = startingStreamCut.asImpl().getPositions().size();
+        long approxNextOffsetDistancePerSegment = approxDistanceToNextOffset / numberOfSegments;
         for (Map.Entry<Segment, Long> positions : startingStreamCut.asImpl().getPositions().entrySet()) {
             Segment segment = positions.getKey();
-            long targetOffset = positions.getValue() + approxDistanceToNextOffset;
+            long targetOffset = positions.getValue() + approxNextOffsetDistancePerSegment;
             long nextOffset = getNextOffsetForSegment(segment, targetOffset);
             boolean isNextOffsetSame = checkIfNextOffsetSame(positions.getValue(), nextOffset);
             if (isNextOffsetSame) {
@@ -235,7 +237,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                 nextPositionsMap.put(segment, nextOffset);
             }
         }
-        checkSuccessorSegmentOffset(nextPositionsMap, scaledSegmentsMap, approxDistanceToNextOffset);
+        checkSuccessorSegmentOffset(nextPositionsMap, scaledSegmentsMap, approxNextOffsetDistancePerSegment);
         log.debug("Next positions of the segments in the streamcut = {}", nextPositionsMap);
         return new StreamCutImpl(stream, nextPositionsMap);
     }
@@ -263,9 +265,10 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
             Map<SegmentWithRange, List<Long>> segmentToPredecessorMap = getSuccessors.join().getSegmentToPredecessor();
             int size = segmentToPredecessorMap.size();
             if (size > 1) { //scale up happened to the segment
+                long approxNextOffsetDistance = approxDistanceToNextOffset / size;
                 for (SegmentWithRange segmentWithRange : segmentToPredecessorMap.keySet()) {
                     Segment segment = segmentWithRange.getSegment();
-                    long nextOffset = getNextOffsetForSegment(segment, approxDistanceToNextOffset);
+                    long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistance);
                     nextPositionsMap.put(segment, nextOffset);
                 }
             } else if (size == 1) { //scale down happened to the segments
@@ -274,9 +277,10 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                 boolean isJoint  = segmentToPredecessorMap.values().stream().findFirst().get().stream().anyMatch(segmentIds::contains);
                 if (!isJoint) {
                     Long segmentId = segmentToPredecessorMap.keySet().stream().findFirst().get().getSegment().getSegmentId();
+                    long approxNextOffsetDistance = approxDistanceToNextOffset * segmentToPredecessorMap.values().stream().findFirst().get().size();
                     if (!segmentIds.contains(segmentId)) {
                         Segment segment = segmentToPredecessorMap.keySet().stream().findFirst().get().getSegment();
-                        long nextOffset = getNextOffsetForSegment(segment, approxDistanceToNextOffset);
+                        long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistance);
                         nextPositionsMap.put(segment, nextOffset);
                     }
                 } else {
