@@ -29,7 +29,6 @@ import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.SortUtils;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
@@ -114,7 +113,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
@@ -643,8 +641,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(truncateSegment.getRequestId(), "Truncating segment {} at offset {}.",
                 segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
-                .thenAcceptAsync(v ->truncateIndexSegment(segment, offset))
-                .thenAccept(v ->connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
+                .thenAcceptAsync(v -> truncateIndexSegment(segment, offset))
+                .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
                 .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, offset, operation, e));
     }
 
