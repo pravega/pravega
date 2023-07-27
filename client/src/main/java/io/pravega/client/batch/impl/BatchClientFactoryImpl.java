@@ -31,6 +31,7 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
+import io.pravega.client.segment.impl.SearchFailedException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
@@ -217,7 +218,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     }
 
     @Override
-    public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) {
+    public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws NoSuchSegmentException, SearchFailedException {
         log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
         Preconditions.checkArgument(approxDistanceToNextOffset > 0, "Ensure approxDistanceToNextOffset must be greater than 0");
         Stream stream = startingStreamCut.asImpl().getStream();
@@ -302,6 +303,8 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         closeConnection(reply);
         if (reply instanceof WireCommands.NoSuchSegment) {
             throw new NoSuchSegmentException(reply.toString());
+        } else if (reply instanceof WireCommands.IndexSegmentSearchFailed) {
+            throw new SearchFailedException(reply.toString());
         } else {
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting a "
                     + klass.getName());
