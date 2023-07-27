@@ -386,7 +386,7 @@ public class BatchClientImplTest {
     }
 
     @Test(timeout = 5000)
-    public void testGetNextStreamCut_NoSuchSegmentException() throws Exception {
+    public void testGetNextStreamCutWithNoSuchSegmentException() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Map<Segment, Long> positionMap = new HashMap<>();
         positionMap.put(segment1, 30L);
@@ -415,7 +415,7 @@ public class BatchClientImplTest {
     }
 
     @Test(timeout = 5000)
-    public void testGetNextStreamCut_TokenException() throws Exception {
+    public void testGetNextStreamCutWithTokenException() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Map<Segment, Long> positionMap = new HashMap<>();
         positionMap.put(segment1, 30L);
@@ -499,7 +499,7 @@ public class BatchClientImplTest {
                 GetStreamSegmentInfo request = (GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
                                  .process(new StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
-                                                        false, false, 0, 0, 0));
+                                                                false, false, 0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(GetStreamSegmentInfo.class));

@@ -352,6 +352,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, approxDistanceToNextOffset);
         assertTrue(nextStreamCut != null);
         assertTrue(nextStreamCut.asImpl().getPositions().size() == 1);
+        assertTrue(nextStreamCut.asImpl().getPositions().containsKey(segment0));
         assertTrue(nextStreamCut.asImpl().getPositions().get(segment0).equals(120L));
 
         StreamCut  nextStreamCut2 = batchClient.getNextStreamCut(nextStreamCut, approxDistanceToNextOffset);
@@ -494,8 +495,8 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-4", STREAM + "-4"),
                 ImmutableMap.of(segment1, segment1Offset, segment2, segment2Offset));
 
-        long expectedSegment1Offset = map.get(segment1) > 0L ? (segment1Offset + 30L) : 0;
-        long expectedSegment2Offset = map.get(segment2) > 0L ? (segment2Offset + 30L) : 0;
+        long expectedSegment1Offset = map.get(segment1) > 0L ? (segment1Offset + 30L) : 0L;
+        long expectedSegment2Offset = map.get(segment2) > 0L ? (segment2Offset + 30L) : 0L;
         StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 80L);
         assertTrue(nextStreamCut != null);
         assertTrue(nextStreamCut.asImpl().getPositions().size() == 2);
@@ -616,7 +617,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
                 batchClient.getSegments(Stream.of(SCOPE + "-6", STREAM + "-6"), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         Map<Segment, Long> newPositionMap = allSegmentsList.stream().collect(
                 Collectors.toMap(SegmentRange::getSegment, SegmentRange::getEndOffset));
-        long expectedSegment4Offset = newPositionMap.get(segment4) - map.get(segment4) > 30L ? map.get(segment4) + 30L : map.get(segment4);
+        long expectedSegment4Offset = newPositionMap.get(segment4) - map.get(segment4) >= 30L ? map.get(segment4) + 30L : map.get(segment4);
         long expectedSegment5Offset = newPositionMap.get(segment5) > 60L ? 60L : newPositionMap.get(segment5);
         long expectedSegment6Offset = newPositionMap.get(segment6) > 30L ? 30L : newPositionMap.get(segment6);
         long expectedSegment7Offset = newPositionMap.get(segment7) > 30L ? 30L : newPositionMap.get(segment7);
