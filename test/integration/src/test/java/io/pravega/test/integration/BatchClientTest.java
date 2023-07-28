@@ -299,7 +299,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 93L);
         assertTrue(nextStreamCut != null);
         assertTrue(nextStreamCut.asImpl().getPositions().size() == 1);
-        assertTrue(nextStreamCut.asImpl().getPositions().get(segment).equals(300L));
+        assertEquals(300L, nextStreamCut.asImpl().getPositions().get(segment).longValue());
     }
 
     @Test(timeout = 50000)
@@ -353,7 +353,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertTrue(nextStreamCut != null);
         assertTrue(nextStreamCut.asImpl().getPositions().size() == 1);
         assertTrue(nextStreamCut.asImpl().getPositions().containsKey(segment0));
-        assertTrue(nextStreamCut.asImpl().getPositions().get(segment0).equals(120L));
+        assertEquals(120L, nextStreamCut.asImpl().getPositions().get(segment0).longValue());
 
         StreamCut  nextStreamCut2 = batchClient.getNextStreamCut(nextStreamCut, approxDistanceToNextOffset);
         assertTrue(nextStreamCut2 != null);
@@ -429,7 +429,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 80L);
         assertTrue(nextStreamCut != null);
         assertTrue(nextStreamCut.asImpl().getPositions().size() == 1);
-        assertTrue(nextStreamCut.asImpl().getPositions().get(segment3).equals(90L));
+        assertEquals(90L, nextStreamCut.asImpl().getPositions().get(segment3).longValue());
     }
 
     @Test(timeout = 50000)
