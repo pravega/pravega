@@ -847,7 +847,7 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
         order.verify(connection).send(new WireCommands.SegmentSealed(requestId, streamSegmentName));
         order.verify(connection, times(2)).send(new WireCommands.SegmentTruncated(requestId, streamSegmentName));
-        order.verify(connection, times(2)).send(new WireCommands.SegmentIsTruncated(requestId, streamSegmentName, truncateOffset, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentIsTruncated(requestId, streamSegmentName, truncateOffset, "", 0));
         order.verify(connection).send(new WireCommands.SegmentDeleted(requestId, streamSegmentName));
         order.verifyNoMoreInteractions();
     }
@@ -1555,8 +1555,8 @@ public class PravegaRequestProcessorTest {
         ByteBuf resultAfterOneAppend = result.getData();
         assertEquals("Hello world", resultAfterOneAppend.toString(Charset.defaultCharset()).trim());
 
-        // Truncate half.
-        final long truncateOffset = store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getLength() / 2;
+        // Truncate one event
+        final long truncateOffset = 20;
 
         //Before truncation validation
         assertEquals(0, store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
@@ -1567,14 +1567,14 @@ public class PravegaRequestProcessorTest {
         sendRequest(channel, new WireCommands.TruncateSegment(requestId, segment, truncateOffset, ""));
 
         assertEquals(truncateOffset, store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
-        assertEquals(truncateOffset, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
+        assertEquals(0, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
 
         // Truncate at the same offset - verify idempotence.
         sendRequest(channel, new WireCommands.TruncateSegment(requestId, segment, truncateOffset, ""));
         assertEquals(truncateOffset, store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
-        assertEquals(truncateOffset, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
+        assertEquals(0, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
 
-        //Deleting the main segment and validating
+        //Deleting the main segment and validating that index segment has also deleted
         sendRequest(channel, new WireCommands.DeleteSegment(1, segment, ""));
         assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join());
     }

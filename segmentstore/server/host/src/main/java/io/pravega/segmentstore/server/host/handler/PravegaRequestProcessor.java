@@ -641,7 +641,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(truncateSegment.getRequestId(), "Truncating segment {} at offset {}.",
                 segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
-                .thenAcceptAsync(v -> truncateIndexSegment(segment, offset))
+                //TODO later, we can decide whether it has to run on separate thread or same thread.
+                .thenAccept(v -> truncateIndexSegment(segment, offset))
                 .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
                 .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, offset, operation, e));
     }
@@ -1042,7 +1043,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private void truncateIndexSegment(String segment, long offset) {
         String indexSegment = getIndexSegmentName(segment);
         try {
-            long indexSegmentOffset = IndexRequestProcessor.locateOffsetForSegment(segmentStore, segment, offset, false);
+            long indexSegmentOffset = IndexRequestProcessor.locateOffsetForIndexSegment(segmentStore, segment, offset, false);
             segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT)
                     .whenComplete((v, exp) -> {
                         if (exp != null) {
@@ -1051,7 +1052,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             log.info("Truncation index segment {} at offset {}.", indexSegment, indexSegmentOffset);
                         }
                     });
-        } catch (IndexRequestProcessor.SearchFailedException e) {
+        } catch (Exception e) {
             log.warn("Unable to locate offset for index segment {}  for offset {} due to ", indexSegment, offset, e);
         }
     }
