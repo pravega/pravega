@@ -1523,7 +1523,7 @@ public class PravegaRequestProcessorTest {
 
     @Test
     public void testCreateSealTruncateDeleteIndexSegment() throws Exception {
-        String segment = "testMultipleIndexAppends";
+        String segment = "testCreateSealTruncateDeleteIndexSegment";
         String indexSegment = getIndexSegmentName(segment);
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
@@ -1577,6 +1577,70 @@ public class PravegaRequestProcessorTest {
         //Deleting the main segment and validating
         sendRequest(channel, new WireCommands.DeleteSegment(1, segment, ""));
         assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join());
+    }
+
+    @Test
+    public void testTruncateIndexSegmentWithNegativeOffset() throws Exception {
+        String segment = "testTruncateIndexSegmentWithNegativeOffset";
+        String indexSegment = getIndexSegmentName(segment);
+        ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store);
+        WireCommands.SegmentCreated created = (WireCommands.SegmentCreated) sendRequest(channel, new WireCommands.CreateSegment(1, segment, WireCommands.CreateSegment.NO_SCALE, 0, "", 1024L));
+        assertEquals(segment, created.getSegment());
+
+        UUID uuid = UUID.randomUUID();
+        WireCommands.AppendSetup setup = (WireCommands.AppendSetup) sendRequest(channel, new WireCommands.SetupAppend(2, uuid, segment, ""));
+        assertEquals(segment, setup.getSegment());
+        assertEquals(indexSegment, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getName());
+        data.retain();
+
+        //Append 40 bytes of data
+        sendRequest(channel, new Append(segment, uuid, 1, new WireCommands.Event(data), 1L));
+        sendRequest(channel, new Append(segment, uuid, 2, new WireCommands.Event(data), 1L));
+
+        final long truncateOffset = -5000;
+        AssertExtensions.assertLessThan("Negative offset", 0, truncateOffset);
+
+        IllegalStateException exception = Assert.assertThrows(IllegalStateException.class, () ->
+                sendRequest(channel, new WireCommands.TruncateSegment(requestId, segment, truncateOffset, "")));
+        assertTrue(exception.getMessage().contains("No reply to request"));
+    }
+
+    @Test
+    public void testTruncateIndexSegmentWithGreaterThenEndOffset() throws Exception {
+        String segment = "testTruncateIndexSegmentWithGreaterThenEndOffset";
+        String indexSegment = getIndexSegmentName(segment);
+        ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store);
+        WireCommands.SegmentCreated created = (WireCommands.SegmentCreated) sendRequest(channel, new WireCommands.CreateSegment(1, segment, WireCommands.CreateSegment.NO_SCALE, 0, "", 1024L));
+        assertEquals(segment, created.getSegment());
+
+        UUID uuid = UUID.randomUUID();
+        WireCommands.AppendSetup setup = (WireCommands.AppendSetup) sendRequest(channel, new WireCommands.SetupAppend(2, uuid, segment, ""));
+        assertEquals(segment, setup.getSegment());
+        assertEquals(indexSegment, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getName());
+        data.retain();
+
+        //Append 40 bytes of data
+        sendRequest(channel, new Append(segment, uuid, 1, new WireCommands.Event(data), 1L));
+        sendRequest(channel, new Append(segment, uuid, 2, new WireCommands.Event(data), 1L));
+
+        final long truncateOffset = 100;
+        AssertExtensions.assertGreaterThan("Larger then endOffset", store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getLength(), truncateOffset);
+        sendRequest(channel, new WireCommands.TruncateSegment(requestId, segment, truncateOffset, ""));
+
+        assertEquals(0, store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
+        assertEquals(0, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
     }
 
     private ArrayView generateData(int length, Random rnd) {
