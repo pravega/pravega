@@ -13,10 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-
 package io.pravega.cli.admin.segmentstore;
-
 
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.client.connection.impl.ConnectionPool;
@@ -27,7 +24,6 @@ import io.pravega.shared.segment.SegmentToContainerMapper;
 import com.google.common.base.Preconditions;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
-
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -54,7 +50,6 @@ public class GetContainerIdOfSegmentCommand extends SegmentStoreCommand {
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient, pool);
         final String fullyQualifiedSegmentName = getArg(0);
-
         String[] inputParam = fullyQualifiedSegmentName.split("/");
         Preconditions.checkArgument(inputParam.length == 3, "Invalid qualified-segment-name  '%s'", fullyQualifiedSegmentName);
         String scope = inputParam[0];
@@ -67,18 +62,14 @@ public class GetContainerIdOfSegmentCommand extends SegmentStoreCommand {
             long segmentId = NameUtils.computeSegmentId(segmentNumber, epoch);
             CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfoFuture = segmentHelper.getSegmentInfo(scope, stream, segmentId, super.authHelper.retrieveMasterToken(), 0L);
             segmentInfoFuture.join();
-            
             int containerId = segToConMapper.getContainerId(fullyQualifiedSegmentName);
             output("Container Id for the given Segment is :" + containerId);
         } catch (Exception ex) {
-
             output("Error occurred while fetching containerId : %s", ex);
-
               }
 }
 
     public static CommandDescriptor descriptor() {
-
         return new CommandDescriptor(COMPONENT, "get-container-id", "Get the Id of a Container that belongs to a segment.",
                 new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to get info from (e.g., scope/stream/0.#epoch.0)."));
     }
