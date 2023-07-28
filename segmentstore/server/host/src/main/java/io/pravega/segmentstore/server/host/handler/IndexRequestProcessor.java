@@ -23,6 +23,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -42,7 +43,7 @@ public final class IndexRequestProcessor {
     }
 
     /**
-     * Locate the requested offset in stream.
+     * Locate the requested offset in segment.
      *
      * @param store  The StreamSegmentStore to attach to (and issue requests to).
      * @param segment Segment name.
@@ -53,6 +54,27 @@ public final class IndexRequestProcessor {
      * @throws SearchFailedException if the index segment is of unexpected size or if the search fails.
      */
     public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SearchFailedException {
+        return applySearch(store, segment, targetOffset, greater).getValue();
+    }
+
+
+    /**
+     * Locate the requested offset in index segment.
+     *
+     * @param store  The StreamSegmentStore to attach to (and issue requests to).
+     * @param segment Segment name.
+     * @param targetOffset The requested offset's corresponding position to search in the index segment entry.
+     * @param greater boolean to determine if the next higher or the lower value to be returned in case the requested offset is not present.
+     *
+     * @return the corresponding offset of index segment.
+     * @throws SearchFailedException if the index segment is of unexpected size or if the search fails.
+     */
+    public static long locateOffsetForIndexSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SearchFailedException {
+        return applySearch(store, segment, targetOffset, greater).getKey() * ENTRY_SIZE;
+    }
+
+
+    private static Map.Entry<Long, Long> applySearch(StreamSegmentStore store, String segment, long targetOffset, boolean greater) {
         String indexSegmentName = NameUtils.getIndexSegmentName(segment);
 
         //Fetch start and end idx.
@@ -76,8 +98,7 @@ public final class IndexRequestProcessor {
                 default:
                     throw new SearchFailedException("Index segment was of unexpected size: " + firstElement.getType());
             }
-        }, startIdx, endIdx - 1, targetOffset, greater).getValue();
-
+        }, startIdx, endIdx - 1, targetOffset, greater);
     }
 
 
