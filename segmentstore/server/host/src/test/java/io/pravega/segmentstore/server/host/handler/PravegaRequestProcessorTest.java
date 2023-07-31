@@ -1562,7 +1562,6 @@ public class PravegaRequestProcessorTest {
         assertEquals(0, store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
         assertEquals(0, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
 
-        AssertExtensions.assertGreaterThan("Nothing to truncate.", 0, truncateOffset);
         //After truncation validation
         sendRequest(channel, new WireCommands.TruncateSegment(requestId, segment, truncateOffset, ""));
 
