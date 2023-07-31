@@ -1050,9 +1050,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT)
                     .whenComplete((v, exp) -> {
                         if (exp != null) {
-                            log.warn("Truncation of index segment {} at offset {} can not be performed.", indexSegment, indexSegmentOffset);
+                            log.warn("Failed to truncate index segment {} at offset {} due to", indexSegment, indexSegmentOffset, exp);
                         } else {
-                            log.info("Truncation index segment {} at offset {}.", indexSegment, indexSegmentOffset);
+                            log.info("Successfully truncated index segment {} at offset {}", indexSegment, indexSegmentOffset);
                         }
                     });
         } catch (Exception e) {

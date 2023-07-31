@@ -61,6 +61,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
@@ -226,6 +227,73 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertEquals(segment, deleted.getSegment());
 
         //validates that index segment is deleted
+        assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(getIndexSegmentName(segment), Duration.ofMinutes(1)).join());
+    }
+
+    @Test(timeout = 20000)
+    public void testCreateTruncateDeleteIndexSegment() throws Exception {
+        String segment = "testTruncationOfIndexSegment";
+        String indexSegment = NameUtils.getIndexSegmentName(segment);
+
+        ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store);
+
+        //validating main segment creation
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
+        assertEquals(segment, created.getSegment());
+
+        //validating index-segment creation
+        assertEquals(indexSegment, store.getStreamSegmentInfo(indexSegment, TIMEOUT).join().getName());
+
+        UUID uuid = UUID.randomUUID();
+        AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(2, uuid, segment, ""));
+
+        assertEquals(segment, setup.getSegment());
+        assertEquals(uuid, setup.getWriterId());
+        data.retain();
+
+        DataAppended ack = (DataAppended) sendRequest(channel,
+                new Append(segment, uuid, 1, new Event(data), 1L));
+        assertEquals(uuid, ack.getWriterId());
+        assertEquals(1, ack.getEventNumber());
+        assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
+
+        DataAppended ack2 = (DataAppended) sendRequest(channel,
+                new Append(segment, uuid, 2, new Event(data), 1L));
+        assertEquals(uuid, ack2.getWriterId());
+        assertEquals(2, ack2.getEventNumber());
+        assertEquals(1, ack2.getPreviousEventNumber());
+
+        //Total length
+        assertEquals(store.getStreamSegmentInfo(segment, TIMEOUT).join().getLength(), 40);
+
+        // Truncate one event
+        final long truncateOffset = 20;
+
+        //Before truncation validation
+        assertEquals(0, store.getStreamSegmentInfo(segment, TIMEOUT).join().getStartOffset());
+        assertEquals(0, store.getStreamSegmentInfo(indexSegment, TIMEOUT).join().getStartOffset());
+
+        //After truncation validation
+        sendRequest(channel, new WireCommands.TruncateSegment(1, segment, truncateOffset, ""));
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(segment, TIMEOUT).join().getStartOffset());
+        assertEquals(0, store.getStreamSegmentInfo(indexSegment, TIMEOUT).join().getStartOffset());
+
+        // Truncate at the same offset - verify idempotence.
+        sendRequest(channel, new WireCommands.TruncateSegment(1, segment, truncateOffset, ""));
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(segment, TIMEOUT).join().getStartOffset());
+        assertEquals(0, store.getStreamSegmentInfo(indexSegment, TIMEOUT).join().getStartOffset());
+
+        //Truncating first event from index segment
+        sendRequest(channel, new WireCommands.TruncateSegment(1, segment, 40, ""));
+        assertEquals(40, store.getStreamSegmentInfo(segment, TIMEOUT).join().getStartOffset());
+        assertEquals(24, store.getStreamSegmentInfo(indexSegment, TIMEOUT).join().getStartOffset());
+
+        sendRequest(channel, new WireCommands.DeleteSegment(1, segment, ""));
+        //validates that main and index segment has deleted
+        assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(segment, Duration.ofMinutes(1)).join());
         assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(getIndexSegmentName(segment), Duration.ofMinutes(1)).join());
     }
 

@@ -1576,6 +1576,7 @@ public class PravegaRequestProcessorTest {
 
         //Deleting the main segment and validating that index segment has also deleted
         sendRequest(channel, new WireCommands.DeleteSegment(1, segment, ""));
+        assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join());
         assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join());
     }
 
@@ -1636,7 +1637,7 @@ public class PravegaRequestProcessorTest {
         sendRequest(channel, new Append(segment, uuid, 2, new WireCommands.Event(data), 1L));
 
         final long truncateOffset = 100;
-        AssertExtensions.assertGreaterThan("Larger then endOffset", store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getLength(), truncateOffset);
+        AssertExtensions.assertGreaterThan("Larger then endOffset", store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getLength(), truncateOffset);
         sendRequest(channel, new WireCommands.TruncateSegment(requestId, segment, truncateOffset, ""));
 
         assertEquals(0, store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
