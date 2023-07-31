@@ -1044,6 +1044,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         String indexSegment = getIndexSegmentName(segment);
         try {
             long indexSegmentOffset = IndexRequestProcessor.locateOffsetForIndexSegment(segmentStore, segment, offset, false);
+            if (indexSegmentOffset == 0) {
+                return;
+            }
             segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT)
                     .whenComplete((v, exp) -> {
                         if (exp != null) {
