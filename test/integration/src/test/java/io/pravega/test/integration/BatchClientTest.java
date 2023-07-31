@@ -275,6 +275,11 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertEquals(Long.valueOf(20), distance.join());
     }
 
+    /**
+     * This test the getNextStreamCut api with the current streamcut containing one segment.
+     * Length of segment is 300 and offset in streamcut is 270. When requested nextStreamcut at a distance of 93bytes,
+     * getting offset at 300 in response since only that much of data is available in the segment.
+     */
     @Test(timeout = 50000)
     public void testNextStreamCut() throws ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
@@ -305,6 +310,12 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertEquals(300L, nextStreamCut.asImpl().getPositions().get(segment).longValue());
     }
 
+    /**
+     * This test the getNextStreamCut api with the current streamcut containing one segment which has scaled up.
+     * Length of segment0 is 120 and offset in streamcut is 60. When requested nextStreamcut at a distance of 80bytes,
+     * getting offset at 120(tail of segment0) in response since only that much of data is available in the segment0.
+     * When this is passed as currentStreamcut, getting two segments in the response StreamCut which are the successors of the segment0.
+     */
     @Test(timeout = 50000)
     public void testNextStreamCutWithScaleUp() throws ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
@@ -367,6 +378,11 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertEquals(map.get(segment2).longValue(), nextStreamCut2.asImpl().getPositions().get(segment2).longValue());
     }
 
+    /**
+     * This test the getNextStreamCut api with the current streamcut containing more than one segment which have scaled down.
+     * StreamCut containing segment1 and segment2 and their offset are at their tail. When getNextStreamCut api is being called with approxDistance at 80bytes,
+     * we get their successor segment3 in response as they have scaled down.
+     */
     @Test(timeout = 50000)
     public void testNextStreamCutWithScaleDown() throws ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
@@ -435,6 +451,13 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertEquals(90L, nextStreamCut.asImpl().getPositions().get(segment3).longValue());
     }
 
+    /**
+     * This test the getNextStreamCut api with the current streamcut containing more than one segment(segment1 & segment2) which have scaled down to segment3.
+     * Secnario1 - StreamCut containing segment1 and segment2 and both of their offset are prior to their tail. When getNextStreamCut api is being called with approxDistance at 80bytes,
+     * we get segment1 and segment2 in the response streamcut, since there are data available in them.
+     * Secnario2 - StreamCut containing segment1 and segment2 and one of their offset is prior to their tail and the other one is having offset at its tail.
+     * When getNextStreamCut api is being called with approxDistance at 80bytes, we get segment1 and segment2 in the response streamcut, since there are data available in one of them.
+     */
     @Test(timeout = 50000)
     public void testNextStreamCutScaleDownNotForwarded() throws ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
@@ -525,10 +548,13 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertEquals(expectedSegment2Offset, nextStreamCut.asImpl().getPositions().get(segment2).longValue());
     }
 
+    /**
+     * This tests if a streamcut contains segments which does not exist then NoSuchSegmentException should be thrown.
+     */
     @Test(timeout = 50000)
     public void testNextStreamCutException() {
         @Cleanup
-        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-4", clientConfig);
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-5", clientConfig);
         log.info("Done creating batch client factory");
         Segment segment0 = new Segment(SCOPE + "-5", STREAM + "-5", 0);
         StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-5", STREAM + "-5"),
@@ -537,6 +563,12 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> batchClient.getNextStreamCut(streamCut, 80L));
     }
 
+    /**
+     * Current StreamCut has four segments - segment1, segment2, segment3, segment4 and their offset is at their tail.
+     * Segment2 and segment3 have scaled down to segment5.
+     * Segment1 has scaled up to segment 6 and segment 7. No sclaing happened to segment4.
+     * When getNextStreamCut api is called with approxdistance at 80bytes, we get segment4, segment5, segment6 and segment7 in the response.
+     */
     @Test(timeout = 50000)
     public void testNextStreamCutScaleUpAndDown() throws ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
@@ -638,6 +670,11 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertEquals(expectedSegment7Offset, nextStreamCut.asImpl().getPositions().get(segment7).longValue());
     }
 
+    /**
+     * This test the getNextStreamCut api with the current streamcut containing more than one segment(segment1 & segment2)
+     * and their offset are at their tails. But since these segments have not scaled up or down, when getNextStreamCut api
+     * is being called we are getting the same segments in the response streamcut as no more data is available in the segments.
+     */
     @Test(timeout = 50000)
     public void testNextStreamCutWithNoScaling() throws ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
