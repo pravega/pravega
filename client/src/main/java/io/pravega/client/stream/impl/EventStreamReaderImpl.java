@@ -170,7 +170,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
                     handleEndOfSegment(segmentReader, isSegmentSealed);
                     buffer = null;
                 } catch (SegmentTruncatedException e) {
-                    handleSegmentTruncated(segmentReader);
+                    handleSegmentTruncated(segmentReader, firstByteTimeoutMillis);
                     buffer = null;
                 } finally {
                     if (buffer == null) {
@@ -395,7 +395,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
         sealedSegments.put(segmentId, segmentSealed ? -1L : oldSegment.getOffset());
     }
     
-    private void handleSegmentTruncated(EventSegmentReader segmentReader) throws TruncatedDataException {
+    private void handleSegmentTruncated(EventSegmentReader segmentReader, long timeoutInMilli) throws TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
 
@@ -403,7 +403,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId,
                 DelegationTokenProviderFactory.create(controller, segmentId, AccessOperation.READ));
         try {
-            long startingOffset = Futures.getThrowingException(metadataClient.getSegmentInfo()).getStartingOffset();
+            long startingOffset = Futures.getThrowingExceptionWithTimeout(metadataClient.getSegmentInfo(), timeoutInMilli).getStartingOffset();
             if (segmentReader.getOffset() == startingOffset) {
                 log.warn("Attempt to fetch the next available read offset on the segment {} returned a truncated offset {}",
                          segmentId, startingOffset);
