@@ -32,6 +32,7 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
+import io.pravega.client.segment.impl.ServerTimeoutException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
@@ -129,6 +130,142 @@ public class RevisionedStreamClientTest {
         assertTrue(iter.hasNext());
         assertEquals("d", iter.next().getValue());
         assertFalse(iter.hasNext());
+    }
+
+    @Test(timeout = 30000L)
+    public void testReadRange() throws Exception {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
+        RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
+
+        Revision r0 = client.fetchOldestRevision();
+        client.writeUnconditionally("a");
+        Revision ra = client.fetchLatestRevision();
+        client.writeUnconditionally("b");
+        Revision rb = client.fetchLatestRevision();
+        client.writeUnconditionally("c");
+        Iterator<Entry<Revision, String>> iterA = client.readRange(r0, rb);
+        assertTrue(iterA.hasNext());
+        assertEquals("a", iterA.next().getValue());
+        assertEquals("b", iterA.next().getValue());
+        assertThrows(NoSuchElementException.class, () -> iterA.next().getValue());
+        // Will return an empty Entry for the same revision
+        Iterator<Entry<Revision, String>> iterB = client.readRange(r0, r0);
+        assertFalse(iterB.hasNext());
+        // Checking the condition when endRevision is passed at the place of the startRevision
+        assertThrows(IllegalStateException.class, () -> client.readRange(rb, r0));
+        // Validating the case when stream already truncated and start revision didn't exist.
+        Revision rc = client.fetchLatestRevision();
+        client.truncateToRevision(rb);
+        assertEquals(rb, client.fetchOldestRevision());
+        assertThrows(TruncatedDataException.class, () -> client.readRange(ra, rc));
+    }
+
+    @Test(timeout = 60000L)
+    public void testReadRangeThrowingTimoutException() throws Exception {
+        String scope = "scope";
+        String stream = "stream";
+        // Setup Environment
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+
+        // Setup mock
+        SegmentOutputStreamFactory outFactory = mock(SegmentOutputStreamFactory.class);
+        SegmentOutputStream out = mock(SegmentOutputStream.class);
+        Segment segment = new Segment(scope, stream, 0);
+        when(outFactory.createOutputStreamForSegment(eq(segment), any(), any(), any(DelegationTokenProvider.class)))
+                .thenReturn(out);
+
+        SegmentInputStreamFactory inFactory = mock(SegmentInputStreamFactory.class);
+        EventSegmentReader in = mock(EventSegmentReader.class);
+        when(inFactory.createEventReaderForSegment(eq(segment), anyInt())).thenReturn(in);
+        when(in.read(anyLong())).thenReturn(null).thenReturn(serializer.serialize("testData"));
+
+        SegmentMetadataClientFactory metaFactory = mock(SegmentMetadataClientFactory.class);
+        SegmentMetadataClient metaClient = mock(SegmentMetadataClient.class);
+        when(metaFactory.createSegmentMetadataClient(any(Segment.class), any(DelegationTokenProvider.class))).thenReturn(metaClient);
+
+        CompletableFuture<SegmentInfo> neverCompleteFuture = new CompletableFuture<>();
+
+        when(metaClient.getSegmentInfo()).thenReturn(neverCompleteFuture);
+
+        @Cleanup
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory,
+                inFactory, streamFactory, streamFactory, metaFactory);
+
+        @Cleanup
+        RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, serializer,
+                SynchronizerConfig.builder().build());
+        // creating some dummy revision
+        Revision r0 = new RevisionImpl(segment, 0L, 0);
+        Revision ra = new RevisionImpl(segment, 0L, 0);
+
+        assertThrows(ServerTimeoutException.class, () -> client.readRange(r0, ra));
+    }
+
+    @Test(timeout = 60000L)
+    public void testReadFromThrowingTimoutException() throws Exception {
+        String scope = "scope";
+        String stream = "stream";
+        // Setup Environment
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+
+        // Setup mock
+        SegmentOutputStreamFactory outFactory = mock(SegmentOutputStreamFactory.class);
+        SegmentOutputStream out = mock(SegmentOutputStream.class);
+        Segment segment = new Segment(scope, stream, 0);
+        when(outFactory.createOutputStreamForSegment(eq(segment), any(), any(), any(DelegationTokenProvider.class)))
+                .thenReturn(out);
+
+        SegmentInputStreamFactory inFactory = mock(SegmentInputStreamFactory.class);
+        EventSegmentReader in = mock(EventSegmentReader.class);
+        when(inFactory.createEventReaderForSegment(eq(segment), anyInt())).thenReturn(in);
+        when(in.read(anyLong())).thenReturn(null).thenReturn(serializer.serialize("testData"));
+
+        SegmentMetadataClientFactory metaFactory = mock(SegmentMetadataClientFactory.class);
+        SegmentMetadataClient metaClient = mock(SegmentMetadataClient.class);
+        when(metaFactory.createSegmentMetadataClient(any(Segment.class), any(DelegationTokenProvider.class))).thenReturn(metaClient);
+
+        CompletableFuture<SegmentInfo> neverCompleteFuture = new CompletableFuture<>();
+
+        when(metaClient.getSegmentInfo()).thenReturn(neverCompleteFuture);
+
+        @Cleanup
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory,
+                inFactory, streamFactory, streamFactory, metaFactory);
+
+        @Cleanup
+        RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, serializer,
+                SynchronizerConfig.builder().build());
+        // creating some dummy revision
+        Revision r0 = new RevisionImpl(segment, 0L, 0);
+
+        assertThrows(ServerTimeoutException.class, () -> client.readFrom(r0));
     }
 
     @Test
@@ -422,7 +559,7 @@ public class RevisionedStreamClientTest {
         // Override the readTimeout value for RevisionedClient to 1 second.
         doReturn(1000L).when(client).getReadTimeout();
 
-        // Setup the SegmentMetadataClient mock.
+        // Setup the SegmentMetadataClient mock
         doReturn(CompletableFuture.completedFuture(new SegmentInfo(segment, 0L, 30L, false, 1L)))
                 .when(segMetaClient).getSegmentInfo();
 
