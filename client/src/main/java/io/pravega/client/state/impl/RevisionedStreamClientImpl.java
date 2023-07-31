@@ -138,7 +138,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         log.trace("Read segment {} from revision {}", segment, revision);
         synchronized (lock) {
             long startOffset = revision.asImpl().getOffsetInSegment();
-            SegmentInfo segmentInfo = Futures.getThrowingException(meta.getSegmentInfo());
+            long TIME_TO_BE_DECIDED = 10000;
+            SegmentInfo segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), TIME_TO_BE_DECIDED);
             long endOffset = segmentInfo.getWriteOffset();
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", revision, segmentInfo));
@@ -158,7 +159,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         log.trace("Read segment {} from revision {} to revision {}", segment, startRevision, endRevision);
         synchronized (lock) {
             long startOffset = startRevision.asImpl().getOffsetInSegment();
-            SegmentInfo segmentInfo = Futures.getThrowingException(meta.getSegmentInfo());
+            long TIME_TO_BE_DECIDED = 10000;
+            SegmentInfo segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), TIME_TO_BE_DECIDED);
             long endOffset = endRevision.asImpl().getOffsetInSegment();
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", startRevision, segmentInfo));
@@ -180,7 +182,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         synchronized (lock) {
             streamLength = meta.fetchCurrentSegmentLength();
         }
-        return new RevisionImpl(segment, Futures.getThrowingException(streamLength), 0);
+        long TIME_TO_BE_DECIDED = 10000;
+        return new RevisionImpl(segment, Futures.getThrowingExceptionWithTimeout(streamLength, TIME_TO_BE_DECIDED), 0);
         
     }
 
@@ -235,7 +238,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         synchronized (lock) {
             valueF = meta.fetchProperty(RevisionStreamClientMark);
         }
-        long value = Futures.getThrowingException(valueF);
+        long TIME_TO_BE_DECIDED = 10000;
+        long value = Futures.getThrowingExceptionWithTimeout(valueF, TIME_TO_BE_DECIDED);
         return value == NULL_VALUE ? null : new RevisionImpl(segment, value, 0);
     }
 
@@ -247,18 +251,21 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         synchronized (lock) {
             result = meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue);
         }
-        return Futures.getThrowingException(result);
+        long TIME_TO_BE_DECIDED = 10000;
+        return Futures.getThrowingExceptionWithTimeout(result, TIME_TO_BE_DECIDED);
     }
 
     @Override
     public Revision fetchOldestRevision() {
-        long startingOffset = Futures.getThrowingException(meta.getSegmentInfo()).getStartingOffset();
+        long TIME_TO_BE_DECIDED = 10000;
+        long startingOffset = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), TIME_TO_BE_DECIDED).getStartingOffset();
         return new RevisionImpl(segment, startingOffset, 0);
     }
 
     @Override
     public void truncateToRevision(Revision newStart) {
-        Futures.getThrowingException(meta.truncateSegment(newStart.asImpl().getOffsetInSegment()));
+        long TIME_TO_BE_DECIDED = 10000;
+        Futures.getThrowingExceptionWithTimeout(meta.truncateSegment(newStart.asImpl().getOffsetInSegment()), TIME_TO_BE_DECIDED);
         log.info("Truncate segment {} to revision {}", newStart.asImpl().getSegment(), newStart);
     }
 
