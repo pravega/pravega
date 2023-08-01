@@ -138,8 +138,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         log.trace("Read segment {} from revision {}", segment, revision);
         synchronized (lock) {
             long startOffset = revision.asImpl().getOffsetInSegment();
-            long TIME_TO_BE_DECIDED = 10000;
-            SegmentInfo segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), TIME_TO_BE_DECIDED);
+            SegmentInfo segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), 10000);
             long endOffset = segmentInfo.getWriteOffset();
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", revision, segmentInfo));
@@ -159,8 +158,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         log.trace("Read segment {} from revision {} to revision {}", segment, startRevision, endRevision);
         synchronized (lock) {
             long startOffset = startRevision.asImpl().getOffsetInSegment();
-            long TIME_TO_BE_DECIDED = 10000;
-            SegmentInfo segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), TIME_TO_BE_DECIDED);
+            SegmentInfo segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), 10000);
             long endOffset = endRevision.asImpl().getOffsetInSegment();
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", startRevision, segmentInfo));
@@ -182,8 +180,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         synchronized (lock) {
             streamLength = meta.fetchCurrentSegmentLength();
         }
-        long TIME_TO_BE_DECIDED = 10000;
-        return new RevisionImpl(segment, Futures.getThrowingExceptionWithTimeout(streamLength, TIME_TO_BE_DECIDED), 0);
+        return new RevisionImpl(segment, Futures.getThrowingExceptionWithTimeout(streamLength, 10000), 0);
         
     }
 
@@ -238,8 +235,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         synchronized (lock) {
             valueF = meta.fetchProperty(RevisionStreamClientMark);
         }
-        long TIME_TO_BE_DECIDED = 10000;
-        long value = Futures.getThrowingExceptionWithTimeout(valueF, TIME_TO_BE_DECIDED);
+        long value = Futures.getThrowingExceptionWithTimeout(valueF, 10000);
         return value == NULL_VALUE ? null : new RevisionImpl(segment, value, 0);
     }
 
@@ -251,21 +247,18 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         synchronized (lock) {
             result = meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue);
         }
-        long TIME_TO_BE_DECIDED = 10000;
-        return Futures.getThrowingExceptionWithTimeout(result, TIME_TO_BE_DECIDED);
+        return Futures.getThrowingExceptionWithTimeout(result, 10000);
     }
 
     @Override
     public Revision fetchOldestRevision() {
-        long TIME_TO_BE_DECIDED = 10000;
-        long startingOffset = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), TIME_TO_BE_DECIDED).getStartingOffset();
+        long startingOffset = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), 10000).getStartingOffset();
         return new RevisionImpl(segment, startingOffset, 0);
     }
 
     @Override
     public void truncateToRevision(Revision newStart) {
-        long TIME_TO_BE_DECIDED = 10000;
-        Futures.getThrowingExceptionWithTimeout(meta.truncateSegment(newStart.asImpl().getOffsetInSegment()), TIME_TO_BE_DECIDED);
+        Futures.getThrowingExceptionWithTimeout(meta.truncateSegment(newStart.asImpl().getOffsetInSegment()), 10000);
         log.info("Truncate segment {} to revision {}", newStart.asImpl().getSegment(), newStart);
     }
 

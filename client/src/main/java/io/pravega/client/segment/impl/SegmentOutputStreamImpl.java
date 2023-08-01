@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -499,8 +498,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             try {
                 // if connection is null getConnection() establishes a connection and retransmits all events in inflight
                 // list.
-                long TIME_TO_BE_DECIDED = 10000;
-                connection = Futures.getThrowingExceptionWithTimeout(getConnection(), TIME_TO_BE_DECIDED);
+                connection = Futures.getThrowingExceptionWithTimeout(getConnection(), 10000);
             } catch (SegmentSealedException | NoSuchSegmentException e) {
                 // Add the event to inflight, this will be resent to the successor during the execution of resendToSuccessorsCallback
                 state.addToInflight(event);
