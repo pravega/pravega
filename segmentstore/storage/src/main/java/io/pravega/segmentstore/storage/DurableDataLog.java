@@ -158,6 +158,14 @@ public interface DurableDataLog extends AutoCloseable {
     long getEpoch();
 
     /**
+     * Override the epoch in the log metadata. To be used in cases where we initialize container from storage
+     * where we override the epoch in container metadata with epoch read from starage.
+     * @param epoch epoch to be overriden
+     * @throws  DurableDataLogException in case of exceptions while overriding.
+     */
+    void overrideEpoch(long epoch) throws DurableDataLogException;
+
+    /**
      * Gets a QueueStats with information about the current state of the queue.
      *
      * @return The result.

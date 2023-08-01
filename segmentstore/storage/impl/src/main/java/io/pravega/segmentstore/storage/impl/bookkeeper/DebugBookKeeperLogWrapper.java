@@ -385,6 +385,11 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         }
 
         @Override
+        public void overrideEpoch(long epoch) throws DurableDataLogException {
+            throw new DataLogInitializationException("Unsupported operation");
+        }
+
+        @Override
         public QueueStats getQueueStatistics() {
             return null;
         }

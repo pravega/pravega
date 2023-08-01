@@ -17,6 +17,8 @@ package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
+import io.pravega.segmentstore.storage.DurableDataLogException;
+
 import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -84,5 +86,7 @@ public interface OperationLog extends Container {
      * @return True if initializing for the first time.
      */
     boolean isInitialized();
+
+    void overrideEpoch(long epoch) throws DurableDataLogException;
 }
 

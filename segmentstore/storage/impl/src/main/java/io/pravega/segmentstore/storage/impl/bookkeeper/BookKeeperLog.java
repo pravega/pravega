@@ -58,6 +58,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -65,6 +66,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import java.util.function.Function;
 
 /**
  * Apache BookKeeper implementation of the DurableDataLog interface.
@@ -981,6 +983,29 @@ class BookKeeperLog implements DurableDataLog {
             this.writeProcessor.runAsync();
             LoggerHelpers.traceLeave(log, this.traceObjectId, "rollover", traceId, true);
         }
+    }
+
+    @Override
+    public void overrideEpoch(long epoch) throws DurableDataLogException {
+        LogMetadata metadata = this.loadMetadata();
+        val newMetadata = LogMetadata
+                .builder()
+                .enabled(true)
+                .epoch(epoch)
+                .truncationAddress(getOrDefault(metadata, LogMetadata::getTruncationAddress, LogMetadata.INITIAL_TRUNCATION_ADDRESS))
+                .updateVersion(getOrDefault(metadata, LogMetadata::getUpdateVersion, LogMetadata.INITIAL_VERSION))
+                .ledgers(getOrDefault(metadata, LogMetadata::getLedgers, new ArrayList<LedgerMetadata>()))
+                .build();
+        try {
+            byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize((LogMetadata) newMetadata).getCopy();
+            this.getZkClient().setData().forPath(this.getLogNodePath(), serializedMetadata);
+        } catch (Exception e) {
+            throw new DurableDataLogException("Problem overwriting Bookkeeper Log metadata.", e);
+        }
+    }
+
+    private <T> T getOrDefault(LogMetadata metadata, Function<LogMetadata, T> getter, T defaultValue) {
+        return metadata == null ? defaultValue : getter.apply(metadata);
     }
 
     /**
