@@ -241,10 +241,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      */
     private CompletableFuture<Void> initializeStorage() throws Exception {
         log.info("{}: Initializing storage.", this.traceObjectId);
-        long containerEpoch = shouldRecoverFromStorage().get() ? readContainerEpoch().get() : this.metadata.getContainerEpoch();
-        //save it back in DurableDataLog
-        this.durableLog.overrideEpoch(containerEpoch);
-        this.metadata.setContainerEpoch(containerEpoch);
+        long containerEpoch = this.metadata.getContainerEpoch();
+        if (shouldRecoverFromStorage().get()) {
+            containerEpoch = readContainerEpoch().get();
+            this.durableLog.overrideEpoch(containerEpoch);
+            this.metadata.setContainerEpoch(containerEpoch);
+            log.info("{}: Recovered container epoch {} has been set", this.traceObjectId, containerEpoch);
+        }
         log.info("{}: DurableLog and container epoch set to {}", this.traceObjectId, containerEpoch);
         this.storage.initialize(containerEpoch);
         val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
