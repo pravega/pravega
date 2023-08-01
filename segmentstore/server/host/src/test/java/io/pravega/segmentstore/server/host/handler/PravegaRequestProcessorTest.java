@@ -1637,8 +1637,6 @@ public class PravegaRequestProcessorTest {
 
         final long truncateOffset = 100;
         AssertExtensions.assertGreaterThan("Larger then endOffset", store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getLength(), truncateOffset);
-        sendRequest(channel, new WireCommands.TruncateSegment(requestId, segment, truncateOffset, ""));
-
         Reply reply = sendRequest(channel, new WireCommands.TruncateSegment(requestId, segment, truncateOffset, ""));
 
         //since the requested offset is larger than the last valid offset, hence BadOffSetException is thrown, which is handled as a wirecommand response 'SegmentIsTruncated
