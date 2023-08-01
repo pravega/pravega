@@ -1133,7 +1133,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             log.warn(requestId, "Conditional update on Table segment '{}' failed due to bad key version.", segment);
             invokeSafely(connection::send, new WireCommands.TableKeyBadVersion(requestId, segment, clientReplyStackTrace), failureHandler);
         } else if (u instanceof IndexRequestProcessor.SearchFailedException) {
-            log.warn(requestId, "Next offset search failed for '{}' due to {}.", segment, u.getMessage());
+            log.warn(requestId, "Next offset search failed for {} due to {}.", segment, u.getMessage());
             invokeSafely(connection::send, new WireCommands.IndexSegmentSearchFailed(requestId, segment, clientReplyStackTrace, offset), failureHandler);
         } else if (errorCodeExists(u)) {
             log.warn(requestId, "Operation on segment '{}' failed due to a {}.", segment, u.getClass());
