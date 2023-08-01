@@ -28,7 +28,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Gets the container id of the given segment.
- *  The arguments for the command that is the fully qualified segment name.
+ * The arguments for the command that is the fully qualified segment name.
  */
 public class GetContainerIdOfSegmentCommand extends SegmentStoreCommand {
 
