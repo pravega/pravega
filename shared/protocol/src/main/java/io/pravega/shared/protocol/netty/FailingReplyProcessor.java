@@ -237,6 +237,11 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
+    public void indexSegmentSearchFailed(WireCommands.IndexSegmentSearchFailed indexSegmentSearchFailed) {
+        throw new IllegalStateException("Unexpected operation: " + indexSegmentSearchFailed);
+    }
+
+    @Override
     public void errorMessage(WireCommands.ErrorMessage errorMessage) {
         throw new IllegalStateException("Unexpected operation: " + errorMessage);
     }

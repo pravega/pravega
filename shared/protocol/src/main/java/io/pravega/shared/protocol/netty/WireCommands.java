@@ -320,6 +320,49 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class IndexSegmentSearchFailed implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.INDEX_SEGMENT_SEARCH_FAILED;
+        final long requestId;
+        final String segment;
+        final String serverStackTrace;
+        /**
+         * This represents the target offset that was sent by the request.
+         */
+        final long offset;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.indexSegmentSearchFailed(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(serverStackTrace);
+            out.writeLong(offset);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
+            long offset = in.readLong();
+            return new IndexSegmentSearchFailed(requestId, segment, serverStackTrace, offset);
+        }
+
+        @Override
+        public String toString() {
+            return "Unable to locate next offset for segment: " + segment;
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+    }
+
+    @Data
     public static final class TableSegmentNotEmpty implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.TABLE_SEGMENT_NOT_EMPTY;
         final long requestId;
