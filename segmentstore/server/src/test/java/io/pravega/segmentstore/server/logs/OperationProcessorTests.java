@@ -1166,6 +1166,11 @@ public class OperationProcessorTests extends OperationLogTestBase {
         }
 
         @Override
+        public void overrideEpoch(long epoch) throws DurableDataLogException {
+            throw new DataLogInitializationException("Unsupported operation");
+        }
+
+        @Override
         public QueueStats getQueueStatistics() {
             return QueueStats.DEFAULT;
         }

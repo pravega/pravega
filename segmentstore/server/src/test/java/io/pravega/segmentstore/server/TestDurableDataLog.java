@@ -130,6 +130,11 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
+    public void overrideEpoch(long epoch) throws DurableDataLogException {
+        throw new DataLogInitializationException("Unsupported Operation");
+    }
+
+    @Override
     public QueueStats getQueueStatistics() {
         return this.wrappedLog.getQueueStatistics();
     }
