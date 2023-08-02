@@ -1654,6 +1654,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 3;
         int containerCount = 1;
 
+        FileHelpers.deleteFileOrDirectory(this.baseDir);
+        FileHelpers.deleteFileOrDirectory(this.logsDir);
+
         LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId++);
 

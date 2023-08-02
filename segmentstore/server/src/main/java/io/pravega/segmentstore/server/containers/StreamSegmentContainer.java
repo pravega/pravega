@@ -245,7 +245,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         if (shouldRecoverFromStorage().get()) {
             containerEpoch = readContainerEpoch().get();
             this.durableLog.overrideEpoch(containerEpoch);
-            this.metadata.setContainerEpoch(containerEpoch);
+            this.metadata.setContainerEpochAfterRecovery(containerEpoch);
             log.info("{}: Recovered container epoch {} has been set", this.traceObjectId, containerEpoch);
         }
         log.info("{}: DurableLog and container epoch set to {}", this.traceObjectId, containerEpoch);
@@ -875,7 +875,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
-                });
+                }, this.executor);
 
     }
 
@@ -900,14 +900,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     }
                     log.info("{}: Read container epoch {} from storage", this.traceObjectId, containerEpoch.getEpoch());
                     return CompletableFuture.completedFuture(containerEpoch.getEpoch() + 1);
-                })
+                }, this.executor)
                 .handleAsync( (epoch, ex) -> {
                    if ( ex != null ) {
                        log.error("{}: There was an error while reading the saved container epoch: {}", this.traceObjectId, ex);
                        throw new CompletionException(ex);
                    }
                    return epoch;
-                });
+                }, this.executor);
     }
 
     @SneakyThrows

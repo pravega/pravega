@@ -220,6 +220,12 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         Preconditions.checkState(this.epoch.compareAndSet(Long.MIN_VALUE, value), "epoch has already been set.");
     }
 
+
+    public void setContainerEpochAfterRecovery(long value) {
+        Preconditions.checkArgument(value > 0, "epoch must be a non-negative number");
+        this.epoch.set(value);
+    }
+
     //endregion
 
     //region EvictableMetadata Implementation

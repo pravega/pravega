@@ -831,6 +831,7 @@ class BookKeeperLog implements DurableDataLog {
      * @throws DurableDataLogException          If another kind of exception occurred.
      */
     private void persistMetadata(LogMetadata metadata, boolean create) throws DurableDataLogException {
+        log.info("{}: Adhwita Persisting metadata {} with version {} and create {}", this.traceObjectId, metadata, metadata.getUpdateVersion(), create);
         try {
             byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize(metadata).getCopy();
             Stat result = create
@@ -987,21 +988,20 @@ class BookKeeperLog implements DurableDataLog {
 
     @Override
     public void overrideEpoch(long epoch) throws DurableDataLogException {
-        LogMetadata metadata = this.loadMetadata();
-        val newMetadata = LogMetadata
-                .builder()
-                .enabled(true)
-                .epoch(epoch)
-                .truncationAddress(getOrDefault(metadata, LogMetadata::getTruncationAddress, LogMetadata.INITIAL_TRUNCATION_ADDRESS))
-                .updateVersion(getOrDefault(metadata, LogMetadata::getUpdateVersion, LogMetadata.INITIAL_VERSION))
-                .ledgers(getOrDefault(metadata, LogMetadata::getLedgers, new ArrayList<LedgerMetadata>()))
-                .build();
-        try {
-            byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize((LogMetadata) newMetadata).getCopy();
-            this.getZkClient().setData().forPath(this.getLogNodePath(), serializedMetadata);
-        } catch (Exception e) {
-            throw new DurableDataLogException("Problem overwriting Bookkeeper Log metadata.", e);
+        LogMetadata metadata = this.getLogMetadata();
+        synchronized ( this.lock ) {
+            val newMetadata = LogMetadata
+                    .builder()
+                    .enabled(true)
+                    .epoch(epoch)
+                    .truncationAddress(getOrDefault(metadata, LogMetadata::getTruncationAddress, LogMetadata.INITIAL_TRUNCATION_ADDRESS))
+                    .updateVersion(getOrDefault(metadata, LogMetadata::getUpdateVersion, LogMetadata.INITIAL_VERSION))
+                    .ledgers(getOrDefault(metadata, LogMetadata::getLedgers, new ArrayList<LedgerMetadata>()))
+                    .build();
+            this.persistMetadata(newMetadata, false);
+            this.logMetadata = newMetadata;
         }
+        log.info("{}: Overridden epoch to {} in metadata {}", this.traceObjectId, epoch, metadata);
     }
 
     private <T> T getOrDefault(LogMetadata metadata, Function<LogMetadata, T> getter, T defaultValue) {
