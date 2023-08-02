@@ -92,7 +92,28 @@ public class FuturesTests extends ThreadPooledTestSuite {
 
         // This should throw timeoutExceptions as future is not completing anytime
         CompletableFuture<String> timeoutFuture = new CompletableFuture<String>();
-        assertThrows(TimeoutException.class, () -> getThrowingExceptionWithTimeout(timeoutFuture, 10000));
+        assertThrows(TimeoutException.class, () -> getThrowingExceptionWithTimeout(timeoutFuture, 100));
+
+        CompletableFuture<String> incompleteFuture = new CompletableFuture<String>();
+        assertThrows(TimeoutException.class, () -> getThrowingExceptionWithTimeout(incompleteFuture, 100));
+        Thread.currentThread().interrupt();
+        try {
+            getAndHandleExceptions(incompleteFuture, RuntimeException::new);
+            fail();
+            Thread.sleep(1); //Here only to fix compiler error
+        } catch (InterruptedException e) {
+            assertEquals(true, Thread.interrupted());
+        }
+        Thread.currentThread().interrupt();
+        try {
+            getThrowingExceptionWithTimeout(incompleteFuture, 100);
+            fail();
+            Thread.sleep(1); //Here only to fix compiler error
+        } catch (InterruptedException e) {
+            assertEquals(true, Thread.interrupted());
+        }
+        assertFalse(Thread.currentThread().isInterrupted());
+
     }
 
     @Test(timeout = 10000)
