@@ -52,6 +52,7 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 import static io.pravega.common.concurrent.Futures.getThrowingException;
 import static io.pravega.common.concurrent.Futures.getThrowingExceptionWithTimeout;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static java.util.concurrent.CompletableFuture.completedFuture;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -77,7 +78,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
                      () -> getThrowingException(failedFuture),
                      e -> e.getMessage().equals("fail") && e.getClass().equals(RuntimeException.class));
     }
-    
+
     @Test
     public void testGetThrowingExceptionsWithTimeout() {
         CompletableFuture<String> future = new CompletableFuture<String>();
@@ -86,7 +87,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         CompletableFuture<String> failedFuture  = new CompletableFuture<String>();
         failedFuture.completeExceptionally(new RuntimeException("fail"));
         assertThrows("",
-                () -> getThrowingExceptionWithTimeout(failedFuture,10000),
+                () -> getThrowingExceptionWithTimeout(failedFuture, 10000),
                 e -> e.getMessage().equals("fail") && e.getClass().equals(RuntimeException.class));
 
         // This should throw timeoutExceptions as future is not completing anytime
