@@ -90,7 +90,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
                 () -> getThrowingExceptionWithTimeout(failedFuture, 10000),
                 e -> e.getMessage().equals("fail") && e.getClass().equals(RuntimeException.class));
 
-        // This should throw timeoutExceptions as future is not completing anytime
+        // This must throw timeoutExceptions as future is not completing anytime
         CompletableFuture<String> timeoutFuture = new CompletableFuture<String>();
         assertThrows(TimeoutException.class, () -> getThrowingExceptionWithTimeout(timeoutFuture, 10000));
     }
