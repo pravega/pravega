@@ -116,6 +116,15 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         this.notifierFactory = new NotifierFactory(new NotificationSystem(), synchronizer);
     }
 
+    /**
+     * Cancels the outStanding checkpoints.
+     * @returns true if the outStanding checkpoints are cleared.
+     */
+    public boolean cancelOutstandingCheckpoints() {
+   ReaderGroupState state = synchronizer.getState();
+   return state.getCheckpointState().removeOutstandingCheckpoints();
+}
+
     @Override
     public void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts) {
         synchronizer.fetchUpdates();

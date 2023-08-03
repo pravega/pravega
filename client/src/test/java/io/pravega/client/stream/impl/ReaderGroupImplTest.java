@@ -168,6 +168,26 @@ public class ReaderGroupImplTest {
     }
 
     @Test
+    public void testCancelOutstanding() {
+        CheckpointState state = new CheckpointState();
+        ReaderGroupState rGstate = mock(ReaderGroupState.class);
+        when(synchronizer.getState()).thenReturn(rGstate);
+        when(rGstate.getCheckpointState()).thenReturn(state);
+        state.beginNewCheckpoint("1", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        state.beginNewCheckpoint("2", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        state.beginNewCheckpoint("3", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        assertEquals("1", state.getCheckpointForReader("a"));
+        assertEquals("1", state.getCheckpointForReader("b"));
+        assertEquals(null, state.getCheckpointForReader("c"));
+        state.readerCheckpointed("1", "a", Collections.emptyMap());
+        assertEquals("2", state.getCheckpointForReader("a"));
+        assertEquals("1", state.getCheckpointForReader("b"));
+        assertTrue(readerGroup.cancelOutstandingCheckpoints());
+        assertEquals(0, state.getOutstandingCheckpoints().size());
+        assertFalse(readerGroup.cancelOutstandingCheckpoints());
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     public void resetRGToLastCheckpoint() {
         final UUID readerGroupId = UUID.randomUUID();

@@ -47,6 +47,8 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      */
     String getScope();
 
+    boolean cancelOutstandingCheckpoints();
+
     /**
      * Returns the name of the group.
      *
