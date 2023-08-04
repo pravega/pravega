@@ -98,7 +98,7 @@ public final class IndexRequestProcessor {
                 default:
                     throw new SearchFailedException("Index segment was of unexpected size: " + firstElement.getType());
             }
-        }, startIdx, endIdx - 1, targetOffset, greater);
+        }, startIdx, endIdx > 0 ? endIdx- 1 : 0, targetOffset, greater);
     }
 
 
