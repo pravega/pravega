@@ -20,6 +20,7 @@ import io.pravega.common.util.SortUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
@@ -43,6 +44,14 @@ public final class IndexRequestProcessor {
         }
     }
 
+    private static final class SegmentTruncatedException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        public SegmentTruncatedException(String message) {
+            super(message);
+        }
+    }
+
     /**
      * Locate the requested offset in segment.
      *
@@ -53,9 +62,15 @@ public final class IndexRequestProcessor {
      *
      * @return the corresponding offset position from the index segment entry.
      * @throws SearchFailedException if the index segment is of unexpected size or if the search fails.
+     * @throws StreamSegmentNotExistsException If the segment is truncated or it does not exist.
      */
-    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SearchFailedException {
-        return applySearch(store, segment, targetOffset, greater).getValue();
+    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SearchFailedException, StreamSegmentNotExistsException {
+        try {
+            long offset = applySearch(store, segment, targetOffset, greater).getValue();
+            return offset;
+        } catch (SegmentTruncatedException ex) {
+            throw new StreamSegmentNotExistsException(ex.getMessage());
+        }
     }
 
 
@@ -99,7 +114,9 @@ public final class IndexRequestProcessor {
                     return entry.getOffset();
                 case Future:
                 case EndOfStreamSegment:
+                    throw new IllegalStateException(String.format("Unexpected size of index segment was encountered for segment %s.", segment));
                 case Truncated:
+                    throw new SegmentTruncatedException(String.format("Segment %s no longer exists.", segment));
                 default:
                     throw new SearchFailedException("Index segment was of unexpected size: " + firstElement.getType());
             }
