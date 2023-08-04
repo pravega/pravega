@@ -28,8 +28,8 @@ import io.pravega.client.batch.impl.SegmentRangeImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -277,7 +277,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
      * getting offset at 300 in response since only that much of data is available in the segment.
      */
     @Test(timeout = 50000)
-    public void testNextStreamCut() throws ExecutionException, InterruptedException {
+    public void testNextStreamCut() throws SegmentTruncatedException, ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
@@ -313,7 +313,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
      * When this is passed as currentStreamcut, getting two segments in the response StreamCut which are the successors of the segment0.
      */
     @Test(timeout = 50000)
-    public void testNextStreamCutWithScaleUp() throws ExecutionException, InterruptedException {
+    public void testNextStreamCutWithScaleUp() throws SegmentTruncatedException, ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 1))
                 .build();
@@ -380,7 +380,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
      * we get their successor segment3 in response as they have scaled down.
      */
     @Test(timeout = 50000)
-    public void testNextStreamCutWithScaleDown() throws ExecutionException, InterruptedException {
+    public void testNextStreamCutWithScaleDown() throws SegmentTruncatedException, ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
@@ -455,7 +455,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
      * When getNextStreamCut api is being called with approxDistance at 80bytes, we get segment1 and segment2 in the response streamcut, since there are data available in one of them.
      */
     @Test(timeout = 50000)
-    public void testNextStreamCutScaleDownNotForwarded() throws ExecutionException, InterruptedException {
+    public void testNextStreamCutScaleDownNotForwarded() throws SegmentTruncatedException, ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
@@ -556,7 +556,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-5", STREAM + "-5"),
                 ImmutableMap.of(segment0, 120L));
 
-        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> batchClient.getNextStreamCut(streamCut, 80L));
+        AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> batchClient.getNextStreamCut(streamCut, 80L));
     }
 
     /**
@@ -566,7 +566,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
      * When getNextStreamCut api is called with approxdistance at 80bytes, we get segment4, segment5, segment6 and segment7 in the response.
      */
     @Test(timeout = 50000)
-    public void testNextStreamCutScaleUpAndDown() throws ExecutionException, InterruptedException {
+    public void testNextStreamCutScaleUpAndDown() throws SegmentTruncatedException, ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
@@ -672,7 +672,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
      * is being called we are getting the same segments in the response streamcut as no more data is available in the segments.
      */
     @Test(timeout = 50000)
-    public void testNextStreamCutWithNoScaling() throws ExecutionException, InterruptedException {
+    public void testNextStreamCutWithNoScaling() throws SegmentTruncatedException, ExecutionException, InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 1))
                 .build();
