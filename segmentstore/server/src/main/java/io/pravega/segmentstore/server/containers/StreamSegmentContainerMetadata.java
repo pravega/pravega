@@ -221,6 +221,10 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
 
+    /**
+     * Setting container epoch. To be used in cases of Storage based container recovery.
+     * @param value epoch value to override.
+     */
     public void setContainerEpochAfterRecovery(long value) {
         Preconditions.checkArgument(value > 0, "epoch must be a non-negative number");
         this.epoch.set(value);

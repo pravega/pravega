@@ -87,6 +87,12 @@ public interface OperationLog extends Container {
      */
     boolean isInitialized();
 
+    /**
+     * Override epoch of a container. To be used in case of container recovering from data in storage,
+     * hosting the container_epoch files with epoch information backed up in them.
+     * @param epoch epoch value to override.
+     * @throws DurableDataLogException Exception while overriding the epoch.
+     */
     void overrideEpoch(long epoch) throws DurableDataLogException;
 }
 

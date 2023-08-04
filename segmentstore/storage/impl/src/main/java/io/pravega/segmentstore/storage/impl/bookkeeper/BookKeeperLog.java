@@ -831,7 +831,6 @@ class BookKeeperLog implements DurableDataLog {
      * @throws DurableDataLogException          If another kind of exception occurred.
      */
     private void persistMetadata(LogMetadata metadata, boolean create) throws DurableDataLogException {
-        log.info("{}: Adhwita Persisting metadata {} with version {} and create {}", this.traceObjectId, metadata, metadata.getUpdateVersion(), create);
         try {
             byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize(metadata).getCopy();
             Stat result = create
