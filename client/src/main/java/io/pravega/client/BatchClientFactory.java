@@ -22,6 +22,7 @@ import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.batch.impl.BatchClientFactoryImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
+import io.pravega.client.segment.impl.SearchFailedException;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
@@ -103,4 +104,17 @@ public interface BatchClientFactory extends AutoCloseable {
      * @return A list of segment range in between a start and end stream cut.
      */
     List<SegmentRange> getSegmentRangeBetweenStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut);
+
+    /**
+     * Provides nearest streamcut in future depending on the distance and current streamcut.
+     * Depending on the requested distance per number of segments in the current streamcut, next offset for each segment is requested.
+     * If the current segment offset is at the tail of it, then the successor segment for it is being fetched.
+     * However, in case of scale down if offsets of all the segments participating in the scale down are at the tail then only call to get the next offset of their successor is made.
+     * @param startingStreamCut Starting streamcut
+     * @param approxDistanceToNextOffset approx distance to nextoffset in bytes
+     * @return A streamcut
+     * @throws NoSuchSegmentException If the provided segment does not exit.
+     * @throws SearchFailedException If unable to locate the next offset for the segment.
+     */
+    StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws NoSuchSegmentException, SearchFailedException;
 }
