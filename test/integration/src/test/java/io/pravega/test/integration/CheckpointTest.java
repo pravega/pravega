@@ -115,10 +115,7 @@ public class CheckpointTest {
         eventWriter.writeEvent(testString);
         eventWriter.writeEvent(testString);
         eventWriter.writeEvent(testString);
-        //eventWriter.writeEvent(testString);
-        //eventWriter.writeEvent(testString);
         eventWriter.flush();
-
         AtomicLong clock = new AtomicLong();
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("reader1", readerGroupName, serializer,
@@ -147,13 +144,10 @@ public class CheckpointTest {
 
         CompletableFuture<Checkpoint> checkpoint1 = readerGroup.initiateCheckpoint("Checkpoint1", backgroundExecutor1);
         assertFalse(checkpoint1.isDone());
-
         CompletableFuture<Checkpoint> checkpoint2 = readerGroup.initiateCheckpoint("Checkpoint2", backgroundExecutor2);
         assertFalse(checkpoint2.isDone());
-
         CompletableFuture<Checkpoint> checkpoint3 = readerGroup.initiateCheckpoint("Checkpoint3", backgroundExecutor3);
         assertFalse(checkpoint3.isDone());
-
         CompletableFuture<Checkpoint> checkpoint4 = readerGroup.initiateCheckpoint("Checkpoint4", backgroundExecutor4);
         assertTrue(checkpoint4.isCompletedExceptionally());
         try {
@@ -166,8 +160,6 @@ public class CheckpointTest {
         assertTrue(readerGroup.cancelOutstandingCheckpoints());
 
         CompletableFuture<Checkpoint> checkpoint5 = readerGroup.initiateCheckpoint("Checkpoint5", backgroundExecutor5);
-
-        // will create one more check point
 
         EventRead<String> read = reader1.readNextEvent(100);
         assertTrue(read.isCheckpoint());
@@ -196,14 +188,10 @@ public class CheckpointTest {
         assertTrue(read.isCheckpoint());
         assertEquals("Checkpoint1", read.getCheckpointName());
 
-        //assertTrue(checkpoint5.isDone());
         readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkpoint5.get()).disableAutomaticCheckpoints().build());
-        assertThrows("Checkpoint was cleared before results could be read." , ExecutionException.class , () -> checkpoint1.get(5 , TimeUnit.SECONDS));
-
-        assertThrows("Checkpoint was cleared before results could be read." , ExecutionException.class , () -> checkpoint2.get(5 , TimeUnit.SECONDS));
-
-        assertThrows("Checkpoint was cleared before results could be read." , ExecutionException.class , () -> checkpoint3.get(5 , TimeUnit.SECONDS));
-
+        assertThrows("Checkpoint was cleared before results could be read.", ExecutionException.class, () -> checkpoint1.get(5, TimeUnit.SECONDS));
+        assertThrows("Checkpoint was cleared before results could be read.", ExecutionException.class, () -> checkpoint2.get(5, TimeUnit.SECONDS));
+        assertThrows("Checkpoint was cleared before results could be read.", ExecutionException.class, () -> checkpoint3.get(5, TimeUnit.SECONDS));
         assertTrue(checkpoint5.isDone());
     }
 
