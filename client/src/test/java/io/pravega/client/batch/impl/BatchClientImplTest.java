@@ -21,8 +21,8 @@ import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
-import io.pravega.client.segment.impl.SearchFailedException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -412,36 +412,7 @@ public class BatchClientImplTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.LocateOffset.class));
-        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> client.getNextStreamCut(startingSC, 50L));
-    }
-
-    @Test(timeout = 5000)
-    public void testGetNextStreamCutWithSearchFailedException() throws Exception {
-        Segment segment1 = new Segment("scope", "stream", 1L);
-        Map<Segment, Long> positionMap = new HashMap<>();
-        positionMap.put(segment1, 30L);
-        StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
-        @Cleanup
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup
-        MockControllerWithSuccessors controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(), cf, getEmptyReplacement().join());
-        ClientConnection connection = mock(ClientConnection.class);
-        cf.provideConnection(endpoint, connection);
-        @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
-        client.getConnection(segment1);
-        ReplyProcessor processor = cf.getProcessor(endpoint);
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) {
-
-                WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
-                processor.process(new WireCommands.IndexSegmentSearchFailed(locateOffset.getRequestId(), locateOffset.getSegment(), "", 30L));
-                return null;
-            }
-        }).when(connection).send(any(WireCommands.LocateOffset.class));
-        AssertExtensions.assertThrows(SearchFailedException.class, () -> client.getNextStreamCut(startingSC, 50L));
+        AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> client.getNextStreamCut(startingSC, 50L));
     }
 
     @Test(timeout = 5000)

@@ -30,8 +30,7 @@ import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import io.pravega.client.segment.impl.NoSuchSegmentException;
-import io.pravega.client.segment.impl.SearchFailedException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
@@ -219,7 +218,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
 
     @Override
     // TODO: Need to check if we need to mention throws clause in the method signature here or need to handle Exception.
-    public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws NoSuchSegmentException, SearchFailedException {
+    public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
         Preconditions.checkArgument(approxDistanceToNextOffset > 0, "Ensure approxDistanceToNextOffset must be greater than 0");
         Stream stream = startingStreamCut.asImpl().getStream();
@@ -302,16 +301,15 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     }
 
     @SuppressWarnings("unchecked")
-    @SneakyThrows({ConnectionFailedException.class})
+    @SneakyThrows({ConnectionFailedException.class, SegmentTruncatedException.class})
     private <T extends Reply> T transformReply(Reply reply, Class<T> klass) {
         if (klass.isAssignableFrom(reply.getClass())) {
+            closeClientConnection();
             return (T) reply;
         }
         closeConnection(reply);
         if (reply instanceof WireCommands.NoSuchSegment) {
-            throw new NoSuchSegmentException(reply.toString());
-        } else if (reply instanceof WireCommands.IndexSegmentSearchFailed) {
-            throw new SearchFailedException(reply.toString());
+            throw new SegmentTruncatedException(reply.toString());
         } else {
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting a "
                     + klass.getName());

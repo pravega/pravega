@@ -38,8 +38,6 @@ public interface ReplyProcessor {
 
     void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment);
 
-    void indexSegmentSearchFailed(WireCommands.IndexSegmentSearchFailed indexSegmentSearchFailed);
-
     void tableSegmentNotEmpty(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty);
 
     void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber);
