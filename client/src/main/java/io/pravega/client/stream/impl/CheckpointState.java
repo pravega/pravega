@@ -209,9 +209,9 @@ public class CheckpointState {
            uncheckpointedHosts.remove(cp);
            checkpointPositions.remove(cp);
        }
-    recomputeCheckpointIndex();
+       recomputeCheckpointIndex();
        return true;
-}
+    }
 
     /**
      * Get the map of CheckpointId to list of readers blocking that checkpoint.

@@ -47,6 +47,12 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      */
     String getScope();
 
+    /**
+     * Cancels the outStanding checkpoints.
+     *
+     * @return true if the outStanding checkpoints are cleared.
+     */
+
     boolean cancelOutstandingCheckpoints();
 
     /**
