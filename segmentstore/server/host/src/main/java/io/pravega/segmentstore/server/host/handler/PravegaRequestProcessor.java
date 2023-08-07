@@ -1049,6 +1049,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             }
             return segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT);
         } catch (Exception ex) {
+            if (ex instanceof IllegalArgumentException || ex instanceof IndexRequestProcessor.SearchFailedException) {
+                return CompletableFuture.completedFuture(null);
+            }
             // throw  exception to the caller.
             log.warn("Unable to locate offset for index segment {}  for offset {} due to ", indexSegment, offset, ex);
             throw new CompletionException(ex);
