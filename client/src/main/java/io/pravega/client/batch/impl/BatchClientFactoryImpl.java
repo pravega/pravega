@@ -217,7 +217,6 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     }
 
     @Override
-    // TODO: Need to check if we need to mention throws clause in the method signature here or need to handle Exception.
     public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
         Preconditions.checkArgument(approxDistanceToNextOffset > 0, "Ensure approxDistanceToNextOffset must be greater than 0");
