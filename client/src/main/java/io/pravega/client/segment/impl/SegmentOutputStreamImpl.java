@@ -16,6 +16,7 @@
 package io.pravega.client.segment.impl;
 
 import static com.google.common.base.Preconditions.checkState;
+import static java.lang.String.format;
 
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -38,6 +40,7 @@ import com.google.common.base.Preconditions;
 
 import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenExpiredException;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.Flow;
@@ -66,7 +69,6 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -76,11 +78,9 @@ import lombok.extern.slf4j.Slf4j;
  * 
  * @see SegmentOutputStream
  */
-@RequiredArgsConstructor
 @Slf4j
 @ToString(of = {"segmentName", "writerId", "state"})
 class SegmentOutputStreamImpl implements SegmentOutputStream {
-
     @Getter
     private final String segmentName;
     @VisibleForTesting
@@ -88,6 +88,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final boolean useConnectionPooling;
     private final Controller controller;
     private final ConnectionPool connectionPool;
+    private final ClientConfig clientConfig;
+
     private final UUID writerId;
     private final Consumer<Segment> resendToSuccessorsCallback;
     private final State state = new State();
@@ -98,6 +100,23 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @VisibleForTesting
     @Getter
     private final long requestId = Flow.create().asLong();
+
+    SegmentOutputStreamImpl(String segmentName, boolean useConnectionPooling, Controller controller, ConnectionPool connectionPool, UUID writerId, Consumer<Segment> resendToSuccessorsCallback, RetryWithBackoff retrySchedule, DelegationTokenProvider tokenProvider) {
+       this(segmentName, useConnectionPooling, controller, connectionPool, writerId, resendToSuccessorsCallback, retrySchedule, tokenProvider, ClientConfig.builder().build());
+    }
+
+    SegmentOutputStreamImpl(String segmentName, boolean useConnectionPooling, Controller controller, ConnectionPool connectionPool, UUID writerId, Consumer<Segment> resendToSuccessorsCallback, RetryWithBackoff retrySchedule, DelegationTokenProvider tokenProvider, ClientConfig clientConfig) {
+        this.segmentName = segmentName;
+        this.useConnectionPooling = useConnectionPooling;
+        this.controller = controller;
+        this.connectionPool = connectionPool;
+        this.writerId = writerId;
+        this.resendToSuccessorsCallback = resendToSuccessorsCallback;
+        this.retrySchedule = retrySchedule;
+        this.tokenProvider = tokenProvider;
+        this.clientConfig = clientConfig;
+    }
+
 
     /**
      * Internal object that tracks the state of the connection.
@@ -498,11 +517,15 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             try {
                 // if connection is null getConnection() establishes a connection and retransmits all events in inflight
                 // list.
-                connection = Futures.getThrowingExceptionWithTimeout(getConnection(), 10000);
+                connection = Futures.getThrowingExceptionWithTimeout(getConnection(), clientConfig.getTimeoutToCompleteFutureMilliSec());
             } catch (SegmentSealedException | NoSuchSegmentException e) {
                 // Add the event to inflight, this will be resent to the successor during the execution of resendToSuccessorsCallback
                 state.addToInflight(event);
                 return;
+            } catch (TimeoutException e) {
+                // completing current event Exceptionally
+                event.getAckFuture().completeExceptionally(e);
+                throw new ServerTimeoutException(format("Timeout occurred while establishing connection {}", e));
             } catch (RetriesExhaustedException e) {
                 event.getAckFuture().completeExceptionally(e);
                 log.error("Failed to write event to Pravega due connectivity error ", e);

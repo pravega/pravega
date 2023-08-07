@@ -17,6 +17,7 @@ package io.pravega.client.state.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
@@ -28,6 +29,7 @@ import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
+import io.pravega.client.segment.impl.ServerTimeoutException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.stream.EventWriterConfig;
@@ -44,6 +46,7 @@ import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 
@@ -74,11 +77,19 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
 
+    private final ClientConfig config;
+
     private final Object lock = new Object();
 
     public RevisionedStreamClientImpl(Segment segment, EventSegmentReader in, SegmentOutputStreamFactory outFactory,
                                       ConditionalOutputStream conditional, SegmentMetadataClient meta,
                                       Serializer<T> serializer, EventWriterConfig config, DelegationTokenProvider tokenProvider ) {
+        this(segment, in, outFactory, conditional, meta, serializer, config, tokenProvider, ClientConfig.builder().build());
+    }
+
+    public RevisionedStreamClientImpl(Segment segment, EventSegmentReader in, SegmentOutputStreamFactory outFactory,
+                                      ConditionalOutputStream conditional, SegmentMetadataClient meta,
+                                      Serializer<T> serializer, EventWriterConfig config, DelegationTokenProvider tokenProvider, ClientConfig clientConfig ) {
         this.readTimeout = READ_TIMEOUT_MS;
         this.segment = segment;
         this.in = in;
@@ -86,6 +97,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         this.meta = meta;
         this.serializer = serializer;
         this.out = outFactory.createOutputStreamForSegment(segment, s -> handleSegmentSealed(), config, tokenProvider);
+        this.config = clientConfig;
     }
 
 
@@ -138,7 +150,12 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         log.trace("Read segment {} from revision {}", segment, revision);
         synchronized (lock) {
             long startOffset = revision.asImpl().getOffsetInSegment();
-            SegmentInfo segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), 10000);
+            SegmentInfo segmentInfo;
+            try {
+                segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), config.getTimeoutToCompleteFutureMilliSec());
+            } catch (TimeoutException e) {
+                throw new ServerTimeoutException(format("Timeout occurred while reading the segment Info for segment {} from revision {}", segment, revision));
+            }
             long endOffset = segmentInfo.getWriteOffset();
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", revision, segmentInfo));
@@ -158,7 +175,12 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         log.trace("Read segment {} from revision {} to revision {}", segment, startRevision, endRevision);
         synchronized (lock) {
             long startOffset = startRevision.asImpl().getOffsetInSegment();
-            SegmentInfo segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), 10000);
+            SegmentInfo segmentInfo;
+            try {
+                segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), config.getTimeoutToCompleteFutureMilliSec());
+            } catch (TimeoutException e) {
+                throw new ServerTimeoutException(format("Timeout occurred while reading the segment Info for segment {} from revision {} to revision {}", segment, startRevision, endRevision));
+            }
             long endOffset = endRevision.asImpl().getOffsetInSegment();
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", startRevision, segmentInfo));
@@ -180,7 +202,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         synchronized (lock) {
             streamLength = meta.fetchCurrentSegmentLength();
         }
-        return new RevisionImpl(segment, Futures.getThrowingExceptionWithTimeout(streamLength, 10000), 0);
+        return new RevisionImpl(segment, Futures.getThrowingException(streamLength), 0);
         
     }
 
@@ -235,7 +257,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         synchronized (lock) {
             valueF = meta.fetchProperty(RevisionStreamClientMark);
         }
-        long value = Futures.getThrowingExceptionWithTimeout(valueF, 10000);
+        long value = Futures.getThrowingException(valueF);
         return value == NULL_VALUE ? null : new RevisionImpl(segment, value, 0);
     }
 
@@ -247,18 +269,18 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         synchronized (lock) {
             result = meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue);
         }
-        return Futures.getThrowingExceptionWithTimeout(result, 10000);
+        return Futures.getThrowingException(result);
     }
 
     @Override
     public Revision fetchOldestRevision() {
-        long startingOffset = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), 10000).getStartingOffset();
+        long startingOffset = Futures.getThrowingException(meta.getSegmentInfo()).getStartingOffset();
         return new RevisionImpl(segment, startingOffset, 0);
     }
 
     @Override
     public void truncateToRevision(Revision newStart) {
-        Futures.getThrowingExceptionWithTimeout(meta.truncateSegment(newStart.asImpl().getOffsetInSegment()), 10000);
+        Futures.getThrowingException(meta.truncateSegment(newStart.asImpl().getOffsetInSegment()));
         log.info("Truncate segment {} to revision {}", newStart.asImpl().getSegment(), newStart);
     }
 

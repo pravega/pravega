@@ -56,6 +56,7 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -80,7 +81,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testGetThrowingExceptionsWithTimeout() {
+    public void testGetThrowingExceptionsWithTimeout() throws TimeoutException {
         CompletableFuture<String> future = new CompletableFuture<String>();
         future.complete("success");
         assertEquals("success", getThrowingExceptionWithTimeout(future, 10000));
@@ -113,6 +114,30 @@ public class FuturesTests extends ThreadPooledTestSuite {
             assertEquals(true, Thread.interrupted());
         }
         assertFalse(Thread.currentThread().isInterrupted());
+
+        try {
+            getThrowingExceptionWithTimeout(incompleteFuture, 100);
+            fail("Expected exception was not thrown.");
+        } catch (Exception e) {
+            assertTrue(e instanceof RuntimeException); // Verify exception type
+            assertEquals("java.lang.InterruptedException", e.getCause().getClass().getName()); // Verify cause type
+        }
+
+        try {
+            getThrowingExceptionWithTimeout(incompleteFuture, 100);
+            fail("Expected exception was not thrown.");
+        } catch (Exception e) {
+            assertTrue(e instanceof RuntimeException); // Verify exception type
+            assertEquals("java.lang.InterruptedException", e.getCause().getClass().getName()); // Verify cause type
+        }
+
+        try {
+            getThrowingExceptionWithTimeout(incompleteFuture, 100);
+            fail("Expected exception was not thrown.");
+        } catch (Exception e) {
+            assertTrue(e instanceof RuntimeException); // Verify exception type
+            assertEquals("java.lang.InterruptedException", e.getCause().getClass().getName()); // Verify cause type
+        }
 
     }
 
@@ -221,7 +246,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
     public void testFailedFuture() {
         Throwable ex = new IntentionalException();
         CompletableFuture<Void> cf = Futures.failedFuture(ex);
-        Assert.assertTrue("failedFuture() did not create a failed future.", cf.isCompletedExceptionally());
+        assertTrue("failedFuture() did not create a failed future.", cf.isCompletedExceptionally());
         AssertExtensions.assertThrows(
                 "failedFuture() did not complete the future with the expected exception.",
                 cf::join,
@@ -251,9 +276,9 @@ public class FuturesTests extends ThreadPooledTestSuite {
         val f2r1 = Futures.cancellableFuture(f2, i -> i.addAndGet(20));
         val f2r2 = Futures.cancellableFuture(f2, i -> i.addAndGet(200));
         f2.completeExceptionally(new IntentionalException());
-        Assert.assertTrue(f2r1.isCompletedExceptionally() && Futures.getException(f2r1) instanceof IntentionalException);
+        assertTrue(f2r1.isCompletedExceptionally() && Futures.getException(f2r1) instanceof IntentionalException);
         f2r2.cancel(true);
-        Assert.assertTrue(f2r2.isCompletedExceptionally() && Futures.getException(f2r2) instanceof IntentionalException);
+        assertTrue(f2r2.isCompletedExceptionally() && Futures.getException(f2r2) instanceof IntentionalException);
 
         // Result is cancelled.
         val f3 = new CompletableFuture<AtomicInteger>();
@@ -325,14 +350,14 @@ public class FuturesTests extends ThreadPooledTestSuite {
         List<CompletableFuture<Integer>> futures = createNumericFutures(count);
         completeFutures(futures);
         CompletableFuture<Void> allFuturesComplete = Futures.allOf(futures);
-        Assert.assertTrue("allOf() did not create a completed future when all futures were previously complete.", allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
+        assertTrue("allOf() did not create a completed future when all futures were previously complete.", allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
 
         // Not completed futures.
         futures = createNumericFutures(count);
         allFuturesComplete = Futures.allOf(futures);
         Assert.assertFalse("allOf() created a completed future when none of the futures were previously complete.", allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue("The result of allOf() complete when all its futures completed.", allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
+        assertTrue("The result of allOf() complete when all its futures completed.", allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
 
         // At least one failed & completed future.
         futures = createNumericFutures(count);
@@ -340,7 +365,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         allFuturesComplete = Futures.allOf(futures);
         Assert.assertFalse("allOf() created a completed future when not all of the futures were previously complete (but one failed).", allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue("The result of allOf() did not complete exceptionally when at least one of the futures failed.", allFuturesComplete.isCompletedExceptionally());
+        assertTrue("The result of allOf() did not complete exceptionally when at least one of the futures failed.", allFuturesComplete.isCompletedExceptionally());
 
         // At least one failed future.
         futures = createNumericFutures(count);
@@ -348,7 +373,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         failRandomFuture(futures);
         Assert.assertFalse("The result of allOf() completed when not all the futures completed (except one that failed).", allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue("The result of allOf() did not complete exceptionally when at least one of the futures failed.", allFuturesComplete.isCompletedExceptionally());
+        assertTrue("The result of allOf() did not complete exceptionally when at least one of the futures failed.", allFuturesComplete.isCompletedExceptionally());
     }
 
     /**
@@ -362,7 +387,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         List<CompletableFuture<Integer>> futures = createNumericFutures(count);
         completeFutures(futures);
         CompletableFuture<List<Integer>> allFuturesComplete = Futures.allOfWithResults(futures);
-        Assert.assertTrue("allOfWithResults() did not create a completed future when all futures were previously complete.",
+        assertTrue("allOfWithResults() did not create a completed future when all futures were previously complete.",
                 allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
         checkResults(allFuturesComplete.join());
 
@@ -371,7 +396,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         allFuturesComplete = Futures.allOfWithResults(futures);
         Assert.assertFalse("allOfWithResults() created a completed future when none of the futures were previously complete.", allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue("The result of allOfWithResults() complete when all its futures completed.",
+        assertTrue("The result of allOfWithResults() complete when all its futures completed.",
                 allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
         checkResults(allFuturesComplete.join());
 
@@ -382,7 +407,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         Assert.assertFalse("allOfWithResults() created a completed future when not all of the futures were previously complete (but one failed).",
                 allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue("The result of allOfWithResults() did not complete exceptionally when at least one of the futures failed.",
+        assertTrue("The result of allOfWithResults() did not complete exceptionally when at least one of the futures failed.",
                 allFuturesComplete.isCompletedExceptionally());
 
         // At least one failed future.
@@ -392,7 +417,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         Assert.assertFalse("The result of allOfWithResults() completed when not all the futures completed (except one that failed).",
                 allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue("The result of allOfWithResults() did not complete exceptionally when at least one of the futures failed.",
+        assertTrue("The result of allOfWithResults() did not complete exceptionally when at least one of the futures failed.",
                 allFuturesComplete.isCompletedExceptionally());
     }
 
@@ -407,7 +432,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         Map<Integer, CompletableFuture<Integer>> futures = createMappedNumericFutures(count);
         completeFutures(futures);
         CompletableFuture<Map<Integer, Integer>> allFuturesComplete = Futures.allOfWithResults(futures);
-        Assert.assertTrue("allOfWithResults() did not create a completed future when all futures were previously complete.",
+        assertTrue("allOfWithResults() did not create a completed future when all futures were previously complete.",
                 allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
         checkResults(allFuturesComplete.join());
 
@@ -417,7 +442,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         Assert.assertFalse("allOfWithResults() created a completed future when none of the futures were previously complete.",
                 allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue("The result of allOfWithResults() complete when all its futures completed.",
+        assertTrue("The result of allOfWithResults() complete when all its futures completed.",
                 allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
         checkResults(allFuturesComplete.join());
 
@@ -428,7 +453,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         Assert.assertFalse("allOfWithResults() created a completed future when not all of the futures were previously complete (but one failed).",
                 allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue("The result of allOfWithResults() did not complete exceptionally when at least one of the futures failed.",
+        assertTrue("The result of allOfWithResults() did not complete exceptionally when at least one of the futures failed.",
                 allFuturesComplete.isCompletedExceptionally());
 
         // At least one failed future.
@@ -438,7 +463,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         Assert.assertFalse("The result of allOfWithResults() completed when not all the futures completed (except one that failed).",
                 allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue("The result of allOfWithResults() did not complete exceptionally when at least one of the futures failed.",
+        assertTrue("The result of allOfWithResults() did not complete exceptionally when at least one of the futures failed.",
                 allFuturesComplete.isCompletedExceptionally());
     }
 
@@ -453,7 +478,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         Map<CompletableFuture<Integer>, Integer> futures = createMappedNumericKeyFutures(count);
         completeKeyFutures(futures);
         CompletableFuture<Map<Integer, Integer>> allFuturesComplete = Futures.keysAllOfWithResults(futures);
-        Assert.assertTrue("keysAllOfWithResults() did not create a completed future when all futures were previously complete.",
+        assertTrue("keysAllOfWithResults() did not create a completed future when all futures were previously complete.",
                 allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
         checkKeyResults(allFuturesComplete.join());
 
@@ -463,7 +488,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         Assert.assertFalse("keysAllOfWithResults() created a completed future when none of the futures were previously complete.",
                 allFuturesComplete.isDone());
         completeKeyFutures(futures);
-        Assert.assertTrue("The result of keysAllOfWithResults() complete when all its futures completed.",
+        assertTrue("The result of keysAllOfWithResults() complete when all its futures completed.",
                 allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
         checkKeyResults(allFuturesComplete.join());
 
@@ -474,7 +499,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         Assert.assertFalse("keysAllOfWithResults() created a completed future when not all of the futures were previously complete (but one failed).",
                 allFuturesComplete.isDone());
         completeKeyFutures(futures);
-        Assert.assertTrue("The result of keysAllOfWithResults() did not complete exceptionally when at least one of the futures failed.",
+        assertTrue("The result of keysAllOfWithResults() did not complete exceptionally when at least one of the futures failed.",
                 allFuturesComplete.isCompletedExceptionally());
 
         // At least one failed future.
@@ -484,7 +509,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         Assert.assertFalse("The result of keysAllOfWithResults() completed when not all the futures completed (except one that failed).",
                 allFuturesComplete.isDone());
         completeKeyFutures(futures);
-        Assert.assertTrue("The result of keysAllOfWithResults() did not complete exceptionally when at least one of the futures failed.",
+        assertTrue("The result of keysAllOfWithResults() did not complete exceptionally when at least one of the futures failed.",
                 allFuturesComplete.isCompletedExceptionally());
     }
 
@@ -528,7 +553,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         // Async exceptions (before call to completeAfter).
         val toFail1 = new CompletableFuture<Integer>();
         Futures.completeAfter(() -> Futures.failedFuture(new IntentionalException()), toFail1);
-        Assert.assertTrue("Async exceptions were not propagated properly (before).", toFail1.isCompletedExceptionally());
+        assertTrue("Async exceptions were not propagated properly (before).", toFail1.isCompletedExceptionally());
         AssertExtensions.assertThrows(
                 "Unexpected async exception got propagated (before).",
                 toFail1::join,
@@ -539,7 +564,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         val toFail2 = new CompletableFuture<Integer>();
         Futures.completeAfter(() -> sourceToFail2, toFail2);
         sourceToFail2.completeExceptionally(new IntentionalException());
-        Assert.assertTrue("Async exceptions were not propagated properly (after).", toFail2.isCompletedExceptionally());
+        assertTrue("Async exceptions were not propagated properly (after).", toFail2.isCompletedExceptionally());
         AssertExtensions.assertThrows(
                 "Unexpected async exception got propagated (after).",
                 toFail2::join,
@@ -553,7 +578,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
                     throw new IntentionalException();
                 }, toFail3),
                 ex -> ex instanceof IntentionalException);
-        Assert.assertTrue("Sync exceptions were not propagated properly.", toFail3.isCompletedExceptionally());
+        assertTrue("Sync exceptions were not propagated properly.", toFail3.isCompletedExceptionally());
         AssertExtensions.assertThrows(
                 "Unexpected sync exception got propagated.",
                 toFail3::join,
@@ -562,7 +587,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         // Normal completion (before call to completeAfter).
         val toComplete1 = new CompletableFuture<Integer>();
         Futures.completeAfter(() -> CompletableFuture.completedFuture(1), toComplete1);
-        Assert.assertTrue("Normal completion did not happen (before).", Futures.isSuccessful(toComplete1));
+        assertTrue("Normal completion did not happen (before).", Futures.isSuccessful(toComplete1));
         Assert.assertEquals("Unexpected value from normal completion (before).", 1, (int) toComplete1.join());
 
         // Normal completion (after call to completeAfter).
@@ -570,7 +595,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
         val toComplete2 = new CompletableFuture<Integer>();
         Futures.completeAfter(() -> sourceToComplete2, toComplete2);
         sourceToComplete2.complete(2);
-        Assert.assertTrue("Normal completion did not happen (after).", Futures.isSuccessful(toComplete2));
+        assertTrue("Normal completion did not happen (after).", Futures.isSuccessful(toComplete2));
         Assert.assertEquals("Unexpected value from normal completion (after).", 2, (int) toComplete2.join());
     }
 
