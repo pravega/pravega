@@ -205,6 +205,7 @@ public final class Futures {
      * @param <E1>          A type of exception that may cause the future to fail.
      * @param <E2>          A type of exception that may cause the future to fail.
      * @param <E3>          A type of exception that may cause the future to fail.
+     * @param <E4>          TimeoutException that may cause the future to fail if timeout happen.
      * @param future        The future to call get() on.
      * @param timeoutMillis This is the maximum time to get the result.
      * @return The result of the provided future.
