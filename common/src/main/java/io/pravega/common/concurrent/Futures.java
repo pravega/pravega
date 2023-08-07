@@ -211,6 +211,7 @@ public final class Futures {
      * @throws E1 If exception E1 occurs.
      * @throws E2 If exception E2 occurs.
      * @throws E3 If exception E3 occurs.
+     * @throws E4 If exception E4 occurs.
      */
     public static <ResultT, E1 extends Exception, E2 extends Exception, E3 extends Exception, E4 extends TimeoutException> ResultT getThrowingExceptionWithTimeout(Future<ResultT> future, long timeoutMillis) throws E1, E2, E3, E4 {
         Preconditions.checkNotNull(future);
