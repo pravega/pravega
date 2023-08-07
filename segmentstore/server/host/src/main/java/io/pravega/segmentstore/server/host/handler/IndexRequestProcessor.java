@@ -61,15 +61,18 @@ public final class IndexRequestProcessor {
      * @param greater boolean to determine if the next higher or the lower value to be returned in case the requested offset is not present.
      *
      * @return the corresponding offset position from the index segment entry.
-     * @throws SearchFailedException if the index segment is of unexpected size or if the search fails.
      * @throws StreamSegmentNotExistsException If the segment is truncated or it does not exist.
      */
-    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SearchFailedException, StreamSegmentNotExistsException {
+    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws StreamSegmentNotExistsException {
         try {
             long offset = applySearch(store, segment, targetOffset, greater).getValue();
             return offset;
         } catch (SegmentTruncatedException ex) {
             throw new StreamSegmentNotExistsException(ex.getMessage());
+        } catch (IllegalStateException | SearchFailedException ex) {
+            log.warn("Sending the tail offset for the segment as it failed to locate offset for segment: {}", segment, ex);
+            SegmentProperties segmentProperties = store.getStreamSegmentInfo(segment, TIMEOUT).join();
+            return segmentProperties.getLength();
         }
     }
 
@@ -114,7 +117,7 @@ public final class IndexRequestProcessor {
                     return entry.getOffset();
                 case Future:
                 case EndOfStreamSegment:
-                    throw new IllegalStateException(String.format("Unexpected size of index segment was encountered for segment %s.", segment));
+                    throw new IllegalStateException(String.format("Unexpected size of index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
                 case Truncated:
                     throw new SegmentTruncatedException(String.format("Segment %s no longer exists.", segment));
                 default:
