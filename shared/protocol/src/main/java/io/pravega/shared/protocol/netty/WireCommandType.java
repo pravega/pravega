@@ -81,6 +81,7 @@ public enum WireCommandType {
     
     LOCATE_OFFSET(41, WireCommands.LocateOffset::readFrom),
     OFFSET_LOCATED(42, WireCommands.OffsetLocated::readFrom),
+    INDEX_SEGMENT_SEARCH_FAILED(43, WireCommands.IndexSegmentSearchFailed::readFrom),
 
     WRONG_HOST(50, WireCommands.WrongHost::readFrom),
     SEGMENT_IS_SEALED(51, WireCommands.SegmentIsSealed::readFrom),

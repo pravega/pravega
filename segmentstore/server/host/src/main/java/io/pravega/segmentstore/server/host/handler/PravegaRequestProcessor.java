@@ -641,6 +641,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(truncateSegment.getRequestId(), "Truncating segment {} at offset {}.",
                 segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
+                //TODO later, we can decide whether it has to run on separate thread or same thread.
+                .thenAccept(v -> truncateIndexSegment(segment, offset))
                 .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
                 .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, offset, operation, e));
     }
@@ -1038,6 +1040,27 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     }
 
+    private void truncateIndexSegment(String segment, long offset) {
+        String indexSegment = getIndexSegmentName(segment);
+        try {
+            long indexSegmentOffset = IndexRequestProcessor.locateOffsetForIndexSegment(segmentStore, segment, offset, false);
+            log.debug("Truncating index segment {} at offset {}.", indexSegment, indexSegmentOffset);
+            if (indexSegmentOffset == 0) {
+                return;
+            }
+            segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT)
+                    .whenComplete((v, exp) -> {
+                        if (exp != null) {
+                            log.warn("Failed to truncate index segment {} at offset {} due to", indexSegment, indexSegmentOffset, exp);
+                        } else {
+                            log.info("Successfully truncated index segment {} at offset {}", indexSegment, indexSegmentOffset);
+                        }
+                    });
+        } catch (Exception e) {
+            log.warn("Unable to locate offset for index segment {}  for offset {} due to ", indexSegment, offset, e);
+        }
+    }
+
     private WireCommands.TableEntries getTableEntriesCommand(final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {
         Preconditions.checkArgument(resultEntries.size() == inputKeys.size(), "Number of input keys should match result entry count.");
         final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries =
@@ -1132,6 +1155,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof BadKeyVersionException) {
             log.warn(requestId, "Conditional update on Table segment '{}' failed due to bad key version.", segment);
             invokeSafely(connection::send, new WireCommands.TableKeyBadVersion(requestId, segment, clientReplyStackTrace), failureHandler);
+        } else if (u instanceof IndexRequestProcessor.SearchFailedException) {
+            log.warn(requestId, "Next offset search failed for {} due to {}.", segment, u.getMessage());
+            invokeSafely(connection::send, new WireCommands.IndexSegmentSearchFailed(requestId, segment, clientReplyStackTrace, offset), failureHandler);
         } else if (errorCodeExists(u)) {
             log.warn(requestId, "Operation on segment '{}' failed due to a {}.", segment, u.getClass());
             invokeSafely(connection::send,
