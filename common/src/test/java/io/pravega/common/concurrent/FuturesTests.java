@@ -115,30 +115,14 @@ public class FuturesTests extends ThreadPooledTestSuite {
         }
         assertFalse(Thread.currentThread().isInterrupted());
 
+        assertThrows(TimeoutException.class, () -> getThrowingExceptionWithTimeout(incompleteFuture, 100));
+        // catching TimeoutException
         try {
             getThrowingExceptionWithTimeout(incompleteFuture, 100);
             fail("Expected exception was not thrown.");
         } catch (Exception e) {
-            assertTrue(e instanceof RuntimeException); // Verify exception type
-            assertEquals("java.lang.InterruptedException", e.getCause().getClass().getName()); // Verify cause type
+            assertTrue(e instanceof TimeoutException); // Verify exception type
         }
-
-        try {
-            getThrowingExceptionWithTimeout(incompleteFuture, 100);
-            fail("Expected exception was not thrown.");
-        } catch (Exception e) {
-            assertTrue(e instanceof RuntimeException); // Verify exception type
-            assertEquals("java.lang.InterruptedException", e.getCause().getClass().getName()); // Verify cause type
-        }
-
-        try {
-            getThrowingExceptionWithTimeout(incompleteFuture, 100);
-            fail("Expected exception was not thrown.");
-        } catch (Exception e) {
-            assertTrue(e instanceof RuntimeException); // Verify exception type
-            assertEquals("java.lang.InterruptedException", e.getCause().getClass().getName()); // Verify cause type
-        }
-
     }
 
     @Test(timeout = 10000)
