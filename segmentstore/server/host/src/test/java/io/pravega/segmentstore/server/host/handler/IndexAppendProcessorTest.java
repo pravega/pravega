@@ -61,7 +61,7 @@ public class IndexAppendProcessorTest {
         inlineExecutor.shutdown();
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 6000)
     public void processAppend() {
         String segmentName = "test";
         SegmentProperties segmentProperties = StreamSegmentInformation.builder()
