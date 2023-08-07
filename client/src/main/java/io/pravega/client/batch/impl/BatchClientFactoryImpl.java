@@ -288,7 +288,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                     nextPositionsMap.put(entry.getKey(), entry.getValue());
                 }
             } else { //Segment is neither sealed and nor scaled
-                log.debug("Tail of the segment is reached for segment: ", entry.getKey());
+                log.debug("Tail of the segment is reached for segment: {}", entry.getKey());
                 nextPositionsMap.put(entry.getKey(), entry.getValue());
             }
 
