@@ -24,6 +24,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -45,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ClientConfig implements Serializable {
 
     static final int DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE = 10;
+    static final long READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(30);
     private static final long serialVersionUID = 1L;
     // Use this scheme when client want to connect to a static set of controller servers.
     // Eg: tcp://ip1:port1,ip2:port2
@@ -102,6 +104,10 @@ public class ClientConfig implements Serializable {
      * @return Maximum number of connections per Segment store to be used by connection pooling.
      */
     private final int maxConnectionsPerSegmentStore;
+
+    // This is a timeout to be passed to Completeablefuture to complete.
+    private final long timeoutToCompleteFutureMilliSec;
+
 
     /**
      * An internal property that determines if the client config.
@@ -220,6 +226,11 @@ public class ClientConfig implements Serializable {
             this.deriveTlsEnabledFromControllerURI = value;
             return this;
         }
+       
+        public ClientConfigBuilder timeoutToCompleteFutureMilliSec(long timeoutToCompleteFutureMilliSec) {
+            this.timeoutToCompleteFutureMilliSec = timeoutToCompleteFutureMilliSec;
+            return this;
+        }
 
         public ClientConfigBuilder maxConnectionsPerSegmentStore(int maxConnectionsPerSegmentStore) {
             if (this.isDefaultMaxConnections) {
@@ -264,7 +275,10 @@ public class ClientConfig implements Serializable {
             if (maxConnectionsPerSegmentStore <= 0) {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
             }
-            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
+            if (timeoutToCompleteFutureMilliSec <= 0) {
+                timeoutToCompleteFutureMilliSec = READ_TIMEOUT_MS;
+            }
+            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore, timeoutToCompleteFutureMilliSec,
                     isDefaultMaxConnections, deriveTlsEnabledFromControllerURI, enableTlsToController,
                     enableTlsToSegmentStore, metricListener);
         }

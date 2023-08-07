@@ -403,7 +403,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId,
                 DelegationTokenProviderFactory.create(controller, segmentId, AccessOperation.READ));
         try {
-            long startingOffset = Futures.getThrowingExceptionWithTimeout(metadataClient.getSegmentInfo(), timeoutInMilli).getStartingOffset();
+            long startingOffset = Futures.getThrowingException(metadataClient.getSegmentInfo()).getStartingOffset();
             if (segmentReader.getOffset() == startingOffset) {
                 log.warn("Attempt to fetch the next available read offset on the segment {} returned a truncated offset {}",
                          segmentId, startingOffset);
