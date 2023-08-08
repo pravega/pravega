@@ -482,6 +482,13 @@ public abstract class AbstractSegmentStoreCommandsTest {
     }
 
     @Test
+    public void testGetContainerIdwithskipcheck() throws Exception {
+        String commandResult = TestUtils.executeCommand("segmentstore get-container-id segmentstore/getContainerIdwithskipcheck/0.#epoch.0 skipcheck", STATE.get());
+        Assert.assertTrue(commandResult.contains("Container Id"));
+        Assert.assertNotNull(GetContainerIdOfSegmentCommand.descriptor());
+    }
+
+    @Test
     public void testGetContainerIdOfNonSegmentCommand() throws Exception {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getContainerIdTest", StreamConfiguration.builder().build());
         String commandResult = TestUtils.executeCommand("segmentstore get-container-id segmentstores/notAStream/test", STATE.get());

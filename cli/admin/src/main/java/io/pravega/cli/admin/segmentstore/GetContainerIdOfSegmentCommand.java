@@ -42,35 +42,41 @@ public class GetContainerIdOfSegmentCommand extends SegmentStoreCommand {
 
     @Override
     public void execute() throws Exception {
-        ensureArgCount(1);
-        @Cleanup
-        CuratorFramework zkClient = createZKClient();
-        @Cleanup
-        ConnectionPool pool = createConnectionPool();
-        @Cleanup
-        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient, pool);
+        Preconditions.checkArgument(getArgCount() > 0 && getArgCount() <= 2, "Incorrect argument count.");
         final String fullyQualifiedSegmentName = getArg(0);
         String[] inputParam = fullyQualifiedSegmentName.split("/");
         Preconditions.checkArgument(inputParam.length == 3, "Invalid qualified-segment-name  '%s'", fullyQualifiedSegmentName);
-        String scope = inputParam[0];
-        String stream = inputParam[1];
-        String[] segmentArr = inputParam[2].split("\\.");
-
-        try {
-            int segmentNumber = Integer.parseInt(segmentArr[0]);
-            int epoch = Integer.parseInt(segmentArr[2]);
-            long segmentId = NameUtils.computeSegmentId(segmentNumber, epoch);
-            CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfoFuture = segmentHelper.getSegmentInfo(scope, stream, segmentId, super.authHelper.retrieveMasterToken(), 0L);
-            segmentInfoFuture.join();
+        if (getArgCount() == 2) {
+            final String check = getArg(1);
+            Preconditions.checkArgument(check.equalsIgnoreCase("skipcheck"), "Command argument should either be skipcheck/SKIPCHECK or only existing segment name.");
             int containerId = segToConMapper.getContainerId(fullyQualifiedSegmentName);
             output("Container Id for the given Segment is :" + containerId);
-        } catch (Exception ex) {
+        } else if (getArgCount() == 1) {
+            try {
+                String scope = inputParam[0];
+                String stream = inputParam[1];
+                String[] segmentArr = inputParam[2].split("\\.");
+                @Cleanup
+                CuratorFramework zkClient = createZKClient();
+                @Cleanup
+                ConnectionPool pool = createConnectionPool();
+                @Cleanup
+                SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient, pool);
+                int segmentNumber = Integer.parseInt(segmentArr[0]);
+                int epoch = Integer.parseInt(segmentArr[2]);
+                long segmentId = NameUtils.computeSegmentId(segmentNumber, epoch);
+                CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfoFuture = segmentHelper.getSegmentInfo(scope, stream, segmentId, super.authHelper.retrieveMasterToken(), 0L);
+                segmentInfoFuture.join();
+                int containerId = segToConMapper.getContainerId(fullyQualifiedSegmentName);
+                output("Container Id for the given Segment is :" + containerId);
+            }  catch (Exception ex) {
             output("Error occurred while fetching containerId : %s", ex);
-              }
-}
+        }
+    }
+            }
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "get-container-id", "Get the Id of a Container that belongs to a segment.",
-                new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to get info from (e.g., scope/stream/0.#epoch.0)."));
+                new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to get info from (e.g., scope/stream/0.#epoch.0)."), new ArgDescriptor("optional:SKIPCHECK", "If given as skipcheck/SKIPCHECK then it skips checking if the segment already exists."));
     }
 }
