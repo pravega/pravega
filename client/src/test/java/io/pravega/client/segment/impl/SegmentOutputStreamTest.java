@@ -255,7 +255,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         @Cleanup
         SegmentOutputStreamImpl output = Mockito.spy(new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, resendToSuccessorsCallback,
                 RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken()));
-        // a Future which never completes.
+        // a Future which never completes
         CompletableFuture<ClientConnection> incompleteFuture = new CompletableFuture<>();
         doReturn(incompleteFuture).when(output).getConnection();
         // try sending an event.
