@@ -309,8 +309,10 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         }
         closeConnection(reply);
         if (reply instanceof WireCommands.NoSuchSegment) {
+            log.error("Exception occurred while locating next offset: {}", reply);
             throw new SegmentTruncatedException(reply.toString());
         } else {
+            log.error("Unexpected exception occurred: {}", reply);
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting a "
                     + klass.getName());
         }
