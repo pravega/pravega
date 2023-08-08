@@ -29,12 +29,14 @@ import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
+import io.pravega.client.segment.impl.ServerTimeoutException;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
@@ -731,6 +733,42 @@ public class EventStreamReaderTest {
         assertNull(reader.readNextEvent(0).getEvent());
         assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(event1.getEventPointer()));
         reader.close();
+    }
+
+    @Test(timeout = 10000L)
+    public void testThrowingServerTimeoutException() throws Exception {
+        AtomicLong clock = new AtomicLong();
+        Segment segment = Segment.fromScopedName("Foo/Bar/0");
+        SegmentWithRange rangedSegment = new SegmentWithRange(segment, 0, 1);
+        // Setup mock.
+        SegmentInputStreamFactory segInputStreamFactory = Mockito.mock(SegmentInputStreamFactory.class);
+        SegmentMetadataClientFactory segmentMetadataClientFactory = Mockito.mock(SegmentMetadataClientFactory.class);
+        SegmentMetadataClient metadataClient = Mockito.mock(SegmentMetadataClient.class);
+        EventSegmentReader segmentInputStream = Mockito.mock(EventSegmentReader.class);
+        Mockito.when(segmentMetadataClientFactory.createSegmentMetadataClient(any(Segment.class), any())).thenReturn(metadataClient);
+        Mockito.when(segmentInputStream.getSegmentId()).thenReturn(segment);
+        Mockito.when(segInputStreamFactory.createEventReaderForSegment(any(Segment.class), anyInt(), any(Semaphore.class), anyLong())).thenReturn(segmentInputStream);
+        // Ensure segmentInputStream.read() returns SegmentTruncatedException.
+        Mockito.when(segmentInputStream.isSegmentReady()).thenReturn(true);
+        Mockito.when(segmentInputStream.read(anyLong())).thenThrow(SegmentTruncatedException.class);
+        // Ensure SegmentInfo returns NoSuchSegmentException.
+        CompletableFuture<SegmentInfo> incompleteFuture = new CompletableFuture();
+        Mockito.when(metadataClient.getSegmentInfo()).thenReturn(incompleteFuture);
+
+        Orderer orderer = new Orderer();
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+        Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
+        @Cleanup
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segInputStreamFactory, segmentMetadataClientFactory,
+                new ByteArraySerializer(), groupState,
+                orderer, clock::get,
+                ReaderConfig.builder().build(), createWatermarkReaders(), Mockito.mock(Controller.class));
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(eq(0L), any()))
+                .thenReturn(ImmutableMap.of(rangedSegment, 0L))
+                .thenReturn(Collections.emptyMap());
+        InOrder inOrder = Mockito.inOrder(groupState, segmentInputStream);
+        // Validate that ServerTimeoutException is thrown.
+        AssertExtensions.assertThrows(ServerTimeoutException.class, () -> reader.readNextEvent(10000));
     }
 
     /**
