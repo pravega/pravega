@@ -525,7 +525,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             } catch (TimeoutException e) {
                 // completing current event Exceptionally
                 event.getAckFuture().completeExceptionally(e);
-                throw new ServerTimeoutException(format("Timeout occurred while establishing connection {}", e));
+                throw new ServerTimeoutException(format("Message was not sent {%s}", e));
             } catch (RetriesExhaustedException e) {
                 event.getAckFuture().completeExceptionally(e);
                 log.error("Failed to write event to Pravega due connectivity error ", e);
