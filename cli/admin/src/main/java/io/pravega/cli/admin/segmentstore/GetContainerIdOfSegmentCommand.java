@@ -32,12 +32,12 @@ import java.util.concurrent.CompletableFuture;
  */
 public class GetContainerIdOfSegmentCommand extends SegmentStoreCommand {
 
-    private final SegmentToContainerMapper segToConMapper;
+    private final SegmentToContainerMapper segmentToContainerMapper;
 
     public GetContainerIdOfSegmentCommand(CommandArgs args) {
         super(args);
         int containerCount = getServiceConfig().getContainerCount();
-        this.segToConMapper = new SegmentToContainerMapper(containerCount, true);
+        this.segmentToContainerMapper = new SegmentToContainerMapper(containerCount, true);
     }
 
     @Override
@@ -49,8 +49,8 @@ public class GetContainerIdOfSegmentCommand extends SegmentStoreCommand {
         if (getArgCount() == 2) {
             final String check = getArg(1);
             Preconditions.checkArgument(check.equalsIgnoreCase("skipcheck"), "Command argument should either be skipcheck/SKIPCHECK or only existing segment name.");
-            int containerId = segToConMapper.getContainerId(fullyQualifiedSegmentName);
-            output("Container Id for the given Segment is :" + containerId);
+            int containerId = segmentToContainerMapper.getContainerId(fullyQualifiedSegmentName);
+            output("Container Id for the given Segment is:" + containerId);
         } else if (getArgCount() == 1) {
             try {
                 String scope = inputParam[0];
@@ -67,13 +67,13 @@ public class GetContainerIdOfSegmentCommand extends SegmentStoreCommand {
                 long segmentId = NameUtils.computeSegmentId(segmentNumber, epoch);
                 CompletableFuture<WireCommands.StreamSegmentInfo> segmentInfoFuture = segmentHelper.getSegmentInfo(scope, stream, segmentId, super.authHelper.retrieveMasterToken(), 0L);
                 segmentInfoFuture.join();
-                int containerId = segToConMapper.getContainerId(fullyQualifiedSegmentName);
-                output("Container Id for the given Segment is :" + containerId);
+                int containerId = segmentToContainerMapper.getContainerId(fullyQualifiedSegmentName);
+                output("Container Id for the given Segment is:" + containerId);
             }  catch (Exception ex) {
-            output("Error occurred while fetching containerId : %s", ex);
+                 output("Error occurred while fetching containerId: %s", ex);
+            }
         }
     }
-            }
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "get-container-id", "Get the Id of a Container that belongs to a segment.",
