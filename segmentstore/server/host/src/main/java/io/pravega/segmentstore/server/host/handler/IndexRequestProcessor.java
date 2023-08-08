@@ -83,6 +83,9 @@ public final class IndexRequestProcessor {
         long endIdx = properties.getLength() / ENTRY_SIZE;
 
         return SortUtils.newtonianSearch(idx -> {
+            if( startIdx == endIdx) {
+                return startIdx;
+            }
             ReadResult result = store.read(indexSegmentName, idx * ENTRY_SIZE, ENTRY_SIZE, TIMEOUT).join();
             ReadResultEntry firstElement = result.next();
             // TODO deal with element which is split over multiple entries.
