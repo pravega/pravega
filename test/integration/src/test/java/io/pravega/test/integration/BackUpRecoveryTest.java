@@ -1146,10 +1146,9 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
     private Position readNEvents(EventStreamReader<String> reader, int num) {
         Position position = null;
         EventRead<String> eventRead = null;
-        for (int q = 0; q < num;) {
+        for (int q = 0; q < num; q++ ) {
             eventRead = reader.readNextEvent(READ_TIMEOUT.toMillis());
             Assert.assertEquals("Event written and read back don't match", EVENT, eventRead.getEvent());
-            q++;
         }
         position = eventRead.getPosition();
         return position;
@@ -1157,6 +1156,7 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
 
     // Writes the required number of events to the given stream without using transactions.
     private void writeEvents(String streamName, ClientFactoryImpl clientFactory) {
+        @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                 new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
@@ -1165,7 +1165,6 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
             i++;
         }
         writer.flush();
-        writer.close();
     }
 
     // Writes the required number of events to the given stream with using transactions.
@@ -1180,7 +1179,6 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
             transaction.writeEvent("0", EVENT);
         }
         transaction.commit();
-        txnWriter.close();
     }
 
     // Reads the required number of events from the stream.
@@ -1192,17 +1190,16 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
                         .stream(Stream.of(SCOPE, streamName))
                         .build());
 
+        @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(readerName,
                 readerGroupName,
                 new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
 
-        for (int q = 0; q < TOTAL_NUM_EVENTS;) {
+        for (int q = 0; q < TOTAL_NUM_EVENTS; q++) {
             String eventRead = reader.readNextEvent(READ_TIMEOUT.toMillis()).getEvent();
             Assert.assertEquals("Event written and read back don't match", EVENT, eventRead);
-            q++;
         }
-        reader.close();
     }
 
     private static void createScopeStream(Controller controller, String scopeName, String streamName, StreamConfiguration streamConfig) {
@@ -1213,9 +1210,11 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         StreamManager streamManager = new StreamManagerImpl(controller, cp);
         //create scope
         Boolean createScopeStatus = streamManager.createScope(scopeName);
-        log.info("Create scope status {}", createScopeStatus);
+        Assert.assertTrue(createScopeStatus);
+        log.debug("Create scope status {}", createScopeStatus);
         //create stream
         Boolean createStreamStatus = streamManager.createStream(scopeName, streamName, streamConfig);
-        log.info("Create stream status {}", createStreamStatus);
+        Assert.assertTrue(createStreamStatus);
+        log.debug("Create stream status {}", createStreamStatus);
     }
 }
