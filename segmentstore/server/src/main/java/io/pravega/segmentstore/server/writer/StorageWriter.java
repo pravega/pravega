@@ -303,6 +303,12 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     }
 
     private CompletableFuture<Void> processSegmentOperation(SegmentOperation op) {
+        val segmentMetadata = this.dataSource.getStreamSegmentMetadata(op.getStreamSegmentId());
+        if( segmentMetadata == null ) {
+            log.info("{}: No segment metadata found. Ignoring this operation {}", this.traceObjectId, op);
+            return CompletableFuture.completedFuture(null);
+        }
+
         // Add the operation to the appropriate Aggregator.
         return getProcessor(op.getStreamSegmentId())
                 .thenAccept(aggregator -> {
