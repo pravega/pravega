@@ -71,6 +71,7 @@ import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -232,6 +233,37 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(output.getRequestId(), SEGMENT, "SomeException", -1L));
         assertThrows(SegmentSealedException.class, () -> Futures.getThrowingException(output.getConnection()));
         assertTrue(callbackInvoked.get());
+    }
+
+    @Test
+    public void testThrowingServerTimeoutException() throws Exception {
+        AtomicBoolean callbackInvoked = new AtomicBoolean();
+        Consumer<Segment> resendToSuccessorsCallback = segment -> {
+            callbackInvoked.set(true);
+        };
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        cf.setExecutor(executor);
+
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        @Cleanup
+        SegmentOutputStreamImpl output = Mockito.spy(new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, resendToSuccessorsCallback,
+                RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken()));
+
+        CompletableFuture<ClientConnection> incompleteFuture = new CompletableFuture<>();
+        doReturn(incompleteFuture).when(output).getConnection();
+        // try sending an event.
+        byte[] eventData = "test data".getBytes();
+        CompletableFuture<Void> ack1 = new CompletableFuture<>();
+        assertThrows(ServerTimeoutException.class, () -> output.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(eventData), ack1)));
+
+        assertTrue(ack1.isCompletedExceptionally());
     }
 
     @Test(timeout = 10000)
