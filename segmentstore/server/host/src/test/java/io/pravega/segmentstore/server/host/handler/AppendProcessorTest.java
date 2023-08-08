@@ -25,6 +25,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoop;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
@@ -141,7 +142,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
     @Test
     public void testAppend() {
         String streamSegmentName = "scope/stream/0.#epoch.0";
-        String streamIndexSegmentName = "scope/stream/0.#epoch.0#index";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -160,7 +160,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         setMockForIndexSegmentAppends(streamSegmentName, store, 1L, data.length);
         val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
-
         SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, "");
         processor.setupAppend(setupAppendCommand);
         processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
@@ -176,6 +175,33 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyNoMoreInteractions(store);
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
         assertTrue(processor.isSetupAppendCompleted(setupAppendCommand.getSegment(), setupAppendCommand.getWriterId()));
+    }
+
+    @Test
+    public void testCreateIndexSegmentInSetupAppend() {
+        String streamSegmentName = "scope/stream/0.#epoch.0";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = new InlineExecutor();
+        @Cleanup
+        AppendProcessor processor = AppendProcessor.defaultBuilder(executor)
+                .store(store)
+                .connection(new TrackedConnection(connection, tracker))
+                .statsRecorder(mockedRecorder)
+                .build();
+
+        setupGetAttributes(streamSegmentName, clientId, store);
+        when(store.createStreamSegment(anyString(), any(), any(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(store.getStreamSegmentInfo(anyString(), any())).thenReturn(CompletableFuture.failedFuture(new NoSuchSegmentException("no such segment")));
+        val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
+        SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, "");
+        processor.setupAppend(setupAppendCommand);
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), any());
     }
 
     @Test
