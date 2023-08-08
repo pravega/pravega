@@ -45,9 +45,6 @@ public class SortUtils {
         if (fromIdx > toIdx || fromIdx < 0) {
             throw new IllegalArgumentException("Index size was negative");
         } else if (fromIdx == toIdx) {
-            if (fromIdx == 0L) {
-                return new AbstractMap.SimpleEntry<>(0L, 0L);
-            }
             return new AbstractMap.SimpleEntry<>(fromIdx, getValue.apply(fromIdx));
         }
 
