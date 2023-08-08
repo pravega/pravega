@@ -500,13 +500,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private CompletableFuture<Void> createIndexSegment(final String segmentName) {
         log.info("Creating index segment {}.", getIndexSegmentName(segmentName));
-        final long maxEventSize = 10L;
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
-                new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.INDEX_SEGMENT.getValue()),
-                new AttributeUpdate(ALLOWED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, maxEventSize)
+                new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
+                new AttributeUpdate(ALLOWED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, 24L)
         );
-        return segmentStore.createStreamSegment(getIndexSegmentName(segmentName), SegmentType.INDEX_SEGMENT,
+        return segmentStore.createStreamSegment(getIndexSegmentName(segmentName), SegmentType.STREAM_SEGMENT,
                 attributes, TIMEOUT);
     }
 

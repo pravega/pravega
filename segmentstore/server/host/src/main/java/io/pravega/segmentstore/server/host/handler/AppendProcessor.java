@@ -69,7 +69,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -82,6 +81,7 @@ import lombok.NonNull;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
+import static io.pravega.segmentstore.contracts.Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
@@ -204,7 +204,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                     long eventNumber = attributes.getOrDefault(writerAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
 
                                     String indexSegment = getIndexSegmentName(newSegment);
-                                    populateEventSizeForIndexSegmentAppends(writer, indexSegment, setupAppend.getRequestId());
+                                    createIndexSegmentIfNotExists(writer, indexSegment, setupAppend.getRequestId());
 
                                     // Create a new WriterState object based on the attribute value for the last event number for the writer.
                                     // It should be noted that only one connection for a given segment writer is created by the client.
@@ -223,22 +223,23 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                         });
     }
 
-    private void populateEventSizeForIndexSegmentAppends(UUID writer, String indexSegment, long requestId) {
+    private void createIndexSegmentIfNotExists(UUID writer, String indexSegment, long requestId) {
         store.getStreamSegmentInfo(indexSegment, TIMEOUT)
                 .whenComplete((properties, u) -> {
                     if (u != null) {
                         u = Exceptions.unwrap(u);
                         if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
-                            log.warn("could not find the segment {}", indexSegment);
+                            log.info("Creating index segment {}.", indexSegment);
+                            Collection<AttributeUpdate> attributes = Arrays.asList(
+                                    new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
+                                    new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
+                                    new AttributeUpdate(ALLOWED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, 24L)
+                            );
+                            store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT,
+                                            attributes, TIMEOUT)
+                                    .exceptionally(e -> handleException(writer, requestId, indexSegment, "create index segment", e));
                         } else {
-                            handleException(writer, requestId, indexSegment, "populating event size for index appends", u);
-                        }
-                    } else {
-                        if (properties != null) {
-                            Map<AttributeId, Long> attributes =  properties.getAttributes();
-                            this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE)));
-                        } else {
-                            log.debug("could not get properties for a given segment {}", indexSegment);
+                            handleException(writer, requestId, indexSegment, "getting stream segment info", u);
                         }
                     }
                 });

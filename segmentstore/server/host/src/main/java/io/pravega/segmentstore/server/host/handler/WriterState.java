@@ -74,7 +74,6 @@ class WriterState {
     /**
      * Allowed number of events for index segment append
      */
-    @GuardedBy("this")
     private final long eventSize;
 
     //endregion
