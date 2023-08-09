@@ -546,14 +546,12 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     /**
      * Cancels the outStanding checkpoints.
-     *
-     * @returns true if the outStanding checkpoints are cleared.
      */
     @Override
     public void cancelOutstandingCheckpoints() {
         synchronizer.updateState((state, updates) -> {
             updates.add(new ReaderGroupState.RemoveOutstandingCheckpoints());
-            return true; // Always return true since we are only modifying state
+            return true;
         });
     }
 }
