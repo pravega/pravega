@@ -265,22 +265,24 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
             Map<SegmentWithRange, List<Long>> segmentToPredecessorMap = getSuccessors.join().getSegmentToPredecessor();
             int size = segmentToPredecessorMap.size();
             if (size > 1) { //scale up happened to the segment
-                long approxNextOffsetDistance = getApproxNextOffsetDistancePerSegment(size, approxDistanceToNextOffset);
+                log.debug("Segment {} has scaled up", entry.getKey());
+                long approxNextOffsetDistancePerSegment = getApproxNextOffsetDistancePerSegment(size, approxDistanceToNextOffset);
                 for (SegmentWithRange segmentWithRange : segmentToPredecessorMap.keySet()) {
                     Segment segment = segmentWithRange.getSegment();
-                    long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistance);
+                    long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistancePerSegment);
                     nextPositionsMap.put(segment, nextOffset);
                 }
             } else if (size == 1) { //scale down happened to the segments
+                log.debug("Segment {} has scaled down", entry.getKey());
                 List<Long> segmentIds = nextPositionsMap.keySet().stream().map(x -> x.getSegmentId()).collect(Collectors.toList());
                 // Check for any of the predecessor which is present in nextPositionsMap. If so, we will not proceed to successor segment
                 boolean isJoint  = segmentToPredecessorMap.values().stream().findFirst().get().stream().anyMatch(segmentIds::contains);
                 if (!isJoint) {
                     Long segmentId = segmentToPredecessorMap.keySet().stream().findFirst().get().getSegment().getSegmentId();
-                    long approxNextOffsetDistance = approxDistanceToNextOffset * segmentToPredecessorMap.values().stream().findFirst().get().size();
+                    long approxNextOffsetDistancePerSegment = approxDistanceToNextOffset * segmentToPredecessorMap.values().stream().findFirst().get().size();
                     if (!segmentIds.contains(segmentId)) {
                         Segment segment = segmentToPredecessorMap.keySet().stream().findFirst().get().getSegment();
-                        long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistance);
+                        long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistancePerSegment);
                         nextPositionsMap.put(segment, nextOffset);
                     }
                 } else {
