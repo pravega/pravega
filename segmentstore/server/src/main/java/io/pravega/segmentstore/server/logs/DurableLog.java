@@ -40,9 +40,11 @@ import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointO
 import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
+import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.LogAddress;
+
 import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -302,6 +304,12 @@ public class DurableLog extends AbstractService implements OperationLog {
        } catch (DataLogInitializationException e) {
            return false;
        }
+   }
+
+
+   @Override
+    public void overrideEpoch(long epoch) throws DurableDataLogException {
+        this.durableDataLog.overrideEpoch(epoch);
    }
 
     //endregion

@@ -240,8 +240,16 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @throws Exception
      */
     private CompletableFuture<Void> initializeStorage() throws Exception {
-        log.info("{}: Initializing storage.", this.traceObjectId);
-        long containerEpoch = shouldRecoverFromStorage().get() ? readContainerEpoch().get() : this.metadata.getContainerEpoch();
+        long containerEpoch = this.metadata.getContainerEpoch();
+        if (shouldRecoverFromStorage().get()) {
+            // If we are recovering from storage, the durableLog will be
+            // initialized with 0 epoch. So override the durableLog with backed up epoch.
+            containerEpoch = readContainerEpoch().get();
+            this.durableLog.overrideEpoch(containerEpoch);
+            this.metadata.setContainerEpochAfterRecovery(containerEpoch);
+            log.info("{}: Recovered container epoch {} has been set in the DurableDataLog", this.traceObjectId, containerEpoch);
+        }
+        log.info("{}: Initializing storage with epoch {}", this.traceObjectId, containerEpoch);
         this.storage.initialize(containerEpoch);
         val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
         if (null != chunkedSegmentStorage) {
@@ -868,7 +876,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
-                });
+                }, this.executor);
 
     }
 
@@ -893,14 +901,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     }
                     log.info("{}: Read container epoch {} from storage", this.traceObjectId, containerEpoch.getEpoch());
                     return CompletableFuture.completedFuture(containerEpoch.getEpoch() + 1);
-                })
+                }, this.executor)
                 .handleAsync( (epoch, ex) -> {
                    if ( ex != null ) {
                        log.error("{}: There was an error while reading the saved container epoch: {}", this.traceObjectId, ex);
                        throw new CompletionException(ex);
                    }
                    return epoch;
-                });
+                }, this.executor);
     }
 
     @SneakyThrows

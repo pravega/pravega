@@ -148,6 +148,11 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
+    public void overrideEpoch(long epoch) throws DurableDataLogException {
+        throw new DataLogInitializationException("Unsupported Operation");
+    }
+
+    @Override
     public QueueStats getQueueStatistics() {
         // InMemory DurableDataLog has almost infinite bandwidth, so no need to complicate ourselves with this.
         return QueueStats.DEFAULT;

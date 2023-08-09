@@ -17,6 +17,8 @@ package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
+import io.pravega.segmentstore.storage.DurableDataLogException;
+
 import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -84,5 +86,13 @@ public interface OperationLog extends Container {
      * @return True if initializing for the first time.
      */
     boolean isInitialized();
+
+    /**
+     * Override epoch of a container. To be used in case of container recovering from data in storage,
+     * hosting the container_epoch files with epoch information backed up in them.
+     * @param epoch epoch value to override.
+     * @throws DurableDataLogException Exception while overriding the epoch.
+     */
+    void overrideEpoch(long epoch) throws DurableDataLogException;
 }
 
