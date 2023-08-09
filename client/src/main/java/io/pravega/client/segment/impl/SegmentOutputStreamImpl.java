@@ -517,7 +517,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             try {
                 // if connection is null getConnection() establishes a connection and retransmits all events in inflight
                 // list.
-                connection = Futures.getThrowingExceptionWithTimeout(getConnection(), clientConfig.getTimeoutToCompleteFutureMilliSec());
+                connection = Futures.getThrowingExceptionWithTimeout(getConnection(), clientConfig.getConnectTimeoutMilliSec());
             } catch (SegmentSealedException | NoSuchSegmentException e) {
                 // Add the event to inflight, this will be resent to the successor during the execution of resendToSuccessorsCallback
                 state.addToInflight(event);
@@ -525,7 +525,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             } catch (TimeoutException e) {
                 // completing current event Exceptionally
                 event.getAckFuture().completeExceptionally(e);
-                throw new ServerTimeoutException(format("Message was not sent {%s}", e));
+                throw new ServerTimeoutException(format("Failed to establish connection to server. Message was not sent {%s}", e));
             } catch (RetriesExhaustedException e) {
                 event.getAckFuture().completeExceptionally(e);
                 log.error("Failed to write event to Pravega due connectivity error ", e);
