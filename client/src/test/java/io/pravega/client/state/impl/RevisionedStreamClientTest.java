@@ -560,7 +560,7 @@ public class RevisionedStreamClientTest {
         // Override the readTimeout value for RevisionedClient to 1 second.
         doReturn(1000L).when(client).getReadTimeout();
 
-        // Setup the SegmentMetadataClient mock.
+        // Setup the SegmentMetadataClient mock
         doReturn(CompletableFuture.completedFuture(new SegmentInfo(segment, 0L, 30L, false, 1L)))
                 .when(segMetaClient).getSegmentInfo();
 
