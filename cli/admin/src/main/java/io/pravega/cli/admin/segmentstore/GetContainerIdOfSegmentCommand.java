@@ -77,6 +77,6 @@ public class GetContainerIdOfSegmentCommand extends SegmentStoreCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "get-container-id", "Get the Id of a Container that belongs to a segment.",
-                new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to get info from (e.g., scope/stream/0.#epoch.0)."), new ArgDescriptor("optional:SKIPCHECK", "If given as skipcheck/SKIPCHECK then it skips checking if the segment already exists."));
+                new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to get info from (e.g., scope/stream/0.#epoch.0)."), new ArgDescriptor("optional:SKIPCHECK", "If given as skipcheck/SKIPCHECK which is optional argument, it skips checking if the segment already exists."));
     }
 }
