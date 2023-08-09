@@ -30,7 +30,6 @@ import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
-import io.pravega.client.segment.impl.ServerTimeoutException;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -68,7 +67,6 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END_OF_SEGMENT_REACHED;
-import static java.lang.String.format;
 
 @Slf4j
 public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
