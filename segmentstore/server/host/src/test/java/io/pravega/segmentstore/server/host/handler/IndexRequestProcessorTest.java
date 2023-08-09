@@ -67,11 +67,10 @@ public class IndexRequestProcessorTest {
                                                                       .attributes(Map.of(EVENT_COUNT, 0L))
                                                                       .build();
 
-
         doReturn(CompletableFuture.completedFuture(indexSegmentProperties)).when(store).getStreamSegmentInfo(indexSegmentName, timeout);
         doReturn(CompletableFuture.completedFuture(segmentProperties)).when(store).getStreamSegmentInfo(segmentName, timeout);
 
-        long offset = IndexRequestProcessor.locateOffsetForSegment(store,segmentName, 10L, true);
+        long offset = IndexRequestProcessor.locateOffsetForSegment(store, segmentName, 10L, true);
         assertEquals(1234, offset);
     }
 
