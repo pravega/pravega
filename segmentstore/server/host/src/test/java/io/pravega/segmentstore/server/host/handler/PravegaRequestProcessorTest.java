@@ -242,7 +242,7 @@ public class PravegaRequestProcessorTest {
         verifyNoMoreInteractions(store);
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void testLocateOffsetThrowingNoSuchSegmentException() throws DurableDataLogException {
         // Set up PravegaRequestProcessor instance to execute read segment request against
         String streamSegmentName = "scope/stream/testLocateOffset";
@@ -277,7 +277,7 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, streamSegmentName, "", -1L));
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void testLocateOffsetThrowingIllegalStateException() throws DurableDataLogException {
         // Set up PravegaRequestProcessor instance to execute read segment request against
         String streamSegmentName = "scope/stream/testLocateOffset";
