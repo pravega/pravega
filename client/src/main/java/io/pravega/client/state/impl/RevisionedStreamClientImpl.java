@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
@@ -60,7 +59,6 @@ import static java.lang.String.format;
 @Slf4j
 public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> {
 
-    private static final long READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(30);
     @Getter
     @VisibleForTesting
     private final long readTimeout;
