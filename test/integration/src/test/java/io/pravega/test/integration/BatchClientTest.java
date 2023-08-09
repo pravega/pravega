@@ -311,55 +311,6 @@ public class BatchClientTest extends ThreadPooledTestSuite {
     }
 
     /**
-     * This test the getNextStreamCut api with the current streamcut containing five segment.
-     * One event of size 30 is written to any one of the five segments. StreamCut is generated at the start of each segment.
-     * When requested nextStreamcut at a distance of 93bytes, in response we should get a streamcut that is at the tail of each segment
-     * i.e, offset 30 for the segment to which write happened and 0 for others.
-     */
-    @Test(timeout = 50000)
-    public void testGetNextStreamCutFromStartOffset() throws SegmentTruncatedException, ExecutionException, InterruptedException {
-        StreamConfiguration config = StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(5))
-                .build();
-        Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE + "-8", 0L).get();
-        controller.createStream(SCOPE + "-8", STREAM + "-8", config).get();
-        @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE + "-8", controller, connectionFactory);
-        @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM + "-8", new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
-        // write events to stream
-        write30ByteEvents(1, writer);
-        Segment segment = new Segment(SCOPE + "-8", STREAM + "-8", 0);
-        Segment segment1 = new Segment(SCOPE + "-8", STREAM + "-8", 1);
-        Segment segment2 = new Segment(SCOPE + "-8", STREAM + "-8", 2);
-        Segment segment3 = new Segment(SCOPE + "-8", STREAM + "-8", 3);
-        Segment segment4 = new Segment(SCOPE + "-8", STREAM + "-8", 4);
-        StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-8", STREAM + "-8"),
-                ImmutableMap.of(segment, 0L, segment1, 0L, segment2, 0L, segment3, 0L, segment4, 0L));
-
-        @Cleanup
-        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-8", clientConfig);
-        log.info("Done creating batch client factory");
-        ArrayList<SegmentRange> allSegmentsList = Lists.newArrayList(
-                batchClient.getSegments(Stream.of(SCOPE + "-8", STREAM + "-8"), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
-        Map<Segment, Long> map = allSegmentsList.stream().collect(
-                Collectors.toMap(SegmentRange::getSegment, value -> value.getEndOffset()));
-
-        StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 93L);
-        assertTrue(nextStreamCut != null);
-        assertTrue(nextStreamCut.asImpl().getPositions().size() == 5);
-        assertEquals(map.get(segment).longValue(), nextStreamCut.asImpl().getPositions().get(segment).longValue());
-        assertEquals(map.get(segment1).longValue(), nextStreamCut.asImpl().getPositions().get(segment1).longValue());
-        assertEquals(map.get(segment2).longValue(), nextStreamCut.asImpl().getPositions().get(segment2).longValue());
-        assertEquals(map.get(segment3).longValue(), nextStreamCut.asImpl().getPositions().get(segment3).longValue());
-        assertEquals(map.get(segment4).longValue(), nextStreamCut.asImpl().getPositions().get(segment4).longValue());
-    }
-
-    /**
      * This test the getNextStreamCut api with the current streamcut containing one segment which has scaled up.
      * Length of segment0 is 120 and offset in streamcut is 60. When requested nextStreamcut at a distance of 80bytes,
      * getting offset at 120(tail of segment0) in response since only that much of data is available in the segment0.
@@ -776,6 +727,179 @@ public class BatchClientTest extends ThreadPooledTestSuite {
                 nextStreamCut.asImpl().getPositions().containsKey(segment2));
         assertEquals(map.get(segment1).longValue(), nextStreamCut.asImpl().getPositions().get(segment1).longValue());
         assertEquals(map.get(segment2).longValue(), nextStreamCut.asImpl().getPositions().get(segment2).longValue());
+    }
+
+    /**
+     * This test the getNextStreamCut api with the current streamcut containing five segment.
+     * One event of size 30 is written to any one of the five segments. StreamCut is generated at the start of each segment.
+     * When requested nextStreamcut at a distance of 93bytes, in response we should get a streamcut that is at the tail of each segment
+     * i.e, offset 30 for the segment to which write happened and 0 for others.
+     */
+    @Test(timeout = 50000)
+    public void testGetNextStreamCutFromStartOffset() throws SegmentTruncatedException, ExecutionException, InterruptedException {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(5))
+                .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(SCOPE + "-8", 0L).get();
+        controller.createStream(SCOPE + "-8", STREAM + "-8", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE + "-8", controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM + "-8", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        // write events to stream
+        write30ByteEvents(1, writer);
+        Segment segment = new Segment(SCOPE + "-8", STREAM + "-8", 0);
+        Segment segment1 = new Segment(SCOPE + "-8", STREAM + "-8", 1);
+        Segment segment2 = new Segment(SCOPE + "-8", STREAM + "-8", 2);
+        Segment segment3 = new Segment(SCOPE + "-8", STREAM + "-8", 3);
+        Segment segment4 = new Segment(SCOPE + "-8", STREAM + "-8", 4);
+        StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-8", STREAM + "-8"),
+                ImmutableMap.of(segment, 0L, segment1, 0L, segment2, 0L, segment3, 0L, segment4, 0L));
+
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-8", clientConfig);
+        log.info("Done creating batch client factory");
+        ArrayList<SegmentRange> allSegmentsList = Lists.newArrayList(
+                batchClient.getSegments(Stream.of(SCOPE + "-8", STREAM + "-8"), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+        Map<Segment, Long> map = allSegmentsList.stream().collect(
+                Collectors.toMap(SegmentRange::getSegment, value -> value.getEndOffset()));
+
+        StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 93L);
+        assertTrue(nextStreamCut != null);
+        assertTrue(nextStreamCut.asImpl().getPositions().size() == 5);
+        assertEquals(map.get(segment).longValue(), nextStreamCut.asImpl().getPositions().get(segment).longValue());
+        assertEquals(map.get(segment1).longValue(), nextStreamCut.asImpl().getPositions().get(segment1).longValue());
+        assertEquals(map.get(segment2).longValue(), nextStreamCut.asImpl().getPositions().get(segment2).longValue());
+        assertEquals(map.get(segment3).longValue(), nextStreamCut.asImpl().getPositions().get(segment3).longValue());
+        assertEquals(map.get(segment4).longValue(), nextStreamCut.asImpl().getPositions().get(segment4).longValue());
+    }
+
+    /**
+     * This test is to verify when the approxDistanceToNextOffset value is small (smaller than the number of segments in the starting streamCut)
+     * then also the response for the getNextStreamcut api should give offset greater than the present offset.
+     */
+    @Test(timeout = 50000)
+    public void testGetNextStreamCutForSmallerApproxDistance() throws SegmentTruncatedException, ExecutionException, InterruptedException {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(3))
+                .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(SCOPE + "-9", 0L).get();
+        controller.createStream(SCOPE + "-9", STREAM + "-9", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE + "-9", controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM + "-9", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        // write events to stream
+        write30ByteEvents(10, writer);
+        Segment segment0 = new Segment(SCOPE + "-9", STREAM + "-9", 0);
+        Segment segment1 = new Segment(SCOPE + "-9", STREAM + "-9", 1);
+        Segment segment2 = new Segment(SCOPE + "-9", STREAM + "-9", 2);
+        StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-9", STREAM + "-9"),
+                ImmutableMap.of(segment0, 0L, segment1, 0L, segment2, 0L));
+
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-9", clientConfig);
+        log.info("Done creating batch client factory");
+        ArrayList<SegmentRange> allSegmentsList = Lists.newArrayList(
+                batchClient.getSegments(Stream.of(SCOPE + "-9", STREAM + "-9"), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+        Map<Segment, Long> map = allSegmentsList.stream().collect(
+                Collectors.toMap(SegmentRange::getSegment, value -> value.getEndOffset()));
+
+        long expectedSegment0Offset = map.get(segment0) > 0L ? 30L : 0L;
+        long expectedSegment1Offset = map.get(segment1) > 0L ? 30L : 0L;
+        long expectedSegment2Offset = map.get(segment2) > 0L ? 30L : 0L;
+
+        StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 2L);
+        assertTrue(nextStreamCut != null);
+        assertTrue(nextStreamCut.asImpl().getPositions().size() == 3);
+        assertEquals(expectedSegment0Offset, nextStreamCut.asImpl().getPositions().get(segment0).longValue());
+        assertEquals(expectedSegment1Offset, nextStreamCut.asImpl().getPositions().get(segment1).longValue());
+        assertEquals(expectedSegment2Offset, nextStreamCut.asImpl().getPositions().get(segment2).longValue());
+        StreamCut  nextStreamCut1 = batchClient.getNextStreamCut(nextStreamCut, 2L);
+        expectedSegment0Offset = map.get(segment0) > 30L ? 60L : expectedSegment0Offset;
+        expectedSegment1Offset = map.get(segment1) > 30L ? 60L : expectedSegment1Offset;
+        expectedSegment2Offset = map.get(segment2) > 30L ? 60L : expectedSegment2Offset;
+        assertTrue(nextStreamCut1 != null);
+        assertTrue(nextStreamCut1.asImpl().getPositions().size() == 3);
+        assertEquals(expectedSegment0Offset, nextStreamCut1.asImpl().getPositions().get(segment0).longValue());
+        assertEquals(expectedSegment1Offset, nextStreamCut1.asImpl().getPositions().get(segment1).longValue());
+        assertEquals(expectedSegment2Offset, nextStreamCut1.asImpl().getPositions().get(segment2).longValue());
+    }
+
+    /**
+     * This test is to verify when the approxDistanceToNextOffset value is small (smaller than the number of segments after the segment scaled up)
+     * then also the response for the getNextStreamcut api should give offset greater than the present offset.
+     */
+    @Test(timeout = 50000)
+    public void testNextStreamCutWithScaleUpSmallerApproxDistance() throws SegmentTruncatedException, ExecutionException, InterruptedException {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.byEventRate(1, 4, 1))
+                .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(SCOPE + "-10", 0L).get();
+        controller.createStream(SCOPE + "-10", STREAM + "-10", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE + "-10", controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM + "-10", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        // write events to stream
+        write30ByteEvents(2, writer);
+
+        Map<Double, Double> keyRanges = new HashMap<>();
+        keyRanges.put(0.0, 0.25);
+        keyRanges.put(0.25, 0.5);
+        keyRanges.put(0.5, 0.75);
+        keyRanges.put(0.75, 1.0);
+        Stream stream = new StreamImpl(SCOPE + "-10", STREAM + "-10");
+        // Stream scaling up
+        Boolean status = controller.scaleStream(stream,
+                Collections.singletonList(0L),
+                keyRanges,
+                executorService()).getFuture().get();
+        assertTrue(status);
+
+        write30ByteEvents(10, writer);
+
+        Segment segment0 = new Segment(SCOPE + "-10", STREAM + "-10", 0);
+        Segment segment1 = Segment.fromScopedName(SCOPE + "-10/" + STREAM + "-10/1.#epoch.1");
+        Segment segment2 = Segment.fromScopedName(SCOPE + "-10/" + STREAM + "-10/2.#epoch.1");
+        Segment segment3 = Segment.fromScopedName(SCOPE + "-10/" + STREAM + "-10/3.#epoch.1");
+        Segment segment4 = Segment.fromScopedName(SCOPE + "-10/" + STREAM + "-10/4.#epoch.1");
+        StreamCut streamCut = new StreamCutImpl(Stream.of(SCOPE + "-10", STREAM + "-10"),
+                ImmutableMap.of(segment0, 60L));
+
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE + "-2", clientConfig);
+        log.info("Done creating batch client factory");
+
+        ArrayList<SegmentRange> allSegmentsList = Lists.newArrayList(
+                batchClient.getSegments(Stream.of(SCOPE + "-10", STREAM + "-10"), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+        long approxDistanceToNextOffset = 3L;
+        Map<Segment, Long> map = allSegmentsList.stream().collect(
+                Collectors.toMap(SegmentRange::getSegment, value -> value.getEndOffset() > 0L ? 30L : 0L));
+
+        StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, approxDistanceToNextOffset);
+        assertTrue(nextStreamCut != null);
+        assertTrue(nextStreamCut.asImpl().getPositions().size() == 4);
+        assertTrue(nextStreamCut.asImpl().getPositions().containsKey(segment1) &&
+                nextStreamCut.asImpl().getPositions().containsKey(segment2) &&
+                nextStreamCut.asImpl().getPositions().containsKey(segment3) &&
+                nextStreamCut.asImpl().getPositions().containsKey(segment4));
+        assertEquals(map.get(segment1).longValue(), nextStreamCut.asImpl().getPositions().get(segment1).longValue());
+        assertEquals(map.get(segment2).longValue(), nextStreamCut.asImpl().getPositions().get(segment2).longValue());
+        assertEquals(map.get(segment3).longValue(), nextStreamCut.asImpl().getPositions().get(segment3).longValue());
+        assertEquals(map.get(segment4).longValue(), nextStreamCut.asImpl().getPositions().get(segment4).longValue());
     }
 
     //region Private helper methods
