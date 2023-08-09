@@ -231,32 +231,34 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                         });
     }
 
-    private void createIndexSegmentIfNotExists(UUID writer, String indexSegment, long requestId) {
+    private void createIndexSegmentIfNotExists(final UUID writer, final String indexSegment, long requestId) {
         store.getStreamSegmentInfo(indexSegment, TIMEOUT)
                 .whenComplete((properties, u) -> {
                     String eventCountSuffix = (indexSegment + EVENT_COUNT_SUFFIX).trim();
-                    if (u != null) {
-                        u = Exceptions.unwrap(u);
-                        if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
-                            log.info("Creating index segment {}.", indexSegment);
-                            Collection<AttributeUpdate> attributes = Arrays.asList(
-                                    new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
-                                    new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
-                                    new AttributeUpdate(ALLOWED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, 24L)
-                            );
-                            store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT).join();
-                            this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(24L));
-                            this.writerStates.put(Pair.of(eventCountSuffix, writer), new WriterState(Attributes.NULL_ATTRIBUTE_VALUE));
+                    try {
+                        if (u != null) {
+                            u = Exceptions.unwrap(u);
+                            if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
+                                log.info("Creating index segment {}.", indexSegment);
+                                Collection<AttributeUpdate> attributes = Arrays.asList(
+                                        new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
+                                        new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
+                                        new AttributeUpdate(ALLOWED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, 24L)
+                                );
+                                store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT).join();
+                                this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(24L));
+                                this.writerStates.put(Pair.of(eventCountSuffix, writer), new WriterState(Attributes.NULL_ATTRIBUTE_VALUE));
+                            } else { throw u; }
                         } else {
-                            handleException(writer, requestId, indexSegment, "creating index segment", u);
+                            if (properties != null) {
+                                Map<AttributeId, Long> attributes = properties.getAttributes();
+                                long eventCount = attributes.getOrDefault(attributes.get(EVENT_COUNT), Attributes.NULL_ATTRIBUTE_VALUE);
+                                this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE)));
+                                this.writerStates.put(Pair.of(eventCountSuffix, writer), new WriterState(eventCount));
+                            }
                         }
-                    } else {
-                        if (properties != null) {
-                            Map<AttributeId, Long> attributes =  properties.getAttributes();
-                            long eventCount = attributes.getOrDefault(attributes.get(EVENT_COUNT), Attributes.NULL_ATTRIBUTE_VALUE);
-                            this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE)));
-                            this.writerStates.put(Pair.of(eventCountSuffix, writer), new WriterState(eventCount));
-                        }
+                    } catch (Throwable e) {
+                        handleException(writer, requestId, indexSegment, "creating index segment", u);
                     }
                 });
     }
@@ -298,7 +300,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         WriterState state1, state2;
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
         Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
-        if (!isTransientSegment(append.getSegment()) && !isTransactionSegment(append.getSegment())) {
+        if (!isTransientSegment(append.getSegment()) && !isTransactionSegment(append.getSegment())) { // TODO: to be extracted to a private method for use
             String eventCountIdentifier = (getIndexSegmentName(append.getSegment()) + EVENT_COUNT_SUFFIX).trim();
             state1 = this.writerStates.get(Pair.of(eventCountIdentifier, id)); // for eventCount of index seg
             Preconditions.checkState(state1 != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);

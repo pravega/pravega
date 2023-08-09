@@ -207,6 +207,33 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testCreateIndexSegmentInSetupAppendInCaseOfException() { // This covers the else case when the exception is thrown
+        String streamSegmentName = "scope/stream/0.#epoch.0";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = new InlineExecutor();
+        @Cleanup
+        AppendProcessor processor = AppendProcessor.defaultBuilder(executor)
+                .store(store)
+                .connection(new TrackedConnection(connection, tracker))
+                .statsRecorder(mockedRecorder)
+                .build();
+
+        setupGetAttributes(streamSegmentName, clientId, store);
+        when(store.createStreamSegment(anyString(), any(), any(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(store.getStreamSegmentInfo(anyString(), any())).thenReturn(CompletableFuture.failedFuture(new BadOffsetException("Bad offset", 0L, 0L))); // Throwinf random exception to see if the else clock code is handled
+        val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
+        SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, "");
+        processor.setupAppend(setupAppendCommand);
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), any());
+    }
+
+    @Test
     public void testAppendIndex() {
         String streamSegmentName = "scope/stream/0.#epoch.0";
         String streamIndexSegmentName = "scope/stream/0.#epoch.0#index";
