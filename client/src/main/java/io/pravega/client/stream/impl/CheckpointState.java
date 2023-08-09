@@ -202,13 +202,11 @@ public class CheckpointState {
      */
     boolean removeOutstandingCheckpoints() {
        List<String> checkpoint = getOutstandingCheckpoints();
-       if (checkpoint.isEmpty()) {
-           return false;
-       }
        for (String cp:checkpoint) {
            uncheckpointedHosts.remove(cp);
            checkpointPositions.remove(cp);
        }
+
        recomputeCheckpointIndex();
        return true;
     }

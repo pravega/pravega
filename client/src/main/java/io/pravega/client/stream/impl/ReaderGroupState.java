@@ -1201,6 +1201,7 @@ public class ReaderGroupState implements Revisioned {
 
         }
 
+
         private static class ClearCheckpointsBeforeSerializer
                 extends VersionedSerializer.WithBuilder<ClearCheckpointsBefore, ClearCheckpointsBeforeBuilder> {
             @Override
@@ -1227,7 +1228,22 @@ public class ReaderGroupState implements Revisioned {
             }
         }
     }
+    @Builder
+    @Data
+    @EqualsAndHashCode(callSuper = false)
+    static class RemoveOutstandingCheckpoints extends ReaderGroupStateUpdate {
+        private final String removeOutstandingCheckpoints;
+        /**
+         * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
+         */
+        @Override
+        void update(ReaderGroupState state) {
+            state.checkpointState.removeOutstandingCheckpoints();
+        }
 
+        private static class RemoveOutstandingCheckpointsBuilder implements ObjectBuilder<ReaderGroupState.RemoveOutstandingCheckpoints> {
+        }
+    }
     @Builder
     @Data
     @EqualsAndHashCode(callSuper = false)
