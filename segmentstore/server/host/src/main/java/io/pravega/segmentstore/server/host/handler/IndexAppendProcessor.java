@@ -73,7 +73,6 @@ public class IndexAppendProcessor {
                      log.warn("Index segment append failed for segment {} due to ", segmentName, ex);
                  }
              });
-
     }
 
     private ByteBufWrapper getIndexAppendBuf(Long eventLength, Long eventCount) {
