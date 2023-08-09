@@ -198,17 +198,15 @@ public class CheckpointState {
 
     /**
      * Removes the outstanding checkpoints.
-     * @return false when there are no outstanding checkpoints otherwise true
      */
-    boolean removeOutstandingCheckpoints() {
+    void removeOutstandingCheckpoints() {
        List<String> checkpoint = getOutstandingCheckpoints();
        for (String cp:checkpoint) {
            uncheckpointedHosts.remove(cp);
            checkpointPositions.remove(cp);
        }
-
        recomputeCheckpointIndex();
-       return true;
+       log.info("Outstanding checkpoints are cleared successfully");
     }
 
     /**

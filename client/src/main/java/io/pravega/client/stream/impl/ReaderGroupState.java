@@ -1232,7 +1232,8 @@ public class ReaderGroupState implements Revisioned {
     @Data
     @EqualsAndHashCode(callSuper = false)
     static class RemoveOutstandingCheckpoints extends ReaderGroupStateUpdate {
-        private final String removeOutstandingCheckpoints;
+        //private final String removeOutstandingCheckpoints;
+
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
          */
@@ -1241,9 +1242,38 @@ public class ReaderGroupState implements Revisioned {
             state.checkpointState.removeOutstandingCheckpoints();
         }
 
-        private static class RemoveOutstandingCheckpointsBuilder implements ObjectBuilder<ReaderGroupState.RemoveOutstandingCheckpoints> {
+        private static class RemoveOutstandingCheckpointsBuilder implements ObjectBuilder<RemoveOutstandingCheckpoints> {
+
+        }
+
+
+        private static class RemoveOutstandingCheckpointsSerializer
+                extends VersionedSerializer.WithBuilder<RemoveOutstandingCheckpoints, RemoveOutstandingCheckpointsBuilder> {
+            @Override
+            protected RemoveOutstandingCheckpointsBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, RemoveOutstandingCheckpointsBuilder builder) throws IOException {
+                builder.build();
+            }
+
+            private void write00(RemoveOutstandingCheckpoints object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.toString());
+            }
         }
     }
+
     @Builder
     @Data
     @EqualsAndHashCode(callSuper = false)

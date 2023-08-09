@@ -16,6 +16,8 @@
 package io.pravega.client.stream;
 
 import com.google.common.annotations.Beta;
+import io.pravega.client.state.StateSynchronizer;
+import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.notifications.ReaderGroupNotificationListener;
 import java.util.Map;
 import java.util.Set;
@@ -53,7 +55,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * @return true if the outStanding checkpoints are cleared.
      */
 
-    boolean cancelOutstandingCheckpoints();
+    void cancelOutstandingCheckpoints();
 
     /**
      * Returns the name of the group.

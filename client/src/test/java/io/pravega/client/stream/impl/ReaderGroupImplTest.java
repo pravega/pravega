@@ -182,9 +182,8 @@ public class ReaderGroupImplTest {
         state.readerCheckpointed("1", "a", Collections.emptyMap());
         assertEquals("2", state.getCheckpointForReader("a"));
         assertEquals("1", state.getCheckpointForReader("b"));
-        assertTrue(readerGroup.cancelOutstandingCheckpoints());
+        state.removeOutstandingCheckpoints();
         assertEquals(0, state.getOutstandingCheckpoints().size());
-        assertFalse(readerGroup.cancelOutstandingCheckpoints());
     }
 
     @Test

@@ -549,17 +549,13 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
      *
      * @returns true if the outStanding checkpoints are cleared.
      */
-    public boolean cancelOutstandingCheckpoints() {
-    ReaderGroupState state = synchronizer.getState();
-    return state.getCheckpointState().removeOutstandingCheckpoints();
+    @Override
+    public void cancelOutstandingCheckpoints() {
+        synchronizer.updateState((state, updates) -> {
+            updates.add(new ReaderGroupState.RemoveOutstandingCheckpoints());
+            return true; // Always return true since we are only modifying state
+        });
     }
-    //public static void cancelOutstandingCheckpoints(
-           // StateSynchronizer<ReaderGroupState> synchronizer) {
-        //boolean rmCheckpoint = synchronizer.updateState((state, updates) -> {
-            // updates.add(new ReaderGroupState.RemoveOutstandingCheckpoints());
-           // return true; // Always return true since we are only modifying state
-       // });
-    }
-
+}
 
 

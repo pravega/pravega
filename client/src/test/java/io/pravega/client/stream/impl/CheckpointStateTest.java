@@ -108,9 +108,8 @@ public class CheckpointStateTest {
         assertEquals("2", state.getCheckpointForReader("a"));
         assertEquals("1", state.getCheckpointForReader("b"));
         assertEquals(3, state.getOutstandingCheckpoints().size());
-        assertTrue(state.removeOutstandingCheckpoints());
+        state.removeOutstandingCheckpoints();
         assertEquals(0, state.getOutstandingCheckpoints().size());
-        assertFalse(state.removeOutstandingCheckpoints());
     }
 
     @Test

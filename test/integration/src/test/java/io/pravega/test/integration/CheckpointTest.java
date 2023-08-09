@@ -31,10 +31,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.UTF8StringSerializer;
-import io.pravega.client.stream.impl.MaxNumberOfCheckpointsExceededException;
-import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.*;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -157,8 +154,7 @@ public class CheckpointTest {
             assertTrue(e.getCause().getMessage()
                     .equals("rejecting checkpoint request since pending checkpoint reaches max allowed limit"));
         }
-        assertTrue(readerGroup.cancelOutstandingCheckpoints());
-
+        readerGroup.cancelOutstandingCheckpoints();
         CompletableFuture<Checkpoint> checkpoint5 = readerGroup.initiateCheckpoint("Checkpoint5", backgroundExecutor5);
 
         EventRead<String> read = reader1.readNextEvent(100);
