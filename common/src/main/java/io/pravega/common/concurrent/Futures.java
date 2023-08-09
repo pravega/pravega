@@ -205,16 +205,15 @@ public final class Futures {
      * @param <E1>          A type of exception that may cause the future to fail.
      * @param <E2>          A type of exception that may cause the future to fail.
      * @param <E3>          A type of exception that may cause the future to fail.
-     * @param <E4>          TimeoutException that may cause the future to fail if timeout happen.
      * @param future        The future to call get() on.
      * @param timeoutMillis This is the maximum time to get the result.
      * @return The result of the provided future.
      * @throws E1 If exception E1 occurs.
      * @throws E2 If exception E2 occurs.
      * @throws E3 If exception E3 occurs.
-     * @throws E4 If exception E4 occurs.
+     * @throws TimeoutException If future doesn't complete in provided time duration.
      */
-    public static <ResultT, E1 extends Exception, E2 extends Exception, E3 extends Exception, E4 extends TimeoutException> ResultT getThrowingExceptionWithTimeout(Future<ResultT> future, long timeoutMillis) throws E1, E2, E3, E4 {
+    public static <ResultT, E1 extends Exception, E2 extends Exception, E3 extends Exception> ResultT getThrowingExceptionWithTimeout(Future<ResultT> future, long timeoutMillis) throws E1, E2, E3, TimeoutException {
         Preconditions.checkNotNull(future);
         try {
             return future.get(timeoutMillis, TimeUnit.MILLISECONDS);

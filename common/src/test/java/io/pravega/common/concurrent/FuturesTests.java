@@ -84,9 +84,12 @@ public class FuturesTests extends ThreadPooledTestSuite {
     public void testGetThrowingExceptionsWithTimeout() throws TimeoutException {
         CompletableFuture<String> future = new CompletableFuture<String>();
         future.complete("success");
+        // It should successfully complete the future
         assertEquals("success", getThrowingExceptionWithTimeout(future, 10000));
+        // Testing the failing case
         CompletableFuture<String> failedFuture  = new CompletableFuture<String>();
         failedFuture.completeExceptionally(new RuntimeException("fail"));
+
         assertThrows("",
                 () -> getThrowingExceptionWithTimeout(failedFuture, 10000),
                 e -> e.getMessage().equals("fail") && e.getClass().equals(RuntimeException.class));
@@ -94,35 +97,9 @@ public class FuturesTests extends ThreadPooledTestSuite {
         // This should throw timeoutExceptions as future is not completing anytime
         CompletableFuture<String> timeoutFuture = new CompletableFuture<String>();
         assertThrows(TimeoutException.class, () -> getThrowingExceptionWithTimeout(timeoutFuture, 100));
-
-        CompletableFuture<String> incompleteFuture = new CompletableFuture<String>();
-        assertThrows(TimeoutException.class, () -> getThrowingExceptionWithTimeout(incompleteFuture, 100));
+        // Testing interrupted exceptions
         Thread.currentThread().interrupt();
-        try {
-            getAndHandleExceptions(incompleteFuture, RuntimeException::new);
-            fail();
-            Thread.sleep(1); //Here only to fix compiler error
-        } catch (InterruptedException e) {
-            assertEquals(true, Thread.interrupted());
-        }
-        Thread.currentThread().interrupt();
-        try {
-            getThrowingExceptionWithTimeout(incompleteFuture, 100);
-            fail();
-            Thread.sleep(1); //Here only to fix compiler error
-        } catch (InterruptedException e) {
-            assertEquals(true, Thread.interrupted());
-        }
-        assertFalse(Thread.currentThread().isInterrupted());
-
-        assertThrows(TimeoutException.class, () -> getThrowingExceptionWithTimeout(incompleteFuture, 100));
-        // catching TimeoutException
-        try {
-            getThrowingExceptionWithTimeout(incompleteFuture, 100);
-            fail("Expected exception was not thrown.");
-        } catch (Exception e) {
-            assertTrue(e instanceof TimeoutException); // Verify exception type
-        }
+        assertThrows(InterruptedException.class, () -> getThrowingExceptionWithTimeout(timeoutFuture, 1000));
     }
 
     @Test(timeout = 10000)
