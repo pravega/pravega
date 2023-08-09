@@ -23,6 +23,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
@@ -81,8 +82,8 @@ public final class IndexRequestProcessor {
         SegmentProperties properties = store.getStreamSegmentInfo(indexSegmentName, TIMEOUT).join();
         long startIdx = properties.getStartOffset() / ENTRY_SIZE;
         long endIdx = properties.getLength() / ENTRY_SIZE;
-
-        return SortUtils.newtonianSearch(idx -> {
+        //If startIdx and endIdx are same, then pass length of segment as a result.
+        return startIdx == endIdx ? getSegmentLength(store, segment, startIdx) : SortUtils.newtonianSearch(idx -> {
             ReadResult result = store.read(indexSegmentName, idx * ENTRY_SIZE, ENTRY_SIZE, TIMEOUT).join();
             ReadResultEntry firstElement = result.next();
             // TODO deal with element which is split over multiple entries.
@@ -101,5 +102,8 @@ public final class IndexRequestProcessor {
         }, startIdx, endIdx > 0 ? endIdx - 1 : 0, targetOffset, greater);
     }
 
-
+    private static Map.Entry<Long, Long> getSegmentLength(StreamSegmentStore store, String segment, long startIdx) {
+        SegmentProperties segmentProperties = store.getStreamSegmentInfo(segment, TIMEOUT).join();
+        return new AbstractMap.SimpleEntry<>(startIdx, segmentProperties.getLength());
+    }
 }

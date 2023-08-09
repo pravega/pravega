@@ -45,14 +45,12 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class IndexAppendProcessorTest {
     private StreamSegmentStore store;
     private InlineExecutor inlineExecutor;
-    private IndexAppendProcessor indexAppendProcessor;
     private Duration timeout;
 
     @Before
     public void setUp() {
         store = mock(StreamSegmentStore.class);
         inlineExecutor = new InlineExecutor();
-        indexAppendProcessor = new IndexAppendProcessor(inlineExecutor, store);
         timeout = Duration.ofMinutes(1);
     }
 
@@ -75,7 +73,6 @@ public class IndexAppendProcessorTest {
                 .doReturn(CompletableFuture.completedFuture(10L))
                 .when(store).append(anyString(), any(),
                 any(), any());
-        doReturn(CompletableFuture.completedFuture(null)).when(store).createStreamSegment(any(), any(), any(), any());
 
         IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
         appendProcessor.processAppend(segmentName);
@@ -83,7 +80,6 @@ public class IndexAppendProcessorTest {
 
         verify(store, times(2)).getStreamSegmentInfo(segmentName, timeout);
         verify(store, times(2)).append(anyString(), any(), any(), any());
-        verify(store).createStreamSegment(any(), any(), any(), any());
         verifyNoMoreInteractions(store);
     }
 }
