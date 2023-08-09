@@ -77,7 +77,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
 
-    private final ClientConfig config;
+    private final ClientConfig clientConfig;
 
     private final Object lock = new Object();
 
@@ -90,14 +90,14 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     public RevisionedStreamClientImpl(Segment segment, EventSegmentReader in, SegmentOutputStreamFactory outFactory,
                                       ConditionalOutputStream conditional, SegmentMetadataClient meta,
                                       Serializer<T> serializer, EventWriterConfig config, DelegationTokenProvider tokenProvider, ClientConfig clientConfig ) {
-        this.readTimeout = READ_TIMEOUT_MS;
         this.segment = segment;
         this.in = in;
         this.conditional = conditional;
         this.meta = meta;
         this.serializer = serializer;
         this.out = outFactory.createOutputStreamForSegment(segment, s -> handleSegmentSealed(), config, tokenProvider);
-        this.config = clientConfig;
+        this.clientConfig = clientConfig;
+        this.readTimeout = clientConfig.getConnectTimeoutMilliSec();
     }
 
 
@@ -152,7 +152,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             long startOffset = revision.asImpl().getOffsetInSegment();
             SegmentInfo segmentInfo;
             try {
-                segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), config.getTimeoutToCompleteFutureMilliSec());
+                segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), clientConfig.getConnectTimeoutMilliSec());
             } catch (TimeoutException e) {
                 throw new ServerTimeoutException(format("Timeout occurred while reading the segment Info for segment {} from revision {}", segment, revision));
             }
@@ -177,7 +177,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             long startOffset = startRevision.asImpl().getOffsetInSegment();
             SegmentInfo segmentInfo;
             try {
-                segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), config.getTimeoutToCompleteFutureMilliSec());
+                segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), clientConfig.getConnectTimeoutMilliSec());
             } catch (TimeoutException e) {
                 throw new ServerTimeoutException(format("Timeout occurred while reading the segment Info for segment {} from revision {} to revision {}", segment, startRevision, endRevision));
             }
