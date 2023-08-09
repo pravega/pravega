@@ -226,7 +226,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         Map<Segment, Long> nextPositionsMap = new HashMap<>();
         Map<Segment, Long> scaledSegmentsMap = new HashMap<>();
         int numberOfSegments = startingStreamCut.asImpl().getPositions().size();
-        long approxNextOffsetDistancePerSegment = approxDistanceToNextOffset / numberOfSegments;
+        long approxNextOffsetDistancePerSegment = getApproxNextOffsetDistancePerSegment(numberOfSegments, approxDistanceToNextOffset);
         for (Map.Entry<Segment, Long> positions : startingStreamCut.asImpl().getPositions().entrySet()) {
             Segment segment = positions.getKey();
             long targetOffset = positions.getValue() + approxNextOffsetDistancePerSegment;
@@ -267,7 +267,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
             Map<SegmentWithRange, List<Long>> segmentToPredecessorMap = getSuccessors.join().getSegmentToPredecessor();
             int size = segmentToPredecessorMap.size();
             if (size > 1) { //scale up happened to the segment
-                long approxNextOffsetDistance = approxDistanceToNextOffset / size;
+                long approxNextOffsetDistance = getApproxNextOffsetDistancePerSegment(size, approxDistanceToNextOffset);
                 for (SegmentWithRange segmentWithRange : segmentToPredecessorMap.keySet()) {
                     Segment segment = segmentWithRange.getSegment();
                     long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistance);
@@ -293,6 +293,12 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
             }
 
         });
+    }
+
+    // If no of segments is greater than approx distance then we need to request atleast for one byte.
+    private long getApproxNextOffsetDistancePerSegment(int numOfSegment, long approxDistance) {
+        long approxNextOffsetDistancePerSegment = approxDistance / numOfSegment;
+        return approxNextOffsetDistancePerSegment > 0L ? approxNextOffsetDistancePerSegment : 1L;
     }
 
     @SuppressWarnings("unchecked")
