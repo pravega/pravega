@@ -23,6 +23,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -1049,11 +1050,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             }
             return segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT);
         } catch (Exception ex) {
-            if (ex instanceof IllegalArgumentException || ex instanceof IndexRequestProcessor.SearchFailedException) {
-                return CompletableFuture.completedFuture(null);
+            if (ex instanceof IllegalArgumentException || ex instanceof IllegalStateException || ex instanceof SegmentTruncatedException) {
+                log.warn("Unable to locate offset for index segment {}  for offset {} due to ", indexSegment, offset, ex);
+                return CompletableFuture.failedFuture(ex);
             }
             // throw  exception to the caller.
-            log.warn("Unable to locate offset for index segment {}  for offset {} due to ", indexSegment, offset, ex);
             throw new CompletionException(ex);
         }
     }
