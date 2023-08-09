@@ -69,6 +69,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -86,6 +87,8 @@ import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYP
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
+import static io.pravega.shared.NameUtils.isTransientSegment;
+import static io.pravega.shared.NameUtils.isTransactionSegment;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
@@ -95,6 +98,8 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final String EMPTY_STACK_TRACE = "";
+
+    private static final String EVENT_COUNT_SUFFIX = "_eventCount";
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AppendProcessor.class));
     private final StreamSegmentStore store;
     private final TrackedConnection connection;
@@ -203,8 +208,11 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                     // Last event number stored according to Segment store.
                                     long eventNumber = attributes.getOrDefault(writerAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
 
-                                    String indexSegment = getIndexSegmentName(newSegment);
-                                    createIndexSegmentIfNotExists(writer, indexSegment, setupAppend.getRequestId());
+                                    // create index segment if not exist and update index segment attribute in cache
+                                    if (!isTransientSegment(newSegment) && !isTransactionSegment(newSegment)) {
+                                        String indexSegment = getIndexSegmentName(newSegment);
+                                        createIndexSegmentIfNotExists(writer, indexSegment, setupAppend.getRequestId());
+                                    }
 
                                     // Create a new WriterState object based on the attribute value for the last event number for the writer.
                                     // It should be noted that only one connection for a given segment writer is created by the client.
@@ -226,6 +234,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     private void createIndexSegmentIfNotExists(UUID writer, String indexSegment, long requestId) {
         store.getStreamSegmentInfo(indexSegment, TIMEOUT)
                 .whenComplete((properties, u) -> {
+                    String eventCountSuffix = (indexSegment + EVENT_COUNT_SUFFIX).trim();
                     if (u != null) {
                         u = Exceptions.unwrap(u);
                         if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
@@ -235,11 +244,18 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                     new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
                                     new AttributeUpdate(ALLOWED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, 24L)
                             );
-                            store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT,
-                                            attributes, TIMEOUT)
-                                    .exceptionally(e -> handleException(writer, requestId, indexSegment, "create index segment", e));
+                            store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT).join();
+                            this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(24L));
+                            this.writerStates.put(Pair.of(eventCountSuffix, writer), new WriterState(Attributes.NULL_ATTRIBUTE_VALUE));
                         } else {
-                            handleException(writer, requestId, indexSegment, "getting stream segment info", u);
+                            handleException(writer, requestId, indexSegment, "creating index segment", u);
+                        }
+                    } else {
+                        if (properties != null) {
+                            Map<AttributeId, Long> attributes =  properties.getAttributes();
+                            long eventCount = attributes.getOrDefault(attributes.get(EVENT_COUNT), Attributes.NULL_ATTRIBUTE_VALUE);
+                            this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE)));
+                            this.writerStates.put(Pair.of(eventCountSuffix, writer), new WriterState(eventCount));
                         }
                     }
                 });
@@ -279,8 +295,19 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     public void append(Append append) {
         long traceId = LoggerHelpers.traceEnter(log, "append", append);
         UUID id = append.getWriterId();
+        WriterState state1, state2;
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
         Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
+        if (!isTransientSegment(append.getSegment()) && !isTransactionSegment(append.getSegment())) {
+            String eventCountIdentifier = (getIndexSegmentName(append.getSegment()) + EVENT_COUNT_SUFFIX).trim();
+            state1 = this.writerStates.get(Pair.of(eventCountIdentifier, id)); // for eventCount of index seg
+            Preconditions.checkState(state1 != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
+            long eventCount = state1.getEventSizeForAppend();
+
+            state2 = this.writerStates.get(Pair.of(getIndexSegmentName(append.getSegment()), id));
+            Preconditions.checkState(state2 != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
+            long maxAllowedEventSize = state2.getEventSizeForAppend();
+        }
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
         this.connection.adjustOutstandingBytes(appendLength);
