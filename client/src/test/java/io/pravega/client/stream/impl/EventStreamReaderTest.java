@@ -748,10 +748,9 @@ public class EventStreamReaderTest {
         Mockito.when(segmentMetadataClientFactory.createSegmentMetadataClient(any(Segment.class), any())).thenReturn(metadataClient);
         Mockito.when(segmentInputStream.getSegmentId()).thenReturn(segment);
         Mockito.when(segInputStreamFactory.createEventReaderForSegment(any(Segment.class), anyInt(), any(Semaphore.class), anyLong())).thenReturn(segmentInputStream);
-        // Ensure segmentInputStream.read() returns SegmentTruncatedException.
         Mockito.when(segmentInputStream.isSegmentReady()).thenReturn(true);
         Mockito.when(segmentInputStream.read(anyLong())).thenThrow(SegmentTruncatedException.class);
-        // Ensure SegmentInfo returns NoSuchSegmentException.
+        // Ensure SegmentInfo returns incompleteFuture.
         CompletableFuture<SegmentInfo> incompleteFuture = new CompletableFuture();
         Mockito.when(metadataClient.getSegmentInfo()).thenReturn(incompleteFuture);
 
@@ -767,8 +766,9 @@ public class EventStreamReaderTest {
                 .thenReturn(ImmutableMap.of(rangedSegment, 0L))
                 .thenReturn(Collections.emptyMap());
         InOrder inOrder = Mockito.inOrder(groupState, segmentInputStream);
-        // Validate that ServerTimeoutException is thrown.
-        AssertExtensions.assertThrows(ServerTimeoutException.class, () -> reader.readNextEvent(10000));
+        // It will wait for the mentioned time in readNextEvent if it is not able to read then it will print
+        // a Warn message and throw truncatedDataException
+        AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(1000));
     }
 
     /**

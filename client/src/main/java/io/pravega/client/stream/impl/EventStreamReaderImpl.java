@@ -136,13 +136,11 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
             } catch (ReaderNotInReaderGroupException e) {
                 close();
                 throw new ReinitializationRequiredException(e);
-            } catch (TimeoutException e) {
-                throw new ServerTimeoutException(format("Event is not read {%s}", e));
             }
         }
     }
     
-    private EventRead<Type> readNextEventInternal(long timeoutMillis) throws ReaderNotInReaderGroupException, TruncatedDataException, TimeoutException {
+    private EventRead<Type> readNextEventInternal(long timeoutMillis) throws ReaderNotInReaderGroupException, TruncatedDataException {
         long firstByteTimeoutMillis = Math.min(timeoutMillis, BASE_READER_WAITING_TIME_MS);
         Timer timer = new Timer();
         Segment segment = null;
@@ -175,7 +173,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
                     handleEndOfSegment(segmentReader, isSegmentSealed);
                     buffer = null;
                 } catch (SegmentTruncatedException e) {
-                    handleSegmentTruncated(segmentReader, firstByteTimeoutMillis);
+                    handleSegmentTruncated(segmentReader, timeoutMillis);
                     buffer = null;
                 } finally {
                     if (buffer == null) {
@@ -400,7 +398,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
         sealedSegments.put(segmentId, segmentSealed ? -1L : oldSegment.getOffset());
     }
     
-    private void handleSegmentTruncated(EventSegmentReader segmentReader, long timeoutInMilli) throws TruncatedDataException, TimeoutException {
+    private void handleSegmentTruncated(EventSegmentReader segmentReader, long timeoutInMilli) throws TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
 
@@ -416,6 +414,8 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
             segmentReader.setOffset(startingOffset);
         } catch (NoSuchSegmentException e) {
             handleEndOfSegment(segmentReader, true);
+        } catch (TimeoutException te) {
+            log.warn("A timeout has occurred while attempting to retrieve segment information from the server");
         }
         throw new TruncatedDataException();
     }
