@@ -20,11 +20,9 @@ import io.pravega.common.util.SortUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,10 +34,10 @@ public final class IndexRequestProcessor {
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final int ENTRY_SIZE = 24; //TODO obtain from property.
 
-    private static final class SegmentTruncatedException extends RuntimeException {
+    static final class SearchFailedException extends RuntimeException {
         private static final long serialVersionUID = 1L;
 
-        public SegmentTruncatedException(String message) {
+        public SearchFailedException(String message) {
             super(message);
         }
     }
@@ -53,16 +51,12 @@ public final class IndexRequestProcessor {
      * @param greater boolean to determine if the next higher or the lower value to be returned in case the requested offset is not present.
      *
      * @return the corresponding offset position from the index segment entry.
-     * @throws StreamSegmentNotExistsException If the segment is truncated or it does not exist.
+     * @throws SearchFailedException if the index segment is of unexpected size or if the search fails.
      */
-    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws StreamSegmentNotExistsException {
-        try {
-            long offset = applySearch(store, segment, targetOffset, greater).getValue();
-            return offset;
-        } catch (SegmentTruncatedException ex) {
-            throw new StreamSegmentNotExistsException(ex.getMessage());
-        }
+    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SearchFailedException {
+        return applySearch(store, segment, targetOffset, greater).getValue();
     }
+
 
     /**
      * Locate the requested offset in index segment.
@@ -73,10 +67,12 @@ public final class IndexRequestProcessor {
      * @param greater boolean to determine if the next higher or the lower value to be returned in case the requested offset is not present.
      *
      * @return the corresponding offset of index segment.
+     * @throws SearchFailedException if the index segment is of unexpected size or if the search fails.
      */
-    public static long locateOffsetForIndexSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) {
+    public static long locateOffsetForIndexSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SearchFailedException {
         return applySearch(store, segment, targetOffset, greater).getKey() * ENTRY_SIZE;
     }
+
 
     private static Map.Entry<Long, Long> applySearch(StreamSegmentStore store, String segment, long targetOffset, boolean greater) {
         String indexSegmentName = NameUtils.getIndexSegmentName(segment);
@@ -86,8 +82,7 @@ public final class IndexRequestProcessor {
         long startIdx = properties.getStartOffset() / ENTRY_SIZE;
         long endIdx = properties.getLength() / ENTRY_SIZE;
 
-        //If startIdx and endIdx are same, then pass length of segment as a result.
-        return startIdx == endIdx ? getSegmentLength(store, segment, startIdx) : SortUtils.newtonianSearch(idx -> {
+        return SortUtils.newtonianSearch(idx -> {
             ReadResult result = store.read(indexSegmentName, idx * ENTRY_SIZE, ENTRY_SIZE, TIMEOUT).join();
             ReadResultEntry firstElement = result.next();
             // TODO deal with element which is split over multiple entries.
@@ -97,19 +92,14 @@ public final class IndexRequestProcessor {
                     BufferView content = firstElement.getContent().join();
                     IndexEntry entry = IndexEntry.fromBytes(content);
                     return entry.getOffset();
-                case Truncated:
-                    throw new SegmentTruncatedException(String.format("Segment %s no longer exists.", segment));
                 case Future:
                 case EndOfStreamSegment:
+                case Truncated:
                 default:
-                    throw new IllegalStateException(String.format("Unexpected size of index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
+                    throw new SearchFailedException("Index segment was of unexpected size: " + firstElement.getType());
             }
-        }, startIdx, endIdx > 0 ? endIdx - 1 : 0, targetOffset, greater);
+        }, startIdx, endIdx - 1, targetOffset, greater);
     }
 
-    private static Map.Entry<Long, Long> getSegmentLength(StreamSegmentStore store, String segment, long startIdx) {
-        SegmentProperties segmentProperties = store.getStreamSegmentInfo(segment, TIMEOUT).join();
-        return new AbstractMap.SimpleEntry<>(startIdx, segmentProperties.getLength());
-    }
 
 }
