@@ -188,7 +188,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     /**
      * Periodically check the state synchronizer if the given Checkpoint is complete.
-     * @param checkpointName     Checkpoint name.
+     * @param checkpointName Checkpoint name.
      * @param backgroundExecutor Executor on which the asynchronous task will run.
      * @return A CompletableFuture will be complete once the Checkpoint is complete.
      */
@@ -204,9 +204,9 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                         log.info("Waiting on checkpoint: {} currentState is: {}", checkpointName, synchronizer.getState());
                     }
                     return CompletableFuture.completedFuture(null);
-                });
+               });
                return null;
-           }, Duration.ofMillis(500), backgroundExecutor);
+            }, Duration.ofMillis(500), backgroundExecutor);
         }, backgroundExecutor);
     }
 
@@ -271,8 +271,8 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                         } else {
                           // ReaderGroup IDs matched so our create was updated on Controller
                           return CompletableFuture.completedFuture(conf.getGeneration());
-                        }
-                        }));
+                       }
+                       }));
                     updateConfigInStateSynchronizer(updateConfig, nextGen);
                 } else {
                     // normal code path
