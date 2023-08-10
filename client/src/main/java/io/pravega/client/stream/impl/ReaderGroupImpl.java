@@ -112,7 +112,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         this.controller = Preconditions.checkNotNull(controller);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
         this.synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
-                updateSerializer, initSerializer, synchronizerConfig);
+                                                                  updateSerializer, initSerializer, synchronizerConfig);
         this.notifierFactory = new NotifierFactory(new NotificationSystem(), synchronizer);
     }
 
@@ -122,15 +122,15 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         if (synchronizer.getState().getConfig().getRetentionType()
                 .equals(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)) {
             streamCuts.forEach((stream, cut) -> getThrowingException(controller
-                    .updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(),
-                            NameUtils.getScopedReaderGroupName(scope, groupName),
-                            synchronizer.getState().getConfig().getReaderGroupId(),
-                            synchronizer.getState().getConfig().getGeneration(), cut)));
+                            .updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(),
+                                    NameUtils.getScopedReaderGroupName(scope, groupName),
+                                    synchronizer.getState().getConfig().getReaderGroupId(),
+                                    synchronizer.getState().getConfig().getGeneration(), cut)));
 
             return;
         }
-        throw new UnsupportedOperationException("Operation not allowed when ReaderGroup retentionConfig is set to " +
-                synchronizer.getState().getConfig().getRetentionType().toString());
+       throw new UnsupportedOperationException("Operation not allowed when ReaderGroup retentionConfig is set to " +
+               synchronizer.getState().getConfig().getRetentionType().toString());
     }
 
     @Override
@@ -162,8 +162,8 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             int currentOutstandingCheckpointRequest = outstandingCheckpoints.size();
             if (currentOutstandingCheckpointRequest >= maxOutstandingCheckpointRequest) {
                 log.warn("Current outstanding checkpoints are : {}, " +
-                                "maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}, readers blocking checkpoint are: {}",
-                        outstandingCheckpoints, maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage, maxOutstandingCheckpointRequest, checkpointState.getReaderBlockingCheckpointsMap());
+                                 "maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}, readers blocking checkpoint are: {}",
+                         outstandingCheckpoints, maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage, maxOutstandingCheckpointRequest, checkpointState.getReaderBlockingCheckpointsMap());
 
                 return false;
             } else {
@@ -188,7 +188,6 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     /**
      * Periodically check the state synchronizer if the given Checkpoint is complete.
-     *
      * @param checkpointName     Checkpoint name.
      * @param backgroundExecutor Executor on which the asynchronous task will run.
      * @return A CompletableFuture will be complete once the Checkpoint is complete.
@@ -206,8 +205,8 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                     }
                     return CompletableFuture.completedFuture(null);
                 });
-                return null;
-            }, Duration.ofMillis(500), backgroundExecutor);
+               return null;
+           }, Duration.ofMillis(500), backgroundExecutor);
         }, backgroundExecutor);
     }
 
@@ -265,21 +264,21 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                     final ReaderGroupConfig updateConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
 
                     final long nextGen = Futures.getThrowingException(controller.createReaderGroup(scope, getGroupName(), updateConfig)
-                            .thenCompose(conf -> {
-                                if (!conf.getReaderGroupId().equals(updateConfig.getReaderGroupId())) {
-                                    return controller.updateReaderGroup(scope, groupName,
-                                            ReaderGroupConfig.cloneConfig(updateConfig, conf.getReaderGroupId(), conf.getGeneration()));
-                                } else {
-                                    // ReaderGroup IDs matched so our create was updated on Controller
-                                    return CompletableFuture.completedFuture(conf.getGeneration());
-                                }
-                            }));
+                       .thenCompose(conf -> {
+                       if (!conf.getReaderGroupId().equals(updateConfig.getReaderGroupId())) {
+                          return controller.updateReaderGroup(scope, groupName,
+                                  ReaderGroupConfig.cloneConfig(updateConfig, conf.getReaderGroupId(), conf.getGeneration()));
+                        } else {
+                          // ReaderGroup IDs matched so our create was updated on Controller
+                          return CompletableFuture.completedFuture(conf.getGeneration());
+                        }
+                        }));
                     updateConfigInStateSynchronizer(updateConfig, nextGen);
                 } else {
                     // normal code path
                     // Use the latest generation and reader group Id.
                     ReaderGroupConfig newConfig = ReaderGroupConfig.cloneConfig(config,
-                            currentConfig.getReaderGroupId(), currentConfig.getGeneration());
+                                    currentConfig.getReaderGroupId(), currentConfig.getGeneration());
                     long newGen = Futures.exceptionallyExpecting(controller.updateReaderGroup(scope, groupName, newConfig),
                             e -> Exceptions.unwrap(e) instanceof ReaderGroupConfigRejectedException, -1L).join();
                     if (newGen == -1) {
@@ -357,32 +356,32 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         Map<Stream, StreamCut> streamToStreamCuts = config.getStartingStreamCuts();
         final List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streamToStreamCuts.size());
         streamToStreamCuts.entrySet().forEach(e -> {
-            if (e.getValue().equals(StreamCut.UNBOUNDED)) {
-                futures.add(controller.getSegmentsAtTime(e.getKey(), 0L));
-            } else {
-                futures.add(CompletableFuture.completedFuture(e.getValue().asImpl().getPositions()));
-            }
-        });
+                  if (e.getValue().equals(StreamCut.UNBOUNDED)) {
+                      futures.add(controller.getSegmentsAtTime(e.getKey(), 0L));
+                  } else {
+                      futures.add(CompletableFuture.completedFuture(e.getValue().asImpl().getPositions()));
+                  }
+              });
         return getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
             return listOfMaps.stream()
-                    .flatMap(map -> map.entrySet().stream())
-                    .collect(Collectors.toMap(e -> new SegmentWithRange(e.getKey(), null), e -> e.getValue()));
+                             .flatMap(map -> map.entrySet().stream())
+                             .collect(Collectors.toMap(e -> new SegmentWithRange(e.getKey(), null), e -> e.getValue()));
 
         }), InvalidStreamException::new);
     }
 
     public static Map<Segment, Long> getEndSegmentsForStreams(ReaderGroupConfig config) {
         List<Map<Segment, Long>> listOfMaps = config.getEndingStreamCuts()
-                .entrySet()
-                .stream()
-                .filter(e -> !e.getValue().equals(StreamCut.UNBOUNDED))
-                .map(e -> e.getValue().asImpl().getPositions())
-                .collect(Collectors.toList());
+                                                    .entrySet()
+                                                    .stream()
+                                                    .filter(e -> !e.getValue().equals(StreamCut.UNBOUNDED))
+                                                    .map(e -> e.getValue().asImpl().getPositions())
+                                                    .collect(Collectors.toList());
         return listOfMaps.stream()
-                .flatMap(map -> map.entrySet().stream())
-                .collect(Collectors.toMap(Entry::getKey,
-                        // A value of -1L implies read until the end of the segment.
-                        entry -> (entry.getValue() == -1L) ? (Long) Long.MAX_VALUE : entry.getValue()));
+                         .flatMap(map -> map.entrySet().stream())
+                         .collect(Collectors.toMap(Entry::getKey,
+                                                   // A value of -1L implies read until the end of the segment.
+                                                   entry -> (entry.getValue() == -1L) ? (Long) Long.MAX_VALUE : entry.getValue()));
     }
 
     @Override
@@ -439,8 +438,8 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     private StreamCut computeEndStreamCut(Stream stream, Map<Segment, Long> endSegments) {
         final Map<Segment, Long> toPositions = endSegments.entrySet().stream()
-                .filter(e -> e.getKey().getStream().equals(stream))
-                .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+                                                          .filter(e -> e.getKey().getStream().equals(stream))
+                                                          .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
         return toPositions.isEmpty() ? StreamCut.UNBOUNDED : new StreamCutImpl(stream, toPositions);
     }
 
@@ -457,7 +456,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
         return unread.thenCompose(unreadVal -> {
             DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
-                    .create(controller, stream.getScope(), stream.getStreamName(), AccessOperation.READ);
+                .create(controller, stream.getScope(), stream.getStreamName(), AccessOperation.READ);
             return Futures.allOfWithResults(unreadVal.getSegments().stream().map(s -> {
                 if (endPositions.containsKey(s)) {
                     return CompletableFuture.completedFuture(endPositions.get(s));
@@ -516,7 +515,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointId));
 
         return waitForCheckpointComplete(checkpointId, backgroundExecutor)
-                .thenApply(v -> completeCheckpointAndFetchStreamCut(checkpointId));
+                      .thenApply(v -> completeCheckpointAndFetchStreamCut(checkpointId));
     }
 
     /**
@@ -550,7 +549,6 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public void cancelOutstandingCheckpoints() {
         synchronizer.updateState((state, updates) -> {
             updates.add(new ReaderGroupState.RemoveOutstandingCheckpoints());
-            return true;
         });
     }
 }

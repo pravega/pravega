@@ -1233,7 +1233,6 @@ public class ReaderGroupState implements Revisioned {
     @Data
     @EqualsAndHashCode(callSuper = false)
     static class RemoveOutstandingCheckpoints extends ReaderGroupStateUpdate {
-        //private final String removeOutstandingCheckpoints;
 
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
@@ -1265,8 +1264,8 @@ public class ReaderGroupState implements Revisioned {
                 version(0).revision(0, this::write00, this::read00);
             }
 
-            private void read00(RevisionDataInput in, RemoveOutstandingCheckpointsBuilder builder) throws IOException {
-                builder.build();
+           private void read00(RevisionDataInput in, RemoveOutstandingCheckpointsBuilder builder) throws IOException {
+               builder.build();
             }
 
             private void write00(RemoveOutstandingCheckpoints object, RevisionDataOutput out) throws IOException {
