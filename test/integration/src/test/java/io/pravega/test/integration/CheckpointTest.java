@@ -31,7 +31,10 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.*;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.MaxNumberOfCheckpointsExceededException;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -173,16 +176,13 @@ public class CheckpointTest {
         assertNull(read.getEvent());
 
         read = reader1.readNextEvent(100);
-        assertTrue(read.isCheckpoint());
-        assertEquals("Checkpoint1", read.getCheckpointName());
+        assertFalse(read.isCheckpoint());
 
         read = reader2.readNextEvent(100);
-        assertTrue(read.isCheckpoint());
-        assertEquals("Checkpoint1", read.getCheckpointName());
+        assertFalse(read.isCheckpoint());
 
         read = reader3.readNextEvent(100);
-        assertTrue(read.isCheckpoint());
-        assertEquals("Checkpoint1", read.getCheckpointName());
+        assertFalse(read.isCheckpoint());
 
         readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkpoint5.get()).disableAutomaticCheckpoints().build());
         assertThrows("Checkpoint was cleared before results could be read.", ExecutionException.class, () -> checkpoint1.get(5, TimeUnit.SECONDS));

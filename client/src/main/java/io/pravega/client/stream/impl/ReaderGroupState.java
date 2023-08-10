@@ -1228,6 +1228,7 @@ public class ReaderGroupState implements Revisioned {
             }
         }
     }
+
     @Builder
     @Data
     @EqualsAndHashCode(callSuper = false)
@@ -1390,7 +1391,8 @@ public class ReaderGroupState implements Revisioned {
              .serializer(CreateCheckpoint.class, 9, new CreateCheckpoint.CreateCheckpointSerializer())
              .serializer(ClearCheckpointsBefore.class, 10, new ClearCheckpointsBefore.ClearCheckpointsBeforeSerializer())
              .serializer(UpdateCheckpointPublished.class, 11, new UpdateCheckpointPublished.UpdateCheckpointPublishedSerializer())
-             .serializer(UpdatingConfig.class, 12, new UpdatingConfig.UpdatingConfigSerializer());
+             .serializer(UpdatingConfig.class, 12, new UpdatingConfig.UpdatingConfigSerializer())
+             .serializer(RemoveOutstandingCheckpoints.class, 13, new RemoveOutstandingCheckpoints.RemoveOutstandingCheckpointsSerializer());
         }
     }
     

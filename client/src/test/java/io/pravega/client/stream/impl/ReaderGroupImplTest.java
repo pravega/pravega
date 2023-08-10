@@ -170,9 +170,6 @@ public class ReaderGroupImplTest {
     @Test
     public void testCancelOutstanding() {
         CheckpointState state = new CheckpointState();
-        ReaderGroupState rGstate = mock(ReaderGroupState.class);
-        when(synchronizer.getState()).thenReturn(rGstate);
-        when(rGstate.getCheckpointState()).thenReturn(state);
         state.beginNewCheckpoint("1", ImmutableSet.of("a", "b"), Collections.emptyMap());
         state.beginNewCheckpoint("2", ImmutableSet.of("a", "b"), Collections.emptyMap());
         state.beginNewCheckpoint("3", ImmutableSet.of("a", "b"), Collections.emptyMap());
@@ -182,6 +179,7 @@ public class ReaderGroupImplTest {
         state.readerCheckpointed("1", "a", Collections.emptyMap());
         assertEquals("2", state.getCheckpointForReader("a"));
         assertEquals("1", state.getCheckpointForReader("b"));
+        assertEquals(3, state.getOutstandingCheckpoints().size());
         state.removeOutstandingCheckpoints();
         assertEquals(0, state.getOutstandingCheckpoints().size());
     }
