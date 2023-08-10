@@ -20,7 +20,6 @@ import io.pravega.common.util.SortUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
@@ -36,7 +35,7 @@ public final class IndexRequestProcessor {
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final int ENTRY_SIZE = 24; //TODO obtain from property.
 
-    private static final class SegmentTruncatedException extends RuntimeException {
+    static final class SegmentTruncatedException extends RuntimeException {
         private static final long serialVersionUID = 1L;
 
         public SegmentTruncatedException(String message) {
@@ -53,15 +52,11 @@ public final class IndexRequestProcessor {
      * @param greater boolean to determine if the next higher or the lower value to be returned in case the requested offset is not present.
      *
      * @return the corresponding offset position from the index segment entry.
-     * @throws StreamSegmentNotExistsException If the segment is truncated or it does not exist.
+     * @throws SegmentTruncatedException If the segment is truncated.
      */
-    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws StreamSegmentNotExistsException {
-        try {
-            long offset = applySearch(store, segment, targetOffset, greater).getValue();
-            return offset;
-        } catch (SegmentTruncatedException ex) {
-            throw new StreamSegmentNotExistsException(ex.getMessage());
-        }
+    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SegmentTruncatedException {
+        long offset = applySearch(store, segment, targetOffset, greater).getValue();
+        return offset;
     }
 
     /**
@@ -100,13 +95,13 @@ public final class IndexRequestProcessor {
                     BufferView content = firstElement.getContent().join();
                     IndexEntry entry = IndexEntry.fromBytes(content);
                     return entry.getOffset();
+                case Truncated:
+                    throw new SegmentTruncatedException(String.format("Segment %s has been truncated.", segment));
                 case Future:
                 case EndOfStreamSegment:
                     throw new IllegalStateException(String.format("Unexpected size of index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
-                case Truncated:
-                    throw new SegmentTruncatedException(String.format("Segment %s no longer exists.", segment));
             }
-            return Long.MIN_VALUE;
+            throw new IllegalStateException(String.format("Unexpected index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
         }, startIdx, endIdx > 0 ? endIdx - 1 : 0, targetOffset, greater);
     }
 

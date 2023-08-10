@@ -243,7 +243,7 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test(timeout = 20000)
-    public void testLocateOffsetThrowingNoSuchSegmentException() throws DurableDataLogException {
+    public void testLocateOffsetThrowingSegmentTruncatedException() throws DurableDataLogException {
         // Set up PravegaRequestProcessor instance to execute read segment request against
         String streamSegmentName = "scope/stream/testLocateOffset";
         String indexSegment = getIndexSegmentName(streamSegmentName);
@@ -274,7 +274,7 @@ public class PravegaRequestProcessorTest {
         readResult2.complete(new TestReadResult(0, readLength, results2));
         when(store.read(indexSegment, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult2);
         processor.locateOffset(new WireCommands.LocateOffset(requestId, streamSegmentName, 20L, ""));
-        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, streamSegmentName, "", -1L));
+        order.verify(connection).send(new WireCommands.SegmentTruncated(requestId, streamSegmentName));
     }
 
     @Test(timeout = 20000)
