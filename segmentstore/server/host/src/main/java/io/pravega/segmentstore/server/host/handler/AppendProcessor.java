@@ -248,7 +248,9 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                 store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT).join();
                                 this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(24L));
                                 this.writerStates.put(Pair.of(eventCountSuffix, writer), new WriterState(Attributes.NULL_ATTRIBUTE_VALUE));
-                            } else { throw u; }
+                            } else {
+                                throw u;
+                            }
                         } else {
                             if (properties != null) {
                                 Map<AttributeId, Long> attributes = properties.getAttributes();
