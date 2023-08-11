@@ -73,7 +73,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Tracks inflight events, and manages reconnects automatically.
- *
+ * 
  * @see SegmentOutputStream
  */
 @RequiredArgsConstructor
