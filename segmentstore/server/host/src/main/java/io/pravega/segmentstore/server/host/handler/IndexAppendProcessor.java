@@ -16,6 +16,7 @@
 
 package io.pravega.segmentstore.server.host.handler;
 
+import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.LatestItemSequentialProcessor;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -46,38 +47,34 @@ public class IndexAppendProcessor {
         this.store = store;
     }
 
-    /**
-     * Appends index segment on a separate thread.
-     * @param segmentName  segment name.
-     */
-    protected void processAppend(String segmentName) {
+    protected void processAppend(IndexAppend indexAppend) {
         // Not updating index segment for transient and transaction type.
-        if (isTransientSegment(segmentName) || isTransactionSegment(segmentName)) {
+        if (isTransientSegment(indexAppend.getSegment()) || isTransactionSegment(indexAppend.getSegment())) {
             return;
         }
-        LatestItemSequentialProcessor<String> latestItemProcessor = new LatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
-        latestItemProcessor.updateItem(segmentName);
+        LatestItemSequentialProcessor<IndexAppend> latestItemProcessor = new LatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
+        latestItemProcessor.updateItem(indexAppend);
     }
 
-    private void handleIndexAppend(String segmentName) {
+    private void handleIndexAppend(IndexAppend indexAppend) {
         //TODO : Update the index segment Attribute as needed going forward. If eventcount for main segment is null then we are passing it as 0 in index segment.
         AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
+                //TODO: ReplaceIfGreater
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));
-        store.getStreamSegmentInfo(segmentName, TIMEOUT)
-             .thenCompose(info -> store.append(getIndexSegmentName(segmentName), getIndexAppendBuf(info.getLength(),
-                     (info.getAttributes().get(EVENT_COUNT) != null) ? info.getAttributes().get(EVENT_COUNT) : 0), attributes, TIMEOUT))
-             .whenComplete((length, ex) -> {
-                 if (ex == null) {
-                     log.trace("Index segment append successful for Segment : {} with length {} ", segmentName, length);
-                 } else {
-                     log.warn("Index segment append failed for segment {} due to ", segmentName, ex);
-                 }
-             });
+        ByteBufWrapper bufferWrapper = getIndexAppendBuf(indexAppend.getOffsetLength(), indexAppend.getEventCount()); // main event count
+        // TODO: verify if this check is required or not
+        Preconditions.checkArgument( bufferWrapper.getLength() == indexAppend.getMaxEventSize(), "The data received for index segment append is not of desired size");
+        //TODO: verify if this append is what was expected and not the one with length variant(conditional append)
+        store.append(getIndexSegmentName(indexAppend.getSegment()), bufferWrapper, attributes, TIMEOUT)
+                .thenAccept(v -> log.info("Index segment append successful for segment {} ", indexAppend.getSegment()))
+                .exceptionally(e -> {
+                    log.warn("Index segment append failed for segment {} due to ", indexAppend.getSegment(), e);
+                    return null;
+                });
     }
 
     private ByteBufWrapper getIndexAppendBuf(Long eventLength, Long eventCount) {
         IndexEntry indexEntry = new IndexEntry(eventLength, eventCount, System.currentTimeMillis());
         return new ByteBufWrapper(Unpooled.wrappedBuffer( indexEntry.toBytes().getCopy()));
     }
-
 }
