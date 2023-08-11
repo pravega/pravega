@@ -308,6 +308,13 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertTrue(nextStreamCut != null);
         assertTrue(nextStreamCut.asImpl().getPositions().size() == 1);
         assertEquals(300L, nextStreamCut.asImpl().getPositions().get(segment).longValue());
+
+        streamCut = new StreamCutImpl(Stream.of(SCOPE + "-1", STREAM + "-1"),
+                ImmutableMap.of(segment, 60L));
+        nextStreamCut = batchClient.getNextStreamCut(streamCut, Long.MAX_VALUE);
+        assertTrue(nextStreamCut != null);
+        assertTrue(nextStreamCut.asImpl().getPositions().size() == 1);
+        assertEquals(300L, nextStreamCut.asImpl().getPositions().get(segment).longValue());
     }
 
     /**
