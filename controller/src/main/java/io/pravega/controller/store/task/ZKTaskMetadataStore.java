@@ -52,6 +52,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             // for fresh lock, create the node and write its data.
             // if the node successfully got created, locking has succeeded,
             // else locking has failed.
+            log.info("Acquiring lock with the owner {}, threadId {}", owner, threadId);
             LockData lockData = new LockData(owner, threadId, taskData.serialize());
             client.create()
                     .creatingParentsIfNeeded()
@@ -79,6 +80,8 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             Stat stat = new Stat();
             byte[] data = client.getData().storingStatIn(stat).forPath(getTaskPath(resource));
             LockData lockData = LockData.deserialize(data);
+            log.info("Transfer lock with the lockData.getHostId {}, oldOwner {}, oldThreadId {}, " +
+                    "owner {} and threadId {}", lockData.getHostId(), oldOwner, oldThreadId, owner, threadId);
             if (lockData.isOwnedBy(oldOwner, oldThreadId)) {
                 lockData = new LockData(owner, threadId, lockData.getTaskData());
 
