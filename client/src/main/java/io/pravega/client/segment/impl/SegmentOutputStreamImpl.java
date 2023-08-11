@@ -718,4 +718,4 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     public long getLastObservedWriteOffset() {
         return state.getLastSegmentLength();
     }
-} 
+}
