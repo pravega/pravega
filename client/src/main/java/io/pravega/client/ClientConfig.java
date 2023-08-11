@@ -105,7 +105,11 @@ public class ClientConfig implements Serializable {
      */
     private final int maxConnectionsPerSegmentStore;
 
-    // This is a timeout to be passed to Completeablefuture to complete.
+    /**
+     * Maximum Connection timeout in milliseconds for establishing connections.
+     *
+     * @return Connection timeout in milliseconds for establishing connections.
+     */
     private final long connectTimeoutMilliSec;
 
 
@@ -226,7 +230,13 @@ public class ClientConfig implements Serializable {
             this.deriveTlsEnabledFromControllerURI = value;
             return this;
         }
-       
+
+        /**
+         * Sets the connection timeout in milliseconds for establishing connections.
+         *
+         * @param connectTimeoutMilliSec The connection timeout in milliseconds for establishing connections.
+         * @return the builder.
+         */
         public ClientConfigBuilder connectTimeoutMilliSec(long connectTimeoutMilliSec) {
             this.connectTimeoutMilliSec = connectTimeoutMilliSec;
             return this;
