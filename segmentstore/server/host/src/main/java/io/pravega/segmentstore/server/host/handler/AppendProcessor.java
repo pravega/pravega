@@ -211,10 +211,11 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
 
                                     // create index segment if not exist and update index segment attribute in cache
                                     if (!isTransientSegment(newSegment) && !isTransactionSegment(newSegment)) {
-                                        String eventCountSuffix = (newSegment + EVENT_COUNT_SUFFIX).trim();
+                                        Map<AttributeId, Long> eventCountAttribute = store.getAttributes(newSegment, Collections.singleton(EVENT_COUNT), true, TIMEOUT).join();
+                                        String eventCountIdentifier = (newSegment + EVENT_COUNT_SUFFIX).trim();
                                         // storing main segments event count
-                                        long eventCount = attributes.getOrDefault(attributes.get(EVENT_COUNT), Attributes.NULL_ATTRIBUTE_VALUE);
-                                        this.writerStates.put(Pair.of(eventCountSuffix, writer), new WriterState(eventCount));
+                                        long eventCount = eventCountAttribute.getOrDefault(EVENT_COUNT, 0L);
+                                        this.writerStates.put(Pair.of(eventCountIdentifier, writer), new WriterState(eventCount));
                                         String indexSegment = getIndexSegmentName(newSegment);
                                         createIndexSegmentIfNotExists(writer, indexSegment, setupAppend.getRequestId());
                                     }
@@ -317,6 +318,16 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                 });
     }
 
+    private void updateSegmentEventCountCache(Append append) {
+        if (!isTransientSegment(append.getSegment()) && !isTransactionSegment(append.getSegment())) {
+            String eventCountIdentifier = (append.getSegment() + EVENT_COUNT_SUFFIX).trim();
+            WriterState state = this.writerStates.get(Pair.of(eventCountIdentifier, append.getWriterId()));
+            long previousEventCount = state.getEventSizeForAppend();
+            long newEventCount = previousEventCount + append.getEventCount();
+            this.writerStates.put(Pair.of(eventCountIdentifier, append.getWriterId()), new WriterState(newEventCount));
+        }
+    }
+
     private void UpdateIndexSegment(Append append, long lastOffset) {
         WriterState state2;
         WriterState state1;
@@ -381,7 +392,10 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         boolean success = exception == null;
         try {
             if (success) {
-                UpdateIndexSegment(append, newWriteOffset);
+                updateSegmentEventCountCache(append);
+                if (newWriteOffset != null) {
+                    UpdateIndexSegment(append, newWriteOffset);
+                }
                 //indexAppendProcessor.processAppend(append.getSegment(), newWriteOffset);
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
