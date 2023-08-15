@@ -80,7 +80,7 @@ init_kubernetes() {
                     		export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].hostname" )
                 	fi
 		fi
-                export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[0].port" )
+                export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].port" )
             done
         elif [ "${service_type}" == "NodePort" ]; then
             nodename=$( k8 "${ns}" "pods" "${podname}" ".spec.nodeName" )
@@ -90,7 +90,7 @@ init_kubernetes() {
 		  echo "Trying to obtain NodePort external endpoint..."
                   sleep 10
                   export PUBLISHED_ADDRESS=$( k8 "" "nodes" "${nodename}" ".status.addresses[] | select(.type == \"ExternalIP\") | .address" )
-                  export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[0].nodePort" )
+                  export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].nodePort" )
             	fi
 	    done
         else
