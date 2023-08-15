@@ -35,10 +35,10 @@ public final class IndexRequestProcessor {
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final int ENTRY_SIZE = 24; //TODO obtain from property.
 
-    static final class SearchFailedException extends RuntimeException {
+    static final class SegmentTruncatedException extends RuntimeException {
         private static final long serialVersionUID = 1L;
 
-        public SearchFailedException(String message) {
+        public SegmentTruncatedException(String message) {
             super(message);
         }
     }
@@ -52,12 +52,12 @@ public final class IndexRequestProcessor {
      * @param greater boolean to determine if the next higher or the lower value to be returned in case the requested offset is not present.
      *
      * @return the corresponding offset position from the index segment entry.
-     * @throws SearchFailedException if the index segment is of unexpected size or if the search fails.
+     * @throws SegmentTruncatedException If the segment is truncated.
      */
-    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SearchFailedException {
-        return applySearch(store, segment, targetOffset, greater).getValue();
+    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SegmentTruncatedException {
+        long offset = applySearch(store, segment, targetOffset, greater).getValue();
+        return offset;
     }
-
 
     /**
      * Locate the requested offset in index segment.
@@ -68,12 +68,10 @@ public final class IndexRequestProcessor {
      * @param greater boolean to determine if the next higher or the lower value to be returned in case the requested offset is not present.
      *
      * @return the corresponding offset of index segment.
-     * @throws SearchFailedException if the index segment is of unexpected size or if the search fails.
      */
-    public static long locateOffsetForIndexSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SearchFailedException {
+    public static long locateOffsetForIndexSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) {
         return applySearch(store, segment, targetOffset, greater).getKey() * ENTRY_SIZE;
     }
-
 
     private static Map.Entry<Long, Long> applySearch(StreamSegmentStore store, String segment, long targetOffset, boolean greater) {
         String indexSegmentName = NameUtils.getIndexSegmentName(segment);
@@ -97,12 +95,13 @@ public final class IndexRequestProcessor {
                     BufferView content = firstElement.getContent().join();
                     IndexEntry entry = IndexEntry.fromBytes(content);
                     return entry.getOffset();
+                case Truncated:
+                    throw new SegmentTruncatedException(String.format("Segment %s has been truncated.", segment));
                 case Future:
                 case EndOfStreamSegment:
-                case Truncated:
-                default:
-                    throw new SearchFailedException("Index segment was of unexpected size: " + firstElement.getType());
+                    throw new IllegalStateException(String.format("Unexpected size of index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
             }
+            throw new IllegalStateException(String.format("Unexpected index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
         }, startIdx, endIdx > 0 ? endIdx - 1 : 0, targetOffset, greater);
     }
 
