@@ -15,12 +15,16 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import lombok.Data;
 
+/**
+ * Java class to manage index segment appends.
+ */
 @Data
 public class IndexAppend {
-    private final String segment;
-    private final Long offsetLength; //this will be the last append offset of the main segment.
+    private final String indexSegment;
+    private final ByteBufWrapper bufferWrapper;
     private final long eventCount; // main segment event count
     private final long maxEventSize;
 }

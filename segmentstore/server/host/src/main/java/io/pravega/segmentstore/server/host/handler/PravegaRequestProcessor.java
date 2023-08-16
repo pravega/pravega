@@ -128,7 +128,7 @@ import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 import static io.pravega.common.function.Callbacks.invokeSafely;
-import static io.pravega.segmentstore.contracts.Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE;
+import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEG_EVENT_SIZE;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.ROLLOVER_SIZE;
@@ -504,7 +504,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                 new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
-                new AttributeUpdate(ALLOWED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, 24L)
+                new AttributeUpdate(EXPECTED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, 24L)
         );
         return segmentStore.createStreamSegment(getIndexSegmentName(segmentName), SegmentType.STREAM_SEGMENT,
                 attributes, TIMEOUT);
@@ -533,9 +533,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     .thenAccept(mergeResult -> {
                         try {
                             SegmentProperties mergeSegmentProp = segmentStore.getStreamSegmentInfo(mergeSegments.getTarget(), TIMEOUT).join();
-                            // TODO: please check how to get offsetLength of main seg here, as in INdex segment append it can be handled/passed, but not here.
                             long eventCount = mergeSegmentProp.getAttributes().get(EVENT_COUNT) != null ? mergeSegmentProp.getAttributes().get(EVENT_COUNT) : 0L;
-                            indexAppendProcessor.processAppend(new IndexAppend(mergeSegments.getTarget(), mergeResult.getTargetSegmentLength(), eventCount, 24L));
+                            indexAppendProcessor.processAppend(new IndexAppend(mergeSegments.getTarget(),
+                                    indexAppendProcessor.getIndexAppendBuf(mergeResult.getTargetSegmentLength(), eventCount), eventCount, 24L));
                             recordStatForTransaction(mergeResult, mergeSegments.getTarget());
                             connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
                                     mergeSegments.getTarget(),
@@ -601,9 +601,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
                         try {
                             SegmentProperties mergeSegmentProp = segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).join();
-                            // TODO: please check how to get offsetLength of main seg here, as in INdex segment append it can be handled/passed, but not here.
                             long eventCount = mergeSegmentProp.getAttributes().get(EVENT_COUNT) != null ? mergeSegmentProp.getAttributes().get(EVENT_COUNT) : 0L;
-                            indexAppendProcessor.processAppend(new IndexAppend(mergeSegments.getTargetSegmentId(), mergeSegmentProp.getLength(), eventCount, 24L));
+                            indexAppendProcessor.processAppend(new IndexAppend(mergeSegments.getTargetSegmentId(),
+                                    indexAppendProcessor.getIndexAppendBuf(mergeSegmentProp.getLength(), eventCount), eventCount, 24L));
                         } catch (Exception ex) {
                             throw ex;
                         }

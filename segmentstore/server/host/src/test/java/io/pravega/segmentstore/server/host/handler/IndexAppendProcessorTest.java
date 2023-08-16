@@ -65,8 +65,8 @@ public class IndexAppendProcessorTest {
                 .thenReturn(CompletableFuture.completedFuture(10L));
 
         IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
-        IndexAppend iAppend = new IndexAppend(segmentName, 1234L, 30L, 24L);
-        IndexAppend iAppend2 = new IndexAppend(segmentName, 1234L, 30L, 24L);
+        IndexAppend iAppend = new IndexAppend(segmentName, appendProcessor.getIndexAppendBuf(1234L, 30L), 30L, 24L);
+        IndexAppend iAppend2 = new IndexAppend(segmentName, appendProcessor.getIndexAppendBuf(1234L, 30L), 30L, 24L);
         appendProcessor.processAppend(iAppend);
         appendProcessor.processAppend(iAppend2);
 

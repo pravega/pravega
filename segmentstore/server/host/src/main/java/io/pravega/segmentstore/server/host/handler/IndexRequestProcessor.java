@@ -33,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class IndexRequestProcessor {
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final int ENTRY_SIZE = 24; //TODO obtain from property.
+    private static final int ENTRY_SIZE = 24;
 
     static final class SegmentTruncatedException extends RuntimeException {
         private static final long serialVersionUID = 1L;

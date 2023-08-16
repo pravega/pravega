@@ -72,9 +72,9 @@ class WriterState {
     private ArrayList<ErrorContext> errorContexts;
 
     /**
-     * Allowed number of events for index segment append
+     * Expected size of events for index segment append
      */
-    private final long eventSize;
+    private long eventSize;
 
     //endregion
 
@@ -90,7 +90,17 @@ class WriterState {
         this.smallestFailedEventNumber = NO_FAILED_EVENT_NUMBER; // Nothing failed yet.
         this.lastStoredEventNumber = initialEventNumber;
         this.lastAckedEventNumber = initialEventNumber;
-        this.eventSize = initialEventNumber;
+    }
+
+    /**
+     * Creates a new instance of the {@link WriterState} class.
+     *
+     * @param initialEventNumber The current Event Number on the Segment associated with this writer.
+     * @param eventSize Max event size allowed for index appends in case of stream segments.
+     */
+    WriterState(long initialEventNumber, long eventSize) {
+        this(initialEventNumber);
+        this.eventSize = eventSize;
     }
 
     //endregion
@@ -338,6 +348,15 @@ class WriterState {
      */
     synchronized long getEventSizeForAppend() {
         return this.eventSize;
+    }
+
+    /**
+     * Gets the Event count.
+     *
+     * @return The event count.
+     */
+    synchronized long getEventCountForAppend() {
+        return this.lastStoredEventNumber;
     }
     //endregion
 }

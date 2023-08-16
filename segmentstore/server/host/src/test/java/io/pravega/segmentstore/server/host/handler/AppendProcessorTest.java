@@ -73,6 +73,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
@@ -166,8 +167,8 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, "");
         processor.setupAppend(setupAppendCommand);
         processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
-        verify(store).getAttributes(anyString(), eq(Collections.singleton(AttributeId.fromUUID(clientId))), eq(true), eq(AppendProcessor.TIMEOUT));
-        verify(store).getAttributes(anyString(), eq(Collections.singleton(EVENT_COUNT)), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(store).getAttributes(anyString(), eq(List.of(AttributeId.fromUUID(clientId), EVENT_COUNT)), eq(true), eq(AppendProcessor.TIMEOUT));
+        //verify(store).getAttributes(anyString(), eq(Collections.singleton(EVENT_COUNT)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac, data);
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
@@ -302,7 +303,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                         .length(eventLength)
                         .attributes(ImmutableMap.<AttributeId, Long>builder()
                                 .put(Attributes.SCALE_POLICY_TYPE, 0L)
-                                .put(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE, 24L)
+                                .put(Attributes.EXPECTED_INDEX_SEG_EVENT_SIZE, 24L)
                                 .put(EVENT_COUNT, eventCount)
                                 .put(Attributes.SCALE_POLICY_RATE, 10L).build())
                         .build());
@@ -1391,7 +1392,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
     }
 
     private void setupGetAttributes(String streamSegmentName, UUID clientId, long eventNumber, StreamSegmentStore store) {
-        when(store.getAttributes(streamSegmentName, Collections.singleton(AttributeId.fromUUID(clientId)), true, AppendProcessor.TIMEOUT))
+        when(store.getAttributes(streamSegmentName, List.of(AttributeId.fromUUID(clientId), EVENT_COUNT), true, AppendProcessor.TIMEOUT))
                 .thenReturn(CompletableFuture.completedFuture(Collections.singletonMap(AttributeId.fromUUID(clientId), eventNumber)));
     }
 

@@ -16,7 +16,6 @@
 
 package io.pravega.segmentstore.server.host.handler;
 
-import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.LatestItemSequentialProcessor;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -29,7 +28,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
-import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static io.pravega.shared.NameUtils.isTransactionSegment;
 import static io.pravega.shared.NameUtils.isTransientSegment;
 
@@ -41,40 +39,40 @@ public class IndexAppendProcessor {
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private final ScheduledExecutorService indexSegmentUpdateExecutor;
     private final StreamSegmentStore store;
+    private final LatestItemSequentialProcessor<IndexAppend> latestItemProcessor;
 
     public IndexAppendProcessor(ScheduledExecutorService indexSegmentUpdateExecutor, StreamSegmentStore store) {
         this.indexSegmentUpdateExecutor = indexSegmentUpdateExecutor;
         this.store = store;
+        latestItemProcessor = new LatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
     }
 
     protected void processAppend(IndexAppend indexAppend) {
         // Not updating index segment for transient and transaction type.
-        if (isTransientSegment(indexAppend.getSegment()) || isTransactionSegment(indexAppend.getSegment())) {
+        if (isTransientSegment(indexAppend.getIndexSegment()) || isTransactionSegment(indexAppend.getIndexSegment())) {
             return;
         }
-        LatestItemSequentialProcessor<IndexAppend> latestItemProcessor = new LatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
+       if (indexAppend.getBufferWrapper().getLength() != indexAppend.getMaxEventSize()) {
+            log.debug("The data received for index segment: {} append is not of desired size Actual: {}, Desired: {}",
+                    indexAppend.getIndexSegment(), indexAppend.getBufferWrapper().getLength(), indexAppend.getMaxEventSize());
+            return;
+        }
         latestItemProcessor.updateItem(indexAppend);
     }
 
     private void handleIndexAppend(IndexAppend indexAppend) {
-        //TODO : Update the index segment Attribute as needed going forward. If eventcount for main segment is null then we are passing it as 0 in index segment.
         AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
-                //TODO: ReplaceIfGreater
-                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));
-        ByteBufWrapper bufferWrapper = getIndexAppendBuf(indexAppend.getOffsetLength(), indexAppend.getEventCount()); // main event count
-        // TODO: verify if this check is required or not
-        Preconditions.checkArgument( bufferWrapper.getLength() == indexAppend.getMaxEventSize(), "The data received for index segment append is not of desired size");
-        //TODO: verify if this append is what was expected and not the one with length variant(conditional append)
-        store.append(getIndexSegmentName(indexAppend.getSegment()), bufferWrapper, attributes, TIMEOUT)
-                .thenAccept(v -> log.info("Index segment append successful for segment {} ", indexAppend.getSegment()))
+               new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.ReplaceIfGreater, indexAppend.getEventCount()));
+        store.append(indexAppend.getIndexSegment(), indexAppend.getBufferWrapper(), attributes, TIMEOUT)
+                .thenAccept(v -> log.info("Index segment append successful for segment {} ", indexAppend.getIndexSegment()))
                 .exceptionally(e -> {
-                    log.warn("Index segment append failed for segment {} due to ", indexAppend.getSegment(), e);
+                    log.warn("Index segment append failed for segment {} due to ", indexAppend.getIndexSegment(), e);
                     return null;
                 });
     }
 
-    private ByteBufWrapper getIndexAppendBuf(Long eventLength, Long eventCount) {
-        IndexEntry indexEntry = new IndexEntry(eventLength, eventCount, System.currentTimeMillis());
+    protected ByteBufWrapper getIndexAppendBuf(Long offset, Long eventCount) {
+        IndexEntry indexEntry = new IndexEntry(offset, eventCount, System.currentTimeMillis());
         return new ByteBufWrapper(Unpooled.wrappedBuffer( indexEntry.toBytes().getCopy()));
     }
 }
