@@ -1269,7 +1269,6 @@ public class ReaderGroupState implements Revisioned {
             }
 
             private void write00(RemoveOutstandingCheckpoints object, RevisionDataOutput out) throws IOException {
-                out.writeUTF(object.toString());
             }
         }
     }
