@@ -104,7 +104,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService tokenExpiryHandlerExecutor;
+    private final ScheduledExecutorService lowPriorityExecutor;
     private final Collection<String> transientSegmentNames;
     private final IndexAppendProcessor indexAppendProcessor;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -116,31 +116,30 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     @Builder
     AppendProcessor(@NonNull StreamSegmentStore store, @NonNull TrackedConnection connection, @NonNull RequestProcessor nextRequestProcessor,
                     @NonNull SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
-                    boolean replyWithStackTraceOnError, ScheduledExecutorService tokenExpiryHandlerExecutor,
-                    ScheduledExecutorService indexAppendExecutor) {
+                    boolean replyWithStackTraceOnError, ScheduledExecutorService lowPriorityExecutor) {
         this.store = store;
         this.connection = connection;
         this.nextRequestProcessor = nextRequestProcessor;
         this.statsRecorder = statsRecorder;
         this.tokenVerifier = tokenVerifier;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
-        this.tokenExpiryHandlerExecutor = tokenExpiryHandlerExecutor;
+        this.lowPriorityExecutor = lowPriorityExecutor;
         this.transientSegmentNames = Collections.synchronizedSet(new HashSet<>());
-        this.indexAppendProcessor = new IndexAppendProcessor(indexAppendExecutor, store);
+        this.indexAppendProcessor = new IndexAppendProcessor(lowPriorityExecutor, store);
     }
 
     /**
      * Creates a new {@link AppendProcessorBuilder} instance with all optional arguments set to default values.
      * These default values may not be appropriate for production use and should be used for testing purposes only.
-     * @param indexExecutor Segment index executor service.
+     * @param lowPriorityExecutor Segment index executor service.
      * @return A {@link AppendProcessorBuilder} instance.
      */
     @VisibleForTesting
-    public static AppendProcessorBuilder defaultBuilder(ScheduledExecutorService indexExecutor) {
+    public static AppendProcessorBuilder defaultBuilder(ScheduledExecutorService lowPriorityExecutor) {
         return builder()
                 .nextRequestProcessor(new FailingRequestProcessor())
                 .statsRecorder(SegmentStatsRecorder.noOp())
-                .indexAppendExecutor(indexExecutor)
+                .lowPriorityExecutor(lowPriorityExecutor)
                 .replyWithStackTraceOnError(false);
     }
 
@@ -262,7 +261,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                     this.close();
                 }
                 return null;
-            }, token.durationToExpiry(), this.tokenExpiryHandlerExecutor);
+            }, token.durationToExpiry(), this.lowPriorityExecutor);
         }
     }
 
