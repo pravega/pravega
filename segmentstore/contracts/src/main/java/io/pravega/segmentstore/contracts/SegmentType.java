@@ -41,12 +41,6 @@ public class SegmentType {
      * General Transient Segment with no special roles.
      */
     public static final SegmentType TRANSIENT_SEGMENT = SegmentType.builder().transientSegment().build();
-
-    /**
-     * Index segment, for associating with Stream Segment, with no special roles.
-     */
-    public static final SegmentType INDEX_SEGMENT = SegmentType.builder().build();
-
     //endregion
 
     //region Flags

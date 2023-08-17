@@ -128,7 +128,7 @@ import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 import static io.pravega.common.function.Callbacks.invokeSafely;
-import static io.pravega.segmentstore.contracts.Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE;
+import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEG_EVENT_SIZE;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.ROLLOVER_SIZE;
@@ -500,13 +500,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private CompletableFuture<Void> createIndexSegment(final String segmentName) {
         log.info("Creating index segment {}.", getIndexSegmentName(segmentName));
-        final long maxEventSize = 10L;
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
-                new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.INDEX_SEGMENT.getValue()),
-                new AttributeUpdate(ALLOWED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, maxEventSize)
+                new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
+                new AttributeUpdate(EXPECTED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, 24L)
         );
-        return segmentStore.createStreamSegment(getIndexSegmentName(segmentName), SegmentType.INDEX_SEGMENT,
+        return segmentStore.createStreamSegment(getIndexSegmentName(segmentName), SegmentType.STREAM_SEGMENT,
                 attributes, TIMEOUT);
     }
 
@@ -531,7 +530,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), attributeUpdates, TIMEOUT)
                     .thenAccept(mergeResult -> {
-                        indexAppendProcessor.processAppend(mergeSegments.getTarget());
+                        indexAppendProcessor.processAppend(mergeSegments.getTarget(), 24L);
                         recordStatForTransaction(mergeResult, mergeSegments.getTarget());
                         connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
                                                                         mergeSegments.getTarget(),
@@ -592,7 +591,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         throw new CompletionException(e);
                     } else {
                         recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
-                        indexAppendProcessor.processAppend(mergeSegments.getTargetSegmentId());
+                        indexAppendProcessor.processAppend(mergeSegments.getTargetSegmentId(), 24L);
                         return CompletableFuture.completedFuture(r.getTargetSegmentLength());
                     }
                 })).collect(Collectors.toUnmodifiableList())).thenAccept(mergeResults -> {
