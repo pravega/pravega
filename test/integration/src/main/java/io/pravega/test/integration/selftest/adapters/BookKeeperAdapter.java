@@ -60,7 +60,6 @@ class BookKeeperAdapter extends StoreAdapter {
     private final ScheduledExecutorService executor;
     private final ConcurrentHashMap<String, WriteHandle> ledgers;
     private final Thread stopBookKeeperProcess;
-    private final ScheduledExecutorService indexExecutor;
     private Process bookKeeperService;
     private CuratorFramework zkClient;
     private BookKeeperLogFactory logFactory;
@@ -75,13 +74,11 @@ class BookKeeperAdapter extends StoreAdapter {
      * @param testConfig The Test Configuration to use.
      * @param bkConfig   The BookKeeper Configuration to use.
      * @param executor   An Executor to use for test-related async operations.
-     * @param indexExecutor   Index segment operations.
      */
-    BookKeeperAdapter(TestConfig testConfig, BookKeeperConfig bkConfig, ScheduledExecutorService executor, ScheduledExecutorService indexExecutor) {
+    BookKeeperAdapter(TestConfig testConfig, BookKeeperConfig bkConfig, ScheduledExecutorService executor) {
         this.testConfig = Preconditions.checkNotNull(testConfig, "testConfig");
         this.bkConfig = Preconditions.checkNotNull(bkConfig, "bkConfig");
         this.executor = Preconditions.checkNotNull(executor, "executor");
-        this.indexExecutor = Preconditions.checkNotNull(indexExecutor, "indexExecutor");
         Preconditions.checkArgument(testConfig.getBookieCount() > 0, "BookKeeperAdapter requires at least one Bookie.");
         this.ledgers = new ConcurrentHashMap<>();
         this.stopBookKeeperProcess = new Thread(this::stopBookKeeper);
