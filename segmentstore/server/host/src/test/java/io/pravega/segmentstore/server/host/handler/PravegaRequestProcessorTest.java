@@ -71,6 +71,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
+import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -83,6 +84,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;
@@ -117,6 +119,8 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -1722,6 +1726,60 @@ public class PravegaRequestProcessorTest {
 
         assertEquals(0, store.getStreamSegmentInfo(segment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
         assertEquals(0, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
+    }
+
+    @Test
+    public void testTruncateIndexSegmentThrowStreamSegmentNotExistsException() throws Exception {
+        String segmentName = "truncateSegment";
+        String indexSegmentName = getIndexSegmentName(segmentName);
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store);
+
+        Duration timeout = Duration.ofMinutes(1);
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+
+        StreamSegmentInformation.builder()
+                .name(indexSegmentName)
+                .length(1000)
+                .startOffset(0)
+                .attributes(Map.of(EVENT_COUNT, 30L))
+                .build();
+
+        doThrow(new CompletionException(new StreamSegmentNotExistsException("Segment does not exits")))
+                .when(store).getStreamSegmentInfo(indexSegmentName, timeout);
+        doReturn(CompletableFuture.completedFuture(null)).when(store).truncateStreamSegment(anyString(), anyLong(), any());
+
+        Reply reply = sendRequest(channel, new WireCommands.TruncateSegment(requestId, segmentName, 30L, ""));
+        assertTrue(reply instanceof WireCommands.SegmentTruncated);
+    }
+
+    @Test
+    public void testTruncateIndexSegmentThrowIllegalArgumentException() throws Exception {
+        String segmentName = "truncateSegment";
+        String indexSegmentName = getIndexSegmentName(segmentName);
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store);
+
+        Duration timeout = Duration.ofMinutes(1);
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+
+        StreamSegmentInformation.builder()
+                .name(indexSegmentName)
+                .length(1000)
+                .startOffset(100)
+                .attributes(Map.of(EVENT_COUNT, 30L))
+                .build();
+
+        doThrow(new CompletionException(new IllegalArgumentException("Illegal argument-provided")))
+                .when(store).getStreamSegmentInfo(indexSegmentName, timeout);
+        doReturn(CompletableFuture.completedFuture(null)).when(store).truncateStreamSegment(anyString(), anyLong(), any());
+
+        Reply reply = sendRequest(channel, new WireCommands.TruncateSegment(requestId, segmentName, 30L, ""));
+        assertTrue(reply instanceof WireCommands.ErrorMessage);
     }
 
     private ArrayView generateData(int length, Random rnd) {
