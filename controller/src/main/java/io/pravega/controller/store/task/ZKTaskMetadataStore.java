@@ -82,22 +82,14 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             LockData lockData = LockData.deserialize(data);
             log.info("Transfer lock with the lockData.getHostId {}, oldOwner {}, oldThreadId {}, " +
                     "owner {} and threadId {}", lockData.getHostId(), oldOwner, oldThreadId, owner, threadId);
-            if (lockData.isOwnedBy(oldOwner, oldThreadId)) {
-                lockData = new LockData(owner, threadId, lockData.getTaskData());
+            lockData = new LockData(owner, threadId, lockData.getTaskData());
 
-                client.setData().withVersion(stat.getVersion())
-                        .forPath(getTaskPath(resource), lockData.serialize());
-                lockAcquired = true;
-            }
+            client.setData().withVersion(stat.getVersion())
+                    .forPath(getTaskPath(resource), lockData.serialize());
         } catch (Exception e) {
             throw new LockFailedException(resource.getString(), e);
         }
-
-        if (lockAcquired) {
-            return null;
-        } else {
-            throw new LockFailedException(resource.getString());
-        }
+        return null;
     }
 
     @Override

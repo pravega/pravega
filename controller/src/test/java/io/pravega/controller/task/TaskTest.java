@@ -17,6 +17,7 @@ package io.pravega.controller.task;
 
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -65,6 +66,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import javax.validation.constraints.AssertTrue;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -217,6 +220,29 @@ public abstract class TaskTest {
         // ensure that the stream streamSweeper is created
         StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream, null, executor).get();
         assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
+    }
+
+    @Test
+    public void testZkLock() {
+        final String oldHost = "oldHost";
+        final String newHost = "newHost";
+        final String oldThreadId = UUID.randomUUID().toString();
+        final String newThreadId = UUID.randomUUID().toString();
+        final String scope = SCOPE;
+        final String stream = "testStream";
+        final StreamConfiguration config1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+        final Resource resource1 = new Resource(scope, stream1);
+        final long timestamp1 = System.currentTimeMillis();
+        final TaskData taskData1 = new TaskData("createStream", "1.0",
+                new Serializable[]{scope, stream, config1, timestamp1, 0L});
+
+        for (int i = 0; i < 5; i++) {
+            final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource1);
+            taskMetadataStore.putChild(oldHost, taggedResource).join();
+        }
+        taskMetadataStore.lock(resource1, taskData1, oldHost, oldThreadId, null, null).join();
+        taskMetadataStore.lock(resource1, taskData1, newHost, newThreadId, "deadHost", oldThreadId).join();
+        Assert.assertEquals(1+2, 3);
     }
 
     @Test(timeout = 10000)
