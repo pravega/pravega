@@ -398,7 +398,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     }
 
     private void appendOnIndexSegment(Append append) {
-        if (isTransientSegment(append.getSegment()) || isTransactionSegment(append.getSegment())) {
+        if (!isTransientSegment(append.getSegment()) && !isTransactionSegment(append.getSegment())) {
             String indexSegmentName = getIndexSegmentName(append.getSegment());
             WriterState state = this.writerStates.get(Pair.of(indexSegmentName, append.getWriterId()));
             long maxAllowedEventSize = state.getEventSizeForAppend();
