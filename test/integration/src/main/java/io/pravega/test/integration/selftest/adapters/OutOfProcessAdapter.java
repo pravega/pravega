@@ -70,10 +70,9 @@ class OutOfProcessAdapter extends ExternalAdapter {
      * @param testConfig    The TestConfig to use.
      * @param builderConfig SegmentStore Builder Configuration.
      * @param testExecutor  An ExecutorService used by the Test Application.
-     * @param indexExecutor  An ExecutorService used for segment index operation.
      */
-    OutOfProcessAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor, ScheduledExecutorService indexExecutor) {
-        super(testConfig, testExecutor, indexExecutor);
+    OutOfProcessAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
+        super(testConfig, testExecutor);
         Preconditions.checkArgument(testConfig.getBookieCount() > 0, "OutOfProcessAdapter requires at least one Bookie.");
         Preconditions.checkArgument(testConfig.getControllerHost().equals(TestConfig.LOCALHOST),
                 "OutOfProcessAdapter cannot work with non-local Controller.");

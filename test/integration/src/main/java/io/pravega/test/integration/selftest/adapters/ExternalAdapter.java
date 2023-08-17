@@ -51,10 +51,9 @@ class ExternalAdapter extends ClientAdapterBase {
      *
      * @param testConfig   The TestConfig to use.
      * @param testExecutor An Executor to use for async client-side operations.
-     * @param indexExecutor An Executor to use for segment index operations.
      */
-    ExternalAdapter(TestConfig testConfig, ScheduledExecutorService testExecutor, ScheduledExecutorService indexExecutor) {
-        super(testConfig, testExecutor, indexExecutor);
+    ExternalAdapter(TestConfig testConfig, ScheduledExecutorService testExecutor) {
+        super(testConfig, testExecutor);
         this.streamManager = new AtomicReference<>();
         this.clientFactory = new AtomicReference<>();
     }
