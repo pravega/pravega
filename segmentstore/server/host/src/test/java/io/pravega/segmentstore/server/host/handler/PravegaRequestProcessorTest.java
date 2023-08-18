@@ -257,7 +257,7 @@ public class PravegaRequestProcessorTest {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, serviceBuilder.getIndexAppendExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
         StreamSegmentInformation info = StreamSegmentInformation.builder()
                 .name(indexSegment)
                 .length(96)
@@ -291,7 +291,7 @@ public class PravegaRequestProcessorTest {
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, serviceBuilder.getIndexAppendExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
 
         TestReadResultEntry entry = new TestReadResultEntry(ReadResultEntryType.Future, data.length, readLength);
 
