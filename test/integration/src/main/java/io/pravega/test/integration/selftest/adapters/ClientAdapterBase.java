@@ -85,7 +85,6 @@ abstract class ClientAdapterBase extends StoreAdapter {
     private final AtomicReference<ClientReader> clientReader;
     private final ConcurrentHashMap<String, io.pravega.client.tables.KeyValueTable> keyValueTables;
     private final int writersPerStream;
-    private final ScheduledExecutorService indexExecutor;
 
     //endregion
 
@@ -96,12 +95,10 @@ abstract class ClientAdapterBase extends StoreAdapter {
      *
      * @param testConfig   The TestConfig to use.
      * @param testExecutor An Executor to use for async client-side operations.
-     * @param indexExecutor An Executor to use for append index operations.
      */
-    ClientAdapterBase(TestConfig testConfig, ScheduledExecutorService testExecutor, ScheduledExecutorService indexExecutor) {
+    ClientAdapterBase(TestConfig testConfig, ScheduledExecutorService testExecutor) {
         this.testConfig = Preconditions.checkNotNull(testConfig, "testConfig");
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
-        this.indexExecutor = Preconditions.checkNotNull(indexExecutor, "indexExecutor");
         this.streamWriters = new ConcurrentHashMap<>();
         this.transactionalWriters = new ConcurrentHashMap<>();
         this.transactionIds = new ConcurrentHashMap<>();

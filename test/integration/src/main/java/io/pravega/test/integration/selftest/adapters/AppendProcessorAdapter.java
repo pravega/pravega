@@ -66,7 +66,6 @@ public class AppendProcessorAdapter extends StoreAdapter {
     private final ConnectionTracker connectionTracker;
     private AutoScaleMonitor autoScaleMonitor;
     private final ScheduledExecutorService testExecutor;
-    private final ScheduledExecutorService indexExecutor;
 
     //endregion
 
@@ -78,16 +77,13 @@ public class AppendProcessorAdapter extends StoreAdapter {
      * @param testConfig    The TestConfig to use.
      * @param builderConfig The ServiceBuilderConfig to use.
      * @param testExecutor  An Executor to use for test-related async operations.
-     * @param indexExecutor An executor for Index Append operations.
      */
-    AppendProcessorAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor,
-                           ScheduledExecutorService indexExecutor) {
+    AppendProcessorAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         this.testConfig = testConfig;
-        this.segmentStoreAdapter = new SegmentStoreAdapter(testConfig, builderConfig, testExecutor, indexExecutor);
+        this.segmentStoreAdapter = new SegmentStoreAdapter(testConfig, builderConfig, testExecutor);
         this.handlers = new HashMap<>();
         this.connectionTracker = new ConnectionTracker();
         this.testExecutor = testExecutor;
-        this.indexExecutor = indexExecutor;
     }
 
     //endregion
@@ -249,7 +245,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
         SegmentHandler(String segmentName, int producerCount, StreamSegmentStore segmentStore) {
             this.segmentName = segmentName;
             this.producerCount = producerCount;
-            this.appendProcessor = AppendProcessor.defaultBuilder(indexExecutor)
+            this.appendProcessor = AppendProcessor.defaultBuilder(testExecutor)
                                                   .store(segmentStore)
                                                   .connection(new TrackedConnection(this, connectionTracker))
                                                   .statsRecorder(autoScaleMonitor.getStatsRecorder())

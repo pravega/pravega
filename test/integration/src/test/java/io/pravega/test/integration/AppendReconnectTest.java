@@ -81,7 +81,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                serviceBuilder.getLowPriorityExecutor(), serviceBuilder.getIndexAppendExecutor());
+                serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         @Cleanup
@@ -124,7 +124,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                serviceBuilder.getLowPriorityExecutor(), serviceBuilder.getIndexAppendExecutor());
+                serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         @Cleanup

@@ -104,8 +104,7 @@ public class ReadWriteTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
-                serviceBuilder.getIndexAppendExecutor());
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         this.server.startListening();
 
         // 3. Start Pravega Controller service

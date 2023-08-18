@@ -356,7 +356,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         AppendProcessor processor = AppendProcessor.defaultBuilder(indexExecutor)
                 .store(mockStore)
                 .connection(new TrackedConnection(mockConnection))
-                .tokenExpiryHandlerExecutor(executor)
+                .lowPriorityExecutor(executor)
                 .build();
 
         // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
@@ -388,7 +388,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         AppendProcessor processor = AppendProcessor.defaultBuilder(executor)
                 .store(mockStore)
                 .connection(new TrackedConnection(mockConnection))
-                .tokenExpiryHandlerExecutor(executor)
+                .lowPriorityExecutor(executor)
                 .build();
 
         // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.

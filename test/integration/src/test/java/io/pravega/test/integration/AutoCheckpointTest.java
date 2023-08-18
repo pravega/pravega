@@ -59,7 +59,7 @@ public class AutoCheckpointTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                serviceBuilder.getLowPriorityExecutor(), serviceBuilder.getIndexAppendExecutor());
+                serviceBuilder.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -112,7 +112,7 @@ public class AutoCheckpointTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                serviceBuilder.getLowPriorityExecutor(), serviceBuilder.getIndexAppendExecutor());
+                serviceBuilder.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
