@@ -134,6 +134,7 @@ import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.ROLLOVER_SIZE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
+import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
@@ -528,6 +529,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             }
         }
 
+        attributeUpdates.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));
         segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), attributeUpdates, TIMEOUT)
                     .thenAccept(mergeResult -> {
                         indexAppendProcessor.processAppend(mergeSegments.getTarget(), 24L);
@@ -573,6 +575,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             }
         }
         log.info(mergeSegments.getRequestId(), "Merging Segments Batch in-order {} ", mergeSegments);
+        //AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
         Futures.allOfWithResults(sources.stream().map(source ->
                 Futures.handleCompose(segmentStore.mergeStreamSegment(mergeSegments.getTargetSegmentId(), source, TIMEOUT), (r, e) -> {
                     if (e != null) {
@@ -591,6 +594,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         throw new CompletionException(e);
                     } else {
                         recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
+                        /*segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties -> {
+                            attributeUpdates.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate,SegmentProperties.getAttributes().get(EVENT_COUNT)));
+                            return null;
+                        }).join();*/
                         indexAppendProcessor.processAppend(mergeSegments.getTargetSegmentId(), 24L);
                         return CompletableFuture.completedFuture(r.getTargetSegmentLength());
                     }
