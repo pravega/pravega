@@ -30,8 +30,7 @@ import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import io.pravega.client.segment.impl.NoSuchSegmentException;
-import io.pravega.client.segment.impl.SearchFailedException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
@@ -218,15 +217,14 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     }
 
     @Override
-    // TODO: Need to check if we need to mention throws clause in the method signature here or need to handle Exception.
-    public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws NoSuchSegmentException, SearchFailedException {
+    public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
         Preconditions.checkArgument(approxDistanceToNextOffset > 0, "Ensure approxDistanceToNextOffset must be greater than 0");
         Stream stream = startingStreamCut.asImpl().getStream();
         Map<Segment, Long> nextPositionsMap = new HashMap<>();
         Map<Segment, Long> scaledSegmentsMap = new HashMap<>();
         int numberOfSegments = startingStreamCut.asImpl().getPositions().size();
-        long approxNextOffsetDistancePerSegment = approxDistanceToNextOffset / numberOfSegments;
+        long approxNextOffsetDistancePerSegment = getApproxNextOffsetDistancePerSegment(numberOfSegments, approxDistanceToNextOffset);
         for (Map.Entry<Segment, Long> positions : startingStreamCut.asImpl().getPositions().entrySet()) {
             Segment segment = positions.getKey();
             long targetOffset = positions.getValue() + approxNextOffsetDistancePerSegment;
@@ -267,46 +265,56 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
             Map<SegmentWithRange, List<Long>> segmentToPredecessorMap = getSuccessors.join().getSegmentToPredecessor();
             int size = segmentToPredecessorMap.size();
             if (size > 1) { //scale up happened to the segment
-                long approxNextOffsetDistance = approxDistanceToNextOffset / size;
+                log.debug("Segment {} has scaled up", entry.getKey());
+                long approxNextOffsetDistancePerSegment = getApproxNextOffsetDistancePerSegment(size, approxDistanceToNextOffset);
                 for (SegmentWithRange segmentWithRange : segmentToPredecessorMap.keySet()) {
                     Segment segment = segmentWithRange.getSegment();
-                    long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistance);
+                    long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistancePerSegment);
                     nextPositionsMap.put(segment, nextOffset);
                 }
             } else if (size == 1) { //scale down happened to the segments
+                log.debug("Segment {} has scaled down", entry.getKey());
                 List<Long> segmentIds = nextPositionsMap.keySet().stream().map(x -> x.getSegmentId()).collect(Collectors.toList());
                 // Check for any of the predecessor which is present in nextPositionsMap. If so, we will not proceed to successor segment
                 boolean isJoint  = segmentToPredecessorMap.values().stream().findFirst().get().stream().anyMatch(segmentIds::contains);
                 if (!isJoint) {
                     Long segmentId = segmentToPredecessorMap.keySet().stream().findFirst().get().getSegment().getSegmentId();
-                    long approxNextOffsetDistance = approxDistanceToNextOffset * segmentToPredecessorMap.values().stream().findFirst().get().size();
+                    long approxNextOffsetDistancePerSegment = approxDistanceToNextOffset * segmentToPredecessorMap.values().stream().findFirst().get().size();
                     if (!segmentIds.contains(segmentId)) {
                         Segment segment = segmentToPredecessorMap.keySet().stream().findFirst().get().getSegment();
-                        long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistance);
+                        long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistancePerSegment);
                         nextPositionsMap.put(segment, nextOffset);
                     }
                 } else {
                     nextPositionsMap.put(entry.getKey(), entry.getValue());
                 }
             } else { //Segment is neither sealed and nor scaled
+                log.debug("Tail of the segment is reached for segment: {}", entry.getKey());
                 nextPositionsMap.put(entry.getKey(), entry.getValue());
             }
 
         });
     }
 
+    // If no of segments is greater than approx distance then we need to request atleast for one byte.
+    private long getApproxNextOffsetDistancePerSegment(int numOfSegment, long approxDistance) {
+        long approxNextOffsetDistancePerSegment = approxDistance / numOfSegment;
+        return approxNextOffsetDistancePerSegment > 0L ? approxNextOffsetDistancePerSegment : 1L;
+    }
+
     @SuppressWarnings("unchecked")
-    @SneakyThrows({ConnectionFailedException.class})
+    @SneakyThrows({ConnectionFailedException.class, SegmentTruncatedException.class})
     private <T extends Reply> T transformReply(Reply reply, Class<T> klass) {
         if (klass.isAssignableFrom(reply.getClass())) {
+            closeClientConnection();
             return (T) reply;
         }
         closeConnection(reply);
-        if (reply instanceof WireCommands.NoSuchSegment) {
-            throw new NoSuchSegmentException(reply.toString());
-        } else if (reply instanceof WireCommands.IndexSegmentSearchFailed) {
-            throw new SearchFailedException(reply.toString());
+        if (reply instanceof WireCommands.NoSuchSegment || reply instanceof WireCommands.SegmentTruncated) {
+            log.error("Exception occurred while locating next offset: {}", reply);
+            throw new SegmentTruncatedException(reply.toString());
         } else {
+            log.error("Unexpected exception occurred: {}", reply);
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting a "
                     + klass.getName());
         }

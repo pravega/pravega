@@ -243,6 +243,84 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test(timeout = 20000)
+    public void testLocateOffsetThrowingSegmentTruncatedException() throws DurableDataLogException {
+        // Set up PravegaRequestProcessor instance to execute read segment request against
+        String streamSegmentName = "scope/stream/testLocateOffset";
+        String indexSegment = getIndexSegmentName(streamSegmentName);
+        byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
+        int readLength = 24;
+
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, serviceBuilder.getIndexAppendExecutor());
+        StreamSegmentInformation info = StreamSegmentInformation.builder()
+                .name(indexSegment)
+                .length(96)
+                .startOffset(0)
+                .build();
+        when(store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(info));
+
+        TestReadResultEntry entry2 = new TestReadResultEntry(ReadResultEntryType.Truncated, 0, readLength);
+
+        List<ReadResultEntry> results2 = new ArrayList<>();
+        results2.add(entry2);
+        CompletableFuture<ReadResult> readResult2 = new CompletableFuture<>();
+        readResult2.complete(new TestReadResult(0, readLength, results2));
+        when(store.read(indexSegment, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult2);
+        processor.locateOffset(new WireCommands.LocateOffset(requestId, streamSegmentName, 20L, ""));
+        order.verify(connection).send(new WireCommands.SegmentTruncated(requestId, streamSegmentName));
+    }
+
+    @Test(timeout = 20000)
+    public void testLocateOffsetThrowingIllegalStateException() throws DurableDataLogException {
+        // Set up PravegaRequestProcessor instance to execute read segment request against
+        String streamSegmentName = "scope/stream/testLocateOffset";
+        String indexSegment = getIndexSegmentName(streamSegmentName);
+        byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
+        int readLength = 24;
+
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, serviceBuilder.getIndexAppendExecutor());
+
+        TestReadResultEntry entry = new TestReadResultEntry(ReadResultEntryType.Future, data.length, readLength);
+
+        List<ReadResultEntry> results = new ArrayList<>();
+        results.add(entry);
+        CompletableFuture<ReadResult> readResult = new CompletableFuture<>();
+        readResult.complete(new TestReadResult(0, readLength, results));
+        when(store.read(indexSegment, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult);
+        StreamSegmentInformation info = StreamSegmentInformation.builder()
+                .name(indexSegment)
+                .length(96)
+                .startOffset(0)
+                .build();
+        when(store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(info));
+
+        assertThrows(IllegalStateException.class, () -> processor.locateOffset(new WireCommands.LocateOffset(requestId, streamSegmentName, 20L, "")));
+
+        TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.EndOfStreamSegment, 0, readLength);
+
+        List<ReadResultEntry> results1 = new ArrayList<>();
+        results1.add(entry1);
+        CompletableFuture<ReadResult> readResult1 = new CompletableFuture<>();
+        readResult1.complete(new TestReadResult(0, readLength, results1));
+        when(store.read(indexSegment, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult1);
+        assertThrows(IllegalStateException.class, () -> processor.locateOffset(new WireCommands.LocateOffset(requestId, streamSegmentName, 20L, "")));
+    }
+
+    @Test(timeout = 20000)
     public void testReadSegmentEmptySealed() throws DurableDataLogException {
         // Set up PravegaRequestProcessor instance to execute read segment request against
         String streamSegmentName = "scope/stream/testReadSegment";

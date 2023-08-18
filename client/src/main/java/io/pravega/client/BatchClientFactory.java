@@ -22,7 +22,7 @@ import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.batch.impl.BatchClientFactoryImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
-import io.pravega.client.segment.impl.SearchFailedException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
@@ -113,8 +113,7 @@ public interface BatchClientFactory extends AutoCloseable {
      * @param startingStreamCut Starting streamcut
      * @param approxDistanceToNextOffset approx distance to nextoffset in bytes
      * @return A streamcut
-     * @throws NoSuchSegmentException If the provided segment does not exit.
-     * @throws SearchFailedException If unable to locate the next offset for the segment.
+     * @throws SegmentTruncatedException If the segment is truncated or it does not exist.
      */
-    StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws NoSuchSegmentException, SearchFailedException;
+    StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException;
 }
