@@ -79,9 +79,9 @@ public final class IndexRequestProcessor {
         //Fetch start and end idx.
         SegmentProperties properties = store.getStreamSegmentInfo(indexSegmentName, TIMEOUT).join();
         long startIdx = properties.getStartOffset() / ENTRY_SIZE;
-        long endIdx = properties.getLength() / ENTRY_SIZE;
+        long endIdx = properties.getLength() / ENTRY_SIZE -1;
         //If startIdx and endIdx are same, then pass length of segment as a result.
-        if (startIdx == endIdx) {
+        if (startIdx <= endIdx) {
            return getSegmentLength(store, segment, startIdx);
         }
 
