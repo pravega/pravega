@@ -40,12 +40,12 @@ public class IndexAppendProcessor {
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private final ScheduledExecutorService indexSegmentUpdateExecutor;
     private final StreamSegmentStore store;
-    private final MultiKeyLatestItemSequentialProcessor<String, Long> latestItemProcessor;
+    private final MultiKeyLatestItemSequentialProcessor<String, Long> multiKeyLatestItemSequentialProcessor;
 
     public IndexAppendProcessor(ScheduledExecutorService indexSegmentUpdateExecutor, StreamSegmentStore store) {
         this.indexSegmentUpdateExecutor = indexSegmentUpdateExecutor;
         this.store = store;
-        latestItemProcessor = new MultiKeyLatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
+        multiKeyLatestItemSequentialProcessor = new MultiKeyLatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
     }
 
     /**
@@ -58,7 +58,7 @@ public class IndexAppendProcessor {
         if (isTransientSegment(segmentName) || isTransactionSegment(segmentName)) {
             return;
         }
-        latestItemProcessor.updateItem(segmentName, indexSegmentEventSize);
+        multiKeyLatestItemSequentialProcessor.updateItem(segmentName, indexSegmentEventSize);
     }
 
     private void handleIndexAppend(String segmentName, long indexSegmentEventSize) {

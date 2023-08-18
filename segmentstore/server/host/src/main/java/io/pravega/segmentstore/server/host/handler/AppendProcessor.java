@@ -76,7 +76,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -207,23 +206,27 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                 } else {
                                     // Last event number stored according to Segment store.
                                     long eventNumber = attributes.getOrDefault(writerAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
-                                    long indexSegmentEventsize = 0;
+                                    CompletableFuture<Long> indexSegmentEventsize;
 
                                     if (!isTransientSegment(newSegment) && !isTransactionSegment(newSegment)) {
                                         String indexSegment = getIndexSegmentName(newSegment);
-                                        indexSegmentEventsize = createIndexSegmentIfNotExists(writer, indexSegment, setupAppend.getRequestId());
+                                        indexSegmentEventsize = createIndexSegmentIfNotExists(indexSegment, setupAppend.getRequestId());
+                                    } else {
+                                        indexSegmentEventsize = CompletableFuture.completedFuture(0L);
                                     }
 
-                                    // Create a new WriterState object based on the attribute value for the last event number for the writer.
-                                    // It should be noted that only one connection for a given segment writer is created by the client.
-                                    // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
-                                    // below the specified event number.
-                                    WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber, indexSegmentEventsize));
-                                    if (current != null) {
-                                        log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
-                                                writer, eventNumber, current);
-                                    }
-                                    connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
+                                    indexSegmentEventsize.thenAccept(eventSize -> {
+                                        // Create a new WriterState object based on the attribute value for the last event number for the writer.
+                                        // It should be noted that only one connection for a given segment writer is created by the client.
+                                        // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
+                                        // below the specified event number.
+                                        WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber, eventSize));
+                                        if (current != null) {
+                                            log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
+                                                    writer, eventNumber, current);
+                                        }
+                                        connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
+                                    }).exceptionally(e -> handleException(writer, setupAppend.getRequestId(), getIndexSegmentName(newSegment), "creating index segment", e));
                                 }
                             } catch (Throwable e) {
                                 handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
@@ -231,34 +234,31 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                         });
     }
 
-    private long createIndexSegmentIfNotExists(UUID writer, String indexSegment, long requestId) {
-        AtomicLong exepectedIndexSegEventSize = new AtomicLong();
-        store.getStreamSegmentInfo(indexSegment, TIMEOUT)
-                .whenComplete((properties, u) -> {
-                    try {
-                        if (u != null) {
+    private CompletableFuture<Long> createIndexSegmentIfNotExists(String indexSegment, long requestId) {
+        CompletableFuture<Long> indexSegmentEventSize = store.getStreamSegmentInfo(indexSegment, TIMEOUT)
+                .handle((properties, u) -> {
+                    long result;
+                    if (u != null) {
                             u = Exceptions.unwrap(u);
                             if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
-                                log.info("Creating index segment {}.", indexSegment);
-                                exepectedIndexSegEventSize.set(24L);
+                                log.info("Creating index segment {} while processing request: {}.", indexSegment, requestId);
+                                result = 24L;
                                 Collection<AttributeUpdate> attributes = Arrays.asList(
                                         new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                                         new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
-                                        new AttributeUpdate(EXPECTED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None,  exepectedIndexSegEventSize.get())
+                                        new AttributeUpdate(EXPECTED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, result)
                                 );
                                 store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT).join();
                             } else {
-                                throw u;
+                                throw Exceptions.sneakyThrow(u);
                             }
                         } else {
                             Map<AttributeId, Long> attributes = properties.getAttributes();
-                            exepectedIndexSegEventSize.set(attributes.get(EXPECTED_INDEX_SEG_EVENT_SIZE).longValue());
+                            result = attributes.get(EXPECTED_INDEX_SEG_EVENT_SIZE).longValue();
                         }
-                    } catch (Throwable e) {
-                        handleException(writer, requestId, indexSegment, "creating index segment", e);
-                    }
+                    return result;
                 });
-        return exepectedIndexSegEventSize.get();
+        return indexSegmentEventSize;
     }
 
     @VisibleForTesting

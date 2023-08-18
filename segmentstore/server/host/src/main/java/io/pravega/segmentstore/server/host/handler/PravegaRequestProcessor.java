@@ -575,7 +575,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             }
         }
         log.info(mergeSegments.getRequestId(), "Merging Segments Batch in-order {} ", mergeSegments);
-        //AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
         Futures.allOfWithResults(sources.stream().map(source ->
                 Futures.handleCompose(segmentStore.mergeStreamSegment(mergeSegments.getTargetSegmentId(), source, TIMEOUT), (r, e) -> {
                     if (e != null) {
@@ -594,10 +593,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         throw new CompletionException(e);
                     } else {
                         recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
-                        /*segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties -> {
-                            attributeUpdates.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate,SegmentProperties.getAttributes().get(EVENT_COUNT)));
-                            return null;
-                        }).join();*/
                         indexAppendProcessor.processAppend(mergeSegments.getTargetSegmentId(), 24L);
                         return CompletableFuture.completedFuture(r.getTargetSegmentLength());
                     }
