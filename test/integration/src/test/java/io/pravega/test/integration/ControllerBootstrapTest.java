@@ -91,7 +91,8 @@ public class ControllerBootstrapTest {
         store = serviceBuilder.createStreamSegmentService();
         tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
+                serviceBuilder.getIndexAppendExecutor());
         server.startListening();
 
         // Create test scope. This operation should succeed.

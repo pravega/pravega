@@ -173,12 +173,11 @@ public class LocalServiceStarter {
             StreamSegmentStore streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
             TableStore tableStore = this.serviceBuilder.createTableStoreService();
             this.server = new PravegaConnectionListener(false, servicePort, streamSegmentStore, tableStore,
-                    this.serviceBuilder.getLowPriorityExecutor());
+                    this.serviceBuilder.getLowPriorityExecutor(), serviceBuilder.getIndexAppendExecutor());
             this.server.startListening();
             if (enableAdminGateway) {
                 this.adminServer = new AdminConnectionListener(false, false, "localhost", adminPort, streamSegmentStore,
-                        tableStore, new PassingTokenVerifier(), null, null, TLS_PROTOCOL_VERSION.getDefaultValue().split(","),
-                        this.serviceBuilder.getLowPriorityExecutor());
+                        tableStore, new PassingTokenVerifier(), null, null, TLS_PROTOCOL_VERSION.getDefaultValue().split(","), serviceBuilder.getIndexAppendExecutor());
                 this.adminServer.startListening();
             }
         }

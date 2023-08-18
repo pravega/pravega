@@ -195,7 +195,8 @@ public class EventProcessorTest extends ThreadPooledTestSuite {
         int servicePort = TestUtils.getAvailableListenPort();
         tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
+                serviceBuilder.getIndexAppendExecutor());
         server.startListening();
         int controllerPort = TestUtils.getAvailableListenPort();
 

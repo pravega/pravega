@@ -84,7 +84,7 @@ public class ReaderGroupTest {
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), serviceBuilder.getIndexAppendExecutor());
         server.startListening();
 
         @Cleanup
@@ -132,7 +132,7 @@ public class ReaderGroupTest {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), serviceBuilder.getIndexAppendExecutor());
         server.startListening();
 
         @Cleanup

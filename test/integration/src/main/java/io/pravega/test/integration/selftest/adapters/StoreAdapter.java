@@ -230,34 +230,36 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      *                      instance to create.
      * @param builderConfig A ServiceBuilderConfig to use for the SegmentStore.
      * @param executor      An Executor to use for test-related async operations.
+     * @param indexAppendExecutor The executor service to process index append.
      * @return The created StoreAdapter Instance.
      */
-    public static StoreAdapter create(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService executor) {
+    public static StoreAdapter create(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService executor,
+                                      ScheduledExecutorService indexAppendExecutor) {
         StoreAdapter result;
         switch (testConfig.getTestType()) {
             case SegmentStore:
             case SegmentStoreTable:
-                result = new SegmentStoreAdapter(testConfig, builderConfig, executor);
+                result = new SegmentStoreAdapter(testConfig, builderConfig, executor, indexAppendExecutor);
                 break;
             case AppendProcessor:
-                result = new AppendProcessorAdapter(testConfig, builderConfig, executor);
+                result = new AppendProcessorAdapter(testConfig, builderConfig, executor, indexAppendExecutor);
                 break;
             case InProcessMock:
             case InProcessMockTable:
-                result = new InProcessMockClientAdapter(testConfig, executor);
+                result = new InProcessMockClientAdapter(testConfig, executor, indexAppendExecutor);
                 break;
             case InProcessStore:
             case InProcessStoreTable:
-                result = new InProcessListenerWithRealStoreAdapter(testConfig, builderConfig, executor);
+                result = new InProcessListenerWithRealStoreAdapter(testConfig, builderConfig, executor, indexAppendExecutor);
                 break;
             case OutOfProcess:
-                result = new OutOfProcessAdapter(testConfig, builderConfig, executor);
+                result = new OutOfProcessAdapter(testConfig, builderConfig, executor, indexAppendExecutor);
                 break;
             case External:
-                result = new ExternalAdapter(testConfig, executor);
+                result = new ExternalAdapter(testConfig, executor, indexAppendExecutor);
                 break;
             case BookKeeper:
-                result = new BookKeeperAdapter(testConfig, builderConfig.getConfig(BookKeeperConfig::builder), executor);
+                result = new BookKeeperAdapter(testConfig, builderConfig.getConfig(BookKeeperConfig::builder), executor, indexAppendExecutor);
                 break;
             default:
                 throw new UnsupportedOperationException("Cannot create a StoreAdapter for TestType " + testConfig.getTestType());
