@@ -36,6 +36,11 @@ public final class IndexRequestProcessor {
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final int ENTRY_SIZE = 24; //TODO obtain from property.
 
+    private static final int RETRY_MAX_DELAY_MS = 1000;
+    private static final int RETRY_INITIAL_DELAY_MS = 100;
+    private static final int RETRY_MULTIPLIER = 10;
+    private static final int RETRY_COUNT = 5;
+
     static final class SegmentTruncatedException extends RuntimeException {
         private static final long serialVersionUID = 1L;
 
@@ -87,8 +92,8 @@ public final class IndexRequestProcessor {
             return getSegmentLength(store, segment, startIdx);
         }
 
-        return Retry.withExpBackoff(100, 10, 5, 1000)
-                .retryWhen(ex -> ex instanceof IllegalStateException)
+        return Retry.withExpBackoff(RETRY_INITIAL_DELAY_MS, RETRY_MULTIPLIER, RETRY_COUNT, RETRY_MAX_DELAY_MS)
+                .retryWhen(ex -> ex instanceof IllegalStateException && ex.getMessage().contains("Future"))
                 .run(() -> {
                     return SortUtils.newtonianSearch(idx -> {
                         ReadResult result = store.read(indexSegmentName, idx * ENTRY_SIZE, ENTRY_SIZE, TIMEOUT).join();
