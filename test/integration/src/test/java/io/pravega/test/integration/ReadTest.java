@@ -208,7 +208,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor(), SERVICE_BUILDER.getIndexAppendExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -258,7 +258,7 @@ public class ReadTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor(), SERVICE_BUILDER.getIndexAppendExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -305,8 +305,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get(),
-                SERVICE_BUILDER.getIndexAppendExecutor());
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -342,8 +341,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get(),
-                SERVICE_BUILDER.getIndexAppendExecutor());
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -396,8 +394,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get(),
-                SERVICE_BUILDER.getIndexAppendExecutor());
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
