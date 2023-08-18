@@ -284,7 +284,6 @@ public class PravegaRequestProcessorTest {
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        //Use low priority executor
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
 
         CompletableFuture<ReadResult> readResult = new CompletableFuture<>();
