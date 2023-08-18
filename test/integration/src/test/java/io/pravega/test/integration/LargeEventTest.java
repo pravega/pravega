@@ -58,10 +58,22 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
+import lombok.Cleanup;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.apache.commons.lang3.RandomUtils;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -81,16 +93,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-import org.apache.commons.lang3.RandomUtils;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
@@ -131,6 +133,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         String serviceHost = "localhost";
         int containerCount = 1;
 
+        @Cleanup
+        InlineExecutor indexExecutor = new InlineExecutor();
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         eventsWrittenToPravega = new ConcurrentHashMap<>();
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
@@ -145,7 +149,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         store = serviceBuilder.createStreamSegmentService();
         tableStore = serviceBuilder.createTableStoreService();
         // Start up server.
-        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
+                indexExecutor);
         this.server.startListening();
         // 3. Start Pravega Controller service
         this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
@@ -294,7 +299,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         Runnable restart = () -> {
             // Reset the server, in effect clearing the AppendProcessor and PravegaRequestProcessor.
             this.server.close();
-            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
+                    serviceBuilder.getIndexAppendExecutor());
             this.server.startListening();
         };
         restart.run();

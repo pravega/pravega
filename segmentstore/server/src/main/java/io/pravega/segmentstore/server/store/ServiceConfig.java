@@ -44,6 +44,8 @@ public class ServiceConfig {
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPool.core.size", 30, "threadPoolSize");
     public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("threadPool.storage.size", 200, "storageThreadPoolSize");
     public static final Property<Integer> LOW_PRIORITY_THREAD_POOL_SIZE = Property.named("threadPool.lowPriorityTasks.size", 10, "lowPriorityThreadPoolSize");
+    // TODO : Currently not exposing the new config params. If needed will expose it.
+    public static final Property<Integer> INDEX_APPEND_THREAD_POOL_SIZE = Property.named("threadPool.indexAppend.size", 1, "indexAppendThreadPoolSize");
     public static final Property<Integer> LISTENING_PORT = Property.named("service.listener.port", 12345, "listeningPort");
     public static final Property<Integer> PUBLISHED_PORT = Property.named("service.published.port", null, "publishedPort");
     public static final Property<String> LISTENING_IP_ADDRESS = Property.named("service.listener.host.nameOrIp", "", "listeningIPAddress");
@@ -166,6 +168,12 @@ public class ServiceConfig {
      */
     @Getter
     private final int storageThreadPoolSize;
+
+    /**
+     * The number of threads in the Thread Pool used for append on index segment.
+     */
+    @Getter
+    private final int indexAppendThreadPoolSize;
 
     /**
      * The TCP Port number to listen to.
@@ -375,6 +383,7 @@ public class ServiceConfig {
         this.storageThreadPoolSize = properties.getInt(STORAGE_THREAD_POOL_SIZE);
         this.lowPriorityThreadPoolSize = properties.getInt(LOW_PRIORITY_THREAD_POOL_SIZE);
         this.listeningPort = properties.getInt(LISTENING_PORT);
+        this.indexAppendThreadPoolSize = properties.getInt(INDEX_APPEND_THREAD_POOL_SIZE);
 
         int publishedPort;
         try {
@@ -463,6 +472,7 @@ public class ServiceConfig {
                 .append(String.format("containerCount: %d, ", containerCount))
                 .append(String.format("coreThreadPoolSize: %d, ", coreThreadPoolSize))
                 .append(String.format("storageThreadPoolSize: %d, ", storageThreadPoolSize))
+                .append(String.format("indexAppendThreadPoolSize: %d, ", indexAppendThreadPoolSize))
                 .append(String.format("listeningPort: %d, ", listeningPort))
                 .append(String.format("listeningIPAddress: %s, ", listeningIPAddress))
                 .append(String.format("publishedPort: %d, ", publishedPort))

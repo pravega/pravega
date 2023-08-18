@@ -72,7 +72,8 @@ public class PravegaResource extends ExternalResource {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
+                serviceBuilder.getIndexAppendExecutor());
         server.startListening();
 
         // 2. Start controller
