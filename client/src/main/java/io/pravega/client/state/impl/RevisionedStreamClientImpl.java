@@ -149,10 +149,14 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         synchronized (lock) {
             long startOffset = revision.asImpl().getOffsetInSegment();
             SegmentInfo segmentInfo;
+            long elapsedTime = 0;
             try {
+                long startTime = System.currentTimeMillis();
                 segmentInfo = Futures.getThrowingExceptionWithTimeout(meta.getSegmentInfo(), clientConfig.getConnectTimeoutMilliSec());
+                long endTime = System.currentTimeMillis();
+                elapsedTime = endTime - startTime;
             } catch (TimeoutException e) {
-                throw new ServerTimeoutException(format("Timeout occurred while reading the segment Info for segment {} from revision {}", segment, revision));
+                throw new ServerTimeoutException(format("Timeout occurred while reading the segment Info for segment {%s} from revision {%s} CONNECT_TIME[%d], ELAPSED_TIME[%d]", segment, revision, clientConfig.getConnectTimeoutMilliSec(), elapsedTime));
             }
             long endOffset = segmentInfo.getWriteOffset();
             if (startOffset < segmentInfo.getStartingOffset()) {

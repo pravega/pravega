@@ -16,6 +16,7 @@
 
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -122,21 +123,24 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1, "BookieFailoverTest-main");
 
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2, "BookieFailoverTest-controller");
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
+        log.info("<<<<<<DEBUG>>>>>>>>>>>>>> connect timeout : {}", clientConfig.getConnectTimeoutMilliSec());
 
         //get Controller Uri
         controller = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(Utils.buildClientConfig(controllerURIDirect))
+                .clientConfig(clientConfig)
                 .maxBackoffMillis(5000).build(),
                 controllerExecutorService);
 
         testState = new TestState(false);
         //read and write count variables
         testState.writersListComplete.add(0, testState.writersComplete);
-        streamManager = new StreamManagerImpl(Utils.buildClientConfig(controllerURIDirect));
+        streamManager = new StreamManagerImpl(clientConfig);
         createScopeAndStream(SCOPE, STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", SCOPE);
-        clientFactory = new ClientFactoryImpl(SCOPE, controller, new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURIDirect)));
-        readerGroupManager = ReaderGroupManager.withScope(SCOPE, Utils.buildClientConfig(controllerURIDirect));
+        clientFactory = new ClientFactoryImpl(SCOPE, controller, new SocketConnectionFactoryImpl(clientConfig));
+        readerGroupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
+
     }
 
     @After
@@ -208,6 +212,7 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
             Exceptions.handleInterrupted(() -> Thread.sleep(5000));
         }
         log.info("Final read count {}.", testState.getEventReadCount());
+        // throwing exceptions here
         stopReaders();
 
         // Verify that there is no data loss/duplication.
