@@ -49,7 +49,7 @@ set_configuration() {
 flush_container() {
   cd $home_dir
   # Calling flush to storage
-  output=$(./bin/pravega-admin container flush-to-storage all)
+  output=$(./bin/pravega-admin container flush-to-storage all 2>&1)
   message="Flushed all the given segment container to storage."
   if [[ "$output" != *"$message"* ]]
   then
