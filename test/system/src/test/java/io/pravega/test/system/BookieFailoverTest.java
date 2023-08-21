@@ -72,6 +72,8 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
 
     private StreamManager streamManager;
     private ClientFactoryImpl clientFactory;
+
+    private ClientConfig clientConfig;
     private ReaderGroupManager readerGroupManager;
     private Service bookkeeperService = null;
 
@@ -123,7 +125,7 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1, "BookieFailoverTest-main");
 
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2, "BookieFailoverTest-controller");
-        ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
+        clientConfig = Utils.buildClientConfig(controllerURIDirect);
         log.info("<<<<<<DEBUG>>>>>>>>>>>>>> connect timeout : {}", clientConfig.getConnectTimeoutMilliSec());
 
         //get Controller Uri
@@ -158,7 +160,7 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
     @Test
     public void bookieFailoverTest() throws Exception {
         createWriters(clientFactory, NUM_WRITERS, SCOPE, STREAM);
-        createReaders(clientFactory, readerGroupName, SCOPE, readerGroupManager, STREAM, NUM_READERS);
+        createReaders(clientFactory, readerGroupName, SCOPE, readerGroupManager, STREAM, NUM_READERS, clientConfig);
 
         // Give some time to create readers before forcing a bookie failover.
         AssertExtensions.assertEventuallyEquals("Writers and/or readers not progressing.", true,

@@ -141,7 +141,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
     @Test
     public void readTxnWriteAutoScaleWithFailoverTest() throws Exception {
         createWriters(clientFactory, INIT_NUM_WRITERS, scope, stream);
-        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, stream, NUM_READERS);
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, stream, NUM_READERS, ClientConfig.builder().connectTimeoutMilliSec(120000).build());
 
         //run the failover test before scaling
         performFailoverForTestsInvolvingTxns();

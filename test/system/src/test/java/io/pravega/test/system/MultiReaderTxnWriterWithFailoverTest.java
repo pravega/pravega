@@ -137,7 +137,8 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     @Test
     public void multiReaderTxnWriterWithFailOverTest() throws Exception {
         createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
-        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS,
+                ClientConfig.builder().connectTimeoutMilliSec(120000).build());
 
         //run the failover test
         performFailoverForTestsInvolvingTxns();

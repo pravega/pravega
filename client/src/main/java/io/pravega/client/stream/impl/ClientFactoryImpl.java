@@ -200,12 +200,21 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
                                                  ReaderConfig config) {
         log.info("Creating reader: {} under readerGroup: {} with configuration: {}", readerId, readerGroup, config);
-        return createReader(readerId, readerGroup, s, config, System::nanoTime, System::currentTimeMillis);
+        return createReader(readerId, readerGroup, s, config, System::nanoTime, System::currentTimeMillis, ClientConfig.builder().build());
     }
 
+    @Override
+    public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config, ClientConfig clientConfig){
+        return createReader(readerId, readerGroup, s, config, System::nanoTime, System::currentTimeMillis, clientConfig);
+    }
     @VisibleForTesting
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config,
-                                          Supplier<Long> nanoTime, Supplier<Long> milliTime) {
+                                                 Supplier<Long> nanoTime, Supplier<Long> milliTime) {
+        return createReader(readerId, readerGroup, s, config, nanoTime, milliTime, ClientConfig.builder().build());
+    }
+
+    private  <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config,
+                                          Supplier<Long> nanoTime, Supplier<Long> milliTime, ClientConfig clientConfig) {
         NameUtils.validateReaderId(readerId);
         log.info("Creating reader: {} under readerGroup: {} with configuration: {}", readerId, readerGroup, config);
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
@@ -222,7 +231,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
                 String streamName = NameUtils.getMarkStreamForStream(stream.getStreamName());
                 val client = createRevisionedStreamClient(getSegmentForRevisionedClient(stream.getScope(), streamName),
                                                           new WatermarkSerializer(),
-                                                          SynchronizerConfig.builder().readBufferSize(4096).build());
+                                                          SynchronizerConfig.builder().readBufferSize(4096).build(), clientConfig);
                 watermarkReaders.put(stream, new WatermarkReaderImpl(stream, client, watermarkReaderThreads));
             }
         }
@@ -239,12 +248,17 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
 
     private <T> RevisionedStreamClient<T> createRevisionedStreamClient(Segment segment, Serializer<T> serializer,
                                                                        SynchronizerConfig config) {
+          return createRevisionedStreamClient(segment, serializer, config, ClientConfig.builder().build());
+    }
+
+    public <T> RevisionedStreamClient<T> createRevisionedStreamClient(Segment segment, Serializer<T> serializer,
+                                                                      SynchronizerConfig config, ClientConfig clientConfig) {
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
         DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(controller, segment,
                 AccessOperation.READ_WRITE);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProvider);
-        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider);
+        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider, clientConfig);
     }
 
     @Override

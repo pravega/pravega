@@ -46,7 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ClientConfig implements Serializable {
 
     static final int DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE = 10;
-    static final long DEFAULT_CONNECT_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(300);
+    static final long DEFAULT_CONNECT_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(30);
     private static final long serialVersionUID = 1L;
     // Use this scheme when client want to connect to a static set of controller servers.
     // Eg: tcp://ip1:port1,ip2:port2

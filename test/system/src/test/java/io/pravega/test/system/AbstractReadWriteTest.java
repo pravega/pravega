@@ -16,6 +16,7 @@
 package io.pravega.test.system;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.EventRead;
@@ -312,7 +313,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     }
 
     void createReaders(EventStreamClientFactory clientFactory, String readerGroupName, String scope,
-                       ReaderGroupManager readerGroupManager, String stream, final int readers) {
+                       ReaderGroupManager readerGroupManager, String stream, final int readers, ClientConfig clientConfig) {
         log.info("Creating Reader group: {}, with readergroup manager using scope: {}", readerGroupName, scope);
         readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build());
         log.info("Reader group name: {}, Reader group scope: {}, Online readers: {}",
@@ -330,7 +331,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                 final EventStreamReader<String> reader = clientFactory.createReader(readerName + i,
                         readerGroupName,
                         new JavaSerializer<>(),
-                        ReaderConfig.builder().build());
+                        ReaderConfig.builder().build(), clientConfig);
                 readerList.add(reader);
                 final CompletableFuture<Void> readerFuture = startReading(reader);
                 Futures.exceptionListener(readerFuture, t -> log.error("Error while reading events:", t));
