@@ -104,7 +104,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService lowPriorityExecutor;
+    private final ScheduledExecutorService tokenExpiryHandlerExecutor;
     private final Collection<String> transientSegmentNames;
     private final IndexAppendProcessor indexAppendProcessor;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -116,30 +116,30 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     @Builder
     AppendProcessor(@NonNull StreamSegmentStore store, @NonNull TrackedConnection connection, @NonNull RequestProcessor nextRequestProcessor,
                     @NonNull SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
-                    boolean replyWithStackTraceOnError, ScheduledExecutorService lowPriorityExecutor) {
+                    boolean replyWithStackTraceOnError, ScheduledExecutorService tokenExpiryHandlerExecutor, IndexAppendProcessor indexAppendProcessor) {
         this.store = store;
         this.connection = connection;
         this.nextRequestProcessor = nextRequestProcessor;
         this.statsRecorder = statsRecorder;
         this.tokenVerifier = tokenVerifier;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
-        this.lowPriorityExecutor = lowPriorityExecutor;
+        this.tokenExpiryHandlerExecutor = tokenExpiryHandlerExecutor;
         this.transientSegmentNames = Collections.synchronizedSet(new HashSet<>());
-        this.indexAppendProcessor = new IndexAppendProcessor(lowPriorityExecutor, store);
+        this.indexAppendProcessor = indexAppendProcessor;
     }
 
     /**
      * Creates a new {@link AppendProcessorBuilder} instance with all optional arguments set to default values.
      * These default values may not be appropriate for production use and should be used for testing purposes only.
-     * @param lowPriorityExecutor Segment index executor service.
+     * @param indexAppendProcessor Index append processor to be used for appending on index segment.
      * @return A {@link AppendProcessorBuilder} instance.
      */
     @VisibleForTesting
-    public static AppendProcessorBuilder defaultBuilder(ScheduledExecutorService lowPriorityExecutor) {
+    public static AppendProcessorBuilder defaultBuilder(IndexAppendProcessor indexAppendProcessor) {
         return builder()
                 .nextRequestProcessor(new FailingRequestProcessor())
                 .statsRecorder(SegmentStatsRecorder.noOp())
-                .lowPriorityExecutor(lowPriorityExecutor)
+                .indexAppendProcessor(indexAppendProcessor)
                 .replyWithStackTraceOnError(false);
     }
 
@@ -261,7 +261,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                     this.close();
                 }
                 return null;
-            }, token.durationToExpiry(), this.lowPriorityExecutor);
+            }, token.durationToExpiry(), this.tokenExpiryHandlerExecutor);
         }
     }
 
@@ -335,7 +335,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         boolean success = exception == null;
         try {
             if (success) {
-                indexAppendProcessor.processAppend(append.getSegment());
+                indexAppendProcessor.processAppend(append.getSegment(), 24L);
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
                     long previousLastAcked = state.appendSuccessful(append.getEventNumber());

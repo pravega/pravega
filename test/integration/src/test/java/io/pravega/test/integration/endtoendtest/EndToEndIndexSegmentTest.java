@@ -31,6 +31,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -79,7 +80,8 @@ public class EndToEndIndexSegmentTest {
         controllerPort = TestUtils.getAvailableListenPort();
         controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
         int servicePort = TestUtils.getAvailableListenPort();
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, this.serviceBuilder.getLowPriorityExecutor());
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, this.serviceBuilder.getLowPriorityExecutor(),
+                new IndexAppendProcessor(this.serviceBuilder.getLowPriorityExecutor(), store));
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

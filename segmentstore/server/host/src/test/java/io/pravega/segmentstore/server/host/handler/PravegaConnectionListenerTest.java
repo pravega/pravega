@@ -33,6 +33,7 @@ import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.NoOpScheduledExecutor;
 import io.pravega.test.common.SecurityConfigDefaults;
 
@@ -41,6 +42,7 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.pravega.test.common.TestUtils;
@@ -57,28 +59,31 @@ public class PravegaConnectionListenerTest {
 
     @Test
     public void testCtorSetsTlsReloadFalseByDefault() {
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(false, 6222,
-                mock(StreamSegmentStore.class), mock(TableStore.class), NoOpScheduledExecutor.get());
+                store, mock(TableStore.class), NoOpScheduledExecutor.get(), getIndexAppendProcessor(store));
         assertFalse(listener.isEnableTlsReload());
     }
 
     @Test
     public void testCtorSetsTlsReloadFalseIfTlsIsDisabled() {
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(false, true,
-                "localhost", 6222, mock(StreamSegmentStore.class), mock(TableStore.class),
+                "localhost", 6222, store, mock(TableStore.class),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
-                null, null, true, NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+                null, null, true, NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION, getIndexAppendProcessor(store));
         assertFalse(listener.isEnableTlsReload());
     }
 
     @Test
     public void testCloseWithoutStartListeningThrowsNoException() {
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
         PravegaConnectionListener listener = new PravegaConnectionListener(true, true,
-                "localhost", 6222, mock(StreamSegmentStore.class), mock(TableStore.class),
+                "localhost", 6222, store, mock(TableStore.class),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
-                null, null, true, NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+                null, null, true, NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION, getIndexAppendProcessor(store));
 
         // Note that we do not invoke startListening() here, which among other things instantiates some of the object
         // state that is cleaned up upon invocation of close() in this line.
@@ -89,12 +94,13 @@ public class PravegaConnectionListenerTest {
     public void testUsesEventWatcherForNonSymbolicLinks() {
         String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(true, true,
-                "whatever", -1, mock(StreamSegmentStore.class), mock(TableStore.class),
+                "whatever", -1, store, mock(TableStore.class),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
                 "dummy-tls-certificate-path", "dummy-tls-key-path", true,
-                NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+                NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION, getIndexAppendProcessor(store));
 
         AtomicReference<SslContext> dummySslCtx = new AtomicReference<>(null);
 
@@ -108,12 +114,13 @@ public class PravegaConnectionListenerTest {
     public void testUsesPollingMonitorForSymbolicLinks() {
         String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(true, true,
-                "whatever", -1, mock(StreamSegmentStore.class), mock(TableStore.class),
+                "whatever", -1, store, mock(TableStore.class),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
                 "dummy-tls-certificate-path", "dummy-tls-key-path", true,
-                NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+                NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION, getIndexAppendProcessor(store));
 
         AtomicReference<SslContext> dummySslCtx = new AtomicReference<>(null);
 
@@ -127,12 +134,13 @@ public class PravegaConnectionListenerTest {
     public void testPrepareCertificateMonitorThrowsExceptionWithNonExistentFile() {
         String pathToCertificateFile = SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(true, true,
-                "whatever", -1, mock(StreamSegmentStore.class), mock(TableStore.class),
+                "whatever", -1, store, mock(TableStore.class),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
                 "dummy-tls-certificate-path", "dummy-tls-key-path", true,
-                NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+                NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION, getIndexAppendProcessor(store));
         AtomicReference<SslContext> dummySslCtx = new AtomicReference<>(null);
 
         try {
@@ -152,11 +160,13 @@ public class PravegaConnectionListenerTest {
     public void testEnableTlsContextReloadWhenStateIsValid() {
         String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(true, true,
-                "whatever", -1, mock(StreamSegmentStore.class), mock(TableStore.class),
+                "whatever", -1, store, mock(TableStore.class),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
-                pathToCertificateFile, pathToKeyFile, true, NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+                pathToCertificateFile, pathToKeyFile, true, NoOpScheduledExecutor.get(),
+                SecurityConfigDefaults.TLS_PROTOCOL_VERSION, getIndexAppendProcessor(store));
 
         AtomicReference<SslContext> dummySslCtx = new AtomicReference<>(null);
         listener.enableTlsContextReload(dummySslCtx);
@@ -166,8 +176,9 @@ public class PravegaConnectionListenerTest {
     @Test
     public void testStartListening() {
         int port = TestUtils.getAvailableListenPort();
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
         PravegaConnectionListener listener = new PravegaConnectionListener(false, port,
-                mock(StreamSegmentStore.class), mock(TableStore.class), NoOpScheduledExecutor.get());
+                store, mock(TableStore.class), NoOpScheduledExecutor.get(), getIndexAppendProcessor(store));
         listener.startListening();
         try {
             ServerSocket serverSocket = new ServerSocket(port);
@@ -181,9 +192,10 @@ public class PravegaConnectionListenerTest {
 
     @Test
     public void testCreateEncodingStack() {
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(false, 6622,
-                mock(StreamSegmentStore.class), mock(TableStore.class), NoOpScheduledExecutor.get());
+                store, mock(TableStore.class), NoOpScheduledExecutor.get(), getIndexAppendProcessor(store));
         List<ChannelHandler> stack = listener.createEncodingStack("connection");
         // Check that the order of encoders is the right one.
         Assert.assertTrue(stack.get(0) instanceof ExceptionLoggingHandler);
@@ -195,9 +207,10 @@ public class PravegaConnectionListenerTest {
 
     @Test
     public void testCreateRequestProcessor() {
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(false, 6622,
-                mock(StreamSegmentStore.class), mock(TableStore.class), NoOpScheduledExecutor.get());
+                mock(StreamSegmentStore.class), mock(TableStore.class), NoOpScheduledExecutor.get(), getIndexAppendProcessor(store));
         Assert.assertTrue(listener.createRequestProcessor(new TrackedConnection(new ServerConnectionInboundHandler())) instanceof AppendProcessor);
     }
 
@@ -208,11 +221,13 @@ public class PravegaConnectionListenerTest {
         HealthServiceManager healthServiceManager = new HealthServiceManager(Duration.ofSeconds(2));
         healthServiceManager.start();
         int port = TestUtils.getAvailableListenPort();
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup
         PravegaConnectionListener listener = new PravegaConnectionListener(false, false, "localhost",
                 port, mock(StreamSegmentStore.class), mock(TableStore.class), SegmentStatsRecorder.noOp(),
                 TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, true,
-                NoOpScheduledExecutor.get(), TLS_PROTOCOL_VERSION.getDefaultValue().split(","), healthServiceManager);
+                NoOpScheduledExecutor.get(), TLS_PROTOCOL_VERSION.getDefaultValue().split(","),
+                healthServiceManager, getIndexAppendProcessor(store));
 
         listener.startListening();
         Health health = listener.getHealthServiceManager().getHealthSnapshot();
@@ -220,5 +235,11 @@ public class PravegaConnectionListenerTest {
         listener.close();
         health = listener.getHealthServiceManager().getHealthSnapshot();
         Assert.assertEquals("HealthContributor should report an 'DOWN' Status.", Status.DOWN, health.getStatus());
+    }
+
+    private IndexAppendProcessor getIndexAppendProcessor(StreamSegmentStore store) {
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = new InlineExecutor();
+        return new IndexAppendProcessor(executor, store);
     }
 }

@@ -38,6 +38,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
@@ -174,18 +175,19 @@ public final class SetupUtils {
         this.serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store);
         this.server = new PravegaConnectionListener(enableTls, false, "localhost",
                 servicePort, store, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),  new PassingTokenVerifier(),
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME,
                 pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME, true,
-                serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+                serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION, indexAppendProcessor);
 
         this.server.startListening();
         log.info("Started Pravega Service");
 
         this.adminListener = new AdminConnectionListener(enableTls, false, "localhost", adminPort,
                 store, tableStore, new PassingTokenVerifier(), pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME,
-                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME, SecurityConfigDefaults.TLS_PROTOCOL_VERSION, serviceBuilder.getLowPriorityExecutor());
+                pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME, SecurityConfigDefaults.TLS_PROTOCOL_VERSION, indexAppendProcessor);
         this.adminListener.startListening();
         log.info("AdminConnectionListener started successfully.");
 

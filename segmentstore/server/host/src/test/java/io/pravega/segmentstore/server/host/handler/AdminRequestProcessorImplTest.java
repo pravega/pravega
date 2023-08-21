@@ -50,7 +50,8 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
-        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         processor.flushToStorage(new WireCommands.FlushToStorage(0, "", 1));
         order.verify(connection).send(new WireCommands.StorageFlushed(1));
@@ -77,7 +78,8 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
 
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
-        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         processor.listStorageChunks(new WireCommands.ListStorageChunks("dummy", "", 1));
         order.verify(connection).send(new WireCommands.StorageChunksListed(1, List.of(chunkInfo)));
