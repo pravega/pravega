@@ -31,6 +31,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -93,8 +94,8 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         serviceBuilder.initialize();
         this.tableStore = serviceBuilder.createTableStoreService();
 
-        this.serverListener = new PravegaConnectionListener(false, servicePort, serviceBuilder.createStreamSegmentService(), this.tableStore, executorService(),
-                serviceBuilder.getIndexAppendExecutor());
+        this.serverListener = new PravegaConnectionListener(false, servicePort, serviceBuilder.createStreamSegmentService(), this.tableStore,
+                executorService(), new IndexAppendProcessor(executorService(), serviceBuilder.createStreamSegmentService()));
         this.serverListener.startListening();
 
         // 3. Start Pravega Controller service

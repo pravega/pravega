@@ -62,6 +62,7 @@ public class IndexAppendProcessorTest {
     @Test(timeout = 6000)
     public void processAppend() {
         String segmentName = "test";
+        long maxAllowedEventSize = 24L;
         SegmentProperties segmentProperties = StreamSegmentInformation.builder()
                                                                      .name(segmentName)
                                                                      .length(1234)
@@ -75,8 +76,8 @@ public class IndexAppendProcessorTest {
                 any(), any());
 
         IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
-        appendProcessor.processAppend(segmentName);
-        appendProcessor.processAppend(segmentName);
+        appendProcessor.processAppend(segmentName, maxAllowedEventSize);
+        appendProcessor.processAppend(segmentName, maxAllowedEventSize);
 
         verify(store, times(2)).getStreamSegmentInfo(segmentName, timeout);
         verify(store, times(2)).append(anyString(), any(), any(), any());

@@ -116,8 +116,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     @Builder
     AppendProcessor(@NonNull StreamSegmentStore store, @NonNull TrackedConnection connection, @NonNull RequestProcessor nextRequestProcessor,
                     @NonNull SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
-                    boolean replyWithStackTraceOnError, ScheduledExecutorService tokenExpiryHandlerExecutor,
-                    ScheduledExecutorService indexAppendExecutor) {
+                    boolean replyWithStackTraceOnError, ScheduledExecutorService tokenExpiryHandlerExecutor, IndexAppendProcessor indexAppendProcessor) {
         this.store = store;
         this.connection = connection;
         this.nextRequestProcessor = nextRequestProcessor;
@@ -126,21 +125,21 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.tokenExpiryHandlerExecutor = tokenExpiryHandlerExecutor;
         this.transientSegmentNames = Collections.synchronizedSet(new HashSet<>());
-        this.indexAppendProcessor = new IndexAppendProcessor(indexAppendExecutor, store);
+        this.indexAppendProcessor = indexAppendProcessor;
     }
 
     /**
      * Creates a new {@link AppendProcessorBuilder} instance with all optional arguments set to default values.
      * These default values may not be appropriate for production use and should be used for testing purposes only.
-     * @param indexExecutor Segment index executor service.
+     * @param indexAppendProcessor Index append processor to be used for appending on index segment.
      * @return A {@link AppendProcessorBuilder} instance.
      */
     @VisibleForTesting
-    public static AppendProcessorBuilder defaultBuilder(ScheduledExecutorService indexExecutor) {
+    public static AppendProcessorBuilder defaultBuilder(IndexAppendProcessor indexAppendProcessor) {
         return builder()
                 .nextRequestProcessor(new FailingRequestProcessor())
                 .statsRecorder(SegmentStatsRecorder.noOp())
-                .indexAppendExecutor(indexExecutor)
+                .indexAppendProcessor(indexAppendProcessor)
                 .replyWithStackTraceOnError(false);
     }
 
@@ -336,7 +335,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         boolean success = exception == null;
         try {
             if (success) {
-                indexAppendProcessor.processAppend(append.getSegment());
+                indexAppendProcessor.processAppend(append.getSegment(), 24L);
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
                     long previousLastAcked = state.appendSuccessful(append.getEventNumber());

@@ -19,6 +19,7 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -108,7 +109,7 @@ public class BoundedStreamReaderTest extends LeakDetectorTestSuite {
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
         server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
-                serviceBuilder.getIndexAppendExecutor());
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

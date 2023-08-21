@@ -17,7 +17,7 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import io.netty.buffer.Unpooled;
-import io.pravega.common.concurrent.LatestItemSequentialProcessor;
+import io.pravega.common.concurrent.MultiKeyLatestItemSequentialProcessor;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -38,29 +38,28 @@ import static io.pravega.shared.NameUtils.isTransientSegment;
 @Slf4j
 public class IndexAppendProcessor {
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private final ScheduledExecutorService indexSegmentUpdateExecutor;
     private final StreamSegmentStore store;
+    private final MultiKeyLatestItemSequentialProcessor<String, Long> appendProcessor;
 
     public IndexAppendProcessor(ScheduledExecutorService indexSegmentUpdateExecutor, StreamSegmentStore store) {
-        this.indexSegmentUpdateExecutor = indexSegmentUpdateExecutor;
         this.store = store;
+        appendProcessor = new MultiKeyLatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
     }
 
     /**
      * Appends index segment on a separate thread.
      * @param segmentName  segment name.
+     * @param maxAllowedSize  Maximum allowed event size.
      */
-    protected void processAppend(String segmentName) {
+    protected void processAppend(String segmentName, long maxAllowedSize) {
         // Not updating index segment for transient and transaction type.
         if (isTransientSegment(segmentName) || isTransactionSegment(segmentName)) {
             return;
         }
-        LatestItemSequentialProcessor<String> latestItemProcessor = new LatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
-        latestItemProcessor.updateItem(segmentName);
+        appendProcessor.updateItem(segmentName, maxAllowedSize);
     }
 
-    private void handleIndexAppend(String segmentName) {
-        //TODO : Update the index segment Attribute as needed going forward. If eventcount for main segment is null then we are passing it as 0 in index segment.
+    private void handleIndexAppend(String segmentName, long maxAllowedSize) {
         AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));
         store.getStreamSegmentInfo(segmentName, TIMEOUT)
