@@ -337,11 +337,11 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         @Cleanup("shutdown")
         ScheduledExecutorService executor = new InlineExecutor();
-
         @Cleanup
         AppendProcessor processor = AppendProcessor.defaultBuilder(getIndexAppendProcessor(mockStore))
                 .store(mockStore)
                 .connection(new TrackedConnection(mockConnection))
+                .tokenExpiryHandlerExecutor(executor)
                 .build();
 
         // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
@@ -367,10 +367,13 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         StreamSegmentStore mockStore = mock(StreamSegmentStore.class);
         ServerConnection mockConnection = mock(ServerConnection.class);
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = new InlineExecutor();
         @Cleanup
         AppendProcessor processor = AppendProcessor.defaultBuilder(getIndexAppendProcessor(mockStore))
                 .store(mockStore)
                 .connection(new TrackedConnection(mockConnection))
+                .tokenExpiryHandlerExecutor(executor)
                 .build();
 
         // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
