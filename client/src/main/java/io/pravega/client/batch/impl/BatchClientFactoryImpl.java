@@ -17,6 +17,7 @@ package io.pravega.client.batch.impl;
 
 import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamCutHelper;
@@ -46,11 +47,15 @@ import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.Retry;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.security.auth.AccessOperation;
+
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -220,10 +225,26 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
         Preconditions.checkArgument(approxDistanceToNextOffset > 0, "Ensure approxDistanceToNextOffset must be greater than 0");
+        return Retry.withExpBackoff(1, 10, 4, Duration.ofSeconds(60).toMillis()).retryWhen(t -> {
+            Throwable ex = Exceptions.unwrap(t);
+            if (ex instanceof ConnectionFailedException) {
+                log.info("Connection failure while getting next streamcut: {}. Retrying", ex.getMessage());
+                return true;
+            } else if (ex instanceof TokenExpiredException) {
+                log.info("Authentication token expired while  getting next streamcut. Retrying");
+                return true;
+            } else {
+                return false;
+            }
+        }).run(() -> processNextStreamCut(startingStreamCut, approxDistanceToNextOffset));
+    }
+
+    private StreamCut processNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset){
         Stream stream = startingStreamCut.asImpl().getStream();
         Map<Segment, Long> nextPositionsMap = new HashMap<>();
         Map<Segment, Long> scaledSegmentsMap = new HashMap<>();
         int numberOfSegments = startingStreamCut.asImpl().getPositions().size();
+
         long approxNextOffsetDistancePerSegment = getApproxNextOffsetDistancePerSegment(numberOfSegments, approxDistanceToNextOffset);
         for (Map.Entry<Segment, Long> positions : startingStreamCut.asImpl().getPositions().entrySet()) {
             Segment segment = positions.getKey();
