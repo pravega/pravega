@@ -239,12 +239,11 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         }).run(() -> processNextStreamCut(startingStreamCut, approxDistanceToNextOffset));
     }
 
-    private StreamCut processNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset){
+    private StreamCut processNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) {
         Stream stream = startingStreamCut.asImpl().getStream();
         Map<Segment, Long> nextPositionsMap = new HashMap<>();
         Map<Segment, Long> scaledSegmentsMap = new HashMap<>();
         int numberOfSegments = startingStreamCut.asImpl().getPositions().size();
-
         long approxNextOffsetDistancePerSegment = getApproxNextOffsetDistancePerSegment(numberOfSegments, approxDistanceToNextOffset);
         for (Map.Entry<Segment, Long> positions : startingStreamCut.asImpl().getPositions().entrySet()) {
             Segment segment = positions.getKey();
