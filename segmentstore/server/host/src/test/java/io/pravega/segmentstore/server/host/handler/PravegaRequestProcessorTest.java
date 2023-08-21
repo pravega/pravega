@@ -201,7 +201,8 @@ public class PravegaRequestProcessorTest {
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.Cache, 0, readLength);
         entry1.complete(new ByteArraySegment(data));
@@ -257,7 +258,8 @@ public class PravegaRequestProcessorTest {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
         StreamSegmentInformation info = StreamSegmentInformation.builder()
                 .name(indexSegment)
                 .length(96)
@@ -291,7 +293,8 @@ public class PravegaRequestProcessorTest {
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         TestReadResultEntry entry = new TestReadResultEntry(ReadResultEntryType.Future, data.length, readLength);
 
@@ -332,7 +335,8 @@ public class PravegaRequestProcessorTest {
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.EndOfStreamSegment, 0, readLength);
 
@@ -363,7 +367,8 @@ public class PravegaRequestProcessorTest {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
         //Use low priority executor
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         CompletableFuture<ReadResult> readResult = new CompletableFuture<>();
         readResult.completeExceptionally(new CancellationException("cancel read"));
@@ -393,7 +398,8 @@ public class PravegaRequestProcessorTest {
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
         serviceBuilder.initialize();
 
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.Truncated, 0, readLength);
 
@@ -432,7 +438,8 @@ public class PravegaRequestProcessorTest {
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.Future, 0, readLength);
 
@@ -463,7 +470,8 @@ public class PravegaRequestProcessorTest {
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.Future, 0, readLength);
 
@@ -494,7 +502,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(SegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
-                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
         processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
@@ -541,7 +550,8 @@ public class PravegaRequestProcessorTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         // create stream segment
         processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
@@ -665,7 +675,8 @@ public class PravegaRequestProcessorTest {
         doReturn(Futures.failedFuture(new StreamSegmentMergedException(transactionName))).when(store).mergeStreamSegment(
                 anyString(), anyString(), any());
 
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
@@ -693,7 +704,8 @@ public class PravegaRequestProcessorTest {
                 anyString(), any());
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).mergeStreamSegment(
                 anyString(), anyString(), any(), any());
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
         processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), ""));
@@ -718,7 +730,8 @@ public class PravegaRequestProcessorTest {
         doReturn(txnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any(), any());
         SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
-                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
@@ -746,7 +759,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
-                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0L));
         order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
@@ -798,7 +812,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
-                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                recorderMock, TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0L));
         order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
@@ -850,7 +865,8 @@ public class PravegaRequestProcessorTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
         processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
@@ -890,7 +906,8 @@ public class PravegaRequestProcessorTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection, serviceBuilder.getLowPriorityExecutor());
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         // Create a segment and append 2 bytes.
         processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
@@ -952,7 +969,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection),
-                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         int requestId = 0;
 
@@ -1023,7 +1041,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection, tracker),
-                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         //Generate keys
         ArrayList<ArrayView> keys = generateKeys(3, rnd);
@@ -1101,7 +1120,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection, tracker),
-                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         // Generate keys.
         ArrayList<ArrayView> keys = generateKeys(3, rnd);
@@ -1163,7 +1183,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection),
-                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         // Create a table segment.
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, 0, "", 0));
@@ -1189,7 +1210,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection),
-                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         // Generate keys.
         ArrayList<ArrayView> keys = generateKeys(2, rnd);
@@ -1225,7 +1247,8 @@ public class PravegaRequestProcessorTest {
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         val recorderMockOrder = inOrder(recorderMock);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection),
-                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         // Generate keys.
         ArrayList<ArrayView> keys = generateKeys(2, rnd);
@@ -1276,7 +1299,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection),
-                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         // Generate keys.
         ArrayList<ArrayView> keys = generateKeys(3, rnd);
@@ -1349,7 +1373,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection),
-                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         // Generate keys.
         ArrayList<ArrayView> keys = generateKeys(3, rnd);
@@ -1431,7 +1456,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection), SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                recorderMock, new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, 0, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
@@ -1457,7 +1483,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection), SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                recorderMock, new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, 0, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
@@ -1497,7 +1524,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection),
-                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false, serviceBuilder.getLowPriorityExecutor());
+                SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         // Generate keys.
         ArrayList<ArrayView> keys = generateKeys(3, rnd);
@@ -1802,11 +1830,11 @@ public class PravegaRequestProcessorTest {
                 lsh);
         @Cleanup
         InlineExecutor indexExecutor = new InlineExecutor();
-        lsh.setRequestProcessor(AppendProcessor.defaultBuilder(indexExecutor)
+        lsh.setRequestProcessor(AppendProcessor.defaultBuilder(new IndexAppendProcessor(indexExecutor, store))
                 .store(store)
                 .connection(new TrackedConnection(lsh))
                 .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh,
-                        indexExecutor))
+                        new IndexAppendProcessor(indexExecutor, store)))
                 .build());
         return channel;
     }

@@ -21,13 +21,13 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.InlineExecutor;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
-import static io.pravega.common.concurrent.ExecutorServiceHelpers.shutdown;
 import static io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -36,23 +36,22 @@ public class PravegaRequestProcessorAuthFailedTest {
 
     private PravegaRequestProcessor processor;
     private ServerConnection connection;
-    private ScheduledExecutorService indexAppendExecutor;
 
     @Before
     public void setUp() throws Exception {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         connection = mock(ServerConnection.class);
-        indexAppendExecutor = newScheduledThreadPool(1, "index-append");
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = new InlineExecutor();
         processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
                 (resource, token, expectedLevel) -> {
                     throw new InvalidTokenException("Token verification failed.");
-                }, false, indexAppendExecutor);
+                }, false, new IndexAppendProcessor(executor, store));
     }
 
     @After
     public void tearDown() throws Exception {
-        shutdown(indexAppendExecutor);
     }
 
     @Test
