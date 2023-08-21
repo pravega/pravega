@@ -204,9 +204,10 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
     }
 
     @Override
-    public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config, ClientConfig clientConfig){
+    public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config, ClientConfig clientConfig) {
         return createReader(readerId, readerGroup, s, config, System::nanoTime, System::currentTimeMillis, clientConfig);
     }
+    
     @VisibleForTesting
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config,
                                                  Supplier<Long> nanoTime, Supplier<Long> milliTime) {
