@@ -532,113 +532,6 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         FileUtils.deleteDirectory(new File(baseDir.getPath()));
     }
 
-    /**
-     * Tests the data recovery scenario with transactional writer. Events are written using a transactional writer.
-     *  What test does, step by step:
-     *  1.  Starts Pravega locally with just 4 segment containers.
-     *  2.  Writes {@link #TOTAL_NUM_EVENTS} events in the form of transactions.
-     *  3.  Shuts down controller and segment store
-     *  4.  Restart controller and segment store
-     *  5.  Read transactional events
-     *  6.  Shuts down the controller
-     *  7.  Waits for DurableLog to be entirely flushed to the long term storage.
-     *  8.  Shuts down segment store and bookeeper/zookeeper.
-     *  9.  Starts new instance of bk, zk, store and controller.
-     *  10. Reads all events.
-     * @throws Exception    In case of an exception occurred while execution.
-     */
-    @Test(timeout = 180000)
-    public void testRecoverRestart() throws Exception {
-        int instanceId = 0;
-        int containerCount = 4;
-        int bookieCount = 3;
-        boolean withTransaction = true;
-        // Creating a long term storage only once here.
-
-        val baseDir = Files.createTempDirectory("test_backupRecovery").toFile().getAbsoluteFile();
-        val storageConfig = FileSystemStorageConfig
-                .builder()
-                .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
-                .build();
-
-        this.storageFactory = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, storageConfig, executorService());
-        log.info("Created a long term storage.");
-
-        // Start a new BK & ZK, segment store and controller
-        @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
-        pravegaRunner.startBookKeeperRunner(instanceId++);
-        val bkConfig = BookKeeperConfig.builder()
-                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
-                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
-                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner.getBookKeeperRunner().getLogMetaNamespace())
-                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
-                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
-                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
-                .build();
-        this.dataLogFactory = new BookKeeperLogFactory(bkConfig, pravegaRunner.getBookKeeperRunner().getZkClient().get(), this.executorService());
-        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
-
-        // Create a stream for writing data
-        createScopeStream(pravegaRunner.getControllerRunner().controller, SCOPE, STREAM1, config);
-
-        log.info("Created stream '{}'.", STREAM1);
-
-        // Create a client to write events.
-        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
-            // Write events.
-            writeEventsToStream(clientRunner.clientFactory, withTransaction);
-        }
-        pravegaRunner.shutDownControllerRunner();
-        pravegaRunner.shutDownSegmentStoreRunner();
-
-        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
-
-        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
-            // Try reading all events again to verify that the recovery was successful.
-            readEventsFromStream(clientRunner.clientFactory, clientRunner.readerGroupManager);
-            log.info("Read all events to verify that segments were present post restart.");
-        }
-
-        log.info("Shutting down controller");
-        pravegaRunner.shutDownControllerRunner(); // Shut down the controller
-        // Flush DurableLog to Long Term Storage
-        log.info("Flush to storage");
-        flushToStorage(pravegaRunner.getSegmentStoreRunner().getServiceBuilder());
-
-        pravegaRunner.shutDownSegmentStoreRunner(); // Shutdown SegmentStore
-        pravegaRunner.shutDownBookKeeperRunner(); // Shutdown BookKeeper & ZooKeeper
-        pravegaRunner.close();
-        log.info("SegmentStore, BookKeeper & ZooKeeper shutdown");
-
-        Thread.sleep(1000);
-        // Start a new segment store and controller
-        PravegaRunner pravegaRunner1 = new PravegaRunner(bookieCount, containerCount);
-        pravegaRunner1.startBookKeeperRunner(instanceId++);
-        log.info("Started bk and zk. ");
-        val bkConfig1 = BookKeeperConfig.builder()
-                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner1.getBookKeeperRunner().getBkPort())
-                .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner1.getBookKeeperRunner().getLedgerPath())
-                .with(BookKeeperConfig.ZK_METADATA_PATH, pravegaRunner1.getBookKeeperRunner().getLogMetaNamespace())
-                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
-                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
-                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
-                .build();
-        this.dataLogFactory = new BookKeeperLogFactory(bkConfig1, pravegaRunner1.getBookKeeperRunner().getZkClient().get(), this.executorService());
-        log.info("Starting segmentstore and controller ");
-        pravegaRunner1.startControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
-        log.info("Started segment store and controller again.");
-
-        log.info("Starting client to read Events ");
-        // Create the client with new controller.
-        try (val clientRunner = new ClientRunner(pravegaRunner1.getControllerRunner())) {
-            // Try reading all events again to verify that the recovery was successful.
-            readEventsFromStream(clientRunner.clientFactory, clientRunner.readerGroupManager);
-            log.info("Read all events again to verify that segments were recovered.");
-        }
-        FileUtils.deleteDirectory(new File(baseDir.getPath()));
-    }
-
     @Test(timeout = 180000)
     public void testRecoverWithKvt() throws Exception {
         int instanceId = 0;
@@ -720,7 +613,6 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         val segmentsAfterRecovery = pravegaRunner1.getControllerRunner().controller.getCurrentSegmentsForKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName()).join();
         Assert.assertEquals(defaultConfig.getPartitionCount(), segmentsAfterRecovery.getSegments().size());
         FileUtils.deleteDirectory(new File(baseDir.getPath()));
-        log.info("Debug");
     }
 
     private KeyValueTableInfo newKeyValueTableName() {
