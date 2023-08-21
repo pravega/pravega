@@ -533,7 +533,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         attributeUpdates.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
         segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), attributeUpdates, TIMEOUT)
                     .thenAccept(mergeResult -> {
-                        indexAppendProcessor.processAppend(mergeSegments.getTarget(), 24L);
+                        long maxEventSize = getIndexSegmentMaxEventSize(mergeSegments.getTarget());
+                        indexAppendProcessor.processAppend(mergeSegments.getTarget(), maxEventSize);
                         recordStatForTransaction(mergeResult, mergeSegments.getTarget());
                         connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
                                                                         mergeSegments.getTarget(),
@@ -597,7 +598,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             throw new CompletionException(e);
                         } else {
                             recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
-                            indexAppendProcessor.processAppend(mergeSegments.getTargetSegmentId(), 24L);
+                            long maxEventSize = getIndexSegmentMaxEventSize(mergeSegments.getTargetSegmentId());
+                            indexAppendProcessor.processAppend(mergeSegments.getTargetSegmentId(), maxEventSize);
                             return CompletableFuture.completedFuture(r.getTargetSegmentLength());
                         }
                     });
@@ -611,6 +613,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                    log.debug("error");
                    return handleException(mergeSegments.getRequestId(), mergeSegments.getTargetSegmentId(), operation, e);
                });
+    }
+
+    private long getIndexSegmentMaxEventSize(String segmentName) {
+        try {
+            Map<AttributeId, Long> attributes = segmentStore.getAttributes(getIndexSegmentName(segmentName), Collections.singleton(EXPECTED_INDEX_SEG_EVENT_SIZE), true, TIMEOUT).join();
+            return attributes.get(EXPECTED_INDEX_SEG_EVENT_SIZE).longValue();
+        } catch (Exception e) {
+            log.warn("Exception occured while getting max event size for index segment {} ", getIndexSegmentName(segmentName));
+            return 0;
+        }
     }
 
     @Override

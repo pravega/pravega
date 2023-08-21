@@ -104,7 +104,7 @@ public class IndexAppendProcessorTest {
         appendProcessor.processAppend(segmentName, 32L);
         appendProcessor.processAppend(segmentName, 24L);
 
-        verify(store, times(2)).getStreamSegmentInfo(segmentName, timeout);
+        verify(store, times(1)).getStreamSegmentInfo(segmentName, timeout);
         verify(store, times(1)).append(anyString(), any(), any(), any());
         verifyNoMoreInteractions(store);
     }
