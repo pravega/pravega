@@ -86,10 +86,9 @@ public final class IndexRequestProcessor {
         SegmentProperties properties = store.getStreamSegmentInfo(indexSegmentName, TIMEOUT).join();
         long startIdx = properties.getStartOffset() / ENTRY_SIZE;
         long endIdx = properties.getLength() / ENTRY_SIZE;
-
         //If startIdx and endIdx are same, then pass length of segment as a result.
         if (startIdx == endIdx) {
-            return getSegmentLength(store, segment, startIdx);
+           return getSegmentLength(store, segment, startIdx);
         }
 
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY_MS, RETRY_MULTIPLIER, RETRY_COUNT, RETRY_MAX_DELAY_MS)

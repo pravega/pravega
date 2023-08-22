@@ -281,7 +281,7 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentTruncated(requestId, streamSegmentName));
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 20000)
     public void testLocateOffsetThrowingIllegalStateException() throws DurableDataLogException {
         // Set up PravegaRequestProcessor instance to execute read segment request against
         String streamSegmentName = "scope/stream/testLocateOffset";
@@ -1728,7 +1728,7 @@ public class PravegaRequestProcessorTest {
         assertEquals(0, store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join().getStartOffset());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testTruncateIndexSegmentThrowStreamSegmentNotExistsException() throws Exception {
         String segmentName = "truncateSegment";
         String indexSegmentName = getIndexSegmentName(segmentName);
@@ -1755,7 +1755,7 @@ public class PravegaRequestProcessorTest {
         assertTrue(reply instanceof WireCommands.SegmentTruncated);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testTruncateIndexSegmentThrowIllegalArgumentException() throws Exception {
         String segmentName = "truncateSegment";
         String indexSegmentName = getIndexSegmentName(segmentName);
@@ -1782,7 +1782,7 @@ public class PravegaRequestProcessorTest {
         assertTrue(reply instanceof WireCommands.ErrorMessage);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testTruncateIndexSegmentThrowIllegalStateException() throws Exception {
         String segmentName = "truncateSegment";
         String indexSegmentName = getIndexSegmentName(segmentName);
