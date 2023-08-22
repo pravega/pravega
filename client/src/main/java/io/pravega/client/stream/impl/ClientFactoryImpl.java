@@ -98,6 +98,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
         this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
+
     }
 
     /**
@@ -223,7 +224,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
                 NameUtils.getStreamForReaderGroup(readerGroup),
                 new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(),
                 new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer(),
-                synchronizerConfig);
+                synchronizerConfig, clientConfig);
         ReaderGroupStateManager stateManager = new ReaderGroupStateManager(scope, readerGroup, readerId, sync, controller, nanoTime);
         stateManager.initializeReader(config.getInitialAllocationDelay());
         Builder<Stream, WatermarkReaderImpl> watermarkReaders = ImmutableMap.builder();
@@ -262,16 +263,24 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
         return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider, clientConfig);
     }
 
+    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT>
+    createStateSynchronizer(String streamName,
+                            Serializer<UpdateT> updateSerializer,
+                            Serializer<InitT> initialSerializer,
+                            SynchronizerConfig config, ClientConfig clientConfig) {
+        log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
+        val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
+        val segment = getSegmentForRevisionedClient(scope, streamName);
+        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config, clientConfig));
+    }
+
     @Override
     public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT>
         createStateSynchronizer(String streamName,
                                 Serializer<UpdateT> updateSerializer,
                                 Serializer<InitT> initialSerializer,
                                 SynchronizerConfig config) {
-        log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
-        val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
-        val segment = getSegmentForRevisionedClient(scope, streamName);
-        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config));
+        return createStateSynchronizer(streamName, updateSerializer, initialSerializer, config, ClientConfig.builder().build());
     }
 
     private Segment getSegmentForRevisionedClient(String scope, String streamName) {
