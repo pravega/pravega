@@ -98,7 +98,6 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
         this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
-
     }
 
     /**
