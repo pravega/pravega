@@ -157,12 +157,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
                     return Optional.empty();
                 } else {
                     LockData lockData = LockData.deserialize(data);
-                    if (lockData.isOwnedBy(owner, tag)) {
-                        return Optional.of(TaskData.deserialize(lockData.getTaskData()));
-                    } else {
-                        log.debug("Resource {} not owned by pair ({}, {})", resource.getString(), owner, tag);
-                        return Optional.empty();
-                    }
+                    return Optional.of(TaskData.deserialize(lockData.getTaskData()));
                 }
 
             } catch (KeeperException.NoNodeException e) {
