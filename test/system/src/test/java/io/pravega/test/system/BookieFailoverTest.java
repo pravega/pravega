@@ -69,11 +69,9 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
     private final String readerGroupName = "testBookieFailoverReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(NUM_READERS * 4);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
-
     private StreamManager streamManager;
     private ClientFactoryImpl clientFactory;
 
-    private ClientConfig clientConfig;
     private ReaderGroupManager readerGroupManager;
     private Service bookkeeperService = null;
 
@@ -125,7 +123,6 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1, "BookieFailoverTest-main");
 
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2, "BookieFailoverTest-controller");
-        clientConfig = Utils.buildClientConfig(controllerURIDirect);
 
         //get Controller Uri
         controller = new ControllerImpl(ControllerImplConfig.builder()
@@ -141,7 +138,6 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         log.info("Scope passed to client factory {}", SCOPE);
         clientFactory = new ClientFactoryImpl(SCOPE, controller, new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURIDirect)));
         readerGroupManager = ReaderGroupManager.withScope(SCOPE, Utils.buildClientConfig(controllerURIDirect));
-
     }
 
     @After
@@ -159,7 +155,7 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
     @Test
     public void bookieFailoverTest() throws Exception {
         createWriters(clientFactory, NUM_WRITERS, SCOPE, STREAM);
-        createReaders(clientFactory, readerGroupName, SCOPE, readerGroupManager, STREAM, NUM_READERS, clientConfig);
+        createReaders(clientFactory, readerGroupName, SCOPE, readerGroupManager, STREAM, NUM_READERS, ClientConfig.builder().connectTimeoutMilliSec(120000).build());
 
         // Give some time to create readers before forcing a bookie failover.
         AssertExtensions.assertEventuallyEquals("Writers and/or readers not progressing.", true,
