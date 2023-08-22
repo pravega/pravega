@@ -126,22 +126,21 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
 
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2, "BookieFailoverTest-controller");
         clientConfig = Utils.buildClientConfig(controllerURIDirect);
-        log.info("<<<<<<DEBUG>>>>>>>>>>>>>> connect timeout : {}", clientConfig.getConnectTimeoutMilliSec());
 
         //get Controller Uri
         controller = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(clientConfig)
+                .clientConfig(Utils.buildClientConfig(controllerURIDirect))
                 .maxBackoffMillis(5000).build(),
                 controllerExecutorService);
 
         testState = new TestState(false);
         //read and write count variables
         testState.writersListComplete.add(0, testState.writersComplete);
-        streamManager = new StreamManagerImpl(clientConfig);
+        streamManager = new StreamManagerImpl(Utils.buildClientConfig(controllerURIDirect));
         createScopeAndStream(SCOPE, STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", SCOPE);
-        clientFactory = new ClientFactoryImpl(SCOPE, controller, new SocketConnectionFactoryImpl(clientConfig));
-        readerGroupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
+        clientFactory = new ClientFactoryImpl(SCOPE, controller, new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURIDirect)));
+        readerGroupManager = ReaderGroupManager.withScope(SCOPE, Utils.buildClientConfig(controllerURIDirect));
 
     }
 
@@ -214,7 +213,6 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
             Exceptions.handleInterrupted(() -> Thread.sleep(5000));
         }
         log.info("Final read count {}.", testState.getEventReadCount());
-        // throwing exceptions here
         stopReaders();
 
         // Verify that there is no data loss/duplication.
