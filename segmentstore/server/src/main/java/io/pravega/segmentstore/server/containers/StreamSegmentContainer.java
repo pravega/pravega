@@ -393,15 +393,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             }
             // Adjust always the storage metadata segment length in container metadata. This is the planned migration
             // recovery usecase where we would flush-to-storage, so should be safe to invoke the below adjust-length flow if not taken effect.
-            ContainerTableExtension extension = this.getExtension(ContainerTableExtension.class);
-            SegmentProperties storageSegmment = this.storage.getStreamSegmentInfo(NameUtils.getStorageMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout()).get();
-            log.debug("{}: Storage Metadata segment details retrieved: {}", this.traceObjectId, storageSegmment);
+            val extension = this.getExtension(ContainerTableExtension.class);
+            val storageSegment = this.storage.getStreamSegmentInfo(NameUtils.getStorageMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout()).get();
+            log.debug("{}: Storage Metadata segment details retrieved: {}", this.traceObjectId, storageSegment);
             return this.metadataStore.getSegmentInfoInternal(NameUtils.getStorageMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout())
                     .thenComposeAsync( storageMetadataSegmentBytes -> {
-                                MetadataStore.SegmentInfo storageMetadataSegmentInfo = MetadataStore.SegmentInfo.deserialize(storageMetadataSegmentBytes);
-                                MetadataStore.SegmentInfo toBeSerializedSM = constructStorageMetadataSegmentInfoWithLength(storageMetadataSegmentInfo, storageSegmment.getLength());
-                                BufferView serializedStorageSegment = MetadataStore.SegmentInfo.serialize(toBeSerializedSM);
-                                TableEntry unversionedEntry = TableEntry.unversioned(new ByteArraySegment(NameUtils.getStorageMetadataSegmentName(this.getId()).getBytes(Charsets.UTF_8)), serializedStorageSegment);
+                                val storageMetadataSegmentInfo = MetadataStore.SegmentInfo.deserialize(storageMetadataSegmentBytes);
+                                val toBeSerializedSM = constructStorageMetadataSegmentInfoWithLength(storageMetadataSegmentInfo, storageSegment.getLength());
+                                val serializedStorageSegment = MetadataStore.SegmentInfo.serialize(toBeSerializedSM);
+                                val unversionedEntry = TableEntry.unversioned(new ByteArraySegment(NameUtils.getStorageMetadataSegmentName(this.getId()).getBytes(Charsets.UTF_8)), serializedStorageSegment);
                                 try {
                                     extension.put(NameUtils.getMetadataSegmentName(this.getId()), Collections.singletonList(unversionedEntry), this.config.getMetadataStoreInitTimeout()).get(this.config.getMetadataStoreInitTimeout().toMillis(), TimeUnit.MILLISECONDS);
                                 } catch (Exception e) {
