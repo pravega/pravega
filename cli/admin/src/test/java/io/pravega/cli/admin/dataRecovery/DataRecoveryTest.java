@@ -1649,6 +1649,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
      * @throws Exception In case of any exception thrown while execution.
      */
     @Test
+    @Ignore("Replaced by BackupRecoveryTest")
     public void testLTSRecoveryCommand() throws Exception {
         int instanceId = 0;
         int bookieCount = 3;

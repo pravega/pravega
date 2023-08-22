@@ -409,7 +409,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                     return Futures.failedFuture(e);
                                 }
                                 return CompletableFuture.completedFuture(null);
-                    });
+                    }, this.executor);
         } catch (Exception ex) {
             log.error("{}: Error adjusting storage metadata segment length in container metadata. Failing with exception {}", this.traceObjectId, ex);
             return Futures.failedFuture(ex);
