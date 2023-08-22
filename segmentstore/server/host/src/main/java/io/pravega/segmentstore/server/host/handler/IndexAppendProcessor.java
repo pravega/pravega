@@ -49,14 +49,14 @@ public class IndexAppendProcessor {
     /**
      * Appends index segment on a separate thread.
      * @param segmentName  segment name.
-     * @param maxAllowedSize  Maximum allowed event size.
+     * @param allowedEventSize Allowed event size.
      */
-    protected void processAppend(String segmentName, long maxAllowedSize) {
+    protected void processAppend(String segmentName, long allowedEventSize) {
         // Not updating index segment for transient and transaction type.
         if (isTransientSegment(segmentName) || isTransactionSegment(segmentName)) {
             return;
         }
-        appendProcessor.updateItem(segmentName, maxAllowedSize);
+        appendProcessor.updateItem(segmentName, allowedEventSize);
     }
 
     private void handleIndexAppend(String segmentName, long maxAllowedSize) {
