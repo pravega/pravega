@@ -241,7 +241,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                         .length(eventLength)
                         .attributes(ImmutableMap.<AttributeId, Long>builder()
                                 .put(Attributes.SCALE_POLICY_TYPE, 0L)
-                                .put(Attributes.EXPECTED_INDEX_SEG_EVENT_SIZE, 24L)
+                                .put(Attributes.EXPECTED_INDEX_SEG_EVENT_SIZE, (long) NameUtils.INDEX_APPEND_EVENT_SIZE)
                                 .put(EVENT_COUNT, eventCount)
                                 .put(Attributes.SCALE_POLICY_RATE, 10L).build())
                         .build());

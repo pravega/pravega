@@ -20,6 +20,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.InlineExecutor;
 import java.time.Duration;
 import java.util.Map;
@@ -77,8 +78,8 @@ public class IndexAppendProcessorTest {
                 .thenReturn(CompletableFuture.completedFuture(10L));
 
         IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
-        appendProcessor.processAppend(segmentName, 24L);
-        appendProcessor.processAppend(segmentName, 24L);
+        appendProcessor.processAppend(segmentName, NameUtils.INDEX_APPEND_EVENT_SIZE);
+        appendProcessor.processAppend(segmentName, NameUtils.INDEX_APPEND_EVENT_SIZE);
 
         verify(store, times(2)).getStreamSegmentInfo(segmentName, timeout);
         verify(store, times(2)).append(anyString(), any(), any(), any());
@@ -102,7 +103,7 @@ public class IndexAppendProcessorTest {
                 .thenReturn(CompletableFuture.completedFuture(10L));
         IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
         appendProcessor.processAppend(segmentName, 32L);
-        appendProcessor.processAppend(segmentName, 24L);
+        appendProcessor.processAppend(segmentName, NameUtils.INDEX_APPEND_EVENT_SIZE);
 
         verify(store, times(1)).getStreamSegmentInfo(segmentName, timeout);
         verify(store, times(1)).append(anyString(), any(), any(), any());
@@ -119,7 +120,7 @@ public class IndexAppendProcessorTest {
                 .thenReturn(future);
 
         IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
-        appendProcessor.processAppend(segmentName, 24L);
+        appendProcessor.processAppend(segmentName, NameUtils.INDEX_APPEND_EVENT_SIZE);
 
         verify(store, times(1)).getStreamSegmentInfo(segmentName, timeout);
         verify(store, times(0)).append(anyString(), any(), any(), any());

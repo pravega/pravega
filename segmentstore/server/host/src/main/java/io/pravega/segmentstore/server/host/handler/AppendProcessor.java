@@ -242,7 +242,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                             u = Exceptions.unwrap(u);
                             if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
                                 log.info("Creating index segment {} while processing request: {}.", indexSegment, requestId);
-                                result = 24L;
+                                result = NameUtils.INDEX_APPEND_EVENT_SIZE;
                                 Collection<AttributeUpdate> attributes = Arrays.asList(
                                         new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                                         new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),

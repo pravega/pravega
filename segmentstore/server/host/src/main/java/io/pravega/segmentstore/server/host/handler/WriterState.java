@@ -74,7 +74,7 @@ class WriterState {
     /**
      * Expected size of events for index segment append
      */
-    private long eventSize;
+    private long indexEventSize;
 
     //endregion
 
@@ -96,11 +96,12 @@ class WriterState {
      * Creates a new instance of the {@link WriterState} class.
      *
      * @param initialEventNumber The current Event Number on the Segment associated with this writer.
-     * @param eventSize Max event size allowed for index appends in case of stream segments.
+     * @param indexEventSize Max event size allowed for index appends in case of stream segments.
+     *                  Value 0 indicates the segment is not a Stream Segment.
      */
-    WriterState(long initialEventNumber, long eventSize) {
+    WriterState(long initialEventNumber, long indexEventSize) {
         this(initialEventNumber);
-        this.eventSize = eventSize;
+        this.indexEventSize = indexEventSize;
     }
     //endregion
 
@@ -346,7 +347,7 @@ class WriterState {
      * @return The expected event size for index segment appends.
      */
     synchronized long getEventSizeForAppend() {
-        return this.eventSize;
+        return this.indexEventSize;
     }
     //endregion
 }

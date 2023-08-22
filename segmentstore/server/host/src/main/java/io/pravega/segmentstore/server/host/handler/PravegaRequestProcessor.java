@@ -62,6 +62,7 @@ import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.tables.DeltaIteratorState;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
@@ -505,7 +506,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                 new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
-                new AttributeUpdate(EXPECTED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, 24L)
+                new AttributeUpdate(EXPECTED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, NameUtils.INDEX_APPEND_EVENT_SIZE)
         );
         return segmentStore.createStreamSegment(getIndexSegmentName(segmentName), SegmentType.STREAM_SEGMENT,
                 attributes, TIMEOUT);
@@ -529,19 +530,19 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     AttributeUpdateType.get(update.getAttributeUpdateType()), update.getNewValue(), update.getOldValue()));
             }
         }
-        long eventCount = getSegmentEventCount(mergeSegments.getRequestId(), mergeSegments.getSource());
-        attributeUpdates.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
-        segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), attributeUpdates, TIMEOUT)
-                    .thenAccept(mergeResult -> {
-                        long maxEventSize = getIndexSegmentMaxEventSize(mergeSegments.getTarget());
-                        indexAppendProcessor.processAppend(mergeSegments.getTarget(), maxEventSize);
+        getSegmentEventCount(mergeSegments.getSource())
+                .thenCompose(eventCount -> {
+                    attributeUpdates.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
+                    return segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), attributeUpdates, TIMEOUT);
+                })
+                .thenAccept(mergeResult -> {
                         recordStatForTransaction(mergeResult, mergeSegments.getTarget());
                         connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
                                                                         mergeSegments.getTarget(),
                                                                         mergeSegments.getSource(),
                                                                         mergeResult.getTargetSegmentLength()));
-                    })
-                    .exceptionally(e -> {
+                }).thenAccept(v -> appendOnIndexSegment(mergeSegments.getTarget()))
+                .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
                             log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
                                     mergeSegments.getSource());
@@ -561,7 +562,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         } else {
                             return handleException(mergeSegments.getRequestId(), mergeSegments.getSource(), operation, e);
                         }
-                    });
+                });
     }
 
     @Override
@@ -577,33 +578,32 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             }
         }
         log.info(mergeSegments.getRequestId(), "Merging Segments Batch in-order {} ", mergeSegments);
-        Futures.allOfWithResults(sources.stream().map(source -> {
-                    long eventCount = getSegmentEventCount(mergeSegments.getRequestId(), source);
+        Futures.allOfWithResults(sources.stream().map(source -> Futures.handleCompose(getSegmentEventCount(source)
+                .thenCompose(eventCount -> {
                     AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
                     attributeUpdates.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
-                    return Futures.handleCompose(segmentStore.mergeStreamSegment(mergeSegments.getTargetSegmentId(), source, attributeUpdates, TIMEOUT), (r, e) -> {
-                        if (e != null) {
-                            Throwable unwrap = Exceptions.unwrap(e);
-                            if (unwrap instanceof StreamSegmentMergedException) {
-                               log.info(mergeSegments.getRequestId(), "Stream segment already merged '{}'.", source);
-                               return segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties::getLength);
-                            }
-                            if (unwrap instanceof StreamSegmentNotExistsException) {
-                                StreamSegmentNotExistsException ex = (StreamSegmentNotExistsException) unwrap;
-                                if (ex.getStreamSegmentName().equals(source)) {
-                                    log.info(mergeSegments.getRequestId(), "Stream segment already merged '{}'.", source);
-                                    return segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties::getLength);
-                                }
-                            }
-                            throw new CompletionException(e);
-                        } else {
-                            recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
-                            long maxEventSize = getIndexSegmentMaxEventSize(mergeSegments.getTargetSegmentId());
-                            indexAppendProcessor.processAppend(mergeSegments.getTargetSegmentId(), maxEventSize);
-                            return CompletableFuture.completedFuture(r.getTargetSegmentLength());
-                        }
-                    });
-                }).collect(Collectors.toUnmodifiableList())).thenAccept(mergeResults -> {
+                    return segmentStore.mergeStreamSegment(mergeSegments.getTargetSegmentId(), source, attributeUpdates, TIMEOUT);
+                }), (r, e) -> {
+            if (e != null) {
+                Throwable unwrap = Exceptions.unwrap(e);
+                if (unwrap instanceof StreamSegmentMergedException) {
+                   log.info(mergeSegments.getRequestId(), "Stream segment already merged '{}'.", source);
+                   return segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties::getLength);
+                }
+                if (unwrap instanceof StreamSegmentNotExistsException) {
+                    StreamSegmentNotExistsException ex = (StreamSegmentNotExistsException) unwrap;
+                    if (ex.getStreamSegmentName().equals(source)) {
+                        log.info(mergeSegments.getRequestId(), "Stream segment already merged '{}'.", source);
+                        return segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties::getLength);
+                    }
+                }
+                throw new CompletionException(e);
+            } else {
+                recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
+                appendOnIndexSegment(mergeSegments.getTargetSegmentId());
+                return CompletableFuture.completedFuture(r.getTargetSegmentLength());
+            }
+        })).collect(Collectors.toUnmodifiableList())).thenAccept(mergeResults -> {
                     connection.send(new WireCommands.SegmentsBatchMerged(mergeSegments.getRequestId(),
                            mergeSegments.getTargetSegmentId(),
                            sources,
@@ -615,14 +615,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                });
     }
 
-    private long getIndexSegmentMaxEventSize(String segmentName) {
-        try {
-            Map<AttributeId, Long> attributes = segmentStore.getAttributes(getIndexSegmentName(segmentName), Collections.singleton(EXPECTED_INDEX_SEG_EVENT_SIZE), true, TIMEOUT).join();
-            return attributes.get(EXPECTED_INDEX_SEG_EVENT_SIZE).longValue();
-        } catch (Exception e) {
-            log.warn("Exception occured while getting max event size for index segment {} ", getIndexSegmentName(segmentName));
-            return 0;
-        }
+    private CompletableFuture<Void> appendOnIndexSegment(String segmentName) {
+            return segmentStore.getAttributes(getIndexSegmentName(segmentName), Collections.singleton(EXPECTED_INDEX_SEG_EVENT_SIZE), true, TIMEOUT)
+                    .thenApply(attributes -> attributes.getOrDefault(EXPECTED_INDEX_SEG_EVENT_SIZE, 0L))
+                    .exceptionally(e -> {
+                        log.warn("Exception occured while getting max event size for index segment {}, exception: {}", getIndexSegmentName(segmentName), e);
+                        return 0L;
+                    }).thenAccept(eventSize ->  indexAppendProcessor.processAppend(segmentName, eventSize));
     }
 
     @Override
@@ -998,24 +997,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         return buf == null || buf.equals(EMPTY_BUFFER) ? null : new ByteBufWrapper(buf);
     }
 
-    private long getSegmentEventCount(long requestId, String segmentName) {
-        final String operation = "getSegmentEventCount";
-        long eventCount;
+    private CompletableFuture<Long> getSegmentEventCount(String segmentName) {
         if (isTransientSegment(segmentName)) {
-            eventCount = 1L;
+            return CompletableFuture.completedFuture(1L);
         } else {
-            eventCount = segmentStore.getStreamSegmentInfo(segmentName, TIMEOUT).
-                    handle((properties, ex) -> {
-                        long result = 0;
-                        if (ex != null) {
-                            handleException(requestId, segmentName, operation, ex);
-                        } else {
-                            result = properties.getAttributes().get(EVENT_COUNT) != null ? properties.getAttributes().get(EVENT_COUNT).longValue() : 0L;
-                        }
-                        return result;
-                    }).join();
+            return segmentStore.getAttributes(segmentName, Collections.singleton(EVENT_COUNT), false, TIMEOUT)
+                    .thenApply(properties -> properties.getOrDefault(EVENT_COUNT, 0L));
         }
-        return eventCount;
     }
 
     @Override

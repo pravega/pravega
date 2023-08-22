@@ -22,6 +22,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
@@ -52,15 +53,16 @@ public class IndexAppendProcessor {
      * Appends index segment on a separate thread.
      * @param segmentName  segment name.
      * @param indexSegmentEventSize  Index segment event size.
+     *                               Value 0 indicates the segment is not a Stream Segment.
      */
     protected void processAppend(String segmentName, long indexSegmentEventSize) {
         // Not updating index segment for transient and transaction type.
         if (isTransientSegment(segmentName) || isTransactionSegment(segmentName)) {
             return;
         }
-        if (indexSegmentEventSize != 24L) {
+        if (indexSegmentEventSize != NameUtils.INDEX_APPEND_EVENT_SIZE) {
             log.debug("The data received for index segment append is not of desired size. Segment: {}, Actual: {}, Desired: {}",
-                    getIndexSegmentName(segmentName), indexSegmentEventSize, 24L);
+                    getIndexSegmentName(segmentName), indexSegmentEventSize, NameUtils.INDEX_APPEND_EVENT_SIZE);
             return;
         }
         multiKeyLatestItemSequentialProcessor.updateItem(segmentName, indexSegmentEventSize);
