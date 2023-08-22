@@ -197,6 +197,19 @@ public class CheckpointState {
     }
 
     /**
+     * Removes the outstanding checkpoints.
+     */
+    void removeOutstandingCheckpoints() {
+       List<String> checkpoint = getOutstandingCheckpoints();
+       for (String cp:checkpoint) {
+           uncheckpointedHosts.remove(cp);
+           checkpointPositions.remove(cp);
+       }
+       recomputeCheckpointIndex();
+       log.info("Outstanding checkpoints are cleared successfully");
+    }
+
+    /**
      * Get the map of CheckpointId to list of readers blocking that checkpoint.
      * @return the map.
      */
