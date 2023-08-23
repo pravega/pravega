@@ -146,7 +146,7 @@ public class ClientFactoryTest {
     @Test
     public void testCreateReaders() {
         String scope = "scope";
-        String streamName = "stream";
+        String streamName = "streamtest";
         Stream stream = Stream.of(scope, streamName);
         String groupName = "readerGroup";
         String readerGroupStream = NameUtils.getStreamForReaderGroup(groupName);
