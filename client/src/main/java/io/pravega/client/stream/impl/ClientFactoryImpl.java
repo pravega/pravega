@@ -205,6 +205,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
 
     @Override
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config, ClientConfig clientConfig) {
+        log.info("Creating reader: {} under readerGroup: {} with Reader configuration: {} and Client configuration: {}", readerId, readerGroup, config, clientConfig);
         return createReader(readerId, readerGroup, s, config, System::nanoTime, System::currentTimeMillis, clientConfig);
     }
     
@@ -262,6 +263,15 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
         return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider, clientConfig);
     }
 
+    @Override
+    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT>
+    createStateSynchronizer(String streamName,
+                            Serializer<UpdateT> updateSerializer,
+                            Serializer<InitT> initialSerializer,
+                            SynchronizerConfig config) {
+        return createStateSynchronizer(streamName, updateSerializer, initialSerializer, config, ClientConfig.builder().build());
+    }
+
     public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT>
     createStateSynchronizer(String streamName,
                             Serializer<UpdateT> updateSerializer,
@@ -271,15 +281,6 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
         val segment = getSegmentForRevisionedClient(scope, streamName);
         return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config, clientConfig));
-    }
-
-    @Override
-    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT>
-        createStateSynchronizer(String streamName,
-                                Serializer<UpdateT> updateSerializer,
-                                Serializer<InitT> initialSerializer,
-                                SynchronizerConfig config) {
-        return createStateSynchronizer(streamName, updateSerializer, initialSerializer, config, ClientConfig.builder().build());
     }
 
     private Segment getSegmentForRevisionedClient(String scope, String streamName) {

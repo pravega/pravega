@@ -17,6 +17,7 @@ package io.pravega.client.stream.impl;
 
 
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.control.impl.Controller;
@@ -28,9 +29,21 @@ import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.state.StateSynchronizer;
+import io.pravega.client.state.SynchronizerConfig;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.mock.MockClientFactory;
+import io.pravega.client.stream.mock.MockController;
+import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import io.pravega.shared.NameUtils;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Test;
@@ -38,6 +51,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -128,7 +142,45 @@ public class ClientFactoryTest {
         val txnWriter2 = clientFactory.createTransactionalEventWriter( "stream1", new JavaSerializer<String>(), writerConfig);
         assertEquals(writerConfig, txnWriter2.getConfig());
     }
-    
+
+    @Test
+    public void testCreateReaders(){
+        String scope = "scope";
+        String streamName = "stream";
+        Stream stream = Stream.of(scope, streamName);
+        String groupName = "readerGroup";
+        String readerGroupStream = NameUtils.getStreamForReaderGroup(groupName);
+
+        //Create factories
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory(scope, segmentStreamFactory);
+        MockController controller = (MockController) clientFactory.getController();
+
+        //Create streams
+        controller.createScope(scope).join();
+        controller.createStream(scope, streamName,
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build());
+        controller.createStream(scope, readerGroupStream,
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
+
+        //Reader group state synchronizer
+        ReaderGroupConfig config = ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(stream).build();
+        StateSynchronizer<ReaderGroupState> sync = clientFactory.createStateSynchronizer(readerGroupStream,
+                new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(),
+                new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer(),
+                SynchronizerConfig.builder()
+                        .build());
+
+        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
+        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config,
+                segments,
+                getEndSegmentsForStreams(config), false));
+        ReaderConfig readerConfig = ReaderConfig.builder().build();
+        val reader = clientFactory.createReader("readerId", "readerGroup", new JavaSerializer<>(), readerConfig);
+        assertEquals(readerConfig, reader.getConfig());
+    }
+
     @Test
     public void testGetters() {
         @Cleanup
