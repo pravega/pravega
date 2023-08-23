@@ -92,7 +92,7 @@ public final class IndexRequestProcessor {
         }
 
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY_MS, RETRY_MULTIPLIER, RETRY_COUNT, RETRY_MAX_DELAY_MS)
-                .retryWhen(ex -> ex instanceof IllegalStateException && ex.getMessage().contains("Future"))
+                .retryWhen(ex -> ex instanceof IllegalStateException)
                 .run(() -> {
                     return SortUtils.newtonianSearch(idx -> {
                         ReadResult result = store.read(indexSegmentName, idx * ENTRY_SIZE, ENTRY_SIZE, TIMEOUT).join();
