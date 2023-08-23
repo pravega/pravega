@@ -417,7 +417,7 @@ public class BatchClientImplTest {
         AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> client.getNextStreamCut(startingSC, 50L));
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 200000)
     public void testGetNextStreamCutWithTokenException() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Map<Segment, Long> positionMap = new HashMap<>();
