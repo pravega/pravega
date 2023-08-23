@@ -144,7 +144,7 @@ public class ClientFactoryTest {
     }
 
     @Test
-    public void testCreateReaders(){
+    public void testCreateReaders() {
         String scope = "scope";
         String streamName = "stream";
         Stream stream = Stream.of(scope, streamName);
