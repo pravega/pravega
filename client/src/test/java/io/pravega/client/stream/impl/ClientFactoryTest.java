@@ -182,6 +182,44 @@ public class ClientFactoryTest {
     }
 
     @Test
+    public void testCreateReadersWithClientConfig() {
+        String scope = "scope";
+        String streamName = "streamtest";
+        Stream stream = Stream.of(scope, streamName);
+        String groupName = "readerGroup";
+        String readerGroupStream = NameUtils.getStreamForReaderGroup(groupName);
+
+        //Create factories
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory(scope, segmentStreamFactory);
+        MockController controller = (MockController) clientFactory.getController();
+
+        //Create streams
+        controller.createScope(scope).join();
+        controller.createStream(scope, streamName,
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build());
+        controller.createStream(scope, readerGroupStream,
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
+
+        //Reader group state synchronizer
+        ReaderGroupConfig config = ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(stream).build();
+        StateSynchronizer<ReaderGroupState> sync = clientFactory.createStateSynchronizer(readerGroupStream,
+                new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(),
+                new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer(),
+                SynchronizerConfig.builder()
+                        .build());
+
+        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
+        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config,
+                segments,
+                getEndSegmentsForStreams(config), false));
+        ReaderConfig readerConfig = ReaderConfig.builder().build();
+        val reader = clientFactory.createReader("readerId", "readerGroup", new JavaSerializer<>(), readerConfig, ClientConfig.builder().build());
+        assertEquals(readerConfig, reader.getConfig());
+    }
+
+    @Test
     public void testGetters() {
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("scope", controllerClient, connectionFactory);
