@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -72,9 +73,9 @@ class WriterState {
     private ArrayList<ErrorContext> errorContexts;
 
     /**
-     * Expected size of events for index segment append
+     * Expected size of events for index segment append.Value 0 indicates the segment is not a Stream Segment.
      */
-    private long indexEventSize;
+    private final long indexEventSize;
 
     //endregion
 
@@ -85,22 +86,27 @@ class WriterState {
      *
      * @param initialEventNumber The current Event Number on the Segment associated with this writer.
      */
+    @VisibleForTesting
     WriterState(long initialEventNumber) {
         this.inFlightCount = 0;
         this.smallestFailedEventNumber = NO_FAILED_EVENT_NUMBER; // Nothing failed yet.
         this.lastStoredEventNumber = initialEventNumber;
         this.lastAckedEventNumber = initialEventNumber;
+        this.indexEventSize = 0L;
     }
 
     /**
      * Creates a new instance of the {@link WriterState} class.
      *
      * @param initialEventNumber The current Event Number on the Segment associated with this writer.
-     * @param indexEventSize Max event size allowed for index appends in case of stream segments.
+     * @param indexEventSize Event size allowed for index appends in case of stream segments.
      *                  Value 0 indicates the segment is not a Stream Segment.
      */
     WriterState(long initialEventNumber, long indexEventSize) {
-        this(initialEventNumber);
+        this.inFlightCount = 0;
+        this.smallestFailedEventNumber = NO_FAILED_EVENT_NUMBER; // Nothing failed yet.
+        this.lastStoredEventNumber = initialEventNumber;
+        this.lastAckedEventNumber = initialEventNumber;
         this.indexEventSize = indexEventSize;
     }
     //endregion
