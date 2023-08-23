@@ -87,6 +87,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     private final Object lock = new Object();
     @GuardedBy("lock")
     private RawClient client = null;
+    private final Retry.RetryWithBackoff retryWithBackoff = Retry.withExpBackoff(1, 10, 10, Duration.ofSeconds(30).toMillis());
 
     public BatchClientFactoryImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory) {
         this.controller = controller;
@@ -225,7 +226,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
         Preconditions.checkArgument(approxDistanceToNextOffset > 0, "Ensure approxDistanceToNextOffset must be greater than 0");
-        return Retry.withExpBackoff(1, 10, 4, Duration.ofSeconds(60).toMillis()).retryWhen(t -> {
+        return retryWithBackoff.retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
             if (ex instanceof ConnectionFailedException) {
                 log.info("Connection failure while getting next streamcut: {}. Retrying", ex.getMessage());
