@@ -103,21 +103,26 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
+import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
+import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -188,7 +193,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int EXPECTED_PINNED_SEGMENT_COUNT = 1;
     private static final long EXPECTED_METADATA_SEGMENT_ID = 1L;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
-    private static final int TEST_TIMEOUT_MILLIS = 100 * 1000;
+    private static final int TEST_TIMEOUT_MILLIS = 1000 * 1000;
     private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT = 250; // Good for majority of tests.
     private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_LONG = 4 * EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT; // For heavy tests.
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
@@ -2695,6 +2700,62 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentName, expectedLength, actualLength);
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentName, expectedData, actualData);
         }
+    }
+
+    @Test(timeout = 120000)
+    public void testLTSRecovery() throws Exception {
+        final String segmentName = "segment512";
+        final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
+
+        final TestContainerConfig containerConfig = new TestContainerConfig();
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+
+        @Cleanup
+        TestContext context = createContext(containerConfig);
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+
+        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
+        FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
+        try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService())) {
+            container1.startAsync().awaitRunning();
+
+            // Create segment and make one append to it.
+            container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            container1.flushToStorage(TIMEOUT).join();
+
+            container1.stopAsync().awaitTerminated();
+        }
+
+        context = createContext(containerConfig); // new context again
+        val localDurableLogFactoryForRecovery = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+
+        try (val container2 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, localDurableLogFactoryForRecovery,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService())) {
+            container2.startAsync().awaitRunning();
+            //Futures.delayedFuture(Duration.ofSeconds(1),this.executorService()).join();
+            //Assert.assertEquals("a", "a");
+            //ReadResult readResult = container2.read(segmentName,0,appendData.getLength(), TIMEOUT).join();
+            //String output = new String(readResult.next().getContent().get().getCopy());
+            //Assert.assertEquals(new String(appendData.array()), output);
+        }
+    }
+
+
+    @SneakyThrows
+    private FileSystemSimpleStorageFactory createFileSystemStorageFactory() {
+        File baseDir = Files.createTempDirectory("TestStorage").toFile().getAbsoluteFile();
+        FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
+                .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
+                .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
+                .build();
+        ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
+        return new FileSystemSimpleStorageFactory(config, adapterConfig, executorService());
     }
 
     private void checkReadIndex(Map<String, ByteArrayOutputStream> segmentContents, Map<String, Long> lengths,

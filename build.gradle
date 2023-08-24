@@ -543,6 +543,7 @@ project('segmentstore:server') {
         compile project(':shared:metrics')
         compile project(':shared:rest')
         compile project(':shared:health')
+        compile project(':bindings')
         testCompile project(':test:testcommon')
     }
     javadoc {
