@@ -16,6 +16,7 @@
 package io.pravega.client.batch.impl;
 
 import com.google.common.annotations.Beta;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.BatchClientFactory;
@@ -87,7 +88,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     private final Object lock = new Object();
     @GuardedBy("lock")
     private RawClient client = null;
-    private final Retry.RetryWithBackoff retryWithBackoff = Retry.withExpBackoff(1, 10, 10, Duration.ofSeconds(30).toMillis());
+    private int retryAttempts = 10;
 
     public BatchClientFactoryImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory) {
         this.controller = controller;
@@ -95,6 +96,12 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
         this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
+    }
+
+    @VisibleForTesting
+    public BatchClientFactoryImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory, int retryAttempts) {
+        this(controller, clientConfig, connectionFactory);
+        this.retryAttempts = retryAttempts;
     }
 
     @Override
@@ -226,7 +233,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
         Preconditions.checkArgument(approxDistanceToNextOffset > 0, "Ensure approxDistanceToNextOffset must be greater than 0");
-        return retryWithBackoff.retryWhen(t -> {
+        return Retry.withExpBackoff(1, 10, retryAttempts, Duration.ofSeconds(30).toMillis()).retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
             if (ex instanceof ConnectionFailedException) {
                 log.info("Connection failure while getting next streamcut: {}. Retrying", ex.getMessage());

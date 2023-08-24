@@ -417,7 +417,7 @@ public class BatchClientImplTest {
         AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> client.getNextStreamCut(startingSC, 50L));
     }
 
-    @Test(timeout = 200000)
+    @Test(timeout = 7000)
     public void testGetNextStreamCutWithTokenException() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Map<Segment, Long> positionMap = new HashMap<>();
@@ -431,7 +431,7 @@ public class BatchClientImplTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf, 2);
         client.getConnection(segment1);
         ReplyProcessor processor = cf.getProcessor(endpoint);
         Mockito.doAnswer(new Answer<Void>() {
@@ -447,7 +447,7 @@ public class BatchClientImplTest {
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> client.getNextStreamCut(startingSC, 50L));
     }
 
-    @Test(timeout = 200000)
+    @Test(timeout = 7000)
     public void testGetNextStreamCutRetryWithTokenException() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Map<Segment, Long> positionMap = new HashMap<>();
@@ -461,7 +461,7 @@ public class BatchClientImplTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf, 2);
         client.getConnection(segment1);
         ReplyProcessor processor = cf.getProcessor(endpoint);
         Mockito.doAnswer(new Answer<Void>() {
@@ -477,7 +477,7 @@ public class BatchClientImplTest {
 
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> client.getNextStreamCut(startingSC, 50L));
         //Verify retry Logic
-        verify(connection, times(10)).send(any(WireCommands.LocateOffset.class));
+        verify(connection, times(2)).send(any(WireCommands.LocateOffset.class));
     }
 
     @Test(timeout = 5000)
