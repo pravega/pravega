@@ -20,20 +20,20 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.InlineExecutor;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -69,17 +69,61 @@ public class IndexAppendProcessorTest {
                                                                      .attributes(Map.of(EVENT_COUNT, 30L))
                                                                      .build();
         doReturn(CompletableFuture.completedFuture(segmentProperties)).when(store).getStreamSegmentInfo(segmentName, timeout);
-        doThrow(new CompletionException(new StreamSegmentNotExistsException("Segment does not exits")))
-                .doReturn(CompletableFuture.completedFuture(10L))
-                .when(store).append(anyString(), any(),
-                any(), any());
+        CompletableFuture<Long> future = new CompletableFuture<>();
+        future.completeExceptionally(new StreamSegmentNotExistsException("Segment does not exits"));
+
+        Mockito.when(store.append(anyString(), any(),
+                        any(), any()))
+                .thenReturn(future)
+                .thenReturn(CompletableFuture.completedFuture(10L));
 
         IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
-        appendProcessor.processAppend(segmentName);
-        appendProcessor.processAppend(segmentName);
+        appendProcessor.processAppend(segmentName, NameUtils.INDEX_APPEND_EVENT_SIZE);
+        appendProcessor.processAppend(segmentName, NameUtils.INDEX_APPEND_EVENT_SIZE);
 
         verify(store, times(2)).getStreamSegmentInfo(segmentName, timeout);
         verify(store, times(2)).append(anyString(), any(), any(), any());
+        verifyNoMoreInteractions(store);
+    }
+
+    @Test(timeout = 6000)
+    public void processAppendDifferentEventSizeTest() {
+        String segmentName = "test";
+        SegmentProperties segmentProperties = StreamSegmentInformation.builder()
+                .name(segmentName)
+                .length(1234)
+                .startOffset(123)
+                .attributes(Map.of(EVENT_COUNT, 30L))
+                .build();
+        doReturn(CompletableFuture.completedFuture(segmentProperties)).when(store).getStreamSegmentInfo(segmentName, timeout);
+        CompletableFuture<Long> future = new CompletableFuture<>();
+
+        Mockito.when(store.append(anyString(), any(),
+                        any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(10L));
+        IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
+        appendProcessor.processAppend(segmentName, 32L);
+        appendProcessor.processAppend(segmentName, NameUtils.INDEX_APPEND_EVENT_SIZE);
+
+        verify(store, times(1)).getStreamSegmentInfo(segmentName, timeout);
+        verify(store, times(1)).append(anyString(), any(), any(), any());
+        verifyNoMoreInteractions(store);
+    }
+
+    @Test(timeout = 6000)
+    public void processAppendExceptionTest() {
+        String segmentName = "test";
+        CompletableFuture<SegmentProperties> future = new CompletableFuture<>();
+        future.completeExceptionally(new StreamSegmentNotExistsException("Segment does not exits"));
+
+        Mockito.when(store.getStreamSegmentInfo(anyString(), any()))
+                .thenReturn(future);
+
+        IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
+        appendProcessor.processAppend(segmentName, NameUtils.INDEX_APPEND_EVENT_SIZE);
+
+        verify(store, times(1)).getStreamSegmentInfo(segmentName, timeout);
+        verify(store, times(0)).append(anyString(), any(), any(), any());
         verifyNoMoreInteractions(store);
     }
 }

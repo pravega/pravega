@@ -97,6 +97,11 @@ public final class NameUtils {
     public static final int MAX_NAME_SIZE = 255;
 
     /**
+     * Max event size for index segment appends in StreamSegments.
+     */
+    public static final int INDEX_APPEND_EVENT_SIZE = 24;
+
+    /**
      * Size of the name that can be specified by user.
      */
     public static final int MAX_GIVEN_NAME_SIZE = MAX_NAME_SIZE - MAX_PREFIX_OR_SUFFIX_SIZE;
@@ -252,7 +257,6 @@ public final class NameUtils {
      * This is appended at the end of the Segment name to indicate it stores its index metadata.
      */
     private static final String INDEX_SEGMENT_SUFFIX = "#index";
-
     //endregion
 
     /**
