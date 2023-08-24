@@ -1576,7 +1576,7 @@ public class SystemJournal {
         }, this.executor);
     }
 
-    public CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, ChunkedSegmentStorage chunkedSegmentStorage) {
+    public CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch) {
         val chunk = NameUtils.getContainerEpochFileName(containerId);
         val epochInfo = new EpochInfo(containerEpoch);
         val isDone = new AtomicBoolean(false);
@@ -1585,26 +1585,26 @@ public class SystemJournal {
             val epochBytes = EPOCH_INFO_SERIALIZER.serialize(epochInfo);
             return Futures.loop(
                     () -> !isDone.get(),
-                    () -> chunkedSegmentStorage.getChunkStorage().exists(chunk)
+                    () -> this.getChunkStorage().exists(chunk)
                             .thenComposeAsync( exists -> {
                                 if (exists) {
-                                    return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength())
+                                    return readEpochInfo(chunk, epochBytes.getLength())
                                             .thenComposeAsync(savedEpoch -> {
                                                 if (savedEpoch.getEpoch() > epochInfo.getEpoch()) {
                                                     return CompletableFuture.failedFuture(
                                                             new IllegalStateException(String.format("Unexpected epoch. Expected = {} actual = {}", epochInfo, savedEpoch)));
                                                 } else {
-                                                    return chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunk));
+                                                    return this.getChunkStorage().delete(ChunkHandle.writeHandle(chunk));
                                                 }
                                             }, executor);
                                 } else {
                                     return CompletableFuture.completedFuture(null);
                                 }
                             }, this.executor)
-                            .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(),
+                            .thenComposeAsync(v -> this.getChunkStorage().createWithContent(chunk, epochBytes.getLength(),
                                     new ByteArrayInputStream(epochBytes.array(), 0, epochBytes.getLength())), executor)
                             .thenAcceptAsync( v -> log.debug("{}: Epoch info saved to epochInfoFile. File {}. info = {}", containerId, chunk, epochInfo))
-                            .thenComposeAsync( v -> readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength()), executor)
+                            .thenComposeAsync( v -> readEpochInfo(chunk, epochBytes.getLength()), executor)
                             .thenApplyAsync( readBackInfo -> {
                                 if (readBackInfo.getEpoch() > epochInfo.getEpoch()) {
                                     throw new CompletionException(
@@ -1641,10 +1641,10 @@ public class SystemJournal {
         }
     }
 
-    private CompletableFuture<EpochInfo> readEpochInfo(String chunk, ChunkedSegmentStorage chunkedSegmentStorage, int readLength) {
+    private CompletableFuture<EpochInfo> readEpochInfo(String chunk, int readLength) {
         val readAtOffset = new AtomicLong(0);
         val readBuffer = new byte[readLength];
-        return chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(chunk), readAtOffset.get(), readLength, readBuffer, 0)
+        return this.getChunkStorage().read(ChunkHandle.readHandle(chunk), readAtOffset.get(), readLength, readBuffer, 0)
                 .thenApplyAsync( v -> {
                     try {
                         return EPOCH_INFO_SERIALIZER.deserialize(readBuffer);
