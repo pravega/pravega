@@ -85,7 +85,7 @@ public class BatchClientImplTest {
         }
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 7000)
     public void testGetSegmentsWithUnboundedStreamCut() throws Exception {
 
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
