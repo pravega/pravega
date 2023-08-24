@@ -20,10 +20,12 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Tracks outstanding data for a single connection and pauses or resumes reading from it as appropriate.
  */
+@Slf4j
 @RequiredArgsConstructor
 public class TrackedConnection implements AutoCloseable {
     /**
@@ -66,6 +68,7 @@ public class TrackedConnection implements AutoCloseable {
      */
     void send(WireCommand cmd) {
         this.connection.send(cmd);
+        log.debug("Sent response: {}", cmd);
     }
 
     @Override
