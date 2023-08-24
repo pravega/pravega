@@ -128,7 +128,7 @@ public class ClientFactoryTest {
         val txnWriter2 = clientFactory.createTransactionalEventWriter( "stream1", new JavaSerializer<String>(), writerConfig);
         assertEquals(writerConfig, txnWriter2.getConfig());
     }
-
+    
     @Test
     public void testGetters() {
         @Cleanup
