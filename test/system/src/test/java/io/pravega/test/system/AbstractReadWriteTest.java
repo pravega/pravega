@@ -16,7 +16,6 @@
 package io.pravega.test.system;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.EventRead;

@@ -209,7 +209,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
 
     @VisibleForTesting
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config,
-                                                 Supplier<Long> nanoTime, Supplier<Long> milliTime) {
+                                          Supplier<Long> nanoTime, Supplier<Long> milliTime) {
         NameUtils.validateReaderId(readerId);
         log.info("Creating reader: {} under readerGroup: {} with configuration: {}", readerId, readerGroup, config);
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
