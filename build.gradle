@@ -542,6 +542,7 @@ project('segmentstore:server') {
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
         compile project(':shared:rest')
+        compile project(':bindings')
         compile project(':shared:health')
         testCompile project(':test:testcommon')
     }
