@@ -44,6 +44,15 @@ set_configuration() {
   sed -i "s|pravegaservice.clusterName=.*|pravegaservice.clusterName=pravega/$pravega_cluster|g" $home_dir/conf/admin-cli.properties
   sed -i "s|bookkeeper.ledger.path=.*|bookkeeper.ledger.path=pravega/$pravega_cluster/bookkeeper/ledgers|g" $home_dir/conf/admin-cli.properties
   sed -i "s|pravegaservice.zk.connect.uri=.*|pravegaservice.zk.connect.uri=$zookeeper_client|g" $home_dir/conf/admin-cli.properties
+  sed -i "s|cli.trustStore.location=.*|cli.trustStore.location=/etc/secret-volume/tls.crt|g" $home_dir/conf/admin-cli.properties
+  java_opts=$(printenv | grep "JAVA_OPTS")
+  tlsenable="Dpravegaservice.security.tls.enable=true"
+  case $java_opts in
+    *$tlsenable*)
+      echo "Need to enable tls"
+      sed -i "s|cli.channel.tls=.*|cli.channel.tls=true|g" $home_dir/conf/admin-cli.properties
+      ;;
+  esac
 }
 
 flush_container() {

@@ -864,12 +864,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
         val chunk = NameUtils.getContainerEpochFileName(containerId);
         val epochInfo = new EpochInfo(containerEpoch);
-        val wrapper = new UtilsWrapper(chunkedSegmentStorage, BUFFER_SIZE, timeout);
         val isDone = new AtomicBoolean(false);
         val attempts = new AtomicInteger();
         try {
             val epochBytes = EPOCH_INFO_SERIALIZER.serialize(epochInfo);
-            val inputStream = new ByteArrayInputStream(epochBytes.array(), 0, epochBytes.getLength());
             return Futures.loop(
                     () -> !isDone.get(),
                     () -> chunkedSegmentStorage.getChunkStorage().exists(chunk)
@@ -881,29 +879,27 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                                     return CompletableFuture.failedFuture(
                                                             new IllegalContainerStateException(String.format("Unexpected epoch. Expected = {} actual = {}", epochInfo, savedEpoch)));
                                                 } else {
-                                                    return wrapper.overwriteChunk(chunk, inputStream, epochBytes.getLength())
-                                                            .thenAccept(x -> log.debug("{}: Updated epochInfo {}", this.traceObjectId, epochInfo));
+                                                    return chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunk));
                                                 }
                                             }, executor);
                                 } else {
-                                    return chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(), inputStream)
-                                            .thenAccept(y -> log.debug("{}: Created epochInfo", this.traceObjectId));
+                                    return CompletableFuture.completedFuture(null);
                                 }
                             }, this.executor)
+                            .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(),
+                                    new ByteArrayInputStream(epochBytes.array(), 0, epochBytes.getLength())), executor)
                             .thenAcceptAsync( v -> log.debug("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo))
-                            .thenComposeAsync( v -> {
-                                return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength());
-                            }, executor)
+                            .thenComposeAsync( v -> readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength()), executor)
                             .thenApplyAsync( readBackInfo -> {
                                 if (readBackInfo.getEpoch() > epochInfo.getEpoch()) {
-                                    return CompletableFuture.failedFuture(
+                                    throw new CompletionException(
                                             new IllegalContainerStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
                                 }
                                 if (!epochInfo.equals(readBackInfo)) {
-                                    return CompletableFuture.failedFuture(
+                                    throw new CompletionException(
                                             new IllegalStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
                                 }
-                                return CompletableFuture.completedFuture(null);
+                                return null;
                             }, executor)
                             .handleAsync((v, e) -> {
                                 if (null != e) {
@@ -938,7 +934,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     try {
                         return EPOCH_INFO_SERIALIZER.deserialize(readBuffer);
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        throw new CompletionException(e);
                     }
                 }, this.executor);
 
