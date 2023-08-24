@@ -233,7 +233,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
         return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(),
                 milliTime, config, watermarkReaders.build(), controller);
     }
-
+    
     @Override
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
