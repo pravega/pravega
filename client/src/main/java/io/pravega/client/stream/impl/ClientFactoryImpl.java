@@ -81,6 +81,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
     private final SegmentOutputStreamFactory outFactory;
     private final ConditionalOutputStreamFactory condFactory;
     private final SegmentMetadataClientFactory metaFactory;
+    private final ClientConfig clientConfig;
 
     private final ScheduledExecutorService watermarkReaderThreads = newScheduledThreadPool(getThreadPoolSize(), "WatermarkReader");
 
@@ -98,6 +99,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
         this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
+        this.clientConfig = config;
     }
 
     /**
@@ -142,6 +144,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
         this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
+        this.clientConfig = ClientConfig.builder().build();
     }
 
     @VisibleForTesting
@@ -157,6 +160,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
         this.outFactory = outFactory;
         this.condFactory = condFactory;
         this.metaFactory = metaFactory;
+        this.clientConfig = ClientConfig.builder().build();
     }
 
     @Override
@@ -200,23 +204,12 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
                                                  ReaderConfig config) {
         log.info("Creating reader: {} under readerGroup: {} with configuration: {}", readerId, readerGroup, config);
-        return createReader(readerId, readerGroup, s, config, System::nanoTime, System::currentTimeMillis, ClientConfig.builder().build());
+        return createReader(readerId, readerGroup, s, config, System::nanoTime, System::currentTimeMillis);
     }
 
-    @Override
-    public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config, ClientConfig clientConfig) {
-        log.info("Creating reader: {} under readerGroup: {} with Reader configuration: {} and Client configuration: {}", readerId, readerGroup, config, clientConfig);
-        return createReader(readerId, readerGroup, s, config, System::nanoTime, System::currentTimeMillis, clientConfig);
-    }
-    
     @VisibleForTesting
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config,
                                                  Supplier<Long> nanoTime, Supplier<Long> milliTime) {
-        return createReader(readerId, readerGroup, s, config, nanoTime, milliTime, ClientConfig.builder().build());
-    }
-
-    private  <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config,
-                                          Supplier<Long> nanoTime, Supplier<Long> milliTime, ClientConfig clientConfig) {
         NameUtils.validateReaderId(readerId);
         log.info("Creating reader: {} under readerGroup: {} with configuration: {}", readerId, readerGroup, config);
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
@@ -224,7 +217,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
                 NameUtils.getStreamForReaderGroup(readerGroup),
                 new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(),
                 new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer(),
-                synchronizerConfig, clientConfig);
+                synchronizerConfig);
         ReaderGroupStateManager stateManager = new ReaderGroupStateManager(scope, readerGroup, readerId, sync, controller, nanoTime);
         stateManager.initializeReader(config.getInitialAllocationDelay());
         Builder<Stream, WatermarkReaderImpl> watermarkReaders = ImmutableMap.builder();
@@ -232,15 +225,15 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
             for (Stream stream : stateManager.getStreams()) {
                 String streamName = NameUtils.getMarkStreamForStream(stream.getStreamName());
                 val client = createRevisionedStreamClient(getSegmentForRevisionedClient(stream.getScope(), streamName),
-                                                          new WatermarkSerializer(),
-                                                          SynchronizerConfig.builder().readBufferSize(4096).build(), clientConfig);
+                        new WatermarkSerializer(),
+                        SynchronizerConfig.builder().readBufferSize(4096).build());
                 watermarkReaders.put(stream, new WatermarkReaderImpl(stream, client, watermarkReaderThreads));
             }
         }
         return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(),
                 milliTime, config, watermarkReaders.build(), controller);
     }
-    
+
     @Override
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
@@ -250,11 +243,6 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
 
     private <T> RevisionedStreamClient<T> createRevisionedStreamClient(Segment segment, Serializer<T> serializer,
                                                                        SynchronizerConfig config) {
-          return createRevisionedStreamClient(segment, serializer, config, ClientConfig.builder().build());
-    }
-
-    public <T> RevisionedStreamClient<T> createRevisionedStreamClient(Segment segment, Serializer<T> serializer,
-                                                                      SynchronizerConfig config, ClientConfig clientConfig) {
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
         DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(controller, segment,
                 AccessOperation.READ_WRITE);
@@ -269,18 +257,10 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
                             Serializer<UpdateT> updateSerializer,
                             Serializer<InitT> initialSerializer,
                             SynchronizerConfig config) {
-        return createStateSynchronizer(streamName, updateSerializer, initialSerializer, config, ClientConfig.builder().build());
-    }
-
-    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT>
-    createStateSynchronizer(String streamName,
-                            Serializer<UpdateT> updateSerializer,
-                            Serializer<InitT> initialSerializer,
-                            SynchronizerConfig config, ClientConfig clientConfig) {
         log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
         val segment = getSegmentForRevisionedClient(scope, streamName);
-        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config, clientConfig));
+        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config));
     }
 
     private Segment getSegmentForRevisionedClient(String scope, String streamName) {

@@ -138,29 +138,6 @@ public interface EventStreamClientFactory extends AutoCloseable {
     <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config);
 
     /**
-     * Creates (or recreates) a new reader that is part of a {@link ReaderGroup}. The reader
-     * will join the group and the members of the group will automatically rebalance among
-     * themselves.
-     *
-     * In the event that the reader dies, the method {@link ReaderGroup#readerOffline(String, Position)}
-     * should be called, passing the last position of the reader (Usually done by storing the
-     * position along with the output when it is processed.) Which will trigger redistribute the
-     * events among the remaining readers.
-     * <p>
-     * Note that calling reader offline while the reader is still online may result in multiple
-     * readers within the group receiving the same events.
-     *
-     * @param readerId A unique name (within the group) for this reader.
-     * @param readerGroup The name of the group to join.
-     * @param s The serializer for events.
-     * @param config The reader's configuration.
-     * @param clientConfig The Client's Configuration.
-     * @param <T> The type of events.
-     * @return Newly created reader object that is a part of reader group
-     */
-    <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config, ClientConfig clientConfig);
-
-    /**
      * Closes the client factory. This will close any connections created through it.
      * @see java.lang.AutoCloseable#close()
      */

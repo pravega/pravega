@@ -86,11 +86,6 @@ public class MockClientFactory extends AbstractClientFactoryImpl implements Even
         return impl.createReader(readerId, readerGroup, s, config);
     }
 
-    @Override
-    public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config, ClientConfig clientConfig) {
-        return impl.createReader(readerId, readerGroup, s, config, clientConfig);
-    }
-
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
                                                  ReaderConfig config, Supplier<Long> nanoTime,
                                                  Supplier<Long> milliTime) {

@@ -136,7 +136,7 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         streamManager = new StreamManagerImpl(Utils.buildClientConfig(controllerURIDirect));
         createScopeAndStream(SCOPE, STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", SCOPE);
-        clientFactory = new ClientFactoryImpl(SCOPE, controller, new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURIDirect)));
+        clientFactory = new ClientFactoryImpl(SCOPE, controller, Utils.buildClientConfig(controllerURIDirect));
         readerGroupManager = ReaderGroupManager.withScope(SCOPE, Utils.buildClientConfig(controllerURIDirect));
     }
 
@@ -155,7 +155,7 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
     @Test
     public void bookieFailoverTest() throws Exception {
         createWriters(clientFactory, NUM_WRITERS, SCOPE, STREAM);
-        createReaders(clientFactory, readerGroupName, SCOPE, readerGroupManager, STREAM, NUM_READERS, ClientConfig.builder().connectTimeoutMilliSec(120000).build());
+        createReaders(clientFactory, readerGroupName, SCOPE, readerGroupManager, STREAM, NUM_READERS);
 
         // Give some time to create readers before forcing a bookie failover.
         AssertExtensions.assertEventuallyEquals("Writers and/or readers not progressing.", true,

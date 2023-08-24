@@ -146,8 +146,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     @Test
     public void readWriteAndScaleWithFailoverTest() throws Exception {
         createWriters(clientFactory, NUM_WRITERS, scope, SCALE_STREAM);
-        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, SCALE_STREAM, NUM_READERS,
-                ClientConfig.builder().connectTimeoutMilliSec(120000).build());
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, SCALE_STREAM, NUM_READERS);
 
         //run the failover test before scaling
         performFailoverTest();

@@ -119,7 +119,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         createScopeAndStream(scope, stream, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
 
-        clientFactory = new ClientFactoryImpl(scope, controller, new SocketConnectionFactoryImpl(clientConfig));
+        clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
         readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
     }
 
@@ -141,7 +141,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
     @Test
     public void readTxnWriteAutoScaleWithFailoverTest() throws Exception {
         createWriters(clientFactory, INIT_NUM_WRITERS, scope, stream);
-        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, stream, NUM_READERS, ClientConfig.builder().connectTimeoutMilliSec(120000).build());
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, stream, NUM_READERS);
 
         //run the failover test before scaling
         performFailoverForTestsInvolvingTxns();

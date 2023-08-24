@@ -114,7 +114,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         streamManager = new StreamManagerImpl(clientConfig);
         createScopeAndStream(scope, STREAM_NAME, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
-        clientFactory = new ClientFactoryImpl(scope, controller, new SocketConnectionFactoryImpl(clientConfig));
+        clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
         readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
     }
 
@@ -137,8 +137,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     @Test
     public void multiReaderTxnWriterWithFailOverTest() throws Exception {
         createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
-        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS,
-                ClientConfig.builder().connectTimeoutMilliSec(120000).build());
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
 
         //run the failover test
         performFailoverForTestsInvolvingTxns();

@@ -313,7 +313,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     }
 
     void createReaders(EventStreamClientFactory clientFactory, String readerGroupName, String scope,
-                       ReaderGroupManager readerGroupManager, String stream, final int readers, ClientConfig clientConfig) {
+                       ReaderGroupManager readerGroupManager, String stream, final int readers) {
         log.info("Creating Reader group: {}, with readergroup manager using scope: {}", readerGroupName, scope);
         readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build());
         log.info("Reader group name: {}, Reader group scope: {}, Online readers: {}",
@@ -331,7 +331,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                 final EventStreamReader<String> reader = clientFactory.createReader(readerName + i,
                         readerGroupName,
                         new JavaSerializer<>(),
-                        ReaderConfig.builder().build(), clientConfig);
+                        ReaderConfig.builder().build());
 
                 readerList.add(reader);
                 final CompletableFuture<Void> readerFuture = startReading(reader);
