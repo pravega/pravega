@@ -604,14 +604,13 @@ public class SystemJournal {
                                 .thenComposeAsync(v -> readSnapshotInfoFromFile(), executor)
                                 .thenApplyAsync( readBackInfo -> {
                                     if (readBackInfo.getEpoch() > epoch) {
-                                        return CompletableFuture.failedFuture(
-                                                new StorageNotPrimaryException(String.format("SystemJournal[{}] Unexpected snapshot. Expected = {} actual = {}", info, readBackInfo)));
+                                        throw new CompletionException(new StorageNotPrimaryException(String.format("SystemJournal[{}] Unexpected snapshot. Expected = {} actual = {}", info, readBackInfo)));
                                     }
                                     if (!info.equals(readBackInfo)) {
-                                        return CompletableFuture.failedFuture(
+                                        throw new CompletionException(
                                                 new IllegalStateException(String.format("SystemJournal[{}] Unexpected snapshot. Expected = {} actual = {}", info, readBackInfo)));
                                     }
-                                    return CompletableFuture.completedFuture(null);
+                                    return null;
                                 }, executor)
                                 .handleAsync((v, e) -> {
                                     if (null != e) {
