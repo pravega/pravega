@@ -33,7 +33,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class IndexRequestProcessor {
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final int ENTRY_SIZE = 24; //TODO obtain from property.
 
     static final class SegmentTruncatedException extends RuntimeException {
         private static final long serialVersionUID = 1L;
@@ -70,7 +69,7 @@ public final class IndexRequestProcessor {
      * @return the corresponding offset of index segment.
      */
     public static long locateOffsetForIndexSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) {
-        return applySearch(store, segment, targetOffset, greater).getKey() * ENTRY_SIZE;
+        return applySearch(store, segment, targetOffset, greater).getKey() * NameUtils.INDEX_APPEND_EVENT_SIZE;
     }
 
     private static Map.Entry<Long, Long> applySearch(StreamSegmentStore store, String segment, long targetOffset, boolean greater) {
@@ -78,15 +77,15 @@ public final class IndexRequestProcessor {
 
         //Fetch start and end idx.
         SegmentProperties properties = store.getStreamSegmentInfo(indexSegmentName, TIMEOUT).join();
-        long startIdx = properties.getStartOffset() / ENTRY_SIZE;
-        long endIdx = properties.getLength() / ENTRY_SIZE;
+        long startIdx = properties.getStartOffset() / NameUtils.INDEX_APPEND_EVENT_SIZE;
+        long endIdx = properties.getLength() / NameUtils.INDEX_APPEND_EVENT_SIZE;
         //If startIdx and endIdx are same, then pass length of segment as a result.
         if (startIdx == endIdx) {
            return getSegmentLength(store, segment, startIdx);
         }
 
         return SortUtils.newtonianSearch(idx -> {
-            ReadResult result = store.read(indexSegmentName, idx * ENTRY_SIZE, ENTRY_SIZE, TIMEOUT).join();
+            ReadResult result = store.read(indexSegmentName, idx * NameUtils.INDEX_APPEND_EVENT_SIZE, NameUtils.INDEX_APPEND_EVENT_SIZE, TIMEOUT).join();
             ReadResultEntry firstElement = result.next();
             // TODO deal with element which is split over multiple entries.
             switch (firstElement.getType()) {

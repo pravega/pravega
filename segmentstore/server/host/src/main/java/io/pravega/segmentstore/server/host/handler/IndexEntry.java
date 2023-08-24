@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server.host.handler;
 
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.shared.NameUtils;
 import lombok.Data;
 
 /**
@@ -29,7 +30,7 @@ public class IndexEntry {
     private final long timeStamp;
 
     public BufferView toBytes() {
-        ByteArraySegment result = new ByteArraySegment(new byte[24]);
+        ByteArraySegment result = new ByteArraySegment(new byte[NameUtils.INDEX_APPEND_EVENT_SIZE]);
         result.setLong(0, offset);
         result.setLong(8, eventCount);
         result.setLong(16, timeStamp);
