@@ -2941,7 +2941,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                 context.getDefaultExtensions(), executorService())) {
             container2.startAsync().awaitRunning();
-            ReadResult readResult = container2.read(segmentName,0,appendData.getLength(), TIMEOUT).join();
+            ReadResult readResult = container2.read(segmentName, 0, appendData.getLength(), TIMEOUT).join();
             while ( readResult.hasNext() ) {
                   val readResultEntry = readResult.next();
                   readResultEntry.requestContent(TIMEOUT);
