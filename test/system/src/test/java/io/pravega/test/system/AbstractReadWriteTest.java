@@ -332,7 +332,6 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                         readerGroupName,
                         new JavaSerializer<>(),
                         ReaderConfig.builder().build());
-
                 readerList.add(reader);
                 final CompletableFuture<Void> readerFuture = startReading(reader);
                 Futures.exceptionListener(readerFuture, t -> log.error("Error while reading events:", t));

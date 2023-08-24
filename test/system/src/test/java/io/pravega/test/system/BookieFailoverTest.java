@@ -69,9 +69,9 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
     private final String readerGroupName = "testBookieFailoverReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(NUM_READERS * 4);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
+
     private StreamManager streamManager;
     private ClientFactoryImpl clientFactory;
-
     private ReaderGroupManager readerGroupManager;
     private Service bookkeeperService = null;
 
