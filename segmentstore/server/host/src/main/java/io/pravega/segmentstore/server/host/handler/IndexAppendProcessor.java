@@ -18,10 +18,11 @@ package io.pravega.segmentstore.server.host.handler;
 
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.MultiKeyLatestItemSequentialProcessor;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
-import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
@@ -49,29 +50,41 @@ public class IndexAppendProcessor {
     /**
      * Appends index segment on a separate thread.
      * @param segmentName  segment name.
-     * @param allowedEventSize Allowed event size.
+     * @param indexSegmentEventSize  Index segment event size.
+     *                               Value 0 indicates the segment is not a Stream Segment.
      */
-    protected void processAppend(String segmentName, long allowedEventSize) {
+    protected void processAppend(String segmentName, long indexSegmentEventSize) {
         // Not updating index segment for transient and transaction type.
         if (isTransientSegment(segmentName) || isTransactionSegment(segmentName)) {
             return;
         }
-        appendProcessor.updateItem(segmentName, allowedEventSize);
+        if (indexSegmentEventSize != NameUtils.INDEX_APPEND_EVENT_SIZE) {
+            log.debug("The data received for index segment append is not of desired size. Segment: {}, Actual: {}, Desired: {}",
+                    getIndexSegmentName(segmentName), indexSegmentEventSize, NameUtils.INDEX_APPEND_EVENT_SIZE);
+            return;
+        }
+        appendProcessor.updateItem(segmentName, indexSegmentEventSize);
     }
 
-    private void handleIndexAppend(String segmentName, long maxAllowedSize) {
-        AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
-                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));
+    private void handleIndexAppend(String segmentName, long indexSegmentEventSize) {
         store.getStreamSegmentInfo(segmentName, TIMEOUT)
-             .thenCompose(info -> store.append(getIndexSegmentName(segmentName), getIndexAppendBuf(info.getLength(),
-                     (info.getAttributes().get(EVENT_COUNT) != null) ? info.getAttributes().get(EVENT_COUNT) : 0), attributes, TIMEOUT))
-             .whenComplete((length, ex) -> {
-                 if (ex == null) {
-                     log.trace("Index segment append successful for Segment : {} with length {} ", segmentName, length);
-                 } else {
-                     log.warn("Index segment append failed for segment {} due to ", segmentName, ex);
-                 }
-             });
+                .thenAccept(info -> {
+                    long eventCount = info.getAttributes().get(EVENT_COUNT) != null ? info.getAttributes().get(EVENT_COUNT) : 0;
+                    ByteBufWrapper byteBuff = getIndexAppendBuf(info.getLength(), eventCount);
+                    AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
+                            new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.ReplaceIfGreater, eventCount));
+                    store.append(getIndexSegmentName(segmentName), byteBuff, attributes, TIMEOUT)
+                            .thenAccept(v -> log.info("Index segment append successful for segment {} ", getIndexSegmentName(segmentName)))
+                            .exceptionally(e -> {
+                                log.warn("Index segment append failed for segment {} due to ", getIndexSegmentName(segmentName), e);
+                                return null;
+                            });
+
+                })
+                .exceptionally(ex -> {
+                    log.warn("Exception occured while fetching SegmentInfo for segment: {}", segmentName, ex);
+                    return null;
+                });
     }
 
     private ByteBufWrapper getIndexAppendBuf(Long eventLength, Long eventCount) {

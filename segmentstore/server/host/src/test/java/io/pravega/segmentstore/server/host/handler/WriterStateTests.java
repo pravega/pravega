@@ -56,7 +56,39 @@ public class WriterStateTests {
         val ack2 = ws.appendSuccessful(event2);
         Assert.assertEquals("appendSuccessful(2) returned unexpected PreviousLastAcked.", event3, ack2);
         Assert.assertEquals(WriterState.NO_FAILED_EVENT_NUMBER, ws.getLowestFailedEventNumber());
-        Assert.assertEquals(initialEventNumber, ws.getEventSizeForAppend());
+    }
+
+    /**
+     * Tests {@link WriterState#beginAppend} and {@link WriterState#appendSuccessful} and EventSizeForAppend.
+     */
+    @Test
+    public void testEventSizeForAppend() {
+        // Begin with recording 3 Events.
+        final long initialEventNumber = 1;
+        val ws = new WriterState(initialEventNumber, 24L);
+        long event1 = initialEventNumber + 1;
+        val begin1 = ws.beginAppend(event1);
+        Assert.assertEquals("beginAppend(1) returned unexpected LastStoredEventNumber.", initialEventNumber, begin1);
+        long event2 = event1 + 1;
+        val begin2 = ws.beginAppend(event2);
+        Assert.assertEquals("beginAppend(2) returned unexpected LastStoredEventNumber.", event1, begin2);
+        long event3 = event2 + 1;
+        val begin3 = ws.beginAppend(event3);
+        Assert.assertEquals("beginAppend(3) returned unexpected LastStoredEventNumber.", event2, begin3);
+
+        // Ack Event 1. The Previous Last Ack should be the initial event number.
+        val ack1 = ws.appendSuccessful(event1);
+        Assert.assertEquals("appendSuccessful(1) returned unexpected PreviousLastAcked.", initialEventNumber, ack1);
+
+        // Ack Event 3 before Event 2. The previous last ack must be 1 (since that's our last ack).
+        val ack3 = ws.appendSuccessful(event3);
+        Assert.assertEquals("appendSuccessful(3) returned unexpected PreviousLastAcked.", event1, ack3);
+
+        // Ack Event 2. The previous ack was 3, so return that.
+        val ack2 = ws.appendSuccessful(event2);
+        Assert.assertEquals("appendSuccessful(2) returned unexpected PreviousLastAcked.", event3, ack2);
+        Assert.assertEquals(WriterState.NO_FAILED_EVENT_NUMBER, ws.getLowestFailedEventNumber());
+        Assert.assertEquals(24L, ws.getEventSizeForAppend());
     }
 
     /**

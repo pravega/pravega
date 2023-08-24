@@ -225,7 +225,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
     private AttributeUpdateCollection updateIndexEventNumber(long eventNum) {
         return AttributeUpdateCollection.from(
-                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventNum));
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.ReplaceIfGreater, eventNum));
     }
 
     private void setMockForIndexSegmentAppends(String streamSegmentName, StreamSegmentStore store, long eventCount, long eventLength) {
@@ -235,7 +235,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                         .length(eventLength)
                         .attributes(ImmutableMap.<AttributeId, Long>builder()
                                 .put(Attributes.SCALE_POLICY_TYPE, 0L)
-                                .put(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE, 5L)
+                                .put(Attributes.EXPECTED_INDEX_SEG_EVENT_SIZE, (long) NameUtils.INDEX_APPEND_EVENT_SIZE)
                                 .put(EVENT_COUNT, eventCount)
                                 .put(Attributes.SCALE_POLICY_RATE, 10L).build())
                         .build());
@@ -418,7 +418,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, 21L));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
-        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(0)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verify(store, times(1)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);

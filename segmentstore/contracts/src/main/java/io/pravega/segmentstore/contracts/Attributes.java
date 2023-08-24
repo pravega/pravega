@@ -134,7 +134,7 @@ public class Attributes {
     /**
      * Defines an attribute that can be used to keep track of the event size that is allowed to be appended to index segment.
      */
-    public static final AttributeId ALLOWED_INDEX_SEG_EVENT_SIZE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 16);
+    public static final AttributeId EXPECTED_INDEX_SEG_EVENT_SIZE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 16);
 
     /**
      * Determines whether the given attribute cannot be modified once originally set on the Segment.

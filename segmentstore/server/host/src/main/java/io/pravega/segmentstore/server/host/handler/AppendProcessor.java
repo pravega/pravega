@@ -85,7 +85,10 @@ import org.slf4j.LoggerFactory;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
+import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEG_EVENT_SIZE;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
+import static io.pravega.shared.NameUtils.isTransientSegment;
+import static io.pravega.shared.NameUtils.isTransactionSegment;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
@@ -201,20 +204,27 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                 } else {
                                     // Last event number stored according to Segment store.
                                     long eventNumber = attributes.getOrDefault(writerAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
+                                    CompletableFuture<Long> indexSegmentEventsize;
 
-                                    String indexSegment = getIndexSegmentName(newSegment);
-                                    populateEventSizeForIndexSegmentAppends(writer, indexSegment, setupAppend.getRequestId());
-
-                                    // Create a new WriterState object based on the attribute value for the last event number for the writer.
-                                    // It should be noted that only one connection for a given segment writer is created by the client.
-                                    // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
-                                    // below the specified event number.
-                                    WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber));
-                                    if (current != null) {
-                                        log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
-                                                writer, eventNumber, current);
+                                    if (!isTransientSegment(newSegment) && !isTransactionSegment(newSegment)) {
+                                        String indexSegment = getIndexSegmentName(newSegment);
+                                        indexSegmentEventsize = createIndexSegmentIfNotExists(indexSegment, setupAppend.getRequestId());
+                                    } else {
+                                        indexSegmentEventsize = CompletableFuture.completedFuture(0L);
                                     }
-                                    connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
+
+                                    indexSegmentEventsize.thenAccept(eventSize -> {
+                                        // Create a new WriterState object based on the attribute value for the last event number for the writer.
+                                        // It should be noted that only one connection for a given segment writer is created by the client.
+                                        // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
+                                        // below the specified event number.
+                                        WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber, eventSize));
+                                        if (current != null) {
+                                            log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
+                                                    writer, eventNumber, current);
+                                        }
+                                        connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
+                                    }).exceptionally(e -> handleException(writer, setupAppend.getRequestId(), getIndexSegmentName(newSegment), "creating index segment", e));
                                 }
                             } catch (Throwable e) {
                                 handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
@@ -222,25 +232,31 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                         });
     }
 
-    private void populateEventSizeForIndexSegmentAppends(UUID writer, String indexSegment, long requestId) {
-        store.getStreamSegmentInfo(indexSegment, TIMEOUT)
-                .whenComplete((properties, u) -> {
+    private CompletableFuture<Long> createIndexSegmentIfNotExists(String indexSegment, long requestId) {
+        CompletableFuture<Long> indexSegmentEventSize = store.getStreamSegmentInfo(indexSegment, TIMEOUT)
+                .handle((properties, u) -> {
+                    long result;
                     if (u != null) {
-                        u = Exceptions.unwrap(u);
-                        if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
-                            log.warn("could not find the segment {}", indexSegment);
+                            u = Exceptions.unwrap(u);
+                            if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
+                                log.info("Creating index segment {} while processing request: {}.", indexSegment, requestId);
+                                result = NameUtils.INDEX_APPEND_EVENT_SIZE;
+                                Collection<AttributeUpdate> attributes = Arrays.asList(
+                                        new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
+                                        new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
+                                        new AttributeUpdate(EXPECTED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, result)
+                                );
+                                store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT).join();
+                            } else {
+                                throw Exceptions.sneakyThrow(u);
+                            }
                         } else {
-                            handleException(writer, requestId, indexSegment, "populating event size for index appends", u);
+                            Map<AttributeId, Long> attributes = properties.getAttributes();
+                            result = attributes.get(EXPECTED_INDEX_SEG_EVENT_SIZE).longValue();
                         }
-                    } else {
-                        if (properties != null) {
-                            Map<AttributeId, Long> attributes =  properties.getAttributes();
-                            this.writerStates.put(Pair.of(indexSegment, writer), new WriterState(attributes.get(Attributes.ALLOWED_INDEX_SEG_EVENT_SIZE)));
-                        } else {
-                            log.debug("could not get properties for a given segment {}", indexSegment);
-                        }
-                    }
+                    return result;
                 });
+        return indexSegmentEventSize;
     }
 
     @VisibleForTesting
@@ -335,7 +351,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         boolean success = exception == null;
         try {
             if (success) {
-                indexAppendProcessor.processAppend(append.getSegment(), 24L);
+                appendOnIndexSegment(append);
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
                     long previousLastAcked = state.appendSuccessful(append.getEventNumber());
@@ -381,6 +397,14 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         if (success) {
             // Record any necessary metrics or statistics, but after we have sent the ack back and initiated the next append.
             this.statsRecorder.recordAppend(append.getSegment(), append.getDataLength(), append.getEventCount(), elapsedTimer.getElapsed());
+        }
+    }
+
+    private void appendOnIndexSegment(Append append) {
+        if (!isTransientSegment(append.getSegment()) && !isTransactionSegment(append.getSegment())) {
+            WriterState state = this.writerStates.get(Pair.of(append.getSegment(), append.getWriterId()));
+            long maxAllowedEventSize = state.getEventSizeForAppend();
+            indexAppendProcessor.processAppend(append.getSegment(), maxAllowedEventSize);
         }
     }
 
