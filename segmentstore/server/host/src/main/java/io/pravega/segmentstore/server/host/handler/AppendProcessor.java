@@ -473,6 +473,8 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
             close();
         } else if (u instanceof TokenExpiredException) {
             log.warn(requestId, "Token expired for writer {} on segment {}.", writerId, segment, u);
+            connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
             close();
         } else if (u instanceof TokenException) {
             log.warn(requestId, "Token check failed or writer {} on segment {}.", writerId, segment, u);

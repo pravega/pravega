@@ -181,6 +181,7 @@ public class Utils {
                                // auth
                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                                .controllerURI(controllerUri)
+                               .connectTimeoutMilliSec(120000)
                                .build();
         } else if (AUTH_ENABLED) {
             log.debug("Generating config with auth enabled.");
@@ -188,10 +189,11 @@ public class Utils {
                                // auth
                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                                .controllerURI(controllerUri)
+                               .connectTimeoutMilliSec(120000)
                                .build();
         } else {
             log.debug("Generating config with tls and auth disabled.");
-            return ClientConfig.builder().controllerURI(controllerUri).build();
+            return ClientConfig.builder().controllerURI(controllerUri).connectTimeoutMilliSec(120000).build();
         }
     }
 
