@@ -19,7 +19,6 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -119,7 +118,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractFailoverTests {
         streamManager = new StreamManagerImpl(clientConfig);
         createScopeAndStream(scope, STREAM_NAME, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
-        clientFactory = new ClientFactoryImpl(scope, controller, new SocketConnectionFactoryImpl(clientConfig));
+        clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
         readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
     }
 
