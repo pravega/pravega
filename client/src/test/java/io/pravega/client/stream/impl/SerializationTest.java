@@ -303,6 +303,7 @@ public class SerializationTest {
         verify(serializer, new CreateCheckpoint(createString()));
         verify(serializer, new ClearCheckpointsBefore(createString()));
         verify(serializer, new UpdatingConfig(r.nextBoolean()));
+        verify(serializer, new ReaderGroupState.RemoveOutstandingCheckpoints());
     }
     
     @Test
