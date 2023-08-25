@@ -1069,9 +1069,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         String indexSegment = getIndexSegmentName(segment);
         long indexSegmentOffset;
         try {
+            log.info("###### in PravegaRequestProcessor  segment name {} ", segment );
             indexSegmentOffset = IndexRequestProcessor.locateOffsetForIndexSegment(segmentStore, segment, offset, false);
             log.info("Truncating index segment {} at offset {}.", indexSegment, indexSegmentOffset);
         } catch (Exception e) {
+            log.info("###### in PravegaRequestProcessor 2 exception block  segment name {} ", segment );
             Throwable ex = Exceptions.unwrap(e);
             if (ex instanceof StreamSegmentNotExistsException) {
                 log.info("Stream segment {} does not exists and cannot perform truncate index segment operation", segment);
@@ -1080,7 +1082,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             // throw  exception to the caller.
             throw new CompletionException(ex);
         }
-
+        log.info("###### in PravegaRequestProcessor 3  segment name {} , indexSegmentOffset {}", segment, indexSegmentOffset );
         if (indexSegmentOffset == 0) {
             return CompletableFuture.completedFuture(null);
         }

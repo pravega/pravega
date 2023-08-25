@@ -89,19 +89,23 @@ public final class IndexRequestProcessor {
         if (startIdx == endIdx) {
            return getSegmentLength(store, segment, startIdx);
         }
-
+        log.info("###### in locateOffsetForIndexSegment 1 segment name {} ", indexSegmentName );
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY_MS, RETRY_MULTIPLIER, RETRY_COUNT, RETRY_MAX_DELAY_MS)
                 .retryWhen(ex -> ex instanceof IllegalStateException)
                 .run(() -> {
                     return SortUtils.newtonianSearch(idx -> {
+                        log.info("###### in locateOffsetForIndexSegment 2 newtonianSearch  segment name {} ", indexSegmentName );
                         ReadResult result = store.read(indexSegmentName, idx * NameUtils.INDEX_APPEND_EVENT_SIZE, NameUtils.INDEX_APPEND_EVENT_SIZE, TIMEOUT).join();
+                        log.info("###### in locateOffsetForIndexSegment 3 newtonianSearch  segment name {} , result {}", indexSegmentName, result );
                         ReadResultEntry firstElement = result.next();
                         // TODO deal with element which is split over multiple entries.
+                        log.info("###### in locateOffsetForIndexSegment 4 newtonianSearch segment name {}  firstElement {} , type {} ", indexSegmentName, firstElement, firstElement.getType() );
                         switch (firstElement.getType()) {
                             case Cache: // fallthrough
                             case Storage:
                                 BufferView content = firstElement.getContent().join();
                                 IndexEntry entry = IndexEntry.fromBytes(content);
+                                log.info("###### in locateOffsetForIndexSegment 5 newtonianSearch  segment name {} , entry {} ", indexSegmentName, entry );
                                 return entry.getOffset();
                             case Truncated:
                                 throw new SegmentTruncatedException(String.format("Segment %s has been truncated.", segment));
@@ -109,6 +113,7 @@ public final class IndexRequestProcessor {
                             case EndOfStreamSegment:
                                 throw new IllegalStateException(String.format("Unexpected size of index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
                         }
+                        log.info("###### in locateOffsetForIndexSegment 6 newtonianSearch default case  segment name {} ", indexSegmentName );
                         throw new IllegalStateException(String.format("Unexpected index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
                     }, startIdx, endIdx > 0 ? endIdx - 1 : 0, targetOffset, greater);
                 });
