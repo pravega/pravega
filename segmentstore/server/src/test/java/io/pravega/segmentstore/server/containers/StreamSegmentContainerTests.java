@@ -2952,6 +2952,44 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
+    @Test (timeout = 120000)
+    public void testFlushToStorageForEpochFileAlreadyExists() throws Exception {
+        final String segmentName = "segment512";
+        final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
+
+        final TestContainerConfig containerConfig = new TestContainerConfig();
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+
+        @Cleanup
+        TestContext context = createContext(containerConfig);
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+
+        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
+        FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
+        try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService())) {
+            container1.startAsync().awaitRunning();
+
+            // Create segment and make one append to it.
+            container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            // Test 1: Exercise epoch already exists flow in flushtostorage
+            container1.flushToStorage(TIMEOUT).join();
+            container1.flushToStorage(TIMEOUT).join();
+            // Test 1 ends
+
+            // Test 2: Exercise saved epoch is higher than contaier epoch
+            container1.metadata.setContainerEpochAfterRecovery(5);
+            container1.flushToStorage(TIMEOUT).join();
+            container1.metadata.setContainerEpochAfterRecovery(3);
+            AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
+            //Test 2 ends
+            container1.stopAsync().awaitTerminated();
+        }
+    }
+
     @SneakyThrows
     private FileSystemSimpleStorageFactory createFileSystemStorageFactory() {
         File baseDir = Files.createTempDirectory("TestStorage").toFile().getAbsoluteFile();

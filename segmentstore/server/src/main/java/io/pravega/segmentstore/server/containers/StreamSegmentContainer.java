@@ -877,7 +877,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                             .thenComposeAsync(savedEpoch -> {
                                                 if (savedEpoch.getEpoch() > epochInfo.getEpoch()) {
                                                     return CompletableFuture.failedFuture(
-                                                            new IllegalContainerStateException(String.format("Unexpected epoch. Expected = {} actual = {}", epochInfo, savedEpoch)));
+                                                            new IllegalContainerStateException(String.format("Unexpected epoch. Expected = {} actual = {}", epochInfo.getEpoch(), savedEpoch.getEpoch())));
                                                 } else {
                                                     return chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunk));
                                                 }
@@ -893,11 +893,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                             .thenApplyAsync( readBackInfo -> {
                                 if (readBackInfo.getEpoch() > epochInfo.getEpoch()) {
                                     throw new CompletionException(
-                                            new IllegalContainerStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
+                                            new IllegalContainerStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo.getEpoch(), readBackInfo.getEpoch())));
                                 }
                                 if (!epochInfo.equals(readBackInfo)) {
                                     throw new CompletionException(
-                                            new IllegalStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
+                                            new IllegalStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo.getEpoch(), readBackInfo.getEpoch())));
                                 }
                                 return null;
                             }, executor)
