@@ -76,7 +76,7 @@ public class IndexAppendProcessor {
                     store.append(getIndexSegmentName(segmentName), byteBuff, attributes, TIMEOUT)
                             .thenAccept(v -> log.trace("Index segment append successful for segment {} ", getIndexSegmentName(segmentName)))
                             .exceptionally(e -> {
-                                log.warn("Index segment append failed for segment {} due to ", getIndexSegmentName(segmentName), e);
+                                log.debug("Index segment append failed for segment {} due to ", getIndexSegmentName(segmentName), e);
                                 return null;
                             });
 
