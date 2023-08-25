@@ -207,7 +207,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                     long eventNumber = attributes.getOrDefault(writerAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
                                     CompletableFuture<Long> indexSegmentEventsize;
 
-                                    if (!isTransientSegment(newSegment) && !isTransactionSegment(newSegment) || !isUserStreamSegment(newSegment)) {
+                                    if (!isTransientSegment(newSegment) && !isTransactionSegment(newSegment) || isUserStreamSegment(newSegment)) {
                                         String indexSegment = getIndexSegmentName(newSegment);
                                         indexSegmentEventsize = createIndexSegmentIfNotExists(indexSegment, setupAppend.getRequestId());
                                     } else {
@@ -402,7 +402,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     }
 
     private void appendOnIndexSegment(Append append) {
-        if (!isTransientSegment(append.getSegment()) && !isTransactionSegment(append.getSegment()) || !isUserStreamSegment(append.getSegment())) {
+        if (!isTransientSegment(append.getSegment()) && !isTransactionSegment(append.getSegment()) || isUserStreamSegment(append.getSegment())) {
             WriterState state = this.writerStates.get(Pair.of(append.getSegment(), append.getWriterId()));
             long maxAllowedEventSize = state.getEventSizeForAppend();
             indexAppendProcessor.processAppend(append.getSegment(), maxAllowedEventSize);

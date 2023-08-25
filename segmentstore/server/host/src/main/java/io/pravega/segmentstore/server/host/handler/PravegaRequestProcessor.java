@@ -1076,6 +1076,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         try {
             if (!isUserStreamSegment(segment)) {
                 log.debug("No need to perform truncation of index segment for {}.", segment);
+                return;
             }
             long indexSegmentOffset = IndexRequestProcessor.locateOffsetForIndexSegment(segmentStore, segment, offset, false);
             log.debug("Truncating index segment {} at offset {}.", indexSegment, indexSegmentOffset);
