@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.SortUtils;
@@ -26,6 +27,8 @@ import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -91,7 +94,7 @@ public final class IndexRequestProcessor {
         }
         log.info("###### in locateOffsetForIndexSegment 1 segment name {} ", indexSegmentName );
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY_MS, RETRY_MULTIPLIER, RETRY_COUNT, RETRY_MAX_DELAY_MS)
-                .retryWhen(ex -> ex instanceof IllegalStateException)
+                .retryWhen(ex -> ex instanceof IllegalStateException | ex instanceof TimeoutException)
                 .run(() -> {
                     return SortUtils.newtonianSearch(idx -> {
                         log.info("###### in locateOffsetForIndexSegment 2 newtonianSearch  segment name {} ", indexSegmentName );
@@ -103,10 +106,18 @@ public final class IndexRequestProcessor {
                         switch (firstElement.getType()) {
                             case Cache: // fallthrough
                             case Storage:
-                                BufferView content = firstElement.getContent().join();
-                                IndexEntry entry = IndexEntry.fromBytes(content);
-                                log.info("###### in locateOffsetForIndexSegment 5 newtonianSearch  segment name {} , entry {} ", indexSegmentName, entry );
-                                return entry.getOffset();
+                               // BufferView content = firstElement.getContent().join();
+                                BufferView content = null;
+                                try {
+                                    content = Futures.join(firstElement.getContent(), 2, TimeUnit.SECONDS);
+                                    IndexEntry entry = IndexEntry.fromBytes(content);
+                                    log.info("###### in locateOffsetForIndexSegment 5 newtonianSearch  segment name {} , entry {} ", indexSegmentName, entry );
+                                    return entry.getOffset();
+                                } catch (TimeoutException e) {
+                                    log.info("###### in locateOffsetForIndexSegment 6 newtonianSearch  segment name {} TimeOutException () ", indexSegmentName , e);
+                                    throw new IllegalStateException(e);
+                                }
+
                             case Truncated:
                                 throw new SegmentTruncatedException(String.format("Segment %s has been truncated.", segment));
                             case Future:
