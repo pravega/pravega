@@ -888,6 +888,26 @@ public final class NameUtils {
     }
 
     /**
+     * Validates a user created stream.
+     *
+     * @param name User supplied stream name to validate.
+     * @return True, if its a user created stream.
+     */
+    public static boolean isUserStreamSegment(String name) {
+        boolean isUserStream = true;
+        try {
+            validateUserStreamName(getStreamName(name));
+        } catch (Exception e) {
+            isUserStream = false;
+        }
+        return isUserStream;
+    }
+
+    private static String getStreamName(String streamSegment) {
+        return streamSegment.split("/")[1];
+    }
+
+    /**
      * Validates a user-created Key-Value Table name.
      * @param name User supplied Key-Value Table name to validate.
      * @return The name, if valid.
