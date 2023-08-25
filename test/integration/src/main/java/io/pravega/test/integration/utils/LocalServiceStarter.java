@@ -20,6 +20,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -172,12 +173,14 @@ public class LocalServiceStarter {
             this.serviceBuilder.initialize();
             StreamSegmentStore streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
             TableStore tableStore = this.serviceBuilder.createTableStoreService();
+            IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(this.serviceBuilder.getLowPriorityExecutor(), streamSegmentStore);
             this.server = new PravegaConnectionListener(false, servicePort, streamSegmentStore, tableStore,
-                    this.serviceBuilder.getLowPriorityExecutor(), serviceBuilder.getIndexAppendExecutor());
+                    this.serviceBuilder.getLowPriorityExecutor(), indexAppendProcessor);
             this.server.startListening();
             if (enableAdminGateway) {
                 this.adminServer = new AdminConnectionListener(false, false, "localhost", adminPort, streamSegmentStore,
-                        tableStore, new PassingTokenVerifier(), null, null, TLS_PROTOCOL_VERSION.getDefaultValue().split(","), serviceBuilder.getIndexAppendExecutor());
+                        tableStore, new PassingTokenVerifier(), null, null, TLS_PROTOCOL_VERSION.getDefaultValue().split(","),
+                        indexAppendProcessor);
                 this.adminServer.startListening();
             }
         }

@@ -48,6 +48,7 @@ import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
 import io.pravega.segmentstore.contracts.tables.TableSegmentInfo;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -86,7 +87,6 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
     private MockStreamManager streamManager;
     private AutoScaleMonitor autoScaleMonitor;
     private MockKVTManager kvtManager;
-    private final ScheduledExecutorService indexAppendExecutor;
 
     //endregion
 
@@ -97,13 +97,10 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
      *
      * @param testConfig   The TestConfig to use.
      * @param testExecutor An Executor to use for test-related async operations.
-     * @param indexAppendExecutor The executor service to process index append.
      */
-    InProcessMockClientAdapter(TestConfig testConfig, ScheduledExecutorService testExecutor,
-                               ScheduledExecutorService indexAppendExecutor) {
-        super(testConfig, testExecutor, indexAppendExecutor);
+    InProcessMockClientAdapter(TestConfig testConfig, ScheduledExecutorService testExecutor) {
+        super(testConfig, testExecutor);
         this.executor = testExecutor;
-        this.indexAppendExecutor = indexAppendExecutor;
     }
 
     //endregion
@@ -115,9 +112,10 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         int segmentStorePort = this.testConfig.getSegmentStorePort(0);
         val store = getStreamSegmentStore();
         this.autoScaleMonitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(executor, store);
         this.listener = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store,
                 getTableStore(), autoScaleMonitor.getStatsRecorder(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
-                null, null, false, NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION, indexAppendExecutor);
+                null, null, false, NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION, indexAppendProcessor);
         this.listener.startListening();
 
         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);

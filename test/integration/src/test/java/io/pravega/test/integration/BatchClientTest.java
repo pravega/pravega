@@ -44,11 +44,11 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -112,10 +112,8 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
-        @Cleanup
-        InlineExecutor indexExecutor = new InlineExecutor();
         server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
-                indexExecutor);
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
         server.startListening();
 
         // Create and start controller service
@@ -277,7 +275,9 @@ public class BatchClientTest extends ThreadPooledTestSuite {
 
     /**
      * This test the getNextStreamCut api with the current streamcut containing one segment.
-     * Length of segment is 300 and offset in streamcut is 270. When requested nextStreamcut at a distance of 93bytes,
+     * Case1: Length of segment is 300 and offset in streamcut is 270. When requested nextStreamcut at a distance of 93bytes,
+     * getting offset at 300 in response since only that much of data is available in the segment.
+     * Case2: Length of segment is 300 and offset in streamcut is 60. When requested nextStreamcut at a distance of Long.MAX_VALUE,
      * getting offset at 300 in response since only that much of data is available in the segment.
      */
     @Test(timeout = 50000)
@@ -305,6 +305,13 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         log.info("Done creating batch client factory");
 
         StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 93L);
+        assertTrue(nextStreamCut != null);
+        assertTrue(nextStreamCut.asImpl().getPositions().size() == 1);
+        assertEquals(300L, nextStreamCut.asImpl().getPositions().get(segment).longValue());
+
+        streamCut = new StreamCutImpl(Stream.of(SCOPE + "-1", STREAM + "-1"),
+                ImmutableMap.of(segment, 60L));
+        nextStreamCut = batchClient.getNextStreamCut(streamCut, Long.MAX_VALUE);
         assertTrue(nextStreamCut != null);
         assertTrue(nextStreamCut.asImpl().getPositions().size() == 1);
         assertEquals(300L, nextStreamCut.asImpl().getPositions().get(segment).longValue());

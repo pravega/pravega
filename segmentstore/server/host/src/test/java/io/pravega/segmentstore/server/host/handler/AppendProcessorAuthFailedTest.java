@@ -40,7 +40,7 @@ public class AppendProcessorAuthFailedTest {
         connection = mock(ServerConnection.class);
         @Cleanup("shutdown")
         ScheduledExecutorService executor = new InlineExecutor();
-        processor = AppendProcessor.defaultBuilder(executor)
+        processor = AppendProcessor.defaultBuilder(new IndexAppendProcessor(executor, store))
                                    .store(store)
                                    .connection(new TrackedConnection(connection))
                                    .tokenVerifier((resource, token, expectedLevel) -> {

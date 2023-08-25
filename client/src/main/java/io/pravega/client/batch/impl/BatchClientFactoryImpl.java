@@ -255,7 +255,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         long approxNextOffsetDistancePerSegment = getApproxNextOffsetDistancePerSegment(numberOfSegments, approxDistanceToNextOffset);
         for (Map.Entry<Segment, Long> positions : startingStreamCut.asImpl().getPositions().entrySet()) {
             Segment segment = positions.getKey();
-            long targetOffset = positions.getValue() + approxNextOffsetDistancePerSegment;
+            long targetOffset = getTargetOffset(positions.getValue(), approxNextOffsetDistancePerSegment);
             long nextOffset = getNextOffsetForSegment(segment, targetOffset);
             boolean isNextOffsetSame = checkIfNextOffsetSame(positions.getValue(), nextOffset);
             if (isNextOffsetSame) {
@@ -328,6 +328,11 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     private long getApproxNextOffsetDistancePerSegment(int numOfSegment, long approxDistance) {
         long approxNextOffsetDistancePerSegment = approxDistance / numOfSegment;
         return approxNextOffsetDistancePerSegment > 0L ? approxNextOffsetDistancePerSegment : 1L;
+    }
+
+    // This method handles the overflow scenario of two long additions.
+    private long getTargetOffset(long currentOffset, long approxDistanceToNextOffset) {
+        return Long.MAX_VALUE - approxDistanceToNextOffset < currentOffset ? Long.MAX_VALUE : currentOffset + approxDistanceToNextOffset;
     }
 
     @SuppressWarnings("unchecked")

@@ -40,6 +40,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -96,12 +97,12 @@ public class EndToEndAutoScaleUpWithTxnTest {
                     internalCF,
                     AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                             .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
+            IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store);
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
                     autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null, true,
-                    serviceBuilder.getLowPriorityExecutor(), Config.TLS_PROTOCOL_VERSION.toArray(new String[Config.TLS_PROTOCOL_VERSION.size()]),
-                    serviceBuilder.getIndexAppendExecutor());
+                    serviceBuilder.getLowPriorityExecutor(), Config.TLS_PROTOCOL_VERSION.toArray(new String[Config.TLS_PROTOCOL_VERSION.size()]), indexAppendProcessor);
             server.startListening();
 
             controllerWrapper.awaitRunning();
