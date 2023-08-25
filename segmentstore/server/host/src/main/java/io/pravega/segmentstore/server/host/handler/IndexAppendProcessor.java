@@ -74,7 +74,7 @@ public class IndexAppendProcessor {
                     AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
                             new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.ReplaceIfGreater, eventCount));
                     store.append(getIndexSegmentName(segmentName), byteBuff, attributes, TIMEOUT)
-                            .thenAccept(v -> log.info("Index segment append successful for segment {} ", getIndexSegmentName(segmentName)))
+                            .thenAccept(v -> log.trace("Index segment append successful for segment {} ", getIndexSegmentName(segmentName)))
                             .exceptionally(e -> {
                                 log.warn("Index segment append failed for segment {} due to ", getIndexSegmentName(segmentName), e);
                                 return null;
