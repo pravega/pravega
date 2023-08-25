@@ -39,14 +39,12 @@ import static io.pravega.shared.NameUtils.isTransientSegment;
 @Slf4j
 public class IndexAppendProcessor {
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private final ScheduledExecutorService indexSegmentUpdateExecutor;
     private final StreamSegmentStore store;
-    private final MultiKeyLatestItemSequentialProcessor<String, Long> multiKeyLatestItemSequentialProcessor;
+    private final MultiKeyLatestItemSequentialProcessor<String, Long> appendProcessor;
 
     public IndexAppendProcessor(ScheduledExecutorService indexSegmentUpdateExecutor, StreamSegmentStore store) {
-        this.indexSegmentUpdateExecutor = indexSegmentUpdateExecutor;
         this.store = store;
-        multiKeyLatestItemSequentialProcessor = new MultiKeyLatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
+        appendProcessor = new MultiKeyLatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
     }
 
     /**
@@ -65,7 +63,7 @@ public class IndexAppendProcessor {
                     getIndexSegmentName(segmentName), indexSegmentEventSize, NameUtils.INDEX_APPEND_EVENT_SIZE);
             return;
         }
-        multiKeyLatestItemSequentialProcessor.updateItem(segmentName, indexSegmentEventSize);
+        appendProcessor.updateItem(segmentName, indexSegmentEventSize);
     }
 
     private void handleIndexAppend(String segmentName, long indexSegmentEventSize) {

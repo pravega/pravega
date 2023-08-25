@@ -34,6 +34,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResp
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -126,7 +127,7 @@ public class StreamMetricsTest {
         this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
                 null, null, true, this.serviceBuilder.getLowPriorityExecutor(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION,
-                serviceBuilder.getIndexAppendExecutor());
+                new IndexAppendProcessor(this.serviceBuilder.getLowPriorityExecutor(), store));
         this.server.startListening();
 
         // 4. Start Pravega Controller service
