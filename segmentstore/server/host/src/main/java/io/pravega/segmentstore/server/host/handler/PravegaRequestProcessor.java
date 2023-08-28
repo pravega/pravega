@@ -505,7 +505,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private CompletableFuture<Void> createIndexSegment(final String segmentName) {
         if (!isUserStreamSegment(segmentName)) {
             log.info("No need to create index segment for segment {}.", segmentName);
-            CompletableFuture.completedFuture(null);
+            return CompletableFuture.completedFuture(null);
         }
         log.info("Creating index segment {}.", getIndexSegmentName(segmentName));
         Collection<AttributeUpdate> attributes = Arrays.asList(
