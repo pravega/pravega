@@ -29,6 +29,7 @@ import java.util.AbstractMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -107,7 +108,18 @@ public final class IndexRequestProcessor {
                             case Cache: // fallthrough
                             case Storage:
                                // BufferView content = firstElement.getContent().join();
-                                BufferView content = null;
+
+                                firstElement.requestContent(TIMEOUT);
+                                AtomicReference<IndexEntry> entry = new AtomicReference<>();
+                                firstElement.getContent().thenAccept(content -> {
+                                    entry.set(IndexEntry.fromBytes(content));
+                                });
+                                if (entry.get() != null) {
+                                    return entry.get().getOffset();
+                                } else {
+                                    throw new IllegalStateException(String.format("Unable to read data from index segment {} of type {}.", segment, firstElement.getType()));
+                                }
+                                /*BufferView content = null;
                                 try {
                                     content = Futures.join(firstElement.getContent(), 2, TimeUnit.SECONDS);
                                     IndexEntry entry = IndexEntry.fromBytes(content);
@@ -116,7 +128,7 @@ public final class IndexRequestProcessor {
                                 } catch (TimeoutException e) {
                                     log.info("###### in locateOffsetForIndexSegment 6 newtonianSearch  segment name {} TimeOutException () ", indexSegmentName , e);
                                     throw new IllegalStateException(e);
-                                }
+                                }*/
 
                             case Truncated:
                                 throw new SegmentTruncatedException(String.format("Segment %s has been truncated.", segment));
