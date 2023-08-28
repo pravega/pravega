@@ -15,8 +15,6 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
-import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.BufferView;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.SortUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -27,7 +25,6 @@ import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
@@ -107,7 +104,6 @@ public final class IndexRequestProcessor {
                         switch (firstElement.getType()) {
                             case Cache: // fallthrough
                             case Storage:
-                               // BufferView content = firstElement.getContent().join();
 
                                 firstElement.requestContent(TIMEOUT);
                                 AtomicReference<IndexEntry> entry = new AtomicReference<>();
@@ -119,7 +115,8 @@ public final class IndexRequestProcessor {
                                 } else {
                                     throw new IllegalStateException(String.format("Unable to read data from index segment {} of type {}.", segment, firstElement.getType()));
                                 }
-                                /*BufferView content = null;
+                                /*
+                                BufferView content = null;
                                 try {
                                     content = Futures.join(firstElement.getContent(), 2, TimeUnit.SECONDS);
                                     IndexEntry entry = IndexEntry.fromBytes(content);
