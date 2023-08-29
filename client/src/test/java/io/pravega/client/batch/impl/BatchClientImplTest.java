@@ -34,12 +34,15 @@ import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.common.util.Retry;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
+
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -73,6 +76,7 @@ public class BatchClientImplTest {
 
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
+    private static final Retry.RetryWithBackoff RETRY_WITH_BACKOFF = Retry.withExpBackoff(1, 10, 2, Duration.ofSeconds(30).toMillis());
 
     private static class MockControllerWithSuccessors extends MockController {
         private StreamSegmentsWithPredecessors successors;
@@ -431,7 +435,7 @@ public class BatchClientImplTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf, 2);
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf, RETRY_WITH_BACKOFF);
         client.getConnection(segment1);
         ReplyProcessor processor = cf.getProcessor(endpoint);
         Mockito.doAnswer(new Answer<Void>() {
@@ -461,7 +465,7 @@ public class BatchClientImplTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf, 2);
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf, RETRY_WITH_BACKOFF);
         client.getConnection(segment1);
         ReplyProcessor processor = cf.getProcessor(endpoint);
         Mockito.doAnswer(new Answer<Void>() {
