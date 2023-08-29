@@ -96,7 +96,6 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
 
     @VisibleForTesting
     public BatchClientFactoryImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory, Retry.RetryWithBackoff retryWithBackoff) {
-
         this.controller = controller;
         this.connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
