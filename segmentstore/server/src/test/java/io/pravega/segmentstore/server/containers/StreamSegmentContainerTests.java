@@ -103,21 +103,26 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
+import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
+import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -2900,6 +2905,100 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         Futures.allOf(futures).join();
         return segmentNames;
+    }
+
+    @Test(timeout = 120000)
+    public void testLTSRecovery() throws Exception {
+        final String segmentName = "segment512";
+        final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
+
+        final TestContainerConfig containerConfig = new TestContainerConfig();
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+
+        @Cleanup
+        TestContext context = createContext(containerConfig);
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+
+        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
+        FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
+        try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService())) {
+            container1.startAsync().awaitRunning();
+
+            // Create segment and make one append to it.
+            container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.flushToStorage(TIMEOUT).join();
+            container1.stopAsync().awaitTerminated();
+        }
+
+        context = createContext(containerConfig); // new context again
+        val localDurableLogFactoryForRecovery = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+
+        try (val container2 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, localDurableLogFactoryForRecovery,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService())) {
+            container2.startAsync().awaitRunning();
+            ReadResult readResult = container2.read(segmentName, 0, appendData.getLength(), TIMEOUT).join();
+            while ( readResult.hasNext() ) {
+                  val readResultEntry = readResult.next();
+                  readResultEntry.requestContent(TIMEOUT);
+                  val entry = readResultEntry.getContent().join();
+                  String output = new String(entry.getCopy());
+                 Assert.assertEquals(new String(appendData.array()), output);
+            }
+        }
+    }
+
+    @Test (timeout = 120000)
+    public void testFlushToStorageForEpochFileAlreadyExists() throws Exception {
+        final String segmentName = "segment512";
+        final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
+
+        final TestContainerConfig containerConfig = new TestContainerConfig();
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+
+        @Cleanup
+        TestContext context = createContext(containerConfig);
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+
+        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
+        FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
+        try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService())) {
+            container1.startAsync().awaitRunning();
+
+            // Create segment and make one append to it.
+            container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            // Test 1: Exercise epoch already exists flow in flushtostorage
+            container1.flushToStorage(TIMEOUT).join();
+            container1.flushToStorage(TIMEOUT).join();
+            // Test 1 ends
+
+            // Test 2: Exercise saved epoch is higher than contaier epoch
+            container1.metadata.setContainerEpochAfterRecovery(5);
+            container1.flushToStorage(TIMEOUT).join();
+            container1.metadata.setContainerEpochAfterRecovery(3);
+            AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
+            //Test 2 ends
+            container1.stopAsync().awaitTerminated();
+        }
+    }
+
+    @SneakyThrows
+    private FileSystemSimpleStorageFactory createFileSystemStorageFactory() {
+        File baseDir = Files.createTempDirectory("TestStorage").toFile().getAbsoluteFile();
+        FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
+                .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
+                .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
+                .build();
+        ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
+        return new FileSystemSimpleStorageFactory(config, adapterConfig, executorService());
     }
 
     private HashMap<String, ArrayList<String>> createTransactions(Collection<String> segmentNames, TestContext context) {
