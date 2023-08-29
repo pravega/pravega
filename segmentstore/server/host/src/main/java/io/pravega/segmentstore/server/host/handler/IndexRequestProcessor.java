@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.SortUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
@@ -24,7 +25,6 @@ import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -92,15 +92,9 @@ public final class IndexRequestProcessor {
                 case Cache: // fallthrough
                 case Storage:
                     firstElement.requestContent(TIMEOUT);
-                    AtomicReference<IndexEntry> entry = new AtomicReference<>();
-                    firstElement.getContent().thenAccept(content -> {
-                        entry.set(IndexEntry.fromBytes(content));
-                    });
-                    if (entry.get() != null) {
-                        return entry.get().getOffset();
-                    } else {
-                        throw new IllegalStateException(String.format("Unable to read data from index segment {} of type {}.", segment, firstElement.getType()));
-                    }
+                    BufferView content = firstElement.getContent().join();
+                    IndexEntry entry = IndexEntry.fromBytes(content);
+                    return entry.getOffset();
                 case Truncated:
                     throw new SegmentTruncatedException(String.format("Segment %s has been truncated.", segment));
                 case Future:
