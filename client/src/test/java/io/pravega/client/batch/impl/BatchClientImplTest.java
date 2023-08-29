@@ -75,7 +75,7 @@ public class BatchClientImplTest {
 
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
-    private static final Retry.RetryWithBackoff RETRY_WITH_BACKOFF = Retry.withExpBackoff(1, 10, 2, Duration.ofSeconds(30).toMillis());
+    private static final Retry.RetryWithBackoff RETRY_WITH_BACKOFF = Retry.withExpBackoff(1, 1, 2, Duration.ofSeconds(30).toMillis());
 
     private static class MockControllerWithSuccessors extends MockController {
         private StreamSegmentsWithPredecessors successors;
