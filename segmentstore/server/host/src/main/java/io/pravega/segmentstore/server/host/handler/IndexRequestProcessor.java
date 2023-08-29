@@ -48,6 +48,14 @@ public final class IndexRequestProcessor {
         }
     }
 
+    static final class DataAppendNotCompletedException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        public DataAppendNotCompletedException(String message) {
+            super(message);
+        }
+    }
+
     /**
      * Locate the requested offset in segment.
      *
@@ -91,7 +99,7 @@ public final class IndexRequestProcessor {
         }
 
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY_MS, RETRY_MULTIPLIER, RETRY_COUNT, RETRY_MAX_DELAY_MS)
-                .retryWhen(ex -> ex instanceof IllegalStateException)
+                .retryWhen(ex -> ex instanceof DataAppendNotCompletedException)
                 .run(() -> {
                     return SortUtils.newtonianSearch(idx -> {
                         ReadResult result = store.read(indexSegmentName, idx * NameUtils.INDEX_APPEND_EVENT_SIZE, NameUtils.INDEX_APPEND_EVENT_SIZE, TIMEOUT).join();
@@ -106,6 +114,7 @@ public final class IndexRequestProcessor {
                             case Truncated:
                                 throw new SegmentTruncatedException(String.format("Segment %s has been truncated.", segment));
                             case Future:
+                                throw new DataAppendNotCompletedException(String.format("Data has not yet appended to %s, it is still in progress.", segment));
                             case EndOfStreamSegment:
                                 throw new IllegalStateException(String.format("Unexpected size of index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
                         }
