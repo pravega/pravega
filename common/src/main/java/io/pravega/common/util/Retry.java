@@ -29,7 +29,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.With;
 import lombok.extern.slf4j.Slf4j;
