@@ -50,6 +50,7 @@ import static io.pravega.common.concurrent.Futures.exceptionallyComposeExpecting
 import static io.pravega.common.concurrent.Futures.exceptionallyExpecting;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 import static io.pravega.common.concurrent.Futures.getThrowingException;
+import static io.pravega.common.concurrent.Futures.getThrowingExceptionWithTimeout;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -77,7 +78,29 @@ public class FuturesTests extends ThreadPooledTestSuite {
                      () -> getThrowingException(failedFuture),
                      e -> e.getMessage().equals("fail") && e.getClass().equals(RuntimeException.class));
     }
-    
+
+    @Test
+    public void testGetThrowingExceptionsWithTimeout() throws TimeoutException {
+        CompletableFuture<String> future = new CompletableFuture<String>();
+        future.complete("success");
+        // It should successfully complete the future
+        assertEquals("success", getThrowingExceptionWithTimeout(future, 10000));
+        // Testing the failing case
+        CompletableFuture<String> failedFuture  = new CompletableFuture<String>();
+        failedFuture.completeExceptionally(new RuntimeException("fail"));
+
+        assertThrows("",
+                () -> getThrowingExceptionWithTimeout(failedFuture, 10000),
+                e -> e.getMessage().equals("fail") && e.getClass().equals(RuntimeException.class));
+
+        // This should throw timeoutExceptions as future is not completing anytime
+        CompletableFuture<String> timeoutFuture = new CompletableFuture<String>();
+        assertThrows(TimeoutException.class, () -> getThrowingExceptionWithTimeout(timeoutFuture, 100));
+        // Testing interrupted exceptions
+        Thread.currentThread().interrupt();
+        assertThrows(InterruptedException.class, () -> getThrowingExceptionWithTimeout(timeoutFuture, 1000));
+    }
+
     @Test(timeout = 10000)
     public void testGetAndHandleException() throws TimeoutException {
         CompletableFuture<String> future = new CompletableFuture<String>();
