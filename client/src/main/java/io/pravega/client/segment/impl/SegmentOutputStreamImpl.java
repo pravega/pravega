@@ -644,7 +644,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
         log.debug("(Re)connect invoked, Segment: {}, writerID: {}", segmentName, writerId);
         state.setupConnection.registerAndRunReleaser(() -> {
-            retrySchedule.withSkipFirstRetry(true).retryWhen(t -> t instanceof Exception) // retry on all exceptions.
+            retrySchedule.withInitialDelayForfirstRetry(true).retryWhen(t -> t instanceof Exception) // retry on all exceptions.
               .runAsync(() -> {
                   log.debug("Running reconnect for segment {} writer {}", segmentName, writerId);
 

@@ -130,18 +130,18 @@ public final class Retry {
         private final long maxDelay;
         @Getter
         @With
-        private final boolean isSkipFirstRetry;
+        private final boolean isInitialDelayForfirstRetry;
 
         private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
             this(initialMillis, multiplier, attempts, maxDelay, false);
         }
 
-        private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay, boolean isSkipFirstRetry) {
+        private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay, boolean isInitialDelayForfirstRetry) {
             this.initialMillis = initialMillis;
             this.multiplier = multiplier;
             this.attempts = attempts;
             this.maxDelay = maxDelay;
-            this.isSkipFirstRetry = isSkipFirstRetry;
+            this.isInitialDelayForfirstRetry = isInitialDelayForfirstRetry;
         }
 
 
@@ -258,7 +258,7 @@ public final class Retry {
             Preconditions.checkNotNull(r);
             CompletableFuture<ReturnT> result = new CompletableFuture<>();
             AtomicInteger attemptNumber = new AtomicInteger(1);
-            AtomicLong delay = new AtomicLong(params.isSkipFirstRetry ? params.initialMillis : 0);
+            AtomicLong delay = new AtomicLong(params.isInitialDelayForfirstRetry ? params.initialMillis : 0);
             Futures.loop(
                     () -> !result.isDone(),
                     () -> Futures
