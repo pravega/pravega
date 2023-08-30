@@ -90,9 +90,9 @@ public final class Retry {
     }
 
     public static RetryUnconditionally indefinitelyWithExpBackoff(long initialMillis, int multiplier, long maxDelay, Consumer<Throwable> consumer) {
-        Preconditions.checkArgument(initialMillis >= 1, "InitialMillis must be a positive integer.");
+        Preconditions.checkArgument(initialMillis >= 0, "InitialMillis cannot be negative.");
         Preconditions.checkArgument(multiplier >= 1, "multiplier must be a positive integer.");
-        Preconditions.checkArgument(maxDelay >= 1, "maxDelay must be a positive integer.");
+        Preconditions.checkArgument(maxDelay >= 0, "maxDelay cannot be negative.");
         RetryWithBackoff params = new RetryWithBackoff(initialMillis, multiplier, Integer.MAX_VALUE, maxDelay);
         return new RetryUnconditionally(consumer, params);
     }
@@ -277,7 +277,7 @@ public final class Retry {
                                             params.initialMillis :
                                             Math.min(params.maxDelay, params.multiplier * delay.get()));
                                     attemptNumber.incrementAndGet();
-                                    log.info("Retrying command {} Retry #{}, timestamp={}", r.toString(), attemptNumber, Instant.now());
+                                    log.debug("Retrying command {} Retry #{}, timestamp={}", r.toString(), attemptNumber, Instant.now());
                                 }
 
                                 return null;

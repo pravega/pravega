@@ -86,7 +86,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     private static final String SEGMENT = "test/0";
     private static final String TXN_SEGMENT = "scope/stream/0.#epoch.0#transaction.00000000000000000000000000000001";
     private static final int SERVICE_PORT = 12345;
-    private static final int WAIT_AFTER_FAILOVER_MILLIS = 50;
+    private static final int WAIT_TILL_RECONNECT_NOT_DONE = 50;
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 1, 2);
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
@@ -107,7 +107,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
 
@@ -229,7 +229,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
 
         ReplyProcessor processor = cf.getProcessor(uri);
 
@@ -331,14 +331,14 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, resendToSuccessorsCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(output.getRequestId(), SEGMENT, "SomeException", -1L));
         assertThrows(SegmentSealedException.class, () -> Futures.getThrowingException(output.getConnection()));
         assertTrue(callbackInvoked.get());
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 10000)
     public void testConnectWithMultipleFailures() throws Exception {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
@@ -514,7 +514,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
 
@@ -537,7 +537,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
 
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test1"), new CompletableFuture<>()));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test2"), new CompletableFuture<>()));
@@ -595,7 +595,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
@@ -818,9 +818,9 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         cf.provideConnection(uri, connection);
         @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
-                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+                Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         InOrder inOrder = Mockito.inOrder(connection);
         inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
@@ -862,7 +862,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
 
-    @Test
+    @Test(timeout = 10000)
     public void testConnectionFailureWithSegmentSealed() throws Exception {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
@@ -873,10 +873,10 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         cf.provideConnection(uri, connection);
         @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
-                RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+                Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
 
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         InOrder inOrder = Mockito.inOrder(connection);
         inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
@@ -893,7 +893,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                 // simulate in a race with segment is sealed callback and a connection drop.
                 cf.getProcessor(uri).connectionDropped();
                 // wait until the writer reattempts to establish a connection to simulate the race.
-                verify(connection, times(1)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+                verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
 
                 // the connection object throws a throws a
                 throw new ConnectionFailedException();
@@ -940,9 +940,9 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
-                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+                                                                     Retry.withoutBackoff(2), DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         InOrder inOrder = Mockito.inOrder(connection);
         inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
@@ -981,7 +981,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         inOrder.verify(connection).send(new WireCommands.KeepAlive());
         // Two SetupAppend WireCommands are sent since the connection is dropped right after the first KeepAlive WireCommand is sent.
         // The second SetupAppend WireCommand is sent while trying to re-establish connection.
-        inOrder.verify(connection, times(1)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        inOrder.verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         // Ensure the pending append is sent over the connection. The exact verification of the append data is performed while setting up
         // the when clause of setting up append.
         inOrder.verify(connection).sendAsync(Mockito.anyList(), Mockito.any());
@@ -1032,7 +1032,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
@@ -1060,7 +1060,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
@@ -1101,7 +1101,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
@@ -1261,7 +1261,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, exceptionCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
@@ -1301,7 +1301,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
@@ -1336,7 +1336,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
@@ -1357,7 +1357,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, TXN_SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), TXN_SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
@@ -1394,7 +1394,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, TXN_SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), TXN_SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
@@ -1448,7 +1448,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
         // trigger establishment of connection.
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         // Verify if SetupAppend is sent over the connection.
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
@@ -1502,7 +1502,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_TILL_RECONNECT_NOT_DONE);
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
 

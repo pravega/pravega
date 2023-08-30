@@ -203,8 +203,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          * @return Returns a future that will complete when setup is finished or fail if it cannot be.
          */
         private CompletableFuture<Void> newConnection(ClientConnection newConnection) {
-            // TODO: put connectiontimeoutMillis from config
-            log.info("<<<<<<<<<<<<<<<<<<<<<<DEBUG>>>>>>>>>>>>>>>>>>> going to create a new connection {}", clientConfig.getConnectTimeoutMilliSec());
             CompletableFuture<Void> result = Futures.futureWithTimeout(Duration.ofMillis(clientConfig.getConnectTimeoutMilliSec()),
                     "Establishing connection to server",
                     connectionPool.getInternalExecutor());
@@ -213,7 +211,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 connection = newConnection;
                 exception = null;
             }
-            log.info("<<<<<<<<<<<<<<<<<<<<<<DEBUG>>>>>>>>>>>>>>>>>>>");
             return result;
         }
 
@@ -670,13 +667,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                       .thenComposeAsync(pair -> {
                           ClientConnection connection = pair.getKey();
                           String token = pair.getValue();
-                          log.info("<<<<<<<<<<<<<<<<<<111DEBug GEt the connectione>>>>>>>>>>>>>>>>>");
                           CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
-                          log.info("<<<<<<<<<<<<<<<<<<222DEBug GEt the connectione>>>>>>>>>>>>>>>>>");
 
                           SetupAppend cmd = new SetupAppend(requestId, writerId, segmentName, token);
                           try {
-                              log.info("<<<<<<<<<<<<<<<<<333DEBug GEt the connectione>>>>>>>>>>>>>>>>>");
                               connection.send(cmd);
                           } catch (ConnectionFailedException e1) {
                               // This needs to be invoked here because call to failConnection from netty may occur before state.newConnection above.
