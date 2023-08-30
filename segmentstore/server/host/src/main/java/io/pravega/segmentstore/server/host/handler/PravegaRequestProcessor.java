@@ -1184,9 +1184,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof IndexRequestProcessor.SegmentTruncatedException) {
             log.warn(requestId, "Segment '{}' is truncated and cannot perform operation '{}'", segment, operation);
             invokeSafely(connection::send, new SegmentTruncated(requestId, segment), failureHandler);
-        } else if (u instanceof IndexRequestProcessor.DataAppendNotCompletedException) {
-            log.warn(requestId, "Segment '{}' data has not append operation '{}'", segment, operation);
-            invokeSafely(connection::send, new SegmentTruncated(requestId, segment), failureHandler);
         } else if (errorCodeExists(u)) {
             log.warn(requestId, "Operation on segment '{}' failed due to a {}.", segment, u.getClass());
             invokeSafely(connection::send,
