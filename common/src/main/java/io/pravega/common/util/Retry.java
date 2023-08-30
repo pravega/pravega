@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.With;
 import lombok.extern.slf4j.Slf4j;
@@ -71,15 +73,19 @@ public final class Retry {
     private Retry() {
     }
 
+    public static RetryWithBackoff withoutBackoff(int attempts) {
+        return new RetryWithBackoff(0, 1, attempts, 0);
+    }
+
     public static RetryWithBackoff withExpBackoff(long initialMillis, int multiplier, int attempts) {
         return withExpBackoff(initialMillis, multiplier, attempts, Long.MAX_VALUE);
     }
 
     public static RetryWithBackoff withExpBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
-        Preconditions.checkArgument(initialMillis >= 1, "InitialMillis must be a positive integer.");
+        Preconditions.checkArgument(initialMillis >= 0, "InitialMillis cannot be negative.");
         Preconditions.checkArgument(multiplier >= 1, "multiplier must be a positive integer.");
         Preconditions.checkArgument(attempts >= 1, "attempts must be a positive integer.");
-        Preconditions.checkArgument(maxDelay >= 1, "maxDelay must be a positive integer.");
+        Preconditions.checkArgument(maxDelay >= 0, "maxDelay cannot be negative.");
         return new RetryWithBackoff(initialMillis, multiplier, attempts, maxDelay);
     }
 
@@ -122,13 +128,22 @@ public final class Retry {
         @Getter
         @With
         private final long maxDelay;
+        @Getter
+        @With
+        private final boolean isSkipFirstRetry;
 
         private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
+            this(initialMillis, multiplier, attempts, maxDelay, false);
+        }
+
+        private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay, boolean isSkipFirstRetry) {
             this.initialMillis = initialMillis;
             this.multiplier = multiplier;
             this.attempts = attempts;
             this.maxDelay = maxDelay;
+            this.isSkipFirstRetry = isSkipFirstRetry;
         }
+
 
         public <RetryT extends Exception> RetryExceptionally<RetryT> retryingOn(Class<RetryT> retryType) {
             Preconditions.checkNotNull(retryType);
@@ -243,7 +258,7 @@ public final class Retry {
             Preconditions.checkNotNull(r);
             CompletableFuture<ReturnT> result = new CompletableFuture<>();
             AtomicInteger attemptNumber = new AtomicInteger(1);
-            AtomicLong delay = new AtomicLong(0);
+            AtomicLong delay = new AtomicLong(params.isSkipFirstRetry ? params.initialMillis : 0);
             Futures.loop(
                     () -> !result.isDone(),
                     () -> Futures
@@ -262,7 +277,7 @@ public final class Retry {
                                             params.initialMillis :
                                             Math.min(params.maxDelay, params.multiplier * delay.get()));
                                     attemptNumber.incrementAndGet();
-                                    log.debug("Retrying command {} Retry #{}, timestamp={}", r.toString(), attemptNumber, Instant.now());
+                                    log.info("Retrying command {} Retry #{}, timestamp={}", r.toString(), attemptNumber, Instant.now());
                                 }
 
                                 return null;

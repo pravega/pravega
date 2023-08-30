@@ -882,10 +882,10 @@ public final class Futures {
         public Void call() throws Exception {
             if (this.condition.get()) {
                 // Execute another iteration of the loop.
-                this.loopBody.get()
-                             .thenAccept(this::acceptIterationResult)
-                             .exceptionally(this::handleException)
-                             .thenRunAsync(this, this.executor);
+                    this.loopBody.get()
+                                 .thenAccept(this::acceptIterationResult)
+                                 .exceptionally(this::handleException)
+                                 .thenRunAsync(this, this.executor);
             } else {
                 // We are done; set the result and don't loop again.
                 this.result.complete(null);
