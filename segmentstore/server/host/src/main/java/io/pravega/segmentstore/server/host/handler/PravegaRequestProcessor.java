@@ -110,7 +110,6 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -179,13 +178,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * @param segmentStore The StreamSegmentStore to attach to (and issue requests to).
      * @param tableStore The TableStore to attach to (and issue requests to).
      * @param connection   The ServerConnection to attach to (and send responses to).
-     * @param indexAppendExecutor The executor service to process index append.
+     * @param indexAppendProcessor Index append processor to be used for appending on index segment.
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
-                                   ScheduledExecutorService indexAppendExecutor) {
+                                   IndexAppendProcessor indexAppendProcessor) {
         this(segmentStore, tableStore, new TrackedConnection(connection, new ConnectionTracker()), SegmentStatsRecorder.noOp(),
-                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, indexAppendExecutor);
+                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, indexAppendProcessor);
     }
 
     /**
@@ -198,11 +197,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * @param tableStatsRecorder A TableSegmentStatsRecorder for Metrics for Table Segments.
      * @param tokenVerifier  Verifier class that verifies delegation token.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
+     * @param indexAppendProcessor Index append processor to be used for appending on index segment.
      */
     PravegaRequestProcessor(@NonNull StreamSegmentStore segmentStore, @NonNull TableStore tableStore, @NonNull TrackedConnection connection,
                             @NonNull SegmentStatsRecorder statsRecorder, @NonNull TableSegmentStatsRecorder tableStatsRecorder,
                             @NonNull DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError,
-                            @NonNull ScheduledExecutorService indexAppendExecutor) {
+                            @NonNull IndexAppendProcessor indexAppendProcessor) {
         this.segmentStore = segmentStore;
         this.tableStore = tableStore;
         this.connection = connection;
@@ -210,7 +210,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         this.statsRecorder = statsRecorder;
         this.tableStatsRecorder = tableStatsRecorder;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
-        this.indexAppendProcessor = new IndexAppendProcessor(indexAppendExecutor, segmentStore);
+        this.indexAppendProcessor = indexAppendProcessor;
     }
 
     //endregion
