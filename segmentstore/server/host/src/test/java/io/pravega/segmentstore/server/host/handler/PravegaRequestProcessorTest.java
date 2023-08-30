@@ -300,7 +300,7 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection,
                 new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
-        TestReadResultEntry entry = new TestReadResultEntry(ReadResultEntryType.Future, data.length, readLength);
+        TestReadResultEntry entry = new TestReadResultEntry(ReadResultEntryType.EndOfStreamSegment, data.length, readLength);
 
         List<ReadResultEntry> results = new ArrayList<>();
         results.add(entry);
