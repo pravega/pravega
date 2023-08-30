@@ -349,7 +349,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
         // are not required for accepting new operations and can still start in the background.
-        delayedStart.thenComposeAsync( v -> this.adjustStorageMetadataLength(), this.executor)
+        delayedStart.thenComposeAsync( v -> this.adjustLengthsPostRecovery(), this.executor)
                 .thenComposeAsync(v -> {
                     val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
                     if (null != chunkedSegmentStorage) {
@@ -379,35 +379,45 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return isReady;
     }
 
+    private CompletableFuture<Void> adjustLengthsPostRecovery() {
+        return shouldRecoverFromStorage().
+                  thenComposeAsync( shouldRecover -> {
+                      if (shouldRecover) {
+                          return this.adjustLengthsForSegment(NameUtils.getStorageMetadataSegmentName(this.getId()))
+                                  .thenComposeAsync(v -> this.adjustLengthsForSegment(NameUtils.getEventProcessorSegmentName(this.getId(), String.format("GC.queue.%d", this.getId()))));
+                      } else {
+                          log.info("{}: Not recovering from storage. No need to adjust lengths", this.traceObjectId);
+                          return CompletableFuture.completedFuture(null);
+                      }
+                  });
+    }
+
     /**
      * Adjusting storage metadata segment length in container metadata.
      * @return a CompletableFuture which when completed indicates successful updation
      * of storage metadata length in container metadata.
      */
-    private CompletableFuture<Void> adjustStorageMetadataLength() {
+    private CompletableFuture<Void> adjustLengthsForSegment(String segmentName) {
         try {
             // No-op for non-recovery container startup.
-            if (!shouldRecoverFromStorage().get()) {
-                log.info("{}: Non-recovery startup. No need to adjust storage metadata length", this.traceObjectId);
-                return CompletableFuture.completedFuture(null);
-            }
             // Adjust always the storage metadata segment length in container metadata. This is the planned migration
             // recovery usecase where we would flush-to-storage, so should be safe to invoke the below adjust-length flow if not taken effect.
             val extension = this.getExtension(ContainerTableExtension.class);
-            val storageSegment = this.storage.getStreamSegmentInfo(NameUtils.getStorageMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout()).get();
-            log.debug("{}: Storage Metadata segment details retrieved: {}", this.traceObjectId, storageSegment);
-            return this.metadataStore.getSegmentInfoInternal(NameUtils.getStorageMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout())
-                    .thenComposeAsync( storageMetadataSegmentBytes -> {
-                                val storageMetadataSegmentInfo = MetadataStore.SegmentInfo.deserialize(storageMetadataSegmentBytes);
-                                val toBeSerializedSM = constructStorageMetadataSegmentInfoWithLength(storageMetadataSegmentInfo, storageSegment.getLength());
-                                val serializedStorageSegment = MetadataStore.SegmentInfo.serialize(toBeSerializedSM);
-                                val unversionedEntry = TableEntry.unversioned(new ByteArraySegment(NameUtils.getStorageMetadataSegmentName(this.getId()).getBytes(Charsets.UTF_8)), serializedStorageSegment);
+            val storageSegment = this.storage.getStreamSegmentInfo(segmentName, this.config.getMetadataStoreInitTimeout()).get();
+            log.debug("{}: Storage Metadata segment details retrieved for: {}", this.traceObjectId, storageSegment);
+            return this.metadataStore.getSegmentInfoInternal(segmentName, this.config.getMetadataStoreInitTimeout())
+                    .thenComposeAsync( segmentInfoBytes -> {
+                                val segmentInfo = MetadataStore.SegmentInfo.deserialize(segmentInfoBytes);
+                                val tobeSerializedSegment = constructStorageMetadataSegmentInfoWithLength(segmentInfo, storageSegment.getLength());
+                                val toBeSerializedSegmentInSM = MetadataStore.SegmentInfo.serialize(tobeSerializedSegment);
+                                val unversionedEntry = TableEntry.unversioned(new ByteArraySegment(segmentName.getBytes(Charsets.UTF_8)), toBeSerializedSegmentInSM);
                                 try {
                                     extension.put(NameUtils.getMetadataSegmentName(this.getId()), Collections.singletonList(unversionedEntry), this.config.getMetadataStoreInitTimeout()).get(this.config.getMetadataStoreInitTimeout().toMillis(), TimeUnit.MILLISECONDS);
                                 } catch (Exception e) {
                                     log.error("{}: Could not save storage metadata info in container metadata. Failed with exception {}", this.traceObjectId, e );
                                     return Futures.failedFuture(e);
                                 }
+                                log.info("{}: Reconciled lengths for segment {}", this.traceObjectId, segmentName);
                                 return CompletableFuture.completedFuture(null);
                     }, this.executor);
         } catch (Exception ex) {
@@ -418,18 +428,20 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     /**
      * Constructs a SegmentInfo object from the passed SegmentInfo object and setting the provided length.
-     * @param storageMetadataSegmentInfo SegmentInfo object to construct from.
+     * @param segmentInfo SegmentInfo object to construct from.
      * @param length length to be set in the constructed SegmentInfo object.
      * @return constructed SegmentInfo object
      */
-    private MetadataStore.SegmentInfo constructStorageMetadataSegmentInfoWithLength(MetadataStore.SegmentInfo storageMetadataSegmentInfo, long length) {
-        Map<AttributeId, Long> attribs = new HashMap<>(storageMetadataSegmentInfo.getProperties().getAttributes());
-        attribs.put(TableAttributes.INDEX_OFFSET, length);
-        StreamSegmentInformation newStorageMetadata = StreamSegmentInformation.from(storageMetadataSegmentInfo.getProperties()).length(length)
+    private MetadataStore.SegmentInfo constructStorageMetadataSegmentInfoWithLength(MetadataStore.SegmentInfo segmentInfo, long length) {
+        Map<AttributeId, Long> attribs = new HashMap<>(segmentInfo.getProperties().getAttributes());
+        if (SegmentType.fromAttributes(segmentInfo.getProperties().getAttributes()).isTableSegment()) {
+            attribs.put(TableAttributes.INDEX_OFFSET, length);
+        }
+        StreamSegmentInformation newStorageMetadata = StreamSegmentInformation.from(segmentInfo.getProperties()).length(length)
                 .attributes(attribs)
                 .build();
         return MetadataStore.SegmentInfo.builder()
-                .segmentId(storageMetadataSegmentInfo.getSegmentId())
+                .segmentId(segmentInfo.getSegmentId())
                 .properties(newStorageMetadata)
                 .build();
     }
