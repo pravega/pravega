@@ -888,15 +888,15 @@ public final class NameUtils {
     }
 
     /**
-     * Validates a user created stream.
+     * Validates a user created stream segment.
      *
-     * @param name User supplied stream name to validate.
-     * @return True, if its a user created stream.
+     * @param streamSegmentName User supplied stream segment name to validate.
+     * @return True, if its a user created stream segment.
      */
-    public static boolean isUserStreamSegment(String name) {
+    public static boolean isUserStreamSegment(String streamSegmentName) {
         boolean isUserStream = true;
         try {
-            validateUserStreamName(getStreamName(name));
+            validateUserStreamName(getStreamName(streamSegmentName));
         } catch (Exception e) {
             isUserStream = false;
         }
