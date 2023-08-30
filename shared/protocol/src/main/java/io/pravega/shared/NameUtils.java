@@ -894,13 +894,16 @@ public final class NameUtils {
      * @return True, if its a user created stream segment.
      */
     public static boolean isUserStreamSegment(String streamSegmentName) {
-        boolean isUserStream = true;
         try {
+            if (isTableSegment(streamSegmentName) || isTransactionSegment(streamSegmentName) || isTransientSegment(streamSegmentName)
+                    || isIndexSegment(streamSegmentName)) {
+                return false;
+            }
             validateUserStreamName(getStreamName(streamSegmentName));
+            return true;
         } catch (Exception e) {
-            isUserStream = false;
+            return false;
         }
-        return isUserStream;
     }
 
     private static String getStreamName(String streamSegment) {

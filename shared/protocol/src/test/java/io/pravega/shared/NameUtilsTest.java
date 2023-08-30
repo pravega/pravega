@@ -250,5 +250,6 @@ public class NameUtilsTest {
         Assert.assertEquals(Boolean.FALSE, toTest.apply(null));
         Assert.assertEquals(Boolean.TRUE, toTest.apply("test/a-b-c/1"));
         Assert.assertEquals(Boolean.TRUE, toTest.apply("test/1.2.3/0"));
+        Assert.assertEquals(Boolean.FALSE, toTest.apply("test/1.2.3/0#index"));
     }
 }
