@@ -27,6 +27,7 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
@@ -321,6 +322,50 @@ public class PravegaRequestProcessorTest {
         readResult1.complete(new TestReadResult(0, readLength, results1));
         when(store.read(indexSegment, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult1);
         assertThrows(IllegalStateException.class, () -> processor.locateOffset(new WireCommands.LocateOffset(requestId, streamSegmentName, 20L, "")));
+    }
+
+    @Test(timeout = 20000)
+    public void testLocateOffsetThrowingStreamSegmentNotExistException() throws DurableDataLogException {
+        // Set up PravegaRequestProcessor instance to execute read segment request against
+        String streamSegmentName = "scope/stream/testLocateOffset";
+        String indexSegment = getIndexSegmentName(streamSegmentName);
+
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
+
+        StreamSegmentInformation info = StreamSegmentInformation.builder()
+                .name(streamSegmentName)
+                .length(96)
+                .startOffset(0)
+                .build();
+        CompletableFuture<SegmentProperties> future = new CompletableFuture<>();
+        future.completeExceptionally(new StreamSegmentNotExistsException("Segment does not exits"));
+
+        Mockito.when(store.getStreamSegmentInfo(anyString(), any()))
+                .thenReturn(future)
+                .thenReturn(CompletableFuture.completedFuture(info));
+
+        processor.locateOffset(new WireCommands.LocateOffset(requestId, streamSegmentName, 20L, ""));
+
+        verify(connection).send(new WireCommands.OffsetLocated(requestId, streamSegmentName, 96));
+
+        CompletableFuture<SegmentProperties> future2 = new CompletableFuture<>();
+        future2.completeExceptionally(new StreamSegmentNotExistsException("Segment does not exits"));
+
+        Mockito.when(store.getStreamSegmentInfo(anyString(), any()))
+                .thenReturn(future2);
+        processor.locateOffset(new WireCommands.LocateOffset(requestId, streamSegmentName, 20L, ""));
+        verify(store, times(2)).getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT);
+        verify(store, times(2)).getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT);
+        verify(connection).send(new WireCommands.NoSuchSegment(requestId, streamSegmentName, "", -1L));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
     }
 
     @Test(timeout = 20000)
