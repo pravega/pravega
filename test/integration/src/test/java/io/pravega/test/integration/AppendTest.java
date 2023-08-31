@@ -412,7 +412,7 @@ public class AppendTest extends LeakDetectorTestSuite {
 
     @Test(timeout = 10000)
     public void testMultipleIndexAppends() throws Exception {
-        String segment = "testMultipleIndexAppends";
+        String segment = "testMultipleIndexAppends/testStream/0";
         String indexSegment = getIndexSegmentName(segment);
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();

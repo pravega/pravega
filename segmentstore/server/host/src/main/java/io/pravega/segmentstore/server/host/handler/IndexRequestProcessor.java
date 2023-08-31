@@ -92,6 +92,7 @@ public final class IndexRequestProcessor {
                 case Cache: // fallthrough
                 case Future:
                 case Storage:
+                    firstElement.requestContent(TIMEOUT);
                     BufferView content = firstElement.getContent().join();
                     IndexEntry entry = IndexEntry.fromBytes(content);
                     return entry.getOffset();

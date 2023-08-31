@@ -1634,7 +1634,7 @@ public class PravegaRequestProcessorTest {
 
     @Test
     public void testCreateSealTruncateDeleteIndexSegment() throws Exception {
-        String segment = "testCreateSealTruncateDeleteIndexSegment";
+        String segment = "testCreateSealTruncateDeleteIndexSegment/testStream/0";
         String indexSegment = getIndexSegmentName(segment);
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
@@ -1692,7 +1692,7 @@ public class PravegaRequestProcessorTest {
 
     @Test
     public void testTruncateIndexSegmentWithNegativeOffset() throws Exception {
-        String segment = "testTruncateIndexSegmentWithNegativeOffset";
+        String segment = "testTruncateIndexSegmentWithNegativeOffset/testStream/0";
         String indexSegment = getIndexSegmentName(segment);
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
@@ -1724,7 +1724,7 @@ public class PravegaRequestProcessorTest {
 
     @Test
     public void testTruncateIndexSegmentWithGreaterThenEndOffset() throws Exception {
-        String segment = "testTruncateIndexSegmentWithGreaterThenEndOffset";
+        String segment = "testTruncateIndexSegmentWithGreaterThenEndOffset/testStream/0";
         String indexSegment = getIndexSegmentName(segment);
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());

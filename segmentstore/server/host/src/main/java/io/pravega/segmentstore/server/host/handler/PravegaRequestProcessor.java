@@ -141,6 +141,7 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static io.pravega.shared.NameUtils.isTransientSegment;
+import static io.pravega.shared.NameUtils.isUserStreamSegment;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -502,6 +503,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private CompletableFuture<Void> createIndexSegment(final String segmentName) {
+        if (!isUserStreamSegment(segmentName)) {
+            log.info("No need to create index segment for segment {}.", segmentName);
+            return CompletableFuture.completedFuture(null);
+        }
         log.info("Creating index segment {}.", getIndexSegmentName(segmentName));
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
@@ -1069,6 +1074,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         String indexSegment = getIndexSegmentName(segment);
         long indexSegmentOffset;
         try {
+            if (!isUserStreamSegment(segment)) {
+                log.debug("No need to perform truncation of index segment for {}.", segment);
+                return new CompletableFuture<Void>();
+            }
             indexSegmentOffset = IndexRequestProcessor.locateOffsetForIndexSegment(segmentStore, segment, offset, false);
             log.info("Truncating index segment {} at offset {}.", indexSegment, indexSegmentOffset);
         } catch (Exception e) {
