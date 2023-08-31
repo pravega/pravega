@@ -1076,7 +1076,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         try {
             if (!isUserStreamSegment(segment)) {
                 log.debug("No need to perform truncation of index segment for {}.", segment);
-                return new CompletableFuture<Void>();
+                return CompletableFuture.completedFuture(null);
             }
             indexSegmentOffset = IndexRequestProcessor.locateOffsetForIndexSegment(segmentStore, segment, offset, false);
             log.info("Truncating index segment {} at offset {}.", indexSegment, indexSegmentOffset);
@@ -1092,7 +1092,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         if (indexSegmentOffset == 0) {
-            log.debug("Index Segment offset is 0. No need to truncate it.");
+            log.debug("Index Segment {} offset is 0. No need to truncate it.", indexSegment);
             return CompletableFuture.completedFuture(null);
         }
         return segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT);
