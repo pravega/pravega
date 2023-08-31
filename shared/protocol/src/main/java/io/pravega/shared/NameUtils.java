@@ -888,6 +888,29 @@ public final class NameUtils {
     }
 
     /**
+     * Validates a user created stream segment.
+     *
+     * @param streamSegmentName User supplied stream segment name to validate.
+     * @return True, if its a user created stream segment.
+     */
+    public static boolean isUserStreamSegment(String streamSegmentName) {
+        try {
+            if (isTableSegment(streamSegmentName) || isTransactionSegment(streamSegmentName) || isTransientSegment(streamSegmentName)
+                    || isIndexSegment(streamSegmentName)) {
+                return false;
+            }
+            validateUserStreamName(getStreamName(streamSegmentName));
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static String getStreamName(String streamSegment) {
+        return streamSegment.split("/")[1];
+    }
+
+    /**
      * Validates a user-created Key-Value Table name.
      * @param name User supplied Key-Value Table name to validate.
      * @return The name, if valid.

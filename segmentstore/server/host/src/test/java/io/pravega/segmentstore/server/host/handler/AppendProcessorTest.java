@@ -1206,7 +1206,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyNoMoreInteractions(store);
     }
 
-    @Test//(timeout = 15 * 1000)
+    @Test(timeout = 15 * 1000)
     public void testAppendAfterSealThrows() throws Exception {
         String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
