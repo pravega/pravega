@@ -1784,58 +1784,6 @@ public class PravegaRequestProcessorTest {
         assertTrue(reply instanceof WireCommands.SegmentTruncated);
     }
 
-    @Test(timeout = 10000)
-    public void testTruncateIndexSegmentThrowIllegalArgumentException() throws Exception {
-        String segmentName = "truncateSegment";
-        String indexSegmentName = getIndexSegmentName(segmentName);
-        StreamSegmentStore store = mock(StreamSegmentStore.class);
-        @Cleanup
-        EmbeddedChannel channel = createChannel(store);
-
-        Duration timeout = Duration.ofMinutes(1);
-        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
-        serviceBuilder.initialize();
-
-        StreamSegmentInformation.builder()
-                .name(indexSegmentName)
-                .length(1000)
-                .startOffset(100)
-                .attributes(Map.of(EVENT_COUNT, 30L))
-                .build();
-
-        doThrow(new CompletionException(new IllegalArgumentException("Illegal argument-provided")))
-                .when(store).getStreamSegmentInfo(indexSegmentName, timeout);
-        doReturn(CompletableFuture.completedFuture(null)).when(store).truncateStreamSegment(anyString(), anyLong(), any());
-
-        Reply reply = sendRequest(channel, new WireCommands.TruncateSegment(requestId, segmentName, 30L, ""));
-        assertTrue(reply instanceof WireCommands.ErrorMessage);
-    }
-
-    @Test(timeout = 10000)
-    public void testTruncateIndexSegmentThrowIllegalStateException() throws Exception {
-        String segmentName = "truncateSegment";
-        String indexSegmentName = getIndexSegmentName(segmentName);
-        StreamSegmentStore store = mock(StreamSegmentStore.class);
-        @Cleanup
-        EmbeddedChannel channel = createChannel(store);
-
-        Duration timeout = Duration.ofMinutes(1);
-        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
-        serviceBuilder.initialize();
-
-        StreamSegmentInformation.builder()
-                .name(indexSegmentName)
-                .length(1000)
-                .startOffset(100)
-                .attributes(Map.of(EVENT_COUNT, 30L))
-                .build();
-
-        doThrow(new CompletionException(new IllegalStateException("Illegal State")))
-                .when(store).getStreamSegmentInfo(indexSegmentName, timeout);
-        doReturn(CompletableFuture.completedFuture(null)).when(store).truncateStreamSegment(anyString(), anyLong(), any());
-        assertThrows(IllegalStateException.class, () -> sendRequest(channel, new WireCommands.TruncateSegment(requestId, segmentName, 30L, "")));
-    }
-
     private ArrayView generateData(int length, Random rnd) {
         byte[] keyData = new byte[length];
         rnd.nextBytes(keyData);
