@@ -31,10 +31,10 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.MaxNumberOfCheckpointsExceededException;
-import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.MaxNumberOfCheckpointsExceededException;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -65,6 +65,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 
 public class CheckpointTest {
@@ -82,6 +83,120 @@ public class CheckpointTest {
     @AfterClass
     public static void teardown() {
         SERVICE_BUILDER.close();
+    }
+
+    @Test(timeout = 20000)
+    public void testCancelOutstandingCheckpoints() throws InterruptedException, ExecutionException {
+
+        String endpoint = "localhost";
+        String streamName = "testCancelOutstandingCheckpoints";
+        String readerGroupName = "testCancelOutstandingCheckpoints-group1";
+        int port = TestUtils.getAvailableListenPort();
+        String testString = "Hello world\n";
+        String scope = "testCancelOutstandingCheckpoints-Scope";
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
+                SERVICE_BUILDER.getLowPriorityExecutor(), new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        int maxOutstandingCheckpointRequest = 3;
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
+                .stream(Stream.of(scope, streamName))
+                .maxOutstandingCheckpointRequest(maxOutstandingCheckpointRequest)
+                .build();
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(3))
+                .build());
+        streamManager.createReaderGroup(readerGroupName, groupConfig);
+        @Cleanup
+        ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<String> eventWriter = clientFactory.createEventWriter(streamName, serializer,
+                EventWriterConfig.builder().build());
+        eventWriter.writeEvent(testString);
+        eventWriter.writeEvent(testString);
+        eventWriter.writeEvent(testString);
+        eventWriter.flush();
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader1 = clientFactory.createReader("reader1", readerGroupName, serializer,
+                ReaderConfig.builder().build(), clock::get,
+                clock::get);
+        @Cleanup
+        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", readerGroupName, serializer,
+                ReaderConfig.builder().build(), clock::get,
+                clock::get);
+        @Cleanup
+        EventStreamReader<String> reader3 = clientFactory.createReader("reader3", readerGroupName, serializer,
+                ReaderConfig.builder().build(), clock::get,
+                clock::get);
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+
+        @Cleanup("shutdown")
+        final InlineExecutor backgroundExecutor1 = new InlineExecutor();
+        @Cleanup("shutdown")
+        final InlineExecutor backgroundExecutor2 = new InlineExecutor();
+        @Cleanup("shutdown")
+        final InlineExecutor backgroundExecutor3 = new InlineExecutor();
+        @Cleanup("shutdown")
+        final InlineExecutor backgroundExecutor4 = new InlineExecutor();
+        @Cleanup("shutdown")
+        final InlineExecutor backgroundExecutor5 = new InlineExecutor();
+
+        CompletableFuture<Checkpoint> checkpoint1 = readerGroup.initiateCheckpoint("Checkpoint1", backgroundExecutor1);
+        assertFalse(checkpoint1.isDone());
+        CompletableFuture<Checkpoint> checkpoint2 = readerGroup.initiateCheckpoint("Checkpoint2", backgroundExecutor2);
+        assertFalse(checkpoint2.isDone());
+        CompletableFuture<Checkpoint> checkpoint3 = readerGroup.initiateCheckpoint("Checkpoint3", backgroundExecutor3);
+        assertFalse(checkpoint3.isDone());
+        CompletableFuture<Checkpoint> checkpoint4 = readerGroup.initiateCheckpoint("Checkpoint4", backgroundExecutor4);
+        assertTrue(checkpoint4.isCompletedExceptionally());
+        try {
+            checkpoint4.get();
+        } catch (ExecutionException e) {
+            assertTrue(e.getCause() instanceof MaxNumberOfCheckpointsExceededException);
+            assertTrue(e.getCause().getMessage()
+                    .equals("rejecting checkpoint request since pending checkpoint reaches max allowed limit"));
+        }
+        readerGroup.cancelOutstandingCheckpoints();
+        CompletableFuture<Checkpoint> checkpoint5 = readerGroup.initiateCheckpoint("Checkpoint5", backgroundExecutor5);
+
+        EventRead<String> read = reader1.readNextEvent(100);
+        assertTrue(read.isCheckpoint());
+        assertEquals("Checkpoint5", read.getCheckpointName());
+        assertNull(read.getEvent());
+
+        read = reader2.readNextEvent(100);
+        assertTrue(read.isCheckpoint());
+        assertEquals("Checkpoint5", read.getCheckpointName());
+        assertNull(read.getEvent());
+
+        read = reader3.readNextEvent(100);
+        assertTrue(read.isCheckpoint());
+        assertEquals("Checkpoint5", read.getCheckpointName());
+        assertNull(read.getEvent());
+
+        read = reader1.readNextEvent(100);
+        assertFalse(read.isCheckpoint());
+
+        read = reader2.readNextEvent(100);
+        assertFalse(read.isCheckpoint());
+
+        read = reader3.readNextEvent(100);
+        assertFalse(read.isCheckpoint());
+
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkpoint5.get()).disableAutomaticCheckpoints().build());
+        assertThrows("Checkpoint was cleared before results could be read.", ExecutionException.class, () -> checkpoint1.get(5, TimeUnit.SECONDS));
+        assertThrows("Checkpoint was cleared before results could be read.", ExecutionException.class, () -> checkpoint2.get(5, TimeUnit.SECONDS));
+        assertThrows("Checkpoint was cleared before results could be read.", ExecutionException.class, () -> checkpoint3.get(5, TimeUnit.SECONDS));
+        assertTrue(checkpoint5.isDone());
     }
 
     @Test(timeout = 20000)

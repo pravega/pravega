@@ -238,4 +238,18 @@ public class NameUtilsTest {
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateStreamName(indexSegmentName));
         AssertExtensions.assertThrows("", () -> NameUtils.getIndexSegmentName(indexSegmentName), ex -> ex instanceof IllegalArgumentException);
     }
+
+    @Test(timeout = 5000)
+    public void isUserStreamSegment() {
+        testUserStreamVerifier(NameUtils::isUserStreamSegment);
+    }
+
+    private void testUserStreamVerifier(Function<String, Boolean> toTest) {
+        Assert.assertEquals(Boolean.TRUE, toTest.apply("testScope/testStream/0"));
+        Assert.assertEquals(Boolean.FALSE, toTest.apply("_stream/_requestStream/0"));
+        Assert.assertEquals(Boolean.FALSE, toTest.apply(null));
+        Assert.assertEquals(Boolean.TRUE, toTest.apply("test/a-b-c/1"));
+        Assert.assertEquals(Boolean.TRUE, toTest.apply("test/1.2.3/0"));
+        Assert.assertEquals(Boolean.FALSE, toTest.apply("test/1.2.3/0#index"));
+    }
 }

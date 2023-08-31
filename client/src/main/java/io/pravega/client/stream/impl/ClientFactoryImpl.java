@@ -81,6 +81,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
     private final SegmentOutputStreamFactory outFactory;
     private final ConditionalOutputStreamFactory condFactory;
     private final SegmentMetadataClientFactory metaFactory;
+    private final ClientConfig clientConfig;
 
     private final ScheduledExecutorService watermarkReaderThreads = newScheduledThreadPool(getThreadPoolSize(), "WatermarkReader");
 
@@ -98,6 +99,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
         this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
+        this.clientConfig = config;
     }
 
     /**
@@ -142,6 +144,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
         this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
+        this.clientConfig = ClientConfig.builder().build();
     }
 
     @VisibleForTesting
@@ -157,6 +160,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
         this.outFactory = outFactory;
         this.condFactory = condFactory;
         this.metaFactory = metaFactory;
+        this.clientConfig = ClientConfig.builder().build();
     }
 
     @Override
@@ -244,7 +248,7 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
                 AccessOperation.READ_WRITE);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProvider);
-        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider);
+        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider, clientConfig);
     }
 
     @Override

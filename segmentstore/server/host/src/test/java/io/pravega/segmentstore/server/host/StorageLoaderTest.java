@@ -180,7 +180,7 @@ public class StorageLoaderTest {
         assertTrue(factory instanceof ExtendedS3SimpleStorageFactory);
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testSlowModeWithInMemoryStorage() throws Exception {
         @Cleanup("shutdownNow")
         ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");

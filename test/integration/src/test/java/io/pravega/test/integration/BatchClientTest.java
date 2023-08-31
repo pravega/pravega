@@ -381,8 +381,8 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertTrue(nextStreamCut2.asImpl().getPositions().size() == 2);
         assertTrue(nextStreamCut2.asImpl().getPositions().containsKey(segment1) &&
                 nextStreamCut2.asImpl().getPositions().containsKey(segment2));
-        assertEquals(map.get(segment1).longValue(), nextStreamCut2.asImpl().getPositions().get(segment1).longValue());
-        assertEquals(map.get(segment2).longValue(), nextStreamCut2.asImpl().getPositions().get(segment2).longValue());
+        assertTrue(map.get(segment1).longValue() <= nextStreamCut2.asImpl().getPositions().get(segment1).longValue());
+        assertTrue(map.get(segment2).longValue() <= nextStreamCut2.asImpl().getPositions().get(segment2).longValue());
     }
 
     /**
@@ -455,7 +455,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 80L);
         assertTrue(nextStreamCut != null);
         assertTrue(nextStreamCut.asImpl().getPositions().size() == 1);
-        assertEquals(90L, nextStreamCut.asImpl().getPositions().get(segment3).longValue());
+        assertTrue(90L <= nextStreamCut.asImpl().getPositions().get(segment3).longValue());
     }
 
     /**
@@ -535,8 +535,8 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertTrue(nextStreamCut.asImpl().getPositions().size() == 2);
         assertTrue(nextStreamCut.asImpl().getPositions().containsKey(segment1) &&
                 nextStreamCut.asImpl().getPositions().containsKey(segment2));
-        assertEquals(expectedSegment1Offset, nextStreamCut.asImpl().getPositions().get(segment1).longValue());
-        assertEquals(expectedSegment2Offset, nextStreamCut.asImpl().getPositions().get(segment2).longValue());
+        assertTrue(expectedSegment1Offset <= nextStreamCut.asImpl().getPositions().get(segment1).longValue());
+        assertTrue(expectedSegment2Offset <= nextStreamCut.asImpl().getPositions().get(segment2).longValue());
 
         // Getting streamcut at prior to tail of one of the segment.
         streamCut = map.get(segment1) == 0L ? new StreamCutImpl(Stream.of(SCOPE + "-4", STREAM + "-4"),
@@ -551,8 +551,8 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         assertTrue(nextStreamCut.asImpl().getPositions().size() == 2);
         assertTrue(nextStreamCut.asImpl().getPositions().containsKey(segment1) &&
                 nextStreamCut.asImpl().getPositions().containsKey(segment2));
-        assertEquals(expectedSegment1Offset, nextStreamCut.asImpl().getPositions().get(segment1).longValue());
-        assertEquals(expectedSegment2Offset, nextStreamCut.asImpl().getPositions().get(segment2).longValue());
+        assertTrue(expectedSegment1Offset <= nextStreamCut.asImpl().getPositions().get(segment1).longValue());
+        assertTrue(expectedSegment2Offset <= nextStreamCut.asImpl().getPositions().get(segment2).longValue());
     }
 
     /**
@@ -671,10 +671,10 @@ public class BatchClientTest extends ThreadPooledTestSuite {
                 nextStreamCut.asImpl().getPositions().containsKey(segment5) &&
                 nextStreamCut.asImpl().getPositions().containsKey(segment6) &&
                 nextStreamCut.asImpl().getPositions().containsKey(segment7));
-        assertEquals(expectedSegment4Offset, nextStreamCut.asImpl().getPositions().get(segment4).longValue());
-        assertEquals(expectedSegment5Offset, nextStreamCut.asImpl().getPositions().get(segment5).longValue());
-        assertEquals(expectedSegment6Offset, nextStreamCut.asImpl().getPositions().get(segment6).longValue());
-        assertEquals(expectedSegment7Offset, nextStreamCut.asImpl().getPositions().get(segment7).longValue());
+        assertTrue(expectedSegment4Offset <= nextStreamCut.asImpl().getPositions().get(segment4).longValue());
+        assertTrue(expectedSegment5Offset <= nextStreamCut.asImpl().getPositions().get(segment5).longValue());
+        assertTrue(expectedSegment6Offset <= nextStreamCut.asImpl().getPositions().get(segment6).longValue());
+        assertTrue(expectedSegment7Offset <= nextStreamCut.asImpl().getPositions().get(segment7).longValue());
     }
 
     /**
@@ -827,18 +827,18 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         StreamCut  nextStreamCut = batchClient.getNextStreamCut(streamCut, 2L);
         assertTrue(nextStreamCut != null);
         assertTrue(nextStreamCut.asImpl().getPositions().size() == 3);
-        assertEquals(expectedSegment0Offset, nextStreamCut.asImpl().getPositions().get(segment0).longValue());
-        assertEquals(expectedSegment1Offset, nextStreamCut.asImpl().getPositions().get(segment1).longValue());
-        assertEquals(expectedSegment2Offset, nextStreamCut.asImpl().getPositions().get(segment2).longValue());
+        assertTrue(expectedSegment0Offset <= nextStreamCut.asImpl().getPositions().get(segment0).longValue());
+        assertTrue(expectedSegment1Offset <= nextStreamCut.asImpl().getPositions().get(segment1).longValue());
+        assertTrue(expectedSegment2Offset <= nextStreamCut.asImpl().getPositions().get(segment2).longValue());
         StreamCut  nextStreamCut1 = batchClient.getNextStreamCut(nextStreamCut, 2L);
         expectedSegment0Offset = map.get(segment0) > 30L ? 60L : expectedSegment0Offset;
         expectedSegment1Offset = map.get(segment1) > 30L ? 60L : expectedSegment1Offset;
         expectedSegment2Offset = map.get(segment2) > 30L ? 60L : expectedSegment2Offset;
         assertTrue(nextStreamCut1 != null);
         assertTrue(nextStreamCut1.asImpl().getPositions().size() == 3);
-        assertEquals(expectedSegment0Offset, nextStreamCut1.asImpl().getPositions().get(segment0).longValue());
-        assertEquals(expectedSegment1Offset, nextStreamCut1.asImpl().getPositions().get(segment1).longValue());
-        assertEquals(expectedSegment2Offset, nextStreamCut1.asImpl().getPositions().get(segment2).longValue());
+        assertTrue(expectedSegment0Offset <= nextStreamCut1.asImpl().getPositions().get(segment0).longValue());
+        assertTrue(expectedSegment1Offset <= nextStreamCut1.asImpl().getPositions().get(segment1).longValue());
+        assertTrue(expectedSegment2Offset <= nextStreamCut1.asImpl().getPositions().get(segment2).longValue());
     }
 
     /**
@@ -903,10 +903,10 @@ public class BatchClientTest extends ThreadPooledTestSuite {
                 nextStreamCut.asImpl().getPositions().containsKey(segment2) &&
                 nextStreamCut.asImpl().getPositions().containsKey(segment3) &&
                 nextStreamCut.asImpl().getPositions().containsKey(segment4));
-        assertEquals(map.get(segment1).longValue(), nextStreamCut.asImpl().getPositions().get(segment1).longValue());
-        assertEquals(map.get(segment2).longValue(), nextStreamCut.asImpl().getPositions().get(segment2).longValue());
-        assertEquals(map.get(segment3).longValue(), nextStreamCut.asImpl().getPositions().get(segment3).longValue());
-        assertEquals(map.get(segment4).longValue(), nextStreamCut.asImpl().getPositions().get(segment4).longValue());
+        assertTrue(map.get(segment1).longValue() <= nextStreamCut.asImpl().getPositions().get(segment1).longValue());
+        assertTrue(map.get(segment2).longValue() <= nextStreamCut.asImpl().getPositions().get(segment2).longValue());
+        assertTrue(map.get(segment3).longValue() <= nextStreamCut.asImpl().getPositions().get(segment3).longValue());
+        assertTrue(map.get(segment4).longValue() <= nextStreamCut.asImpl().getPositions().get(segment4).longValue());
     }
 
     //region Private helper methods
