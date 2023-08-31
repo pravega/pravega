@@ -33,12 +33,15 @@ import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
+import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.common.util.Retry;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -65,11 +68,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 public class BatchClientImplTest {
 
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
+    private static final Retry.RetryWithBackoff RETRY_WITH_BACKOFF = Retry.withExpBackoff(1, 1, 2, Duration.ofSeconds(30).toMillis());
 
     private static class MockControllerWithSuccessors extends MockController {
         private StreamSegmentsWithPredecessors successors;
@@ -414,7 +420,7 @@ public class BatchClientImplTest {
         AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> client.getNextStreamCut(startingSC, 50L));
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 7000)
     public void testGetNextStreamCutWithTokenException() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Map<Segment, Long> positionMap = new HashMap<>();
@@ -428,7 +434,7 @@ public class BatchClientImplTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf, RETRY_WITH_BACKOFF);
         client.getConnection(segment1);
         ReplyProcessor processor = cf.getProcessor(endpoint);
         Mockito.doAnswer(new Answer<Void>() {
@@ -441,7 +447,40 @@ public class BatchClientImplTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.LocateOffset.class));
-        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> client.getNextStreamCut(startingSC, 50L));
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> client.getNextStreamCut(startingSC, 50L));
+    }
+
+    @Test(timeout = 7000)
+    public void testGetNextStreamCutRetryWithTokenException() throws Exception {
+        Segment segment1 = new Segment("scope", "stream", 1L);
+        Map<Segment, Long> positionMap = new HashMap<>();
+        positionMap.put(segment1, 30L);
+        StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockControllerWithSuccessors controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(), cf, getEmptyReplacement().join());
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf, RETRY_WITH_BACKOFF);
+        client.getConnection(segment1);
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) {
+
+                WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                processor.process(new WireCommands.AuthTokenCheckFailed(locateOffset.getRequestId(), "server-stacktrace",
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+                return null;
+            }
+        }).when(connection).send(any(WireCommands.LocateOffset.class));
+
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> client.getNextStreamCut(startingSC, 50L));
+        //Verify retry Logic
+        verify(connection, times(2)).send(any(WireCommands.LocateOffset.class));
     }
 
     @Test(timeout = 5000)
