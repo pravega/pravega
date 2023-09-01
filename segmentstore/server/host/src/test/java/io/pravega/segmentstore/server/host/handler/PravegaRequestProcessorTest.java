@@ -112,9 +112,12 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -368,6 +371,49 @@ public class PravegaRequestProcessorTest {
         verify(store, times(2)).getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT);
         verify(store, times(2)).getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT);
         verify(connection).send(new WireCommands.NoSuchSegment(requestId, streamSegmentName, "", -1L));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+    }
+
+    @Test(timeout = 20000)
+    public void locateOffsetTest() throws DurableDataLogException {
+        String streamSegmentName = "scope/stream/testLocateOffset";
+        String indexSegment = getIndexSegmentName(streamSegmentName);
+
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
+
+        StreamSegmentInformation info = StreamSegmentInformation.builder()
+                                                                .name(streamSegmentName)
+                                                                .length(24)
+                                                                .startOffset(0)
+                                                                .build();
+        Mockito.when(store.getStreamSegmentInfo(anyString(), any()))
+               .thenReturn(CompletableFuture.completedFuture(info));
+
+        ReadResultEntry readResultEntry = mock(ReadResultEntry.class);
+        doReturn(ReadResultEntryType.Cache).when(readResultEntry).getType();
+        doNothing().when(readResultEntry).requestContent(any());
+
+        ReadResult result= mock(ReadResult.class);
+        doReturn(readResultEntry).when(result).next();
+
+        doReturn(CompletableFuture.completedFuture(new IndexEntry(20, 1, 1233333).toBytes()))
+                .when(readResultEntry).getContent();
+        when(store.read(eq(indexSegment), anyLong(), anyInt(), any())).thenReturn(CompletableFuture.completedFuture(result));
+
+        processor.locateOffset(new WireCommands.LocateOffset(requestId, streamSegmentName, 20L, ""));
+
+        verify(connection).send(new WireCommands.OffsetLocated(requestId, streamSegmentName, 20L));
+
+        verify(store).getStreamSegmentInfo(eq(indexSegment), any());
+        verify(store).read(eq(indexSegment), anyLong(), anyInt(), any());
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -708,6 +754,69 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test(timeout = 20000)
+    public void testIndexSegmentUpdateOnTxnMerge() throws Exception {
+        String streamSegmentName = "scope/stream/testTxn";
+        UUID txnid = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
+
+        // create stream segment
+        processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
+        // create txn segment
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        // write to txn segment
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
+        order.verify(connection).send(Mockito.argThat(t -> t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists()));
+        doReturn(CompletableFuture.completedFuture(new IllegalStateException())).when(store).getAttributes(eq(getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), any());
+        processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), ""));
+        order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, ImmutableList.of(transactionName), ImmutableList.of(2L)));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
+
+        order.verifyNoMoreInteractions();
+    }
+
+    @Test(timeout = 20000)
+    public void testIndexSegmentUpdateOnTransientSegmentMerge() throws Exception {
+        String streamSegmentName = "scope/stream/testTxn";
+        UUID writerId = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
+
+        // create stream segment
+        processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
+        // create txn segment
+        String transientName = NameUtils.getTransientNameFromId(streamSegmentName, writerId);
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transientName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transientName));
+
+        assertTrue(append(transientName, 1, store));
+
+        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transientName, ""));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transientName, 1L));
+
+        order.verifyNoMoreInteractions();
+    }
+
+    @Test(timeout = 20000)
     public void testMergedTransaction() throws Exception {
         String streamSegmentName = "scope/stream/testMergedTxn";
         UUID txnid = UUID.randomUUID();
@@ -751,7 +860,11 @@ public class PravegaRequestProcessorTest {
 
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).sealStreamSegment(
                 anyString(), any());
-        doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).mergeStreamSegment(
+        SegmentProperties segmentProperties = StreamSegmentInformation.builder().name(streamSegmentName).length(123).build();
+        doReturn(CompletableFuture.completedFuture(segmentProperties)).when(store).getStreamSegmentInfo(anyString(),any());
+        doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName)))
+                .doReturn(Futures.failedFuture(new StreamSegmentMergedException(streamSegmentName)))
+                .when(store).mergeStreamSegment(
                 anyString(), anyString(), any(), any());
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
                 new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
@@ -760,6 +873,9 @@ public class PravegaRequestProcessorTest {
         processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), ""));
 
         order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, streamSegmentName, "", -1L));
+
+        processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), ""));
+        order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, List.of(transactionName), List.of(123L)));
     }
 
     @Test(timeout = 20000)

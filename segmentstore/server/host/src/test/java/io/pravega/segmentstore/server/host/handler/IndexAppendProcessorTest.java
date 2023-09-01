@@ -24,6 +24,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.InlineExecutor;
 import java.time.Duration;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.junit.After;
 import org.junit.Before;
@@ -31,12 +32,15 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
+import static io.pravega.shared.NameUtils.getTransactionNameFromId;
+import static io.pravega.shared.NameUtils.getTransientNameFromId;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 /**
@@ -126,4 +130,19 @@ public class IndexAppendProcessorTest {
         verify(store, times(0)).append(anyString(), any(), any(), any());
         verifyNoMoreInteractions(store);
     }
+
+    @Test(timeout = 5000)
+    public void processAppendForTransientSegmentTest() {
+        String nonUserStreamSegment = "_system/_testStream/0";
+        String transactionalSegment = getTransactionNameFromId("test/test/0", UUID.randomUUID());
+        String transientSegment = getTransientNameFromId("test/test/0", UUID.randomUUID());
+
+        IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
+        appendProcessor.processAppend(nonUserStreamSegment, NameUtils.INDEX_APPEND_EVENT_SIZE);
+        appendProcessor.processAppend(transientSegment, NameUtils.INDEX_APPEND_EVENT_SIZE);
+        appendProcessor.processAppend(transactionalSegment, NameUtils.INDEX_APPEND_EVENT_SIZE);
+
+        verifyNoInteractions(store);
+    }
+
 }

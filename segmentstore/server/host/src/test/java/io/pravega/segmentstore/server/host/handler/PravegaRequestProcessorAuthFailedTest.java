@@ -116,4 +116,10 @@ public class PravegaRequestProcessorAuthFailedTest {
         processor.updateSegmentPolicy(new WireCommands.UpdateSegmentPolicy(100L, "segment", (byte) 0, 0, "token"));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, "", TOKEN_CHECK_FAILED));
     }
+
+    @Test
+    public void locateOffset() {
+        processor.locateOffset(new WireCommands.LocateOffset(100L, "segment", (byte) 0, "token"));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, "", TOKEN_CHECK_FAILED));
+    }
 }
