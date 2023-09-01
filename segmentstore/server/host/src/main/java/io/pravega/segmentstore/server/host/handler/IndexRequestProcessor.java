@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.Retry;
 import io.pravega.common.util.SortUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
@@ -34,6 +35,9 @@ import lombok.extern.slf4j.Slf4j;
 public final class IndexRequestProcessor {
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
 
+    private static final int RETRY_MAX_DELAY_MS = 1000;
+    private static final int RETRY_COUNT = 5;
+    private static final Retry.RetryWithBackoff RETRY_WITH_BACKOFF = Retry.withExpBackoff(100, 2, RETRY_COUNT, RETRY_MAX_DELAY_MS);
     static final class SegmentTruncatedException extends RuntimeException {
         private static final long serialVersionUID = 1L;
 
@@ -91,18 +95,22 @@ public final class IndexRequestProcessor {
             switch (firstElement.getType()) {
                 case Cache: // fallthrough
                 case Storage:
-                    firstElement.requestContent(TIMEOUT);
-                    BufferView content = firstElement.getContent().join();
-                    IndexEntry entry = IndexEntry.fromBytes(content);
-                    return entry.getOffset();
+                    return getOffsetFromIndexEntry(firstElement);
+                case Future:
+                    return RETRY_WITH_BACKOFF.retryWhen(e -> true).run(() -> getOffsetFromIndexEntry(firstElement));
                 case Truncated:
                     throw new SegmentTruncatedException(String.format("Segment %s has been truncated.", segment));
-                case Future:
                 case EndOfStreamSegment:
                     throw new IllegalStateException(String.format("Unexpected size of index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
             }
             throw new IllegalStateException(String.format("Unexpected index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
         }, startIdx, endIdx > 0 ? endIdx - 1 : 0, targetOffset, greater);
+    }
+
+    private static long getOffsetFromIndexEntry(ReadResultEntry firstElement) {
+        firstElement.requestContent(TIMEOUT);
+        BufferView content = firstElement.getContent().join();
+        return IndexEntry.fromBytes(content).getOffset();
     }
 
     private static Map.Entry<Long, Long> getSegmentLength(StreamSegmentStore store, String segment, long startIdx) {

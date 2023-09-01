@@ -663,8 +663,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(truncateSegment.getRequestId(), "Truncating segment {} at offset {}.",
                 segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
-                //TODO later, we can decide whether it has to run on separate thread or same thread.
-                .thenAccept(v -> truncateIndexSegment(segment, offset))
+                .thenCompose(v -> truncateIndexSegment(segment, offset))
                 .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
                 .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, offset, operation, e));
     }
@@ -1071,29 +1070,32 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     }
 
-    private void truncateIndexSegment(String segment, long offset) {
+    private CompletableFuture<Void> truncateIndexSegment(String segment, long offset) {
         String indexSegment = getIndexSegmentName(segment);
+        long indexSegmentOffset;
         try {
             if (!isUserStreamSegment(segment)) {
                 log.debug("No need to perform truncation of index segment for {}.", segment);
-                return;
+                return CompletableFuture.completedFuture(null);
             }
-            long indexSegmentOffset = IndexRequestProcessor.locateOffsetForIndexSegment(segmentStore, segment, offset, false);
-            log.debug("Truncating index segment {} at offset {}.", indexSegment, indexSegmentOffset);
-            if (indexSegmentOffset == 0) {
-                return;
-            }
-            segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT)
-                    .whenComplete((v, exp) -> {
-                        if (exp != null) {
-                            log.warn("Failed to truncate index segment {} at offset {} due to", indexSegment, indexSegmentOffset, exp);
-                        } else {
-                            log.info("Successfully truncated index segment {} at offset {}", indexSegment, indexSegmentOffset);
-                        }
-                    });
+            indexSegmentOffset = IndexRequestProcessor.locateOffsetForIndexSegment(segmentStore, segment, offset, false);
+            log.info("Truncating index segment {} at offset {}.", indexSegment, indexSegmentOffset);
         } catch (Exception e) {
-            log.warn("Unable to locate offset for index segment {}  for offset {} due to ", indexSegment, offset, e);
+            Throwable ex = Exceptions.unwrap(e);
+            if (ex instanceof StreamSegmentNotExistsException) {
+                log.info("Stream segment {} does not exists, so skipping truncation of index segment.", segment);
+                return CompletableFuture.completedFuture(null);
+            }
+            log.warn("Unable to locate offset for index segment {} for offset {} due to ", indexSegment, offset, e);
+            // throw  exception to the caller.
+            throw new CompletionException(ex);
         }
+
+        if (indexSegmentOffset == 0) {
+            log.debug("Index Segment {} offset is 0. No need to truncate it.", indexSegment);
+            return CompletableFuture.completedFuture(null);
+        }
+        return segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT);
     }
 
     private WireCommands.TableEntries getTableEntriesCommand(final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {
