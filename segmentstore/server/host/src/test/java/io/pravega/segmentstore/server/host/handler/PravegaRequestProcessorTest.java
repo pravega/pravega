@@ -22,6 +22,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
@@ -1920,7 +1921,7 @@ public class PravegaRequestProcessorTest {
 
     @Test(timeout = 10000)
     public void testTruncateIndexSegmentThrowStreamSegmentNotExistsException() throws Exception {
-        String segmentName = "truncateSegment";
+        String segmentName = "truncateSegment/stream/0";
         String indexSegmentName = getIndexSegmentName(segmentName);
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup
@@ -1930,19 +1931,27 @@ public class PravegaRequestProcessorTest {
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
         serviceBuilder.initialize();
 
-        StreamSegmentInformation.builder()
-                .name(indexSegmentName)
-                .length(1000)
-                .startOffset(0)
-                .attributes(Map.of(EVENT_COUNT, 30L))
-                .build();
+        SegmentProperties segmentProperties = StreamSegmentInformation.builder()
+                                                                      .name(indexSegmentName)
+                                                                      .length(0)
+                                                                      .startOffset(0)
+                                                                      .attributes(Map.of(EVENT_COUNT, 30L))
+                                                                      .build();
 
-        doThrow(new CompletionException(new StreamSegmentNotExistsException("Segment does not exits")))
+        doReturn(CompletableFuture.failedFuture(new StreamSegmentNotExistsException("Segment does not exits")))
                 .when(store).getStreamSegmentInfo(indexSegmentName, timeout);
         doReturn(CompletableFuture.completedFuture(null)).when(store).truncateStreamSegment(anyString(), anyLong(), any());
 
         Reply reply = sendRequest(channel, new WireCommands.TruncateSegment(requestId, segmentName, 30L, ""));
         assertTrue(reply instanceof WireCommands.SegmentTruncated);
+
+        doReturn(CompletableFuture.completedFuture(segmentProperties)).when(store).getStreamSegmentInfo(any(), any());
+        reply = sendRequest(channel, new WireCommands.TruncateSegment(requestId, segmentName, 30L, ""));
+        assertTrue(reply instanceof WireCommands.SegmentTruncated);
+
+        doReturn(CompletableFuture.failedFuture(new TokenExpiredException("Token expired"))).when(store).getStreamSegmentInfo(any(), any());
+        reply = sendRequest(channel, new WireCommands.TruncateSegment(requestId, segmentName, 30L, ""));
+        assertTrue(reply instanceof WireCommands.AuthTokenCheckFailed);
     }
 
     private ArrayView generateData(int length, Random rnd) {
