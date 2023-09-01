@@ -52,6 +52,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             // for fresh lock, create the node and write its data.
             // if the node successfully got created, locking has succeeded,
             // else locking has failed.
+            log.info("Acquiring lock with the owner {}, threadId {}", owner, threadId);
             LockData lockData = new LockData(owner, threadId, taskData.serialize());
             client.create()
                     .creatingParentsIfNeeded()
@@ -79,22 +80,16 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
             Stat stat = new Stat();
             byte[] data = client.getData().storingStatIn(stat).forPath(getTaskPath(resource));
             LockData lockData = LockData.deserialize(data);
-            if (lockData.isOwnedBy(oldOwner, oldThreadId)) {
-                lockData = new LockData(owner, threadId, lockData.getTaskData());
+            log.info("Transfer lock with the lockData.getHostId {}, oldOwner {}, oldThreadId {}, " +
+                    "owner {} and threadId {}", lockData.getHostId(), oldOwner, oldThreadId, owner, threadId);
+            lockData = new LockData(owner, threadId, lockData.getTaskData());
 
-                client.setData().withVersion(stat.getVersion())
+            client.setData().withVersion(stat.getVersion())
                         .forPath(getTaskPath(resource), lockData.serialize());
-                lockAcquired = true;
-            }
         } catch (Exception e) {
             throw new LockFailedException(resource.getString(), e);
         }
-
-        if (lockAcquired) {
-            return null;
-        } else {
-            throw new LockFailedException(resource.getString());
-        }
+        return null;
     }
 
     @Override
@@ -162,12 +157,7 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
                     return Optional.empty();
                 } else {
                     LockData lockData = LockData.deserialize(data);
-                    if (lockData.isOwnedBy(owner, tag)) {
-                        return Optional.of(TaskData.deserialize(lockData.getTaskData()));
-                    } else {
-                        log.debug("Resource {} not owned by pair ({}, {})", resource.getString(), owner, tag);
-                        return Optional.empty();
-                    }
+                    return Optional.of(TaskData.deserialize(lockData.getTaskData()));
                 }
 
             } catch (KeeperException.NoNodeException e) {
