@@ -16,7 +16,6 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.Retry;
 import io.pravega.common.util.SortUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
@@ -25,6 +24,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,9 +35,6 @@ import lombok.extern.slf4j.Slf4j;
 public final class IndexRequestProcessor {
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
 
-    private static final int RETRY_MAX_DELAY_MS = 1000;
-    private static final int RETRY_COUNT = 5;
-    private static final Retry.RetryWithBackoff RETRY_WITH_BACKOFF = Retry.withExpBackoff(100, 2, RETRY_COUNT, RETRY_MAX_DELAY_MS);
     static final class SegmentTruncatedException extends RuntimeException {
         private static final long serialVersionUID = 1L;
 
@@ -90,28 +87,31 @@ public final class IndexRequestProcessor {
 
         return SortUtils.newtonianSearch(idx -> {
             ReadResult result = store.read(indexSegmentName, idx * NameUtils.INDEX_APPEND_EVENT_SIZE, NameUtils.INDEX_APPEND_EVENT_SIZE, TIMEOUT).join();
-            ReadResultEntry firstElement = result.next();
-            // TODO deal with element which is split over multiple entries.
-            switch (firstElement.getType()) {
-                case Cache: // fallthrough
-                case Storage:
-                    return getOffsetFromIndexEntry(firstElement);
-                case Future:
-                    return RETRY_WITH_BACKOFF.retryWhen(e -> true).run(() -> getOffsetFromIndexEntry(firstElement));
-                case Truncated:
-                    throw new SegmentTruncatedException(String.format("Segment %s has been truncated.", segment));
-                case EndOfStreamSegment:
-                    throw new IllegalStateException(String.format("Unexpected size of index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
-            }
-            throw new IllegalStateException(String.format("Unexpected index segment of type: %s was encountered for segment %s.", firstElement.getType(), segment));
+            result.readRemaining(0, TIMEOUT);
+            return getOffsetFromIndexEntry(indexSegmentName, result);
         }, startIdx, endIdx > 0 ? endIdx - 1 : 0, targetOffset, greater);
     }
 
-    private static long getOffsetFromIndexEntry(ReadResultEntry firstElement) {
-        firstElement.requestContent(TIMEOUT);
-        BufferView content = firstElement.getContent().join();
-        return IndexEntry.fromBytes(content).getOffset();
+    private static long getOffsetFromIndexEntry(String segment, ReadResult readResult) {
+        int bytesRead = 0;
+        ArrayList<BufferView> result = new ArrayList<>(1);
+        while (bytesRead < NameUtils.INDEX_APPEND_EVENT_SIZE) {
+            ReadResultEntry entry = readResult.next();
+            switch (entry.getType()) {
+            case Truncated:
+                throw new SegmentTruncatedException(String.format("Segment %s has been truncated.", segment));
+            case EndOfStreamSegment:
+                throw new IllegalStateException(String.format("Unexpected size of index segment of type: %s was encountered for segment %s.", entry.getType(), segment));
+            case Cache: // fallthrough
+            case Storage:
+            case Future:
+                entry.requestContent(TIMEOUT);
+                result.add(entry.getContent().join());
+            }
+        }
+        return IndexEntry.fromBytes(BufferView.wrap(result)).getOffset();
     }
+
 
     private static Map.Entry<Long, Long> getSegmentLength(StreamSegmentStore store, String segment, long startIdx) {
         SegmentProperties segmentProperties = store.getStreamSegmentInfo(segment, TIMEOUT).join();
