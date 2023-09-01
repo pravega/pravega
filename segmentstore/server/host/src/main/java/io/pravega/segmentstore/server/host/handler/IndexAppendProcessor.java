@@ -17,15 +17,17 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import io.netty.buffer.Unpooled;
-import io.pravega.common.concurrent.MultiKeyLatestItemSequentialProcessor;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.common.concurrent.DelayedProcessor;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
@@ -41,11 +43,25 @@ import static io.pravega.shared.NameUtils.isUserStreamSegment;
 public class IndexAppendProcessor {
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private final StreamSegmentStore store;
-    private final MultiKeyLatestItemSequentialProcessor<String, Long> appendProcessor;
+    private final Duration delay;
+    private final DelayedProcessor<QueuedSegment> appendProcessor;
+
+    @Data
+    private static class QueuedSegment implements DelayedProcessor.Item {
+        private final String segmentName;
+
+        @Override
+        public String key() {
+            return segmentName;
+        }
+
+    }
 
     public IndexAppendProcessor(ScheduledExecutorService indexSegmentUpdateExecutor, StreamSegmentStore store) {
         this.store = store;
-        appendProcessor = new MultiKeyLatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
+        this.delay = Duration.ofMillis(10);
+        this.appendProcessor = new DelayedProcessor<QueuedSegment>(this::handleIndexAppend, this.delay,
+                                                                   indexSegmentUpdateExecutor, "IndexAppendProcessor");
     }
 
     /**
@@ -64,23 +80,23 @@ public class IndexAppendProcessor {
                     getIndexSegmentName(segmentName), indexSegmentEventSize, NameUtils.INDEX_APPEND_EVENT_SIZE);
             return;
         }
-        appendProcessor.updateItem(segmentName, indexSegmentEventSize);
+        appendProcessor.process(new QueuedSegment(segmentName));
     }
 
-    private void handleIndexAppend(String segmentName, long indexSegmentEventSize) {
-        store.getStreamSegmentInfo(segmentName, TIMEOUT)
-                .thenCompose(info -> {
-                    long eventCount = info.getAttributes().get(EVENT_COUNT) != null ? info.getAttributes().get(EVENT_COUNT) : 0;
-                    ByteBufWrapper byteBuff = getIndexAppendBuf(info.getLength(), eventCount);
-                    AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
-                            new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.ReplaceIfGreater, eventCount));
-                    return store.append(getIndexSegmentName(segmentName), byteBuff, attributes, TIMEOUT);
-
-                }).thenAccept(v -> log.trace("Index segment append successful for segment {} ", getIndexSegmentName(segmentName)))
-                .exceptionally(ex -> {
-                    log.warn("Index segment append failed for segment {} due to ", getIndexSegmentName(segmentName), ex);
-                    return null;
-                });
+    private CompletableFuture<Void> handleIndexAppend(QueuedSegment segment) {
+        return store.getStreamSegmentInfo(segment.segmentName, TIMEOUT).thenCompose(info -> {
+            long eventCount = info.getAttributes().get(EVENT_COUNT) != null ? info.getAttributes().get(EVENT_COUNT) : 0;
+            ByteBufWrapper byteBuff = getIndexAppendBuf(info.getLength(), eventCount);
+            AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.ReplaceIfGreater, eventCount));
+            return store.append(getIndexSegmentName(segment.segmentName), byteBuff, attributes, TIMEOUT);
+        }).thenRun(() -> {
+            log.trace("Index segment append successful for segment {} ", getIndexSegmentName(segment.segmentName));
+        }).exceptionally(ex -> {
+            log.warn(
+                "Index segment append failed for segment {} due to ", getIndexSegmentName(segment.segmentName), ex);
+            return null;
+        });
     }
 
     private ByteBufWrapper getIndexAppendBuf(Long eventLength, Long eventCount) {
