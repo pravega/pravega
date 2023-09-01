@@ -95,7 +95,7 @@ public final class IndexRequestProcessor {
     private static long getOffsetFromIndexEntry(String segment, ReadResult readResult) {
         int bytesRead = 0;
         ArrayList<BufferView> result = new ArrayList<>(1);
-        while (bytesRead < NameUtils.INDEX_APPEND_EVENT_SIZE) {
+        while (readResult.hasNext() && bytesRead < NameUtils.INDEX_APPEND_EVENT_SIZE) {
             ReadResultEntry entry = readResult.next();
             switch (entry.getType()) {
             case Truncated:
@@ -106,7 +106,9 @@ public final class IndexRequestProcessor {
             case Storage:
             case Future:
                 entry.requestContent(TIMEOUT);
-                result.add(entry.getContent().join());
+                BufferView data = entry.getContent().join();
+                bytesRead += data.getLength();
+                result.add(data);
             }
         }
         return IndexEntry.fromBytes(BufferView.wrap(result)).getOffset();
