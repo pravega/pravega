@@ -21,8 +21,10 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -33,8 +35,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.ToString;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * An async processor that executes items after a predetermined (yet fixed) delay of time.
@@ -54,7 +56,7 @@ import lombok.val;
  * @param <T> Type of item to process.
  */
 @Slf4j
-public class DelayedProcessor<T extends DelayedProcessor.Item> implements AutoCloseable {
+public class DelayedProcessor<T extends DelayedProcessor.Item> {
     //region Private
 
     private final Function<T, CompletableFuture<Void>> itemProcessor;
@@ -101,19 +103,23 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> implements AutoCl
 
     //endregion
 
-    //region AutoCloseable implementation
-
-    @Override
-    public void close() {
+    /**
+     * Shuts down the Delay processor. No further items will be processed.
+     * Outstanding items are returned. 
+     * 
+     * @return A list of unprocessed items.
+     */
+    public List<T> shutdown() {
         if (!this.closed.getAndSet(true)) {
-            this.runTask.cancel(true);
             val delayTask = this.currentIterationDelayTask;
             if (delayTask != null) {
                 delayTask.cancel(true);
             }
-            this.queue.clear();
+            Futures.await(runTask);
             log.info("{}: Closed.", this.traceObjectId);
+            return this.queue.drain();
         }
+        return List.of();
     }
 
     //endregion
@@ -160,7 +166,7 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> implements AutoCl
         log.info("{}: Started. Iteration Delay = {} ms.", this.traceObjectId, this.itemDelay.toMillis());
         return Futures.loop(
                 () -> !this.closed.get(),
-                () -> delay().thenComposeAsync(v -> runOneIteration(), this.executor),
+                () -> delay().thenComposeAsync(v -> runOneIteration()),
                 this.executor);
     }
 
@@ -225,9 +231,14 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> implements AutoCl
         @GuardedBy("this")
         private final Deque<QueueItem> queue = new ArrayDeque<>();
 
-        synchronized void clear() {
+        synchronized List<T> drain() {
             this.keys.clear();
+            val result = new ArrayList<T>();
+            for (DelayedProcessor<T>.QueueItem item : queue) {
+                result.add(item.getWrappedItem());
+            }
             this.queue.clear();
+            return result;
         }
 
         synchronized int size() {

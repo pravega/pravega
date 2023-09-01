@@ -207,6 +207,11 @@ public final class ServiceStarter {
                 this.restServer.awaitTerminated();
                 log.info("RESTServer closed.");
             }
+            
+            if (this.indexAppendProcessor != null) {
+                this.indexAppendProcessor.close();
+                log.info("IndexAppendProcessor closed.");
+            }
 
             if (this.listener != null) {
                 this.listener.close();

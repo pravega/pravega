@@ -16,6 +16,7 @@
 
 package io.pravega.segmentstore.server.host.handler;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.DelayedProcessor;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -40,7 +41,7 @@ import static io.pravega.shared.NameUtils.isUserStreamSegment;
  * Process incoming Append request for index segment.
  */
 @Slf4j
-public class IndexAppendProcessor {
+public class IndexAppendProcessor implements AutoCloseable {
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private final StreamSegmentStore store;
     private final Duration delay;
@@ -56,12 +57,17 @@ public class IndexAppendProcessor {
         }
 
     }
-
-    public IndexAppendProcessor(ScheduledExecutorService indexSegmentUpdateExecutor, StreamSegmentStore store) {
+    
+    @VisibleForTesting
+    IndexAppendProcessor(ScheduledExecutorService indexSegmentUpdateExecutor, StreamSegmentStore store, Duration delay) {
         this.store = store;
-        this.delay = Duration.ofMillis(10);
+        this.delay = delay;
         this.appendProcessor = new DelayedProcessor<QueuedSegment>(this::handleIndexAppend, this.delay,
                                                                    indexSegmentUpdateExecutor, "IndexAppendProcessor");
+    }
+
+    public IndexAppendProcessor(ScheduledExecutorService indexSegmentUpdateExecutor, StreamSegmentStore store) {
+        this(indexSegmentUpdateExecutor, store, Duration.ofMillis(10));
     }
 
     /**
@@ -104,4 +110,15 @@ public class IndexAppendProcessor {
         return new ByteBufWrapper(Unpooled.wrappedBuffer( indexEntry.toBytes().getCopy()));
     }
 
+    @Override
+    public void close() {
+        appendProcessor.shutdown();
+    }
+    
+    @VisibleForTesting
+    void runRemainingAndClose() {
+        for (QueuedSegment segment : appendProcessor.shutdown()) {
+            handleIndexAppend(segment);
+        }
+    }
 }
