@@ -101,14 +101,11 @@ public class IndexRequestProcessorTest {
         doNothing().when(readResultEntry).requestContent(any());
         doReturn(ReadResultEntryType.Future).when(readResultEntry).getType();
         doReturn(CompletableFuture.completedFuture(BufferView.empty())).when(readResultEntry).getContent();
-        ReadResult result= mock(ReadResult.class);
+        ReadResult result = mock(ReadResult.class);
         doReturn(readResultEntry).when(result).next();
         doReturn(CompletableFuture.completedFuture(indexSegmentProperties)).when(store).getStreamSegmentInfo(eq(indexSegmentName), any());
         doReturn(CompletableFuture.completedFuture(result)).when(store).read(anyString(), anyLong(), anyInt(), any());
         assertThrows(RetriesExhaustedException.class, () -> IndexRequestProcessor.locateOffsetForSegment(store, segmentName, 10L, true));
     }
-
-
-
 
 }
