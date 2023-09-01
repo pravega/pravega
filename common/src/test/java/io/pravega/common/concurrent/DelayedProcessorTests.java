@@ -61,7 +61,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
             currentProcessFuture.set(r);
             return r;
         };
-        @Cleanup
+        @Cleanup("shutdown")
         val p = new TestProcessor(itemProcessor);
 
         val i1 = new TestItem("1");
@@ -139,7 +139,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
             currentProcessFuture.set(r);
             return r;
         };
-        @Cleanup
+        @Cleanup("shutdown")
         val p = new TestProcessor(itemProcessor);
 
         val i1 = new TestItem("1");
@@ -192,7 +192,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
             currentProcessFuture.set(r);
             return r;
         };
-        @Cleanup
+        @Cleanup("shutdown")
         val p = new TestProcessor(itemProcessor);
 
         val i1 = new TestItem("1");
@@ -240,7 +240,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
             currentProcessFuture.set(r);
             return r;
         };
-        @Cleanup
+        @Cleanup("shutdown")
         val p = new TestProcessor(itemProcessor);
 
         val i1 = new TestItem("1");
@@ -285,7 +285,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
             currentProcessFuture.set(r);
             return r;
         };
-        @Cleanup
+        @Cleanup("shutdown")
         val p = new TestProcessor(itemProcessor);
 
         val i1 = new TestItem("1");
@@ -339,24 +339,22 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
         val i1 = new TestItem("1");
 
         // First test is when we cancel while delaying for next iteration.
-        @Cleanup
         val p1 = new TestProcessor(itemProcessor);
         p1.awaitNewIteration();
         p1.process(i1);
         p1.advanceTime(DEFAULT_DELAY);
-        p1.close();
+        p1.shutdown();
         p1.releaseDelayedFuture();
         Assert.assertEquals("Not expecting any items to be processed when closed while waiting.", 0, processedItemCount.get());
 
         // Second test is when we cancel while executing next iteration.
-        @Cleanup
         val p2 = new TestProcessor(itemProcessor);
         p2.process(i1);
         p2.awaitNewIteration();
         p2.advanceTime(DEFAULT_DELAY);
         p2.releaseDelayedFuture();
         AssertExtensions.assertEventuallyEquals(1, processedItemCount::get, TIMEOUT_MILLIS);
-        p1.close();
+        p1.shutdown();
         currentProcessFuture.getAndSet(null).complete(null);
 
         Assert.assertEquals("Unexpected number of items processed.", 1, processedItemCount.get());

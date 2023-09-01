@@ -16,6 +16,7 @@
 package io.pravega.common.concurrent;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
@@ -119,7 +120,7 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> {
             log.info("{}: Closed.", this.traceObjectId);
             return this.queue.drain();
         }
-        return List.of();
+        return ImmutableList.of();
     }
 
     //endregion
