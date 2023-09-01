@@ -102,6 +102,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Getter
     private final long requestId = Flow.create().asLong();
 
+    @VisibleForTesting
     SegmentOutputStreamImpl(String segmentName, boolean useConnectionPooling, Controller controller, ConnectionPool connectionPool, UUID writerId, Consumer<Segment> resendToSuccessorsCallback, RetryWithBackoff retrySchedule, DelegationTokenProvider tokenProvider) {
         this(segmentName, useConnectionPooling, controller, connectionPool, writerId, resendToSuccessorsCallback, retrySchedule, tokenProvider, ClientConfig.builder().build());
     }
@@ -681,7 +682,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                           // A late timeout if fine it will just cause a spurious connection close.
                           // A late success may be a problem because it causes retransmits of the wrong messages.
                           // In theory the server should guard against this, but that's not ideal to depend on for client correctness.
-                          // Instead the local future and connection is used and connectionSetupComplete takes a connection object.
+                          // Instead, the local future and connection is used and connectionSetupComplete takes a connection object.
                           return connectionSetupFuture.exceptionally(t1 -> {
                               Throwable exception = Exceptions.unwrap(t1);
                               if (exception instanceof InvalidTokenException) {
