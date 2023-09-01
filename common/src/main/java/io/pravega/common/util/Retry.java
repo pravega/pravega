@@ -28,7 +28,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
 import lombok.Getter;
 import lombok.With;
 import lombok.extern.slf4j.Slf4j;
@@ -142,7 +141,6 @@ public final class Retry {
             this.maxDelay = maxDelay;
             this.isInitialDelayForfirstRetry = isInitialDelayForfirstRetry;
         }
-
 
         public <RetryT extends Exception> RetryExceptionally<RetryT> retryingOn(Class<RetryT> retryType) {
             Preconditions.checkNotNull(retryType);
