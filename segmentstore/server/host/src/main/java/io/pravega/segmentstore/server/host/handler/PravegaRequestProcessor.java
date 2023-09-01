@@ -110,7 +110,6 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -142,6 +141,7 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static io.pravega.shared.NameUtils.isTransientSegment;
+import static io.pravega.shared.NameUtils.isUserStreamSegment;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -179,13 +179,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * @param segmentStore The StreamSegmentStore to attach to (and issue requests to).
      * @param tableStore The TableStore to attach to (and issue requests to).
      * @param connection   The ServerConnection to attach to (and send responses to).
-     * @param indexAppendExecutor The executor service to process index append.
+     * @param indexAppendProcessor Index append processor to be used for appending on index segment.
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
-                                   ScheduledExecutorService indexAppendExecutor) {
+                                   IndexAppendProcessor indexAppendProcessor) {
         this(segmentStore, tableStore, new TrackedConnection(connection, new ConnectionTracker()), SegmentStatsRecorder.noOp(),
-                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, indexAppendExecutor);
+                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, indexAppendProcessor);
     }
 
     /**
@@ -198,11 +198,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * @param tableStatsRecorder A TableSegmentStatsRecorder for Metrics for Table Segments.
      * @param tokenVerifier  Verifier class that verifies delegation token.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
+     * @param indexAppendProcessor Index append processor to be used for appending on index segment.
      */
     PravegaRequestProcessor(@NonNull StreamSegmentStore segmentStore, @NonNull TableStore tableStore, @NonNull TrackedConnection connection,
                             @NonNull SegmentStatsRecorder statsRecorder, @NonNull TableSegmentStatsRecorder tableStatsRecorder,
                             @NonNull DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError,
-                            @NonNull ScheduledExecutorService indexAppendExecutor) {
+                            @NonNull IndexAppendProcessor indexAppendProcessor) {
         this.segmentStore = segmentStore;
         this.tableStore = tableStore;
         this.connection = connection;
@@ -210,7 +211,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         this.statsRecorder = statsRecorder;
         this.tableStatsRecorder = tableStatsRecorder;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
-        this.indexAppendProcessor = new IndexAppendProcessor(indexAppendExecutor, segmentStore);
+        this.indexAppendProcessor = indexAppendProcessor;
     }
 
     //endregion
@@ -502,6 +503,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private CompletableFuture<Void> createIndexSegment(final String segmentName) {
+        if (!isUserStreamSegment(segmentName)) {
+            log.info("No need to create index segment for segment {}.", segmentName);
+            return CompletableFuture.completedFuture(null);
+        }
         log.info("Creating index segment {}.", getIndexSegmentName(segmentName));
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
@@ -658,8 +663,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(truncateSegment.getRequestId(), "Truncating segment {} at offset {}.",
                 segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
-                //TODO later, we can decide whether it has to run on separate thread or same thread.
-                .thenAccept(v -> truncateIndexSegment(segment, offset))
+                .thenCompose(v -> truncateIndexSegment(segment, offset))
                 .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
                 .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, offset, operation, e));
     }
@@ -723,7 +727,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             long offset = IndexRequestProcessor.locateOffsetForSegment(segmentStore, segment, locateOffset.getTargetOffset(), true);
             connection.send(new WireCommands.OffsetLocated(requestId, segment, offset));
         } catch (Exception e) {
-            handleException(requestId, segment, operation, e);
+            if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
+                log.info("Index segment does not exist for segment : {}, hence returning the segment length as offset", segment);
+                segmentStore.getStreamSegmentInfo(segment, TIMEOUT)
+                        .thenAccept(info -> connection.send(new WireCommands.OffsetLocated(requestId, segment, info.getLength())))
+                        .exceptionally(ex -> handleException(requestId, segment, operation, ex));
+            } else {
+                handleException(requestId, segment, operation, e);
+            }
         }
     }
 
@@ -1066,25 +1077,32 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     }
 
-    private void truncateIndexSegment(String segment, long offset) {
+    private CompletableFuture<Void> truncateIndexSegment(String segment, long offset) {
         String indexSegment = getIndexSegmentName(segment);
+        long indexSegmentOffset;
         try {
-            long indexSegmentOffset = IndexRequestProcessor.locateOffsetForIndexSegment(segmentStore, segment, offset, false);
-            log.debug("Truncating index segment {} at offset {}.", indexSegment, indexSegmentOffset);
-            if (indexSegmentOffset == 0) {
-                return;
+            if (!isUserStreamSegment(segment)) {
+                log.debug("No need to perform truncation of index segment for {}.", segment);
+                return CompletableFuture.completedFuture(null);
             }
-            segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT)
-                    .whenComplete((v, exp) -> {
-                        if (exp != null) {
-                            log.warn("Failed to truncate index segment {} at offset {} due to", indexSegment, indexSegmentOffset, exp);
-                        } else {
-                            log.info("Successfully truncated index segment {} at offset {}", indexSegment, indexSegmentOffset);
-                        }
-                    });
+            indexSegmentOffset = IndexRequestProcessor.locateOffsetForIndexSegment(segmentStore, segment, offset, false);
+            log.info("Truncating index segment {} at offset {}.", indexSegment, indexSegmentOffset);
         } catch (Exception e) {
-            log.warn("Unable to locate offset for index segment {}  for offset {} due to ", indexSegment, offset, e);
+            Throwable ex = Exceptions.unwrap(e);
+            if (ex instanceof StreamSegmentNotExistsException) {
+                log.info("Stream segment {} does not exists, so skipping truncation of index segment.", segment);
+                return CompletableFuture.completedFuture(null);
+            }
+            log.warn("Unable to locate offset for index segment {} for offset {} due to ", indexSegment, offset, e);
+            // throw  exception to the caller.
+            throw new CompletionException(ex);
         }
+
+        if (indexSegmentOffset == 0) {
+            log.debug("Index Segment {} offset is 0. No need to truncate it.", indexSegment);
+            return CompletableFuture.completedFuture(null);
+        }
+        return segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT);
     }
 
     private WireCommands.TableEntries getTableEntriesCommand(final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {

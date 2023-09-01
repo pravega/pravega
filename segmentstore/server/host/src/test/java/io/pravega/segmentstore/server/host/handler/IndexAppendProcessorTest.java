@@ -61,7 +61,7 @@ public class IndexAppendProcessorTest {
 
     @Test(timeout = 6000)
     public void processAppend() {
-        String segmentName = "test";
+        String segmentName = "testScope/testStream/0";
         SegmentProperties segmentProperties = StreamSegmentInformation.builder()
                                                                      .name(segmentName)
                                                                      .length(1234)
@@ -88,7 +88,7 @@ public class IndexAppendProcessorTest {
 
     @Test(timeout = 6000)
     public void processAppendDifferentEventSizeTest() {
-        String segmentName = "test";
+        String segmentName = "testScope/testStream/0";
         SegmentProperties segmentProperties = StreamSegmentInformation.builder()
                 .name(segmentName)
                 .length(1234)
@@ -112,7 +112,7 @@ public class IndexAppendProcessorTest {
 
     @Test(timeout = 6000)
     public void processAppendExceptionTest() {
-        String segmentName = "test";
+        String segmentName = "testScope/testStream/0";
         CompletableFuture<SegmentProperties> future = new CompletableFuture<>();
         future.completeExceptionally(new StreamSegmentNotExistsException("Segment does not exits"));
 

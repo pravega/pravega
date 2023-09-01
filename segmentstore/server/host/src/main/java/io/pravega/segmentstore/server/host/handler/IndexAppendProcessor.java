@@ -32,6 +32,7 @@ import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static io.pravega.shared.NameUtils.isTransactionSegment;
 import static io.pravega.shared.NameUtils.isTransientSegment;
+import static io.pravega.shared.NameUtils.isUserStreamSegment;
 
 /**
  * Process incoming Append request for index segment.
@@ -39,14 +40,12 @@ import static io.pravega.shared.NameUtils.isTransientSegment;
 @Slf4j
 public class IndexAppendProcessor {
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private final ScheduledExecutorService indexSegmentUpdateExecutor;
     private final StreamSegmentStore store;
-    private final MultiKeyLatestItemSequentialProcessor<String, Long> multiKeyLatestItemSequentialProcessor;
+    private final MultiKeyLatestItemSequentialProcessor<String, Long> appendProcessor;
 
     public IndexAppendProcessor(ScheduledExecutorService indexSegmentUpdateExecutor, StreamSegmentStore store) {
-        this.indexSegmentUpdateExecutor = indexSegmentUpdateExecutor;
         this.store = store;
-        multiKeyLatestItemSequentialProcessor = new MultiKeyLatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
+        appendProcessor = new MultiKeyLatestItemSequentialProcessor<>(this::handleIndexAppend, indexSegmentUpdateExecutor);
     }
 
     /**
@@ -57,7 +56,7 @@ public class IndexAppendProcessor {
      */
     protected void processAppend(String segmentName, long indexSegmentEventSize) {
         // Not updating index segment for transient and transaction type.
-        if (isTransientSegment(segmentName) || isTransactionSegment(segmentName)) {
+        if (isTransientSegment(segmentName) || isTransactionSegment(segmentName) || !isUserStreamSegment(segmentName)) {
             return;
         }
         if (indexSegmentEventSize != NameUtils.INDEX_APPEND_EVENT_SIZE) {
@@ -65,26 +64,21 @@ public class IndexAppendProcessor {
                     getIndexSegmentName(segmentName), indexSegmentEventSize, NameUtils.INDEX_APPEND_EVENT_SIZE);
             return;
         }
-        multiKeyLatestItemSequentialProcessor.updateItem(segmentName, indexSegmentEventSize);
+        appendProcessor.updateItem(segmentName, indexSegmentEventSize);
     }
 
     private void handleIndexAppend(String segmentName, long indexSegmentEventSize) {
         store.getStreamSegmentInfo(segmentName, TIMEOUT)
-                .thenAccept(info -> {
+                .thenCompose(info -> {
                     long eventCount = info.getAttributes().get(EVENT_COUNT) != null ? info.getAttributes().get(EVENT_COUNT) : 0;
                     ByteBufWrapper byteBuff = getIndexAppendBuf(info.getLength(), eventCount);
                     AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
                             new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.ReplaceIfGreater, eventCount));
-                    store.append(getIndexSegmentName(segmentName), byteBuff, attributes, TIMEOUT)
-                            .thenAccept(v -> log.info("Index segment append successful for segment {} ", getIndexSegmentName(segmentName)))
-                            .exceptionally(e -> {
-                                log.warn("Index segment append failed for segment {} due to ", getIndexSegmentName(segmentName), e);
-                                return null;
-                            });
+                    return store.append(getIndexSegmentName(segmentName), byteBuff, attributes, TIMEOUT);
 
-                })
+                }).thenAccept(v -> log.trace("Index segment append successful for segment {} ", getIndexSegmentName(segmentName)))
                 .exceptionally(ex -> {
-                    log.warn("Exception occured while fetching SegmentInfo for segment: {}", segmentName, ex);
+                    log.warn("Index segment append failed for segment {} due to ", getIndexSegmentName(segmentName), ex);
                     return null;
                 });
     }

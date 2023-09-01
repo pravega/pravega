@@ -59,7 +59,6 @@ public class TestConfig {
     static final Property<Integer> TABLE_KEY_LENGTH = Property.named("tableKeyLength", MIN_APPEND_SIZE.getDefaultValue());
     static final Property<String> TABLE_TYPE = Property.named("tableType", TableType.Hash.toString());
     static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 80);
-    static final Property<Integer> INDEX_APPEND_THREAD_POOL_SIZE = Property.named("indexAppendThreadPoolSize", 1);
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 3000);
     static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStore.toString());
     static final Property<Integer> WARMUP_PERCENTAGE = Property.named("warmupPercentage", 10);
@@ -159,8 +158,6 @@ public class TestConfig {
     private final String testId = Long.toHexString(System.currentTimeMillis());
     @Getter
     private final boolean chunkedSegmentStorageEnabled;
-    @Getter
-    private final int indexAppendThreadPoolSize;
 
     //endregion
 
@@ -211,7 +208,6 @@ public class TestConfig {
         this.tableType = TableType.valueOf(properties.get(TABLE_TYPE));
         this.consumersPerTable = properties.getInt(TABLE_CONSUMERS_PER_TABLE);
         this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
-        this.indexAppendThreadPoolSize = properties.getInt(INDEX_APPEND_THREAD_POOL_SIZE);
         this.timeout = Duration.ofMillis(properties.getInt(TIMEOUT_MILLIS));
         this.bookieCount = properties.getInt(BOOKIE_COUNT);
         this.controllerCount = properties.getInt(CONTROLLER_COUNT);

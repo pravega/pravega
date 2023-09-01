@@ -16,7 +16,9 @@
 package io.pravega.client.batch.impl;
 
 import com.google.common.annotations.Beta;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamCutHelper;
@@ -46,11 +48,15 @@ import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.Retry;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.security.auth.AccessOperation;
+
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,13 +88,20 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     private final Object lock = new Object();
     @GuardedBy("lock")
     private RawClient client = null;
+    private  Retry.RetryWithBackoff retryWithBackoff;
 
     public BatchClientFactoryImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory) {
+        this(controller, clientConfig, connectionFactory, Retry.withExpBackoff(1, 10, 10, Duration.ofSeconds(30).toMillis()));
+    }
+
+    @VisibleForTesting
+    public BatchClientFactoryImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory, Retry.RetryWithBackoff retryWithBackoff) {
         this.controller = controller;
         this.connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
         this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
+        this.retryWithBackoff = retryWithBackoff;
     }
 
     @Override
@@ -220,6 +233,21 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
         Preconditions.checkArgument(approxDistanceToNextOffset > 0, "Ensure approxDistanceToNextOffset must be greater than 0");
+        return retryWithBackoff.retryWhen(t -> {
+            Throwable ex = Exceptions.unwrap(t);
+            if (ex instanceof ConnectionFailedException) {
+                log.info("Connection failure while getting next streamcut: {}. Retrying", ex.getMessage());
+                return true;
+            } else if (ex instanceof TokenExpiredException) {
+                log.info("Authentication token expired while  getting next streamcut. Retrying");
+                return true;
+            } else {
+                return false;
+            }
+        }).run(() -> processNextStreamCut(startingStreamCut, approxDistanceToNextOffset));
+    }
+
+    private StreamCut processNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) {
         Stream stream = startingStreamCut.asImpl().getStream();
         Map<Segment, Long> nextPositionsMap = new HashMap<>();
         Map<Segment, Long> scaledSegmentsMap = new HashMap<>();
