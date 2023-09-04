@@ -537,7 +537,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 connection.send(append);
             } catch (ConnectionFailedException e) {
                 log.warn("Failed writing event through writer " + writerId + " due to: ", e);
-                reconnect(); // As the message is inflight, this will perform the retransmission.
+                failConnection(e); // As the message is inflight, this will perform the retransmission.
+                // Note that failConnection is called here instead of reconnect because it avoids the risk that
+                // some other code path could have re-established the connection before the event was added to inflight.
             }
         }
     }
