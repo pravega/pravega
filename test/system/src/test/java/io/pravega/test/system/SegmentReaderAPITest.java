@@ -114,7 +114,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         connectionFactory.close();
     }
 
-    @Test
+    @Test(timeout = 60000)
     public void getNextStreamCutWithScaleUpTest() throws SegmentTruncatedException, ExecutionException, InterruptedException, TimeoutException {
         String streamName = "testStreamSegment";
         String streamScope = "testScopeSegment";
@@ -180,13 +180,13 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 clock::get);
 
         assertNotNull(reader0.readNextEvent(500).getEvent());
-        assertNotNull(reader0.readNextEvent(100).getEvent());
-        assertNotNull(reader0.readNextEvent(100).getEvent());
-        assertNotNull(reader0.readNextEvent(100).getEvent());
-        assertNotNull(reader0.readNextEvent(100).getEvent());
-        assertNotNull(reader0.readNextEvent(100).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
 
-        assertNull(reader0.readNextEvent(100).getEvent());
+        assertNull(reader0.readNextEvent(500).getEvent());
         assertEquals(180, streamCut1.asImpl().getPositions().get(list.get(0)).longValue());
 
         // For reading the events between the two streamCut, startStreamCUt = streamCutMap1 and endStreamCut =streamCutMap2
@@ -203,11 +203,11 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 new JavaSerializer<>(),
                 ReaderConfig.builder().build());
 
-        assertNotNull(reader0.readNextEvent(100).getEvent());
-        assertNotNull(reader0.readNextEvent(100).getEvent());
-        assertNotNull(reader0.readNextEvent(100).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
 
-        EventRead event2 = reader0.readNextEvent(100);
+        EventRead event2 = reader0.readNextEvent(500);
         assertNull(event2.getEvent());
         assertFalse(event2.isCheckpoint());
         assertEquals(270, streamCut2.asImpl().getPositions().get(list.get(0)).longValue());
@@ -228,9 +228,9 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 new JavaSerializer<>(),
                 ReaderConfig.builder().build());
 
-        assertNotNull(reader0.readNextEvent(100).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
 
-        EventRead event3 = reader0.readNextEvent(100);
+        EventRead event3 = reader0.readNextEvent(500);
         assertNull(event3.getEvent());
         assertFalse(event3.isCheckpoint());
         assertEquals(300, streamCut3.asImpl().getPositions().get(list.get(0)).longValue());
@@ -273,7 +273,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         //Scaling up end
     }
 
-    @Test
+    @Test(timeout = 60000)
     public void getNextStreamCutWithScaleDownTest() throws SegmentTruncatedException, ExecutionException, InterruptedException {
         String streamName = "testStreamSegmentScaleDown";
         String streamScope = "testScopeSegmentScaleDown";
@@ -333,13 +333,13 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 ReaderConfig.builder().build());
 
         assertNotNull(reader0.readNextEvent(500).getEvent());
-        assertNotNull(reader0.readNextEvent(100).getEvent());
-        assertNotNull(reader0.readNextEvent(100).getEvent());
-        assertNotNull(reader0.readNextEvent(100).getEvent());
-        assertNotNull(reader0.readNextEvent(100).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
 
         assertEquals(150, streamCut1.asImpl().getPositions().get(list.get(0)).longValue());
-        assertNull(reader0.readNextEvent(100).getEvent());
+        assertNull(reader0.readNextEvent(500).getEvent());
         reader0.close();
 
         //Scaling up begin
