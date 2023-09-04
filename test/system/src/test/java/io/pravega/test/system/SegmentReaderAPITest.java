@@ -248,7 +248,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         Boolean status = controller.scaleStream(stream,
                 Collections.singletonList(0L),
                 keyRanges,
-                executorService).getFuture().get();
+                executor).getFuture().get();
         assertTrue(status);
         write30ByteEvents(5, writer);
 
@@ -405,6 +405,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
 
         assertTrue(nextStreamCut3 != null);
         assertEquals(150, nextStreamCut3.asImpl().getPositions().get(segment3).longValue());
+        assertTrue(nextStreamCut3.asImpl().getPositions().size() == 1);
         assertTrue(map1.containsKey(segment1));
     }
 
