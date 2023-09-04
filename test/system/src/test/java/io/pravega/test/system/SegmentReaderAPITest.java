@@ -66,7 +66,6 @@ import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -171,13 +170,11 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 
         // For reading the events between the two streamCut, startStreamCUt = streamCutMap0 and endStreamCut =streamCutMap1
-        AtomicLong clock = new AtomicLong();
         @Cleanup
         EventStreamReader<String> reader0 = clientFactory.createReader(readerName,
                 readerGroupName,
                 new JavaSerializer<>(),
-                ReaderConfig.builder().build(), clock::get,
-                clock::get);
+                ReaderConfig.builder().build());
 
         assertNotNull(reader0.readNextEvent(500).getEvent());
         assertNotNull(reader0.readNextEvent(500).getEvent());
@@ -194,7 +191,6 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         log.info("Next stream cut2 {}", streamCut2);
 
         ReaderGroupConfig readerGroupConfig2 = getReaderGroupConfig(streamCut1, streamCut2, stream);
-
         readerGroup.resetReaderGroup(readerGroupConfig2);
         reader0.close();
 
@@ -218,8 +214,6 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         log.info("Next stream cut3 {}", streamCut3);
 
         ReaderGroupConfig readerGroupConfig3 = getReaderGroupConfig(streamCut2, streamCut3, stream);
-
-        // Need to do the assertion
         readerGroup.resetReaderGroup(readerGroupConfig3);
         reader0.close();
 
