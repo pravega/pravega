@@ -116,14 +116,16 @@ class EventProcessorCell<T extends ControllerEvent> {
                         state.store(event.getPosition());
                     }
                 } catch (Exception e) {
+                    log.debug("Exception while reading the events {}", e);
                     handleException(e);
                 }
             }
+            log.info("Event processor RUN {}, state={}, isRunning={}", objectId, state(), isRunning());
         }
 
         @Override
         protected final void shutDown() throws Exception {
-            log.info("Event processor SHUTDOWN {}, state={}", objectId, state());
+            log.info("Event processor SHUTDOWN {}, state={}, ISRUNNING={}", objectId, state(), isRunning());
             try {
                 actor.afterStop();
             } catch (Exception e) {
@@ -165,6 +167,7 @@ class EventProcessorCell<T extends ControllerEvent> {
 
         private void handleException(Exception e) {
             ExceptionHandler.Directive directive = eventProcessorConfig.getExceptionHandler().run(e);
+            log.info("Exception handler directive is {}", directive);
             switch (directive) {
                 case Restart:
                     log.warn("Restarting event processor: {} due to exception: {}", objectId, e);
