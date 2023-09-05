@@ -87,7 +87,6 @@ public final class IndexRequestProcessor {
 
         return SortUtils.newtonianSearch(idx -> {
             ReadResult result = store.read(indexSegmentName, idx * NameUtils.INDEX_APPEND_EVENT_SIZE, NameUtils.INDEX_APPEND_EVENT_SIZE, TIMEOUT).join();
-            result.readRemaining(0, TIMEOUT);
             return getOffsetFromIndexEntry(indexSegmentName, result);
         }, startIdx, endIdx > 0 ? endIdx - 1 : 0, targetOffset, greater);
     }
