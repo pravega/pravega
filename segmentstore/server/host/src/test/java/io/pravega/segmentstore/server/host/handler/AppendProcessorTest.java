@@ -84,7 +84,6 @@ import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -117,17 +116,13 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AppendProcessorTest {
+    private static final long TIMEOUT_SEC = 8;
+    private static final ScheduledExecutorService INLINE_EXECUTOR = new InlineExecutor();
+
     private final long requestId = 1234L;
-    private final long TIMEOUT_SEC = 8;
     @Rule
     public final Timeout globalTimeout = Timeout.seconds(TIMEOUT_SEC);
     
-    private static ScheduledExecutorService INLINE_EXECUTOR;
-    
-    @BeforeClass
-    public static void setup() {
-        INLINE_EXECUTOR = new InlineExecutor();
-    }
     
     @AfterClass
     public static void tearDown() {
