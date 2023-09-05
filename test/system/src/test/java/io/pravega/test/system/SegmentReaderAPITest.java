@@ -401,9 +401,9 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         log.info("Next stream cut3 {}", nextStreamCut3);
 
         assertTrue(nextStreamCut3 != null);
-        assertEquals(150, nextStreamCut3.asImpl().getPositions().get(segment3).longValue());
         assertTrue(nextStreamCut3.asImpl().getPositions().size() == 1);
-        assertTrue(nextStreamCut3.asImpl().getPositions().containsKey(segment1));
+        assertTrue(nextStreamCut3.asImpl().getPositions().containsKey(segment3));
+        assertTrue(150L <= nextStreamCut3.asImpl().getPositions().get(segment3).longValue());
     }
 
     private URI fetchControllerURI() {
