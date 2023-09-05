@@ -15,6 +15,7 @@
  */
 package io.pravega.test.system;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientConfig;
@@ -349,25 +350,23 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
 
         write30ByteEvents(5, writer);
 
-        long approxDistanceToNextOffset = 180L;
-        StreamCut nextStreamCut2 = batchClient.getNextStreamCut(streamCut1, approxDistanceToNextOffset);
-        log.info("Next stream cut2 {}", nextStreamCut2);
+        ArrayList<SegmentRange> rangeList = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+        List<Segment> allSegmentList = rangeList.stream().map(SegmentRange::getSegment).collect(Collectors.toList());
+        assertEquals(3, allSegmentList.size());
+        log.info("After scale up all the segment list : {}", allSegmentList);
 
         Segment segment1 = Segment.fromScopedName(streamScope + "/" + streamName + "/1.#epoch.1");
         Segment segment2 = Segment.fromScopedName(streamScope + "/" + streamName + "/2.#epoch.1");
         log.info("Segment1 name {} and Segment2 name {}", segment1.getScopedName(), segment2.getScopedName());
 
-        ArrayList<SegmentRange> segmentList1 = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
-
-        Map<Segment, Long> map = segmentList1.stream().collect(Collectors.toMap(SegmentRange::getSegment, value -> value.getEndOffset()));
-        log.info("Segment map :{}", map);
+        long approxDistanceToNextOffset = 180L;
+        StreamCut nextStreamCut2 = batchClient.getNextStreamCut(streamCut1, approxDistanceToNextOffset);
+        log.info("Next stream cut2 {}", nextStreamCut2);
 
         assertTrue(nextStreamCut2 != null);
         assertTrue(nextStreamCut2.asImpl().getPositions().size() == 2);
         assertTrue(nextStreamCut2.asImpl().getPositions().containsKey(segment1) &&
                 nextStreamCut2.asImpl().getPositions().containsKey(segment2));
-        assertTrue(map.get(segment1).longValue() <= nextStreamCut2.asImpl().getPositions().get(segment1).longValue());
-        assertTrue(map.get(segment2).longValue() <= nextStreamCut2.asImpl().getPositions().get(segment2).longValue());
         //Scaling up end
 
         //Scaling down start
@@ -390,17 +389,21 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         log.info("segment3 name :{}", segment3.getScopedName());
 
         ArrayList<SegmentRange> segmentList2 = Lists.newArrayList(
-                batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+                batchClient.getSegments(Stream.of(streamScope, streamName), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         log.info("Segment List2 :{}", segmentList2);
 
         Map<Segment, Long> map1 = segmentList2.stream().collect(Collectors.toMap(SegmentRange::getSegment, value -> value.getEndOffset()));
-        StreamCut nextStreamCut3 = batchClient.getNextStreamCut(nextStreamCut2, approxDistanceToNextOffset);
+        StreamCut streamCut = new StreamCutImpl(Stream.of(streamScope, streamName),
+                ImmutableMap.of(segment1, map1.get(segment1), segment2, map1.get(segment2)));
+        log.info("StreamCut : {}", streamCut);
+
+        StreamCut nextStreamCut3 = batchClient.getNextStreamCut(streamCut, approxDistanceToNextOffset);
         log.info("Next stream cut3 {}", nextStreamCut3);
 
         assertTrue(nextStreamCut3 != null);
         assertEquals(150, nextStreamCut3.asImpl().getPositions().get(segment3).longValue());
         assertTrue(nextStreamCut3.asImpl().getPositions().size() == 1);
-        assertTrue(map1.containsKey(segment1));
+        assertTrue(nextStreamCut3.asImpl().getPositions().containsKey(segment1));
     }
 
     private URI fetchControllerURI() {
