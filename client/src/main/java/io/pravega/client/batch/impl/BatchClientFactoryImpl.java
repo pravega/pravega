@@ -18,6 +18,7 @@ package io.pravega.client.batch.impl;
 import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientConfig;
@@ -346,6 +347,13 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         if (reply instanceof WireCommands.NoSuchSegment || reply instanceof WireCommands.SegmentTruncated) {
             log.error("Exception occurred while locating next offset: {}", reply);
             throw new SegmentTruncatedException(reply.toString());
+        } else if (reply instanceof WireCommands.AuthTokenCheckFailed) {
+            WireCommands.AuthTokenCheckFailed authTokenCheckFailed = (WireCommands.AuthTokenCheckFailed) reply;
+            if (authTokenCheckFailed.isTokenExpired()) {
+                throw new TokenExpiredException(authTokenCheckFailed.getServerStackTrace());
+            } else {
+                throw new AuthenticationException(authTokenCheckFailed.toString());
+            }
         } else {
             log.error("Unexpected exception occurred: {}", reply);
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting a "

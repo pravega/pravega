@@ -16,6 +16,7 @@
 package io.pravega.client.batch.impl;
 
 import com.google.common.collect.ImmutableSet;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.connection.impl.ClientConnection;
@@ -391,7 +392,7 @@ public class BatchClientImplTest {
                 && nextSC.asImpl().getPositions().containsKey(segment3));
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 10000)
     public void testGetNextStreamCutWithNoSuchSegmentException() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
         Map<Segment, Long> positionMap = new HashMap<>();
@@ -405,19 +406,30 @@ public class BatchClientImplTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
         @Cleanup
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf, RETRY_WITH_BACKOFF);
         client.getConnection(segment1);
         ReplyProcessor processor = cf.getProcessor(endpoint);
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) {
+        Mockito.doAnswer((Answer<Void>) invocation -> {
 
-                WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
-                processor.process(new WireCommands.NoSuchSegment(locateOffset.getRequestId(), locateOffset.getSegment(), "", 30L));
-                return null;
-            }
+            WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+            processor.process(new WireCommands.NoSuchSegment(locateOffset.getRequestId(), locateOffset.getSegment(), "", 30L));
+            return null;
         }).when(connection).send(any(WireCommands.LocateOffset.class));
         AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> client.getNextStreamCut(startingSC, 50L));
+        Mockito.doAnswer((Answer<Void>) invocation -> {
+
+            WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+            processor.process(new WireCommands.AuthTokenCheckFailed(locateOffset.getRequestId(), "Token expired", WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+            return null;
+        }).when(connection).send(any(WireCommands.LocateOffset.class));
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> client.getNextStreamCut(startingSC, 50L));
+        Mockito.doAnswer((Answer<Void>) invocation -> {
+
+            WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+            processor.process(new WireCommands.AuthTokenCheckFailed(locateOffset.getRequestId(), "Token expired", WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
+            return null;
+        }).when(connection).send(any(WireCommands.LocateOffset.class));
+        AssertExtensions.assertThrows(AuthenticationException.class, () -> client.getNextStreamCut(startingSC, 50L));
     }
 
     @Test(timeout = 7000)

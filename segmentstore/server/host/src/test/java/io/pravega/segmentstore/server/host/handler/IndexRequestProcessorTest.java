@@ -16,6 +16,11 @@
 
 package io.pravega.segmentstore.server.host.handler;
 
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -29,6 +34,13 @@ import org.junit.Test;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
@@ -74,5 +86,26 @@ public class IndexRequestProcessorTest {
         assertEquals(1234, offset);
     }
 
+    @Test(timeout = 5000)
+    public void locateOffsetForSegmentWithFuture() {
+        String segmentName = "test";
+        String indexSegmentName = getIndexSegmentName(segmentName);
+
+        SegmentProperties indexSegmentProperties = StreamSegmentInformation.builder()
+                                                                           .name(indexSegmentName)
+                                                                           .length(24)
+                                                                           .startOffset(0)
+                                                                           .attributes(Map.of(EVENT_COUNT, 0L))
+                                                                           .build();
+        ReadResultEntry readResultEntry = mock(ReadResultEntry.class);
+        doNothing().when(readResultEntry).requestContent(any());
+        doReturn(ReadResultEntryType.Future).when(readResultEntry).getType();
+        doReturn(CompletableFuture.completedFuture(BufferView.empty())).when(readResultEntry).getContent();
+        ReadResult result = mock(ReadResult.class);
+        doReturn(readResultEntry).when(result).next();
+        doReturn(CompletableFuture.completedFuture(indexSegmentProperties)).when(store).getStreamSegmentInfo(eq(indexSegmentName), any());
+        doReturn(CompletableFuture.completedFuture(result)).when(store).read(anyString(), anyLong(), anyInt(), any());
+        assertThrows(RetriesExhaustedException.class, () -> IndexRequestProcessor.locateOffsetForSegment(store, segmentName, 10L, true));
+    }
 
 }

@@ -101,6 +101,7 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.errorMessage(new ErrorMessage(0, "", "", ErrorMessage.ErrorCode.UNSPECIFIED)));
         assertThrows(IllegalStateException.class, () -> rp.storageFlushed(new StorageFlushed(0)));
         assertThrows(IllegalStateException.class, () -> rp.storageChunksListed(new WireCommands.StorageChunksListed(0, new ArrayList<>())));
+        assertThrows(IllegalStateException.class, () -> rp.offsetLocated(new WireCommands.OffsetLocated(0, "", 0)));
     }
 
 }

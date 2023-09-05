@@ -25,6 +25,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoop;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
@@ -37,6 +38,7 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -100,6 +102,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1279,6 +1282,33 @@ public class AppendProcessorTest {
         setMockForIndexSegmentAppends(streamSegmentName, store, 1, 1);
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
         verify(store).getAttributes(eq(streamSegmentName), any(), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(connection).close();
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+    }
+
+    @Test(timeout = 10000)
+    public void testCreateSegmentIfNotExistOnSetupAppend() {
+        String streamSegmentName = "scope/stream/testAppendSegment";
+        UUID clientId = UUID.randomUUID();
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        @Cleanup
+        AppendProcessor processor = AppendProcessor.defaultBuilder(getIndexAppendProcessor(store)).store(store).connection(new TrackedConnection(connection, tracker)).build();
+        InOrder connectionVerifier = Mockito.inOrder(connection);
+        setupGetAttributes(streamSegmentName, clientId, store);
+        CompletableFuture<SegmentProperties> toBeReturned = CompletableFuture.failedFuture(new StreamSegmentNotExistsException("Stream not exist"));
+        CompletableFuture<SegmentProperties> authFailed = CompletableFuture.failedFuture(new TokenExpiredException("Token expired"));
+        CompletableFuture<Void> createIndexFuture = CompletableFuture.completedFuture(null);
+        doReturn(toBeReturned).doReturn(authFailed).when(store).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        doReturn(createIndexFuture).when(store).createStreamSegment(anyString(), any(), any(), eq(AppendProcessor.TIMEOUT));
+        processor.setupAppend(new SetupAppend(requestId, clientId, streamSegmentName, ""));
+        processor.setupAppend(new SetupAppend(requestId, clientId, streamSegmentName, ""));
+        verify(connection, times(2)).send(any());
+        verify(store, times(2)).getStreamSegmentInfo(anyString(), any());
+        verify(store, times(2)).getAttributes(anyString(), any(), anyBoolean(), any());
+        verify(store).createStreamSegment(anyString(), any(), any(), any());
         verify(connection).close();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
