@@ -349,8 +349,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
         // are not required for accepting new operations and can still start in the background.
-        delayedStart.thenComposeAsync( v -> this.adjustLengthsPostRecovery(), this.executor)
-                .thenComposeAsync(v -> {
+        // delayedStart.thenComposeAsync( v -> this.adjustLengthsPostRecovery(), this.executor)
+        delayedStart.thenComposeAsync(v -> {
                     val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
                     if (null != chunkedSegmentStorage) {
                         StorageEventProcessor eventProcessor = new StorageEventProcessor(this.metadata.getContainerId(),
@@ -380,16 +380,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Void> adjustLengthsPostRecovery() {
-        return shouldRecoverFromStorage().
-                  thenComposeAsync( shouldRecover -> {
-                      if (shouldRecover) {
-                          return this.adjustLengthsForSegment(NameUtils.getStorageMetadataSegmentName(this.getId()))
-                                  .thenComposeAsync(v -> this.adjustLengthsForSegment(NameUtils.getEventProcessorSegmentName(this.getId(), String.format("GC.queue.%d", this.getId()))));
-                      } else {
-                          log.info("{}: Not recovering from storage. No need to adjust lengths", this.traceObjectId);
-                          return CompletableFuture.completedFuture(null);
-                      }
-                  });
+          return this.adjustLengthsForSegment(NameUtils.getStorageMetadataSegmentName(this.getId()));
     }
 
     /**
@@ -865,6 +856,17 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         log.info("{}: Starting flush to storage for container ID: {}", this.traceObjectId, containerId);
         val flusher = new LogFlusher(containerId, this.durableLog, this.writer, this.metadataCleaner, this.executor);
         return flusher.flushToStorage(timeout)
+                  .thenComposeAsync( v -> {
+                        try {
+                            this.containerEventProcessor.close();
+                        } catch (Exception e) {
+                            log.error("{}: Error shutting down event processor while flushing to storage", this.traceObjectId);
+                            throw new CompletionException(e);
+                        }
+                        return CompletableFuture.completedFuture(null);
+                    }, executor)
+                .thenComposeAsync( v -> adjustLengthsPostRecovery(), this.executor)
+                .thenComposeAsync( v -> flusher.flushToStorage(timeout), this.executor)
                 .thenComposeAsync( v -> saveEpochInfo(containerId, this.metadata.getContainerEpoch(), timeout), this.executor)
                 .thenAcceptAsync(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
     }
