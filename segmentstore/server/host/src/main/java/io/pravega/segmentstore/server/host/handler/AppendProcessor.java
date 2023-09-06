@@ -238,23 +238,23 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                 .handle((properties, u) -> {
                     long result;
                     if (u != null) {
-                            u = Exceptions.unwrap(u);
-                            if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
-                                log.info("Creating index segment {} while processing request: {}.", indexSegment, requestId);
-                                result = NameUtils.INDEX_APPEND_EVENT_SIZE;
-                                Collection<AttributeUpdate> attributes = Arrays.asList(
-                                        new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
-                                        new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
-                                        new AttributeUpdate(EXPECTED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, result)
-                                );
-                                store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT).join();
-                            } else {
-                                throw Exceptions.sneakyThrow(u);
-                            }
+                        u = Exceptions.unwrap(u);
+                        if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
+                            log.info("Creating index segment {} while processing request: {}.", indexSegment, requestId);
+                            result = NameUtils.INDEX_APPEND_EVENT_SIZE;
+                            Collection<AttributeUpdate> attributes = Arrays.asList(
+                                    new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
+                                    new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
+                                    new AttributeUpdate(EXPECTED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, result)
+                            );
+                            store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT).join();
                         } else {
-                            Map<AttributeId, Long> attributes = properties.getAttributes();
-                            result = attributes.get(EXPECTED_INDEX_SEG_EVENT_SIZE).longValue();
+                            throw Exceptions.sneakyThrow(u);
                         }
+                    } else {
+                        Map<AttributeId, Long> attributes = properties.getAttributes();
+                        result = attributes.get(EXPECTED_INDEX_SEG_EVENT_SIZE).longValue();
+                    }
                     return result;
                 });
         return indexSegmentEventSize;
