@@ -220,6 +220,32 @@ public abstract class TaskTest {
     }
 
     @Test(timeout = 10000)
+    public void testZkLock() {
+        final String oldHost = "oldHost";
+        final String newHost = "newHost";
+        final String newHost1 = "newHost1";
+        final String oldThreadId = UUID.randomUUID().toString();
+        final String newThreadId = UUID.randomUUID().toString();
+        final String scope = SCOPE;
+        final String stream = "testStream";
+        final StreamConfiguration config1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+        final Resource resource1 = new Resource(scope, stream1);
+        final long timestamp1 = System.currentTimeMillis();
+        final TaskData taskData1 = new TaskData("createStream", "1.0",
+                new Serializable[]{scope, stream, config1, timestamp1, 0L});
+
+        for (int i = 0; i < 5; i++) {
+            final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource1);
+            taskMetadataStore.putChild(oldHost, taggedResource).join();
+        }
+        taskMetadataStore.lock(resource1, taskData1, oldHost, oldThreadId, null, null).join();
+        taskMetadataStore.lock(resource1, taskData1, newHost, newThreadId, newHost1, oldThreadId).join();
+        Optional<TaskData> testData = Optional.of(new TaskData("createStream", "1.0",
+                new Serializable[]{scope, stream, config1, timestamp1, 0L}));
+        Assert.assertEquals(testData, taskMetadataStore.getTask(resource1, newHost1, oldThreadId).join());
+    }
+
+    @Test(timeout = 10000)
     public void testStreamTaskSweeping() throws Exception {
         final String stream = "testPartialCreationStream";
         final String deadHost = "deadHost";
