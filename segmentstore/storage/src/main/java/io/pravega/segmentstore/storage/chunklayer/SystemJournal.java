@@ -598,10 +598,10 @@ public class SystemJournal {
                                                 bytes.getLength(),
                                                 new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())),
                                         executor)
-                                .thenAcceptAsync(v -> {
+                                .thenComposeAsync(v -> {
                                     log.debug("SystemJournal[{}] Snapshot info saved to LTS. File {}. info = {}", containerId, snapshotInfoFileName, info);
-                                }, executor)
-                                .thenComposeAsync(v -> readSnapshotInfoFromFile(), executor)
+                                    return readSnapshotInfoFromFile();
+                                    }, executor)
                                 .thenApplyAsync( readBackInfo -> {
                                     if (readBackInfo.getEpoch() > epoch) {
                                         throw new CompletionException(new StorageNotPrimaryException(String.format("SystemJournal[{}] Unexpected snapshot. Expected = {} actual = {}", info, readBackInfo)));
