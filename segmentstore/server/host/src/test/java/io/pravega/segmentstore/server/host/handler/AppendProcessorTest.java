@@ -77,6 +77,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -85,7 +86,9 @@ import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
@@ -116,6 +119,9 @@ import static org.mockito.Mockito.when;
 public class AppendProcessorTest extends ThreadPooledTestSuite {
     private final long requestId = 1234L;
 
+    @Rule
+    public Timeout globalTimeout = new Timeout(7, TimeUnit.SECONDS);
+    
     @Override
     protected int getThreadPoolSize() {
         return 2;

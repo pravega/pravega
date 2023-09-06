@@ -78,7 +78,8 @@ public class IndexAppendProcessor {
 
                 }).thenAccept(v -> log.trace("Index segment append successful for segment {} ", getIndexSegmentName(segmentName)))
                 .exceptionally(ex -> {
-                    log.warn("Index segment append failed for segment {} due to ", getIndexSegmentName(segmentName), ex);
+                 log.warn(
+                     "Index segment append failed for segment " + getIndexSegmentName(segmentName) + " due to ", ex);
                     return null;
                 });
     }
