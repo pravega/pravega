@@ -80,6 +80,7 @@ import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
@@ -118,6 +119,7 @@ public class AppendTest extends LeakDetectorTestSuite {
                                                                               .include(WriterConfig.builder().with(WriterConfig.MAX_ROLLOVER_SIZE, 10485760L))
                                                                               .build());
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
+    private static final InlineExecutor EXECUTOR = new InlineExecutor();
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     @BeforeClass
@@ -128,6 +130,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     @AfterClass
     public static void teardown() {
         SERVICE_BUILDER.close();
+        EXECUTOR.shutdown();
     }
 
     @Test(timeout = 10000)
@@ -257,9 +260,7 @@ public class AppendTest extends LeakDetectorTestSuite {
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
-        @Cleanup
-        InlineExecutor indexExecutor = new InlineExecutor();
-        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(indexExecutor, store);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(EXECUTOR, store);
         lsh.setRequestProcessor(AppendProcessor.defaultBuilder(indexAppendProcessor)
                                                .store(store)
                                                .connection(new TrackedConnection(lsh))
@@ -490,17 +491,15 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertEventCountAttributeforSegment(indexSegment, store, 2);
     }
 
-    private void assertEventCountAttributeforSegment(String segment, StreamSegmentStore store, long expectedEventCount) {
+    private void assertEventCountAttributeforSegment(String segment, StreamSegmentStore store, long expectedEventCount) throws Exception {
         // Assert Index Segment attribute values.
-        val si = store.getStreamSegmentInfo(segment, TIMEOUT).join();
-        val segmentType = SegmentType.fromAttributes(si.getAttributes());
-        assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem() || segmentType.isTableSegment());
-        assertEquals(SegmentType.STREAM_SEGMENT, segmentType);
-
-        val attributes = si.getAttributes();
-        assertEquals(expectedEventCount, (long) attributes.get(Attributes.EVENT_COUNT));
-
-        System.out.println("%% index segment IndexCount : " + (long) attributes.get(Attributes.EVENT_COUNT));
+        AssertExtensions.assertEventuallyEquals(Long.valueOf(expectedEventCount), () -> {
+            val si = store.getStreamSegmentInfo(segment, TIMEOUT).join();
+            val segmentType = SegmentType.fromAttributes(si.getAttributes());
+            assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem() || segmentType.isTableSegment());
+            assertEquals(SegmentType.STREAM_SEGMENT, segmentType);
+            return si.getAttributes().get(Attributes.EVENT_COUNT);
+        }, 5000);
     }
 
     @Test(timeout = 20000)
