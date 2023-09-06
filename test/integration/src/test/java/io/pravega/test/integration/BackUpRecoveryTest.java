@@ -54,43 +54,27 @@ import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.segmentstore.server.store.ServiceConfig;
-import io.pravega.segmentstore.server.writer.WriterConfig;
-import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import io.pravega.test.integration.utils.ControllerWrapper;
+import io.pravega.test.integration.utils.LocalServiceStarter;
 import lombok.Cleanup;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.commons.io.FileUtils;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.net.URI;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -148,6 +132,19 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
     private FileSystemSimpleStorageFactory storageFactory;
 
     private BookKeeperLogFactory dataLogFactory;
+    private File baseDir = null;
+
+    @Before
+    public void setUp() throws Exception {
+        this.baseDir = Files.createTempDirectory("test_backupRecovery").toFile().getAbsoluteFile();
+        val storageConfig = FileSystemStorageConfig
+                .builder()
+                .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
+                .build();
+
+        this.storageFactory = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, storageConfig, executorService());
+        log.info("Created a long term storage.");
+    }
 
     @After
     public void tearDown() throws Exception {
@@ -155,172 +152,12 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
             this.dataLogFactory.close();
         }
         timer.set(0);
+        FileHelpers.deleteFileOrDirectory(this.baseDir);
     }
 
     @Override
     protected int getThreadPoolSize() {
         return 100;
-    }
-
-    /**
-     * Sets up a new BookKeeper & ZooKeeper.
-     */
-    public static class BookKeeperRunner implements AutoCloseable {
-        @Getter
-        private final AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
-        @Getter
-        private final int bkPort;
-        private final BookKeeperServiceRunner bookKeeperServiceRunner;
-        @Getter
-        private final AtomicReference<BookKeeperConfig> bkConfig = new AtomicReference<>();
-        private final AtomicReference<BookKeeperServiceRunner> bkService = new AtomicReference<>();
-        @Getter
-        private final String ledgerPath;
-        @Getter
-        private final String logMetaNamespace;
-        @Getter
-        private final String baseNamespace;
-
-        BookKeeperRunner(int instanceId, int bookieCount) throws Exception {
-            this.ledgerPath = "/pravega/bookkeeper/ledgers" + instanceId;
-            this.bkPort = io.pravega.test.common.TestUtils.getAvailableListenPort();
-            val bookiePorts = new ArrayList<Integer>();
-            for (int i = 0; i < bookieCount; i++) {
-                bookiePorts.add(io.pravega.test.common.TestUtils.getAvailableListenPort());
-            }
-            this.bookKeeperServiceRunner = BookKeeperServiceRunner.builder()
-                    .startZk(true)
-                    .zkPort(bkPort)
-                    .ledgersPath(ledgerPath)
-                    .bookiePorts(bookiePorts)
-                    .build();
-            try {
-                this.bookKeeperServiceRunner.startAll();
-            } catch (Exception e) {
-                log.error("Exception occurred while starting bookKeeper service.", e);
-                this.close();
-                throw e;
-            }
-            this.bkService.set(this.bookKeeperServiceRunner);
-
-            // Create a ZKClient with a unique namespace.
-            this.baseNamespace = "pravega" + instanceId;
-            this.zkClient.set(CuratorFrameworkFactory
-                    .builder()
-                    .connectString("localhost:" + bkPort)
-                    .namespace(baseNamespace)
-                    .retryPolicy(new ExponentialBackoffRetry(1000, 10))
-                    .build());
-
-            this.zkClient.get().start();
-
-            this.logMetaNamespace = "segmentstore/containers" + instanceId;
-            this.bkConfig.set(BookKeeperConfig
-                    .builder()
-                    .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bookieCount)
-                    .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, bookieCount)
-                    .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, bookieCount)
-                    .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + bkPort)
-                    .with(BookKeeperConfig.ZK_METADATA_PATH, logMetaNamespace)
-                    .with(BookKeeperConfig.BK_LEDGER_PATH, ledgerPath)
-                    .build());
-        }
-
-        @Override
-        public void close() throws Exception {
-            val process = this.bkService.getAndSet(null);
-            if (process != null) {
-                process.close();
-            }
-
-            val bk = this.bookKeeperServiceRunner;
-            if (bk != null) {
-                bk.close();
-            }
-
-            val zkClient = this.zkClient.getAndSet(null);
-            if (zkClient != null) {
-                zkClient.close();
-            }
-        }
-    }
-
-    /**
-     * Creates a segment store.
-     */
-    public static class SegmentStoreRunner implements AutoCloseable {
-        @Getter
-        private final int servicePort = io.pravega.test.common.TestUtils.getAvailableListenPort();
-        @Getter
-        private final int adminPort = io.pravega.test.common.TestUtils.getAvailableListenPort();
-        @Getter
-        private ServiceBuilder serviceBuilder;
-        private final PravegaConnectionListener server;
-
-        private AdminConnectionListener adminServer = null;
-
-        SegmentStoreRunner(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory, int containerCount)
-                throws DurableDataLogException {
-            ServiceBuilderConfig config = ServiceBuilderConfig
-                    .builder()
-                    .include(ServiceConfig.builder()
-                            .with(ServiceConfig.CONTAINER_COUNT, containerCount)
-                            .with(ServiceConfig.STORAGE_LAYOUT, StorageLayoutType.CHUNKED_STORAGE)
-                            .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.FILESYSTEM.name())
-                            .with(ServiceConfig.LISTENING_IP_ADDRESS, "localhost"))
-                    .include(WriterConfig.builder()
-                            .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 100L)
-                            .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 500L)
-                    ).build();
-
-            // Components that are required for all types of SegmentStore.
-            this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(config);
-            if (dataLogFactory != null) {
-                this.serviceBuilder = this.serviceBuilder.withDataLogFactory(setup -> dataLogFactory);
-            }
-            if (storageFactory != null) {
-                this.serviceBuilder = this.serviceBuilder.withStorageFactory(setup -> storageFactory);
-            }
-            this.serviceBuilder.initialize();
-            StreamSegmentStore streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
-            TableStore tableStore = this.serviceBuilder.createTableStoreService();
-            this.server = new PravegaConnectionListener(false, servicePort, streamSegmentStore, tableStore,
-                    this.serviceBuilder.getLowPriorityExecutor());
-            this.server.startListening();
-        }
-
-        @Override
-        public void close() {
-            this.server.close();
-            if (adminServer != null) {
-                this.adminServer.close();
-            }
-            this.serviceBuilder.close();
-        }
-    }
-
-    /**
-     * Creates a controller instance and runs it.
-     */
-    private static class ControllerRunner implements AutoCloseable {
-        private final int controllerPort = TestUtils.getAvailableListenPort();
-        private final String serviceHost = "localhost";
-        private final ControllerWrapper controllerWrapper;
-        private final Controller controller;
-        private final URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
-
-        ControllerRunner(int bkPort, int servicePort, int containerCount) {
-            this.controllerWrapper = new ControllerWrapper("localhost:" + bkPort, false,
-                    controllerPort, serviceHost, servicePort, containerCount);
-            this.controllerWrapper.awaitRunning();
-            this.controller = controllerWrapper.getController();
-        }
-
-        @Override
-        public void close() throws Exception {
-            this.controller.close();
-            this.controllerWrapper.close();
-        }
     }
 
     /**
@@ -331,11 +168,11 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         private final ClientFactoryImpl clientFactory;
         private final ReaderGroupManager readerGroupManager;
 
-        ClientRunner(ControllerRunner controllerRunner) {
+        ClientRunner(LocalServiceStarter.ControllerRunner controllerRunner) {
             this.connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                    .controllerURI(controllerRunner.controllerURI).build());
-            this.clientFactory = new ClientFactoryImpl(SCOPE, controllerRunner.controller, connectionFactory);
-            this.readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerRunner.controller, clientFactory);
+                    .controllerURI(controllerRunner.getControllerURI()).build());
+            this.clientFactory = new ClientFactoryImpl(SCOPE, controllerRunner.getController(), connectionFactory);
+            this.readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerRunner.getController(), clientFactory);
         }
 
         @Override
@@ -343,55 +180,6 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
             this.readerGroupManager.close();
             this.clientFactory.close();
             this.connectionFactory.close();
-        }
-    }
-
-    /**
-     * Creates a Pravega instance.
-     */
-    public static class PravegaRunner implements AutoCloseable {
-        private final int containerCount;
-        private final int bookieCount;
-        @Getter
-        private BookKeeperRunner bookKeeperRunner;
-        @Getter
-        private SegmentStoreRunner segmentStoreRunner;
-        @Getter
-        private ControllerRunner controllerRunner;
-
-        public PravegaRunner(int bookieCount, int containerCount) {
-            this.containerCount = containerCount;
-            this.bookieCount = bookieCount;
-        }
-
-        public void startBookKeeperRunner(int instanceId) throws Exception {
-            this.bookKeeperRunner = new BookKeeperRunner(instanceId, this.bookieCount);
-        }
-
-        public void startControllerAndSegmentStore(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory)
-                throws DurableDataLogException {
-            this.segmentStoreRunner = new SegmentStoreRunner(storageFactory, dataLogFactory, this.containerCount);
-            log.info("bk port to be connected = {}", this.bookKeeperRunner.bkPort);
-            this.controllerRunner = new ControllerRunner(this.bookKeeperRunner.bkPort, this.segmentStoreRunner.servicePort, containerCount);
-        }
-
-        public void shutDownControllerRunner() throws Exception {
-            this.controllerRunner.close();
-        }
-
-        public void shutDownSegmentStoreRunner() {
-            this.segmentStoreRunner.close();
-        }
-
-        public void shutDownBookKeeperRunner() throws Exception {
-            this.bookKeeperRunner.close();
-        }
-
-        @Override
-        public void close() throws Exception {
-            shutDownControllerRunner();
-            shutDownSegmentStoreRunner();
-            shutDownBookKeeperRunner();
         }
     }
 
@@ -458,18 +246,9 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         int instanceId = 0;
         // Creating a long term storage only once here.
 
-        val baseDir = Files.createTempDirectory("test_backupRecovery").toFile().getAbsoluteFile();
-        val storageConfig = FileSystemStorageConfig
-                .builder()
-                .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
-                .build();
-
-        this.storageFactory = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, storageConfig, executorService());
-        log.info("Created a long term storage.");
-
         // Start a new BK & ZK, segment store and controller
         @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId++);
         val bkConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
@@ -483,7 +262,7 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
 
         // Create a stream for writing data
-        createScopeStream(pravegaRunner.getControllerRunner().controller, SCOPE, STREAM1, config);
+        createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, STREAM1, config);
 
         log.info("Created stream '{}'.", STREAM1);
 
@@ -506,7 +285,7 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
 
         Thread.sleep(1000);
         // Start a new segment store and controller
-        PravegaRunner pravegaRunner1 = new PravegaRunner(bookieCount, containerCount);
+        LocalServiceStarter.PravegaRunner pravegaRunner1 = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner1.startBookKeeperRunner(instanceId++);
         log.info("Started bk and zk. ");
         val bkConfig1 = BookKeeperConfig.builder()
@@ -529,7 +308,6 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
             readEventsFromStream(clientRunner.clientFactory, clientRunner.readerGroupManager);
             log.info("Read all events again to verify that segments were recovered.");
         }
-        FileUtils.deleteDirectory(new File(baseDir.getPath()));
     }
 
     @Test(timeout = 180000)
@@ -537,20 +315,10 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         int instanceId = 0;
         int containerCount = 4;
         int bookieCount = 3;
-        // Creating a long term storage only once here.
-
-        val baseDir = Files.createTempDirectory("test_backupRecovery").toFile().getAbsoluteFile();
-        val storageConfig = FileSystemStorageConfig
-                .builder()
-                .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
-                .build();
-
-        this.storageFactory = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, storageConfig, executorService());
-        log.info("Created a long term storage.");
 
         // Start a new BK & ZK, segment store and controller
         @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId++);
         val bkConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
@@ -564,7 +332,7 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
 
         // Create a stream for writing data
-        createScopeStream(pravegaRunner.getControllerRunner().controller, SCOPE, STREAM1, config);
+        createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, STREAM1, config);
 
         log.info("Created stream '{}'.", STREAM1);
 
@@ -575,9 +343,9 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
                 .build();
 
         val kvt1 = newKeyValueTableName();
-        boolean created = pravegaRunner.getControllerRunner().controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), defaultConfig).join();
+        boolean created = pravegaRunner.getControllerRunner().getController().createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), defaultConfig).join();
         Assert.assertTrue(created);
-        val segments = pravegaRunner.getControllerRunner().controller.getCurrentSegmentsForKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName()).join();
+        val segments = pravegaRunner.getControllerRunner().getController().getCurrentSegmentsForKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName()).join();
         Assert.assertEquals(defaultConfig.getPartitionCount(), segments.getSegments().size());
 
         log.info("Shutting down controller");
@@ -593,7 +361,7 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
 
         Thread.sleep(1000);
         // Start a new segment store and controller
-        PravegaRunner pravegaRunner1 = new PravegaRunner(bookieCount, containerCount);
+        LocalServiceStarter.PravegaRunner pravegaRunner1 = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner1.startBookKeeperRunner(instanceId++);
         log.info("Started bk and zk. ");
         val bkConfig1 = BookKeeperConfig.builder()
@@ -610,9 +378,8 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         log.info("Started segment store and controller again.");
 
         log.info("Verify segments for kvt");
-        val segmentsAfterRecovery = pravegaRunner1.getControllerRunner().controller.getCurrentSegmentsForKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName()).join();
+        val segmentsAfterRecovery = pravegaRunner1.getControllerRunner().getController().getCurrentSegmentsForKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName()).join();
         Assert.assertEquals(defaultConfig.getPartitionCount(), segmentsAfterRecovery.getSegments().size());
-        FileUtils.deleteDirectory(new File(baseDir.getPath()));
     }
 
     private KeyValueTableInfo newKeyValueTableName() {
@@ -669,19 +436,9 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         String testReader = "readerDRIntegrationTest";
         String testReaderGroup = "readerGroupDRIntegrationTest";
 
-        // Creating a long term storage only once here.
-        val baseDir = Files.createTempDirectory("test_backupRecovery").toFile().getAbsoluteFile();
-        val storageConfig = FileSystemStorageConfig
-                .builder()
-                .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
-                .build();
-
-        this.storageFactory = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, storageConfig, executorService());
-        log.info("Created a long term storage.");
-
         // Start a new BK & ZK, segment store and controller
         @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId++);
         val bkConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
@@ -696,11 +453,11 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
 
         log.info("Started pravega ");
         // Create a stream for writing data
-        createScopeStream(pravegaRunner.getControllerRunner().controller, SCOPE, STREAM1, config);
+        createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, STREAM1, config);
         log.info("Created stream '{}'.", STREAM1);
 
         // Create a client to write events.
-        try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
+        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
             // Write events.
             writeEventsToStream(clientRunner.clientFactory, true);
 
@@ -726,7 +483,7 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         log.info("SegmentStore, BookKeeper & ZooKeeper shutdown");
 
         // start a new BookKeeper and ZooKeeper.
-        pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
+        pravegaRunner.startBookKeeperRunner(instanceId++);
         val bkConfig1 = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
                 .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
@@ -743,7 +500,7 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         log.info("Started segment store and controller again.");
 
         // Create the client with new controller.
-        try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
+        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
 
             // Get reader group.
             ReaderGroup readerGroup = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup);
@@ -759,7 +516,6 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
             assertNull(reader.readNextEvent(READ_TIMEOUT.toMillis()).getEvent());
             reader.close();
         }
-        FileUtils.deleteDirectory(new File(baseDir.getPath()));
     }
 
 
@@ -782,19 +538,9 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         int containerCount = 4;
         String readerGroup = "rgTx";
 
-        // Creating a long term storage only once here.
-        val baseDir = Files.createTempDirectory("test_backupRecovery").toFile().getAbsoluteFile();
-        val storageConfig = FileSystemStorageConfig
-                .builder()
-                .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
-                .build();
-
-        this.storageFactory = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, storageConfig, executorService());
-        log.info("Created a long term storage.");
-
         // Start a new BK & ZK, segment store and controller
         @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(bookieCount, containerCount);
+        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
         pravegaRunner.startBookKeeperRunner(instanceId++);
         val bkConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
@@ -808,11 +554,11 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
 
         // Create a stream for writing data
-        createScopeStream(pravegaRunner.getControllerRunner().controller, SCOPE, STREAM1, config);
+        createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, STREAM1, config);
 
         // Create a client to write events.
         @Cleanup
-        ClientRunner clientRunner = new ClientRunner(pravegaRunner.controllerRunner);
+        ClientRunner clientRunner = new ClientRunner(pravegaRunner.getControllerRunner());
 
         // Create a writer
         @Cleanup
@@ -827,12 +573,12 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         // scale the stream several times so that we get complex positions
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
         Stream streamObj = Stream.of(SCOPE, STREAM1);
-        scale(pravegaRunner.controllerRunner.controller, streamObj, config);
+        scale(pravegaRunner.getControllerRunner().getController(), streamObj, config);
 
         // get watermarks
         LinkedBlockingQueue<Watermark> watermarks = getWatermarks(pravegaRunner, stopFlag, writerFuture);
 
-        pravegaRunner.controllerRunner.close(); // Shut down the controller
+        pravegaRunner.getControllerRunner().close(); // Shut down the controller
 
         // Flush DurableLog to Long Term Storage
         flushToStorage(pravegaRunner.getSegmentStoreRunner().getServiceBuilder());
@@ -842,7 +588,7 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
         log.info("SegmentStore, BookKeeper & ZooKeeper shutdown");
 
         // start a new BookKeeper and ZooKeeper.
-        pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
+        pravegaRunner.startBookKeeperRunner(instanceId++);
         val bkConfig1 = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort())
                 .with(BookKeeperConfig.BK_LEDGER_PATH, pravegaRunner.getBookKeeperRunner().getLedgerPath())
@@ -860,11 +606,10 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
 
         // Create the client with new controller.
         @Cleanup
-        ClientRunner newClientRunner = new ClientRunner(pravegaRunner.controllerRunner);
+        ClientRunner newClientRunner = new ClientRunner(pravegaRunner.getControllerRunner());
 
         // read events and verify
         readVerifyEventsWithWatermarks(readerGroup, newClientRunner, streamObj, watermarks);
-        FileUtils.deleteDirectory(new File(baseDir.getPath()));
     }
 
     /**
@@ -899,11 +644,11 @@ public class BackUpRecoveryTest extends ThreadPooledTestSuite {
     /**
      * Gets watermarks used while writing the events
      */
-    private LinkedBlockingQueue<Watermark> getWatermarks(PravegaRunner pravegaRunner, AtomicBoolean stopFlag,
+    private LinkedBlockingQueue<Watermark> getWatermarks(LocalServiceStarter.PravegaRunner pravegaRunner, AtomicBoolean stopFlag,
                                                          CompletableFuture<Void> writerFuture) throws Exception {
         @Cleanup
         SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(SCOPE,
-                ClientConfig.builder().controllerURI(pravegaRunner.controllerRunner.controllerURI).build());
+                ClientConfig.builder().controllerURI(pravegaRunner.getControllerRunner().getControllerURI()).build());
 
         String markStream = NameUtils.getMarkStreamForStream(STREAM1);
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
