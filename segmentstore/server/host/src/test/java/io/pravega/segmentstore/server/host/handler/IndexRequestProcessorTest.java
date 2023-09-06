@@ -16,8 +16,6 @@
 
 package io.pravega.segmentstore.server.host.handler;
 
-import io.pravega.common.util.BufferView;
-import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
@@ -34,7 +32,6 @@ import org.junit.Test;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;

@@ -24,7 +24,6 @@ import io.pravega.shared.protocol.netty.AdminRequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.InlineExecutor;
 import java.util.concurrent.ScheduledExecutorService;
-import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
