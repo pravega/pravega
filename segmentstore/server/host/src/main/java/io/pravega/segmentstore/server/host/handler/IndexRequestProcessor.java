@@ -23,9 +23,8 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Map;
+import java.util.Map.Entry;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -54,9 +53,36 @@ public final class IndexRequestProcessor {
      * @return the corresponding offset position from the index segment entry.
      * @throws SegmentTruncatedException If the segment is truncated.
      */
-    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) throws SegmentTruncatedException {
-        long offset = applySearch(store, segment, targetOffset, greater).getValue();
-        return offset;
+    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset,
+                                              boolean greater) throws SegmentTruncatedException {
+        String indexSegmentName = NameUtils.getIndexSegmentName(segment);
+
+        // Fetch start and end idx.
+        SegmentProperties properties = store.getStreamSegmentInfo(indexSegmentName, TIMEOUT).join();
+        long startIdx = properties.getStartOffset() / NameUtils.INDEX_APPEND_EVENT_SIZE;
+        long endIdx = properties.getLength() / NameUtils.INDEX_APPEND_EVENT_SIZE - 1;
+        // If startIdx and endIdx are same, then pass length of segment as a result.
+
+        if (startIdx > endIdx) {
+            SegmentProperties segmentProperties = store.getStreamSegmentInfo(segment, TIMEOUT).join();
+            return segmentProperties.getLength();
+        }
+
+        Entry<Long, Long> result = SortUtils.newtonianSearch(idx -> {
+            ReadResult readResult = store.read(
+                indexSegmentName, idx * NameUtils.INDEX_APPEND_EVENT_SIZE, NameUtils.INDEX_APPEND_EVENT_SIZE, TIMEOUT)
+                                     .join();
+            return getOffsetFromIndexEntry(indexSegmentName, readResult);
+        }, startIdx, endIdx, targetOffset, greater);
+        if (greater && result.getValue() < targetOffset) {
+            SegmentProperties segmentProperties = store.getStreamSegmentInfo(segment, TIMEOUT).join();
+            return segmentProperties.getLength();
+        }
+        if (!greater && result.getValue() > targetOffset) {
+            SegmentProperties segmentProperties = store.getStreamSegmentInfo(segment, TIMEOUT).join();
+            return segmentProperties.getStartOffset();
+        }
+        return result.getValue();
     }
 
     /**
@@ -65,30 +91,31 @@ public final class IndexRequestProcessor {
      * @param store  The StreamSegmentStore to attach to (and issue requests to).
      * @param segment Segment name.
      * @param targetOffset The requested offset's corresponding position to search in the index segment entry.
-     * @param greater boolean to determine if the next higher or the lower value to be returned in case the requested offset is not present.
-     *
+     * 
      * @return the corresponding offset of index segment.
      */
-    public static long locateOffsetForIndexSegment(StreamSegmentStore store, String segment, long targetOffset, boolean greater) {
-        return applySearch(store, segment, targetOffset, greater).getKey() * NameUtils.INDEX_APPEND_EVENT_SIZE;
-    }
-
-    private static Map.Entry<Long, Long> applySearch(StreamSegmentStore store, String segment, long targetOffset, boolean greater) {
+    public static long locateTruncateOffsetInIndexSegment(StreamSegmentStore store, String segment, long targetOffset) {
         String indexSegmentName = NameUtils.getIndexSegmentName(segment);
-
+        
         //Fetch start and end idx.
         SegmentProperties properties = store.getStreamSegmentInfo(indexSegmentName, TIMEOUT).join();
         long startIdx = properties.getStartOffset() / NameUtils.INDEX_APPEND_EVENT_SIZE;
-        long endIdx = properties.getLength() / NameUtils.INDEX_APPEND_EVENT_SIZE;
+        long endIdx = properties.getLength() / NameUtils.INDEX_APPEND_EVENT_SIZE - 1;
         //If startIdx and endIdx are same, then pass length of segment as a result.
-        if (startIdx == endIdx) {
-           return getSegmentLength(store, segment, startIdx);
+        if (startIdx > endIdx) {
+           return properties.getStartOffset();
         }
-
-        return SortUtils.newtonianSearch(idx -> {
-            ReadResult result = store.read(indexSegmentName, idx * NameUtils.INDEX_APPEND_EVENT_SIZE, NameUtils.INDEX_APPEND_EVENT_SIZE, TIMEOUT).join();
-            return getOffsetFromIndexEntry(indexSegmentName, result);
-        }, startIdx, endIdx > 0 ? endIdx - 1 : 0, targetOffset, greater);
+        
+        Entry<Long, Long> result = SortUtils.newtonianSearch(idx -> {
+            ReadResult readResult = store.read(indexSegmentName, idx * NameUtils.INDEX_APPEND_EVENT_SIZE, NameUtils.INDEX_APPEND_EVENT_SIZE, TIMEOUT).join();
+            return getOffsetFromIndexEntry(indexSegmentName, readResult);
+        }, startIdx, endIdx, targetOffset, false);
+        
+        if (targetOffset < result.getValue()) {
+            return result.getKey() * NameUtils.INDEX_APPEND_EVENT_SIZE;
+        } else {
+            return (result.getKey() + 1) * NameUtils.INDEX_APPEND_EVENT_SIZE;
+        }
     }
 
     private static long getOffsetFromIndexEntry(String segment, ReadResult readResult) {
@@ -111,11 +138,5 @@ public final class IndexRequestProcessor {
             }
         }
         return IndexEntry.fromBytes(BufferView.wrap(result)).getOffset();
-    }
-
-
-    private static Map.Entry<Long, Long> getSegmentLength(StreamSegmentStore store, String segment, long startIdx) {
-        SegmentProperties segmentProperties = store.getStreamSegmentInfo(segment, TIMEOUT).join();
-        return new AbstractMap.SimpleEntry<>(startIdx, segmentProperties.getLength());
     }
 }

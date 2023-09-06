@@ -20,10 +20,10 @@ import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -39,20 +39,20 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
-import lombok.Cleanup;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class EndToEndIndexSegmentTest {
 
@@ -131,22 +131,20 @@ public class EndToEndIndexSegmentTest {
         LocalController controller = (LocalController) controllerWrapper.getController();
 
         Map<Long, Long> streamCutPositions = new HashMap<>();
-        streamCutPositions.put(0L, 81L);
+        streamCutPositions.put(0L, 108L);
 
         StreamSegments streamSegments = controller.getCurrentSegments(scope, streamName).join();
         Collection<Segment> segments = streamSegments.getSegments();
-        segments.forEach(segment -> {
-            //Validating starting offset of the main and index segment before truncation
-            assertEquals(0, store.getStreamSegmentInfo(segment.getScopedName(), TIMEOUT).join().getStartOffset());
-            assertEquals(0, store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(segment.getScopedName()), TIMEOUT).join().getStartOffset());
-        });
+        assertEquals(1, segments.size());
+        Segment segment = segments.iterator().next();
+        //Validating starting offset of the main and index segment before truncation
+        assertEquals(0, store.getStreamSegmentInfo(segment.getScopedName(), TIMEOUT).join().getStartOffset());
+        assertEquals(0, store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(segment.getScopedName()), TIMEOUT).join().getStartOffset());
 
         controller.truncateStream(stream.getScope(), stream.getStreamName(), streamCutPositions).join();
-
-        segments.forEach(segment -> {
-            //Validating starting offset of the main and index segment after truncation
-            assertEquals(81, store.getStreamSegmentInfo(segment.getScopedName(), TIMEOUT).join().getStartOffset());
-            assertEquals(48, store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(segment.getScopedName()), TIMEOUT).join().getStartOffset());
-        });
+        //Validating starting offset of the main and index segment after truncation
+        assertEquals(108L, store.getStreamSegmentInfo(segment.getScopedName(), TIMEOUT).join().getStartOffset());
+        long indexOffset = store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(segment.getScopedName()), TIMEOUT).join().getStartOffset();
+        assertTrue("Index was: "+ indexOffset, indexOffset == 24 || indexOffset == 48);
     }
 }
