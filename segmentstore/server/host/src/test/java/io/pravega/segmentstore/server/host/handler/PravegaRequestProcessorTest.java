@@ -401,6 +401,7 @@ public class PravegaRequestProcessorTest {
         doNothing().when(readResultEntry).requestContent(any());
 
         ReadResult result = mock(ReadResult.class);
+        doReturn(true).when(result).hasNext();
         doReturn(readResultEntry).when(result).next();
 
         doReturn(CompletableFuture.completedFuture(new IndexEntry(20, 1, 1233333).toBytes()))
