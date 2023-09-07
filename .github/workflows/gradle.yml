@@ -99,8 +99,8 @@ jobs:
           retention-days: 4
           path: reports-${{github.job}}.tzst
 # Uncomment these two lines if you need ssh access to debug a build.
-#      - name: Setup upterm session
-#        uses: lhotari/action-upterm@v1
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
 
   snapshot_docs:
     name: Upload Docs Snapshot
