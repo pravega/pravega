@@ -162,9 +162,8 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             int currentOutstandingCheckpointRequest = outstandingCheckpoints.size();
             if (currentOutstandingCheckpointRequest >= maxOutstandingCheckpointRequest) {
                 log.warn("Current outstanding checkpoints are : {}, " +
-                                 "maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}",
-                         outstandingCheckpoints, maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage,
-                         maxOutstandingCheckpointRequest);
+                                 "maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}, readers blocking checkpoint are: {}",
+                         outstandingCheckpoints, maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage, maxOutstandingCheckpointRequest, checkpointState.getReaderBlockingCheckpointsMap());
 
                 return false;
             } else {
@@ -222,6 +221,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         if (map.isEmpty()) {
             log.info("All the events between start and end of stream cuts are already read by {}, nothing more to read", getGroupName());
         }
+        log.debug("Checkpointing for {} is completed successfully", checkpointName);
         return new CheckpointImpl(checkpointName, map);
     }
 
@@ -345,7 +345,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         // add unassigned against empty string
         int unassigned = state.getNumberOfUnassignedSegments();
         ImmutableMap<String, Integer> readerDistribution = mapBuilder.build();
-        log.info("ReaderGroup {} has unassigned segments count = {} and segment distribution as {}", 
+        log.info("ReaderGroup {} has unassigned segments count = {} and segment distribution as {}",
                 getGroupName(), unassigned, readerDistribution);
         return ReaderSegmentDistribution
                 .builder().readerSegmentDistribution(readerDistribution).unassignedSegments(unassigned).build();
@@ -419,7 +419,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                     .sum();
         }), RuntimeException::new);
     }
-    
+
     private long getUnreadBytesIgnoringRange(Map<Stream, Map<SegmentWithRange, Long>> positions,
                                              Map<Segment, Long> endSegments) {
         log.debug("Compute unread bytes from position {}", positions);
@@ -431,7 +431,7 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
         return totalLength;
     }
-    
+
     private Map<Segment, Long> dropRange(Map<SegmentWithRange, Long> in) {
         return in.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getSegment(), e -> e.getValue()));
     }
@@ -541,4 +541,16 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         synchronizer.close();
         sequentialProcessor.close();
     }
+
+    /**
+     * Cancels the outStanding checkpoints.
+     */
+    @Override
+    public void cancelOutstandingCheckpoints() {
+        synchronizer.updateState((state, updates) -> {
+            updates.add(new ReaderGroupState.RemoveOutstandingCheckpoints());
+        });
+    }
 }
+
+

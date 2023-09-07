@@ -96,6 +96,23 @@ public class CheckpointStateTest {
     }
 
     @Test
+    public void testRemoveOutstandingCheckpointsCleared() {
+        CheckpointState state = new CheckpointState();
+        state.beginNewCheckpoint("1", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        state.beginNewCheckpoint("2", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        state.beginNewCheckpoint("3", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        assertEquals("1", state.getCheckpointForReader("a"));
+        assertEquals("1", state.getCheckpointForReader("b"));
+        assertEquals(null, state.getCheckpointForReader("c"));
+        state.readerCheckpointed("1", "a", Collections.emptyMap());
+        assertEquals("2", state.getCheckpointForReader("a"));
+        assertEquals("1", state.getCheckpointForReader("b"));
+        assertEquals(3, state.getOutstandingCheckpoints().size());
+        state.removeOutstandingCheckpoints();
+        assertEquals(0, state.getOutstandingCheckpoints().size());
+    }
+
+    @Test
     public void testOutstandingCheckpoint() {
         CheckpointState state = new CheckpointState();
         state.beginNewCheckpoint("1", ImmutableSet.of("a"), Collections.emptyMap());
@@ -155,6 +172,33 @@ public class CheckpointStateTest {
 
         // Last checkpoint position is not the same as silent checkpoint positions
         assertNotEquals(lastCheckpointPosition, ImmutableMap.of(getSegment("S1"), 3L));
+    }
+
+    @Test
+    public void testGetReaderBlockingCheckpointsMap() {
+        CheckpointState state = new CheckpointState();
+        state.beginNewCheckpoint("1", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        state.beginNewCheckpoint("2" + SILENT, ImmutableSet.of("a"), Collections.emptyMap());
+        state.beginNewCheckpoint("3", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        // Silent checkpoint should not be counted as part of CheckpointState#getOutstandingCheckpoints.
+
+        assertEquals(2, state.getReaderBlockingCheckpointsMap().size());
+
+        // Complete checkpoint "1" by reader 'a'.
+        state.readerCheckpointed("1", "a", ImmutableMap.of(getSegment("S1"), 1L));
+        // Checkpoint "1" is not completed by reader "b"
+        assertEquals("b", state.getReaderBlockingCheckpointsMap().get("1").get(0));
+        assertFalse(state.isCheckpointComplete("1"));
+        // CheckpointState#getReaderBlockingCheckpointsMap contains 2 entries
+        assertEquals(2, state.getReaderBlockingCheckpointsMap().size());
+
+        // Complete checkpoint "1" by reader 'b'.
+        state.readerCheckpointed("1", "b", ImmutableMap.of(getSegment("S1"), 1L));
+
+        // Only checkpoint "3" is outstanding as checkpoints "1" is complete and silent checkpoints are ignored.
+        assertEquals(1, state.getReaderBlockingCheckpointsMap().size());
+        assertTrue(state.isCheckpointComplete("1"));
+        assertFalse(state.isCheckpointComplete("3"));
     }
 
     private Segment getSegment(String name) {

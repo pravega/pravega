@@ -188,7 +188,15 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
 
         EventProcessorGroup mockEventProcessorGroup = mock(EventProcessorGroup.class);
         doNothing().when(mockEventProcessorGroup).awaitRunning();
-        doReturn(mockEventProcessorGroup).when(system).createEventProcessorGroup(any(EventProcessorConfig.class), any(CheckpointStore.class), any(ScheduledExecutorService.class));
+        when(system.createEventProcessorGroup(any(EventProcessorConfig.class), any(CheckpointStore.class), any(ScheduledExecutorService.class)))
+                .thenThrow(new RuntimeException("Error occurred") )
+                .thenReturn(mockEventProcessorGroup)
+                .thenThrow(new RuntimeException("Error occurred") )
+                .thenReturn(mockEventProcessorGroup)
+                .thenThrow(new RuntimeException("Error occurred") )
+                .thenReturn(mockEventProcessorGroup)
+                .thenThrow(new RuntimeException("Error occurred") )
+                .thenReturn(mockEventProcessorGroup);
 
         processors.startAsync();
         processors.awaitRunning();

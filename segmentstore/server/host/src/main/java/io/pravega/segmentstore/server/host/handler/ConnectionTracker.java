@@ -17,6 +17,8 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.server.store.ServiceConfig;
+
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -25,25 +27,17 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ConnectionTracker {
     /**
      * Threshold under which any connection may be resumed, subject to total connections not exceeding
-     * {@link #DEFAULT_ALL_CONNECTIONS_MAX_OUTSTANDING_BYTES}.
      */
     @VisibleForTesting
     static final int LOW_WATERMARK = 1024 * 1024; //1MB
-    /**
-     * Maximum allowed outstanding bytes from all connections. If we exceed this value, all connections should be paused.
-     */
-    private static final int DEFAULT_ALL_CONNECTIONS_MAX_OUTSTANDING_BYTES = 512 * 1024 * 1024;
-    /**
-     * Maximum allowed outstanding bytes from a single connection. If we exceed this value, that connection should be paused.
-     */
-    private static final int DEFAULT_SINGLE_CONNECTION_MAX_OUTSTANDING = DEFAULT_ALL_CONNECTIONS_MAX_OUTSTANDING_BYTES / 4;
 
     private final int allConnectionsLimit;
     private final int singleConnectionDoubleLimit;
     private final AtomicLong totalOutstanding = new AtomicLong(0);
 
     public ConnectionTracker() {
-        this(DEFAULT_ALL_CONNECTIONS_MAX_OUTSTANDING_BYTES, DEFAULT_SINGLE_CONNECTION_MAX_OUTSTANDING);
+        this(ServiceConfig.DEFAULT_ALL_CONNECTIONS_MAX_OUTSTANDING_BYTES.getDefaultValue().intValue(),
+                ServiceConfig.DEFAULT_SINGLE_CONNECTION_MAX_OUTSTANDING_BYTES.getDefaultValue().intValue());
     }
 
     ConnectionTracker(int allConnectionsMaxOutstandingBytes, int singleConnectionMaxOutstandingBytes) {

@@ -370,6 +370,57 @@ public class EventProcessorTest {
     }
 
     @Test(timeout = 10000)
+    public void testEventProcessorCellShutdown() throws InterruptedException {
+        CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+
+        CheckpointConfig.CheckpointPeriod period =
+                CheckpointConfig.CheckpointPeriod.builder()
+                        .numEvents(1)
+                        .numSeconds(1)
+                        .build();
+
+        CheckpointConfig checkpointConfig =
+                CheckpointConfig.builder()
+                        .type(CheckpointConfig.Type.Periodic)
+                        .checkpointPeriod(period)
+                        .build();
+
+        EventProcessorGroupConfig config =
+                EventProcessorGroupConfigImpl.builder()
+                        .eventProcessorCount(1)
+                        .readerGroupName(READER_GROUP)
+                        .streamName(STREAM_NAME)
+                        .checkpointConfig(checkpointConfig)
+                        .build();
+
+        EventProcessorSystem system = Mockito.mock(EventProcessorSystem.class);
+        Mockito.when(system.getProcess()).thenReturn(PROCESS);
+
+        EventStreamReader<TestEvent> reader = Mockito.mock(EventStreamReader.class);
+
+        EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new TestEventProcessor(false))
+                .serializer(new EventSerializer<>())
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
+                .config(config)
+                .build();
+        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(eventProcessorConfig, reader,
+                new EventStreamWriterMock<>(), system.getProcess(), READER_ID, 0, checkpointStore);
+
+        Mockito.when(reader.readNextEvent(anyLong())).thenAnswer((Answer) invocation -> {
+            cell.stopAsync(true);
+            //Below sleep is to simulate the scenario where infinite retries happen to connect to segmentstore when SS is down
+            Thread.sleep(60000);
+            return null;
+        });
+
+        cell.startAsync();
+        cell.awaitStartupComplete();
+
+        cell.awaitTerminated();
+    }
+
+    @Test(timeout = 10000)
     public void testEventProcessorWriter() throws ReinitializationRequiredException, CheckpointStoreException {
         int initialCount = 1;
         String systemName = "testSystem";
