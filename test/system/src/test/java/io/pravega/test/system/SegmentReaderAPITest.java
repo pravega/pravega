@@ -238,7 +238,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
         assertNull(reader0.readNextEvent(500).getEvent());
-        assertEquals(300, streamCut3.asImpl().getPositions().get(list.get(0)).longValue());
+        assertEquals(300, streamCut4.asImpl().getPositions().get(list.get(0)).longValue());
         reader0.close();
 
         //Scaling up begin
