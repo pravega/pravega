@@ -85,7 +85,6 @@ import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -96,8 +95,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -441,7 +440,6 @@ public class AppendTest extends LeakDetectorTestSuite {
         // Read the Actual data from main Segment. Will be helpful in asserting the indexdata
         WireCommands.SegmentRead result = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(segment, 0, 20, "", 1L));
         ByteBuf resultAfterOneAppend = result.getData();
-        System.out.println("dataResult : " + resultAfterOneAppend.toString(Charset.defaultCharset()));
 
         // As only one append is done on Main segment we should have Event_count on index segment as 1
         assertEventCountAttributeforSegment(indexSegment, store, 1);
@@ -452,13 +450,11 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertEquals(uuid, ack2.getWriterId());
         assertEquals(2, ack2.getEventNumber());
         assertEquals(1, ack2.getPreviousEventNumber());
-        //Thread.sleep(10L);
 
         // Read the Actual data from main Segment. Will be helpfull in asserting the indexdata
         WireCommands.SegmentRead resultMain = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(segment, 0, 100, "", 1L));
         ByteBuf resultAfterTwoAppend = resultMain.getData();
         assertEquals(2 * resultAfterOneAppend.readableBytes(), resultAfterTwoAppend.readableBytes());
-        System.out.println("dataResult Main : " + resultAfterTwoAppend.toString(Charset.defaultCharset()));
 
         // Read IndexSegment from 0 Offset.
         int readOffset = 0;
@@ -468,9 +464,6 @@ public class AppendTest extends LeakDetectorTestSuite {
         IndexEntry indexEntry1 = IndexEntry.fromBytes(BufferView.wrap(actual1.array()));
         assertEquals(1, indexEntry1.getEventCount());
         assertEquals(resultAfterOneAppend.readableBytes(), indexEntry1.getOffset());
-
-        System.out.println("dataResult index data 1 event number : " + indexEntry1.getOffset() + " eventCount : " + indexEntry1.getEventCount() + " timestamp : " + indexEntry1.getTimeStamp()
-                + " offset from readResult " + resultIndexSegment1.getOffset() + " length of data returned " + indexEntry1.toBytes().getLength());
 
         // Read IndexSegment from next Offset this will give second append info
         readOffset += indexEntry1.toBytes().getLength();
@@ -483,9 +476,6 @@ public class AppendTest extends LeakDetectorTestSuite {
 
         assertEquals(2, indexEntry2.getEventCount());
         assertEquals(resultAfterTwoAppend.readableBytes(), indexEntry2.getOffset());
-
-        System.out.println("dataResult index data 2 event number : " + indexEntry2.getOffset() + " eventCount : " + indexEntry2.getEventCount() + " timestamp : " + indexEntry2.getTimeStamp()
-                + " offset from readResult " + resultIndexSegment2.getOffset() + " length of data returned " + indexEntry1.toBytes().getLength());
 
         // Two appends are done on Main segment we should have Event_count on index segment as 2
         assertEventCountAttributeforSegment(indexSegment, store, 2);

@@ -207,7 +207,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     }
 
     private void closeConnection(Throwable exceptionToInflightRequests) {
-        log.debug("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
+        log.info("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
         closeClientConnection();
     }
 
