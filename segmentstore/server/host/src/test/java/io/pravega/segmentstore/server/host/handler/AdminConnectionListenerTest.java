@@ -35,7 +35,7 @@ import static org.mockito.Mockito.mock;
 
 public class AdminConnectionListenerTest {
 
-    @Test
+    @Test(timeout = 10000)
     public void testCreateEncodingStack() {
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -53,7 +53,7 @@ public class AdminConnectionListenerTest {
         Assert.assertTrue(stack.get(3) instanceof CommandDecoder);
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testCreateRequestProcessor() {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup("shutdown")

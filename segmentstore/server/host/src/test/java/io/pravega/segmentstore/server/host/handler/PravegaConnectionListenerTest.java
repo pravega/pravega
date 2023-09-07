@@ -57,7 +57,7 @@ import static org.mockito.Mockito.mock;
 
 public class PravegaConnectionListenerTest {
 
-    @Test
+    @Test(timeout = 5000)
     public void testCtorSetsTlsReloadFalseByDefault() {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup("shutdown")
@@ -68,7 +68,7 @@ public class PravegaConnectionListenerTest {
         assertFalse(listener.isEnableTlsReload());
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testCtorSetsTlsReloadFalseIfTlsIsDisabled() {
         @Cleanup("shutdown")
         ScheduledExecutorService executor = new InlineExecutor();
@@ -81,7 +81,7 @@ public class PravegaConnectionListenerTest {
         assertFalse(listener.isEnableTlsReload());
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testCloseWithoutStartListeningThrowsNoException() {
         @Cleanup("shutdown")
         ScheduledExecutorService executor = new InlineExecutor();
@@ -96,7 +96,7 @@ public class PravegaConnectionListenerTest {
         listener.close();
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testUsesEventWatcherForNonSymbolicLinks() {
         String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
@@ -118,7 +118,7 @@ public class PravegaConnectionListenerTest {
         assertTrue("Unexpected type of FileModificationMonitor", monitor instanceof FileModificationEventWatcher);
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testUsesPollingMonitorForSymbolicLinks() {
         String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
@@ -140,7 +140,7 @@ public class PravegaConnectionListenerTest {
         assertTrue("Unexpected type of FileModificationMonitor", monitor instanceof FileModificationPollingMonitor);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testPrepareCertificateMonitorThrowsExceptionWithNonExistentFile() {
         String pathToCertificateFile = SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
@@ -168,7 +168,7 @@ public class PravegaConnectionListenerTest {
         }
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testEnableTlsContextReloadWhenStateIsValid() {
         String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
         String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
@@ -187,7 +187,7 @@ public class PravegaConnectionListenerTest {
         // No exception indicates success.
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testStartListening() {
         int port = TestUtils.getAvailableListenPort();
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -206,7 +206,7 @@ public class PravegaConnectionListenerTest {
         listener.close();
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testCreateEncodingStack() {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup("shutdown")
@@ -223,7 +223,7 @@ public class PravegaConnectionListenerTest {
         Assert.assertTrue(stack.get(4) instanceof AppendDecoder);
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testCreateRequestProcessor() {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         @Cleanup("shutdown")
@@ -235,7 +235,7 @@ public class PravegaConnectionListenerTest {
     }
 
     // Test the health status created with pravega listener.
-    @Test
+    @Test(timeout = 10000)
     public void testHealth() {
         @Cleanup
         HealthServiceManager healthServiceManager = new HealthServiceManager(Duration.ofSeconds(2));

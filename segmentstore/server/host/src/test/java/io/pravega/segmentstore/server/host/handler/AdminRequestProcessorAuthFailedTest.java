@@ -55,13 +55,13 @@ public class AdminRequestProcessorAuthFailedTest {
         executor.shutdown();
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void flushToStorage() {
         processor.flushToStorage(new WireCommands.FlushToStorage(0, "", 1));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void listStorageChunks() {
         processor.listStorageChunks(new WireCommands.ListStorageChunks("dummy", "", 1));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
