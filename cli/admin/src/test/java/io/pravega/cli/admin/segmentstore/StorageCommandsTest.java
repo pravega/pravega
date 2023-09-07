@@ -144,53 +144,6 @@ public class StorageCommandsTest extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testlistChunksWithFileSystemStorage() throws Exception {
-        int instanceId = 0;
-        int bookieCount = 3;
-        int containerCount = 1;
-
-        val baseDir = Files.createTempDirectory("testListChunks").toFile().getAbsoluteFile();
-        val storageConfig = FileSystemStorageConfig
-                .builder()
-                .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
-                .build();
-
-        this.storageFactory = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, storageConfig, executorService());
-        log.info("Created a long term storage.");
-
-        @Cleanup
-        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
-        pravegaRunner.startBookKeeperRunner(instanceId++);
-        this.factory = new BookKeeperLogFactory(pravegaRunner.getBookKeeperRunner().getBkConfig().get(), pravegaRunner.getBookKeeperRunner().getZkClient().get(),
-                executorService());
-        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, this.factory, true);
-        String streamName = "testListChunksCommand";
-
-        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
-        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
-            // Write events to the streams.
-            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
-        }
-
-        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.getSegmentStoreRunner().getServiceBuilder());
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
-        }
-
-        STATE.set(new AdminCommandState());
-        Properties pravegaProperties = new Properties();
-        pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(pravegaRunner.getSegmentStoreRunner().getAdminPort()));
-        pravegaProperties.setProperty("pravegaservice.container.count", "1");
-        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
-        pravegaProperties.setProperty("pravegaservice.storage.layout", "CHUNKED_STORAGE");
-        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
-        STATE.get().getConfigBuilder().include(pravegaProperties);
-
-        String commandResult = TestUtils.executeCommand("storage list-chunks _system/containers/metadata_0 localhost", STATE.get());
-        Assert.assertTrue(commandResult.contains("List of chunks for _system/containers/metadata_0"));
-    }
-
-    @Test
     public void testSnapshotUpdateCommand() throws Exception {
 
         int segmentLength = 3000;

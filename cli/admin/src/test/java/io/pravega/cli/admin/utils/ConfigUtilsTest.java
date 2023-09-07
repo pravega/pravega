@@ -16,11 +16,14 @@
 package io.pravega.cli.admin.utils;
 
 import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.Cleanup;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 
+@RunWith(SerializedClassRunner.class)
 public class ConfigUtilsTest {
 
     @Test

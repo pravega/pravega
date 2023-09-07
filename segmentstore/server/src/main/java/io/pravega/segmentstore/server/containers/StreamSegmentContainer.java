@@ -902,8 +902,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                             }, this.executor)
                             .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(),
                                     new ByteArrayInputStream(epochBytes.array(), 0, epochBytes.getLength())), executor)
-                            .thenAcceptAsync( v -> log.debug("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo))
-                            .thenComposeAsync( v -> readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength()), executor)
+                            .thenComposeAsync( v -> {
+                                log.debug("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo);
+                                return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength()); }, executor)
                             .thenApplyAsync( readBackInfo -> {
                                 if (readBackInfo.getEpoch() > epochInfo.getEpoch()) {
                                     throw new CompletionException(
