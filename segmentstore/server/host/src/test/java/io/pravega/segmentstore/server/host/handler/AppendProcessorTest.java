@@ -119,10 +119,10 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AppendProcessorTest extends ThreadPooledTestSuite {
-    private final long requestId = 1234L;
-
     @Rule
-    public Timeout globalTimeout = new Timeout(7, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(7, TimeUnit.SECONDS);
+
+    private final long requestId = 1234L;
     
     @Override
     protected int getThreadPoolSize() {

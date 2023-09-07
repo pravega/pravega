@@ -21,17 +21,15 @@ import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.batch.impl.BatchClientFactoryImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
-import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.control.impl.ControllerImpl;
-import io.pravega.client.control.impl.ControllerImplConfig;
-import lombok.val;
-
 import java.util.List;
+import lombok.val;
 
 /**
  * Please note this is an experimental API.
@@ -112,8 +110,7 @@ public interface BatchClientFactory extends AutoCloseable {
      * However, in case of scale down if offsets of all the segments participating in the scale down are at the tail then only call to get the next offset of their successor is made.
      * @param startingStreamCut Starting streamcut
      * @param approxDistanceToNextOffset approx distance to nextoffset in bytes
-     * @return A streamcut
-     * @throws SegmentTruncatedException If the segment is truncated or it does not exist.
+     * @return A streamcut after the apporoximate distance from the startingStreamCut.
      */
-    StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException;
+    StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset);
 }
