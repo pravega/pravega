@@ -116,7 +116,9 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> {
             if (delayTask != null) {
                 delayTask.cancel(true);
             }
-            Futures.await(runTask);
+            if (!executor.isShutdown()) {
+                Futures.await(runTask, 10000);
+            }
             log.info("{}: Closed.", this.traceObjectId);
             return this.queue.drain();
         }
