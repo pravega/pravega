@@ -104,12 +104,13 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length);
 
         val streamSegmentName = handle.getSegmentName();
-        return ChunkedSegmentStorage.tryWith(
-            chunkedSegmentStorage.getMetadataStore().beginTransaction(false, handle.getSegmentName()), txn -> {
+        return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(false, handle.getSegmentName()), 
+            txn -> {
                 didSegmentLayoutChange = false;
 
                 // Retrieve metadata.
-                return txn.get(streamSegmentName).thenComposeAsync(storageMetadata -> {
+                return txn.get(streamSegmentName)
+                        .thenComposeAsync(storageMetadata -> {
                     segmentMetadata = (SegmentMetadata) storageMetadata;
                     // Validate preconditions.
                     checkState();
@@ -154,7 +155,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         throw new CompletionException(ex);
     }
 
-    private Void postCommit() {
+    private Object postCommit() {
         // Post commit actions.
         // Update the read index.
         chunkedSegmentStorage.getReadIndexCache().addIndexEntries(handle.getSegmentName(), newReadIndexEntries);
