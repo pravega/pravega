@@ -41,8 +41,8 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.system.framework.Environment;
@@ -77,7 +77,7 @@ import static org.junit.Assert.*;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class SegmentReaderAPITest extends AbstractReadWriteTest {
-    private static final String DATA_OF_SIZE_30 = "data of size 30"; // data length = 22 bytes , header = 8 bytes
+    private static final String DATA_OF_SIZE_30 = "this is a test strings"; // data length = 22 bytes , header = 8 bytes
     private final Random random = RandomFactory.create();
     private URI controllerURI = null;
     private StreamManager streamManager = null;
@@ -146,7 +146,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         log.info("Segment name ::{}", list.get(0).getScopedName());
 
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
 
         // write events to stream 30 *10  = 300 bytes
@@ -174,7 +174,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         @Cleanup
         EventStreamReader<String> reader0 = clientFactory.createReader(readerName,
                 readerGroupName,
-                new JavaSerializer<>(),
+                new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
 
         assertNotNull(reader0.readNextEvent(500).getEvent());
@@ -197,7 +197,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
 
         reader0 = clientFactory.createReader(readerName,
                 readerGroupName,
-                new JavaSerializer<>(),
+                new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
 
         assertNotNull(reader0.readNextEvent(500).getEvent());
@@ -220,19 +220,26 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
 
         reader0 = clientFactory.createReader(readerName,
                 readerGroupName,
-                new JavaSerializer<>(),
+                new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
 
         assertNotNull(reader0.readNextEvent(500).getEvent());
 
         EventRead event3 = reader0.readNextEvent(500);
         assertNull(event3.getEvent());
-        assertFalse(event3.isCheckpoint());
         assertEquals(300, streamCut3.asImpl().getPositions().get(list.get(0)).longValue());
         reader0.close();
 
         StreamCut streamCut4 = batchClient.getNextStreamCut(streamCut3, approxDistanceToNextOffset);
         log.info("Next stream cut4 {}", streamCut4);
+
+        reader0 = clientFactory.createReader(readerName,
+                readerGroupName,
+                new UTF8StringSerializer(),
+                ReaderConfig.builder().build());
+        assertNull(reader0.readNextEvent(500).getEvent());
+        assertEquals(300, streamCut3.asImpl().getPositions().get(list.get(0)).longValue());
+        reader0.close();
 
         //Scaling up begin
         Map<Double, Double> keyRanges = new HashMap<>();
@@ -299,7 +306,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         assertEquals(1, list.size());
 
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
 
         // write events to stream 30 * 5  = 150 bytes
@@ -324,7 +331,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         @Cleanup
         EventStreamReader<String> reader0 = clientFactory.createReader(readerName,
                 readerGroupName,
-                new JavaSerializer<>(),
+                new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
 
         assertNotNull(reader0.readNextEvent(500).getEvent());
@@ -415,14 +422,6 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
     private void write30ByteEvents(int numberOfEvents, EventStreamWriter<String> writer) {
         Supplier<String> routingKeyGenerator = () -> String.valueOf(random.nextInt());
         IntStream.range(0, numberOfEvents).forEach(v -> writer.writeEvent(routingKeyGenerator.get(), DATA_OF_SIZE_30).join());
-    }
-
-    public static void readEvent(EventStreamReader<String> reader) {
-        String event = "";
-        while (event != null) {
-            event = reader.readNextEvent(10000).getEvent();
-            log.info("Read Event Data : {}", event);
-        }
     }
 
     private static ReaderGroupConfig getReaderGroupConfig(StreamCut startStreamCut, StreamCut endStreamCut, Stream stream) {
