@@ -584,24 +584,22 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                     return garbageCollector.addSegmentToGarbage(txn.getVersion(), streamSegmentName)
                                            .thenComposeAsync(vv -> {
                                                // Commit metadata.
-                                               return txn.commit().thenRunAsync(() -> {
-                                                   // Update the read index.
-                                                   readIndexCache.remove(streamSegmentName);
-
-                                                   val elapsed = timer.getElapsed();
-                                                   SLTS_DELETE_LATENCY.reportSuccessEvent(elapsed);
-                                                   SLTS_DELETE_COUNT.inc();
-                                                   log.debug(
-                                                       "{} delete - finished segment={}, latency={}.", logPrefix,
-                                                       handle.getSegmentName(), elapsed.toMillis());
-                                                   LoggerHelpers.traceLeave(log, "delete", traceId, handle);
+                                               return txn.commit()
+                                                       .thenRunAsync(() -> {
+                                                           // Update the read index.
+                                                           readIndexCache.remove(streamSegmentName);
+        
+                                                           val elapsed = timer.getElapsed();
+                                                           SLTS_DELETE_LATENCY.reportSuccessEvent(elapsed);
+                                                           SLTS_DELETE_COUNT.inc();
+                                                           log.debug("{} delete - finished segment={}, latency={}.", logPrefix, handle.getSegmentName(), elapsed.toMillis());
+                                                           LoggerHelpers.traceLeave(log, "delete", traceId, handle);
                                                }, executor);
                                            }, executor);
-                }, executor), executor).exceptionally(ex -> {
-                    log.warn(
-                        "{} delete - exception segment={}, latency={}.", logPrefix, handle.getSegmentName(),
-                        timer.getElapsedMillis(), ex);
-                    throw handleException(streamSegmentName, ex);
+                }, executor), executor)
+                    .exceptionally(ex -> {
+                        log.warn("{} delete - exception segment={}, latency={}.", logPrefix, handle.getSegmentName(), timer.getElapsedMillis(), ex);
+                        throw handleException(streamSegmentName, ex);
                 });
         }, handle.getSegmentName());
     }
