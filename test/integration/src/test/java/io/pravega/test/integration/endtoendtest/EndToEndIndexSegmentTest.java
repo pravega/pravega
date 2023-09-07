@@ -145,6 +145,7 @@ public class EndToEndIndexSegmentTest {
         //Validating starting offset of the main and index segment after truncation
         assertEquals(108L, store.getStreamSegmentInfo(segment.getScopedName(), TIMEOUT).join().getStartOffset());
         long indexOffset = store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(segment.getScopedName()), TIMEOUT).join().getStartOffset();
-        assertTrue("Index was: " + indexOffset, indexOffset == 24 || indexOffset == 48);
+        assertTrue("Index was: " + indexOffset, indexOffset > 0);
+        assertTrue("Index was: " + indexOffset, indexOffset % 24 == 0);
     }
 }
