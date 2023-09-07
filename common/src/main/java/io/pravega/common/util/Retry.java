@@ -71,22 +71,26 @@ public final class Retry {
     private Retry() {
     }
 
+    public static RetryWithBackoff withoutBackoff(int attempts) {
+        return new RetryWithBackoff(0, 1, attempts, 0);
+    }
+
     public static RetryWithBackoff withExpBackoff(long initialMillis, int multiplier, int attempts) {
         return withExpBackoff(initialMillis, multiplier, attempts, Long.MAX_VALUE);
     }
 
     public static RetryWithBackoff withExpBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
-        Preconditions.checkArgument(initialMillis >= 1, "InitialMillis must be a positive integer.");
+        Preconditions.checkArgument(initialMillis >= 0, "InitialMillis cannot be negative.");
         Preconditions.checkArgument(multiplier >= 1, "multiplier must be a positive integer.");
         Preconditions.checkArgument(attempts >= 1, "attempts must be a positive integer.");
-        Preconditions.checkArgument(maxDelay >= 1, "maxDelay must be a positive integer.");
+        Preconditions.checkArgument(maxDelay >= 0, "maxDelay cannot be negative.");
         return new RetryWithBackoff(initialMillis, multiplier, attempts, maxDelay);
     }
 
     public static RetryUnconditionally indefinitelyWithExpBackoff(long initialMillis, int multiplier, long maxDelay, Consumer<Throwable> consumer) {
-        Preconditions.checkArgument(initialMillis >= 1, "InitialMillis must be a positive integer.");
+        Preconditions.checkArgument(initialMillis >= 0, "InitialMillis cannot be negative.");
         Preconditions.checkArgument(multiplier >= 1, "multiplier must be a positive integer.");
-        Preconditions.checkArgument(maxDelay >= 1, "maxDelay must be a positive integer.");
+        Preconditions.checkArgument(maxDelay >= 0, "maxDelay cannot be negative.");
         RetryWithBackoff params = new RetryWithBackoff(initialMillis, multiplier, Integer.MAX_VALUE, maxDelay);
         return new RetryUnconditionally(consumer, params);
     }
@@ -122,12 +126,20 @@ public final class Retry {
         @Getter
         @With
         private final long maxDelay;
+        @Getter
+        @With
+        private final boolean isInitialDelayForfirstRetry;
 
         private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
+            this(initialMillis, multiplier, attempts, maxDelay, false);
+        }
+
+        private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay, boolean isInitialDelayForfirstRetry) {
             this.initialMillis = initialMillis;
             this.multiplier = multiplier;
             this.attempts = attempts;
             this.maxDelay = maxDelay;
+            this.isInitialDelayForfirstRetry = isInitialDelayForfirstRetry;
         }
 
         public <RetryT extends Exception> RetryExceptionally<RetryT> retryingOn(Class<RetryT> retryType) {
@@ -243,7 +255,7 @@ public final class Retry {
             Preconditions.checkNotNull(r);
             CompletableFuture<ReturnT> result = new CompletableFuture<>();
             AtomicInteger attemptNumber = new AtomicInteger(1);
-            AtomicLong delay = new AtomicLong(0);
+            AtomicLong delay = new AtomicLong(params.isInitialDelayForfirstRetry ? params.initialMillis : 0);
             Futures.loop(
                     () -> !result.isDone(),
                     () -> Futures
