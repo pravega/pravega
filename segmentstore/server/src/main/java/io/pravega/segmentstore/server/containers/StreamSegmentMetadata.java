@@ -193,6 +193,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public synchronized long getStreamSegmentId() {
+        return this.streamSegmentId;
+    }
+
+    @Override
     public synchronized Map<AttributeId, Long> getAttributes(BiPredicate<AttributeId, Long> filter) {
         return getAttributes().entrySet().stream()
                 .filter(e -> filter.test(e.getKey(), e.getValue()))

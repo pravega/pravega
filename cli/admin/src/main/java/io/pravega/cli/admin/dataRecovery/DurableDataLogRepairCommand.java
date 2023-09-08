@@ -116,7 +116,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         val originalDataLog = dataLogFactory.createDebugLogWrapper(containerId);
 
         // Check if the Original Log is disabled.
-        if (originalDataLog.fetchMetadata().isEnabled()) {
+        var origMetadata = originalDataLog.fetchMetadata();
+        if (origMetadata.isEnabled()) {
             output("Original DurableLog is enabled. Repairs can only be done on disabled logs, exiting.");
             return;
         }
@@ -200,7 +201,9 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         try (val editedLogWrapper = dataLogFactory.createDebugLogWrapper(dataLogFactory.getRepairLogId())) {
             output("Original DurableLog Metadata: " + originalDataLog.fetchMetadata());
             output("Edited DurableLog Metadata: " + editedLogWrapper.fetchMetadata());
+            long origEpoch = origMetadata.getEpoch();
             originalDataLog.forceMetadataOverWrite(editedLogWrapper.fetchMetadata());
+            originalDataLog.overrideEpochInMetadata(origEpoch);
             output("New Original DurableLog Metadata (after replacement): " + originalDataLog.fetchMetadata());
         }
 
@@ -436,7 +439,9 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 result = new StreamSegmentAppendOperation(segmentId, offset, createOperationContents(), createAttributeUpdateCollection());
                 break;
             case "StreamSegmentMapOperation":
-                result = new StreamSegmentMapOperation(createSegmentProperties());
+                SegmentProperties inputProperties = createSegmentProperties();
+                result = new StreamSegmentMapOperation(inputProperties);
+                ((StreamSegmentMapOperation) result).setStreamSegmentId(inputProperties.getStreamSegmentId());
                 break;
             case "StreamSegmentSealOperation":
                 segmentId = getLongUserInput("Input Segment Id for StreamSegmentSealOperation:");
@@ -508,6 +513,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
     @VisibleForTesting
     SegmentProperties createSegmentProperties() {
         String segmentName = getStringUserInput("Input the name of the Segment: ");
+        long streamSegmentId = getLongUserInput("Input Segment Id of the Segment: ");
         long offset = getLongUserInput("Input the offset of the Segment: ");
         long length = getLongUserInput("Input the length of the Segment: ");
         long storageLength = getLongUserInput("Input the storage length of the Segment: ");
@@ -535,7 +541,7 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
             finishInputCommands = !confirmContinue();
         }
         long lastModified = getLongUserInput("Input last modified timestamp for the Segment (milliseconds): ");
-        return StreamSegmentInformation.builder().name(segmentName).startOffset(offset).length(length).storageLength(storageLength)
+        return StreamSegmentInformation.builder().name(segmentName).streamSegmentId(streamSegmentId).startOffset(offset).length(length).storageLength(storageLength)
                 .sealed(sealed).deleted(deleted).sealedInStorage(sealedInStorage).deletedInStorage(deletedInStorage)
                 .attributes(attributes).lastModified(new ImmutableDate(lastModified)).build();
     }
