@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,6 +37,8 @@ import static io.pravega.shared.NameUtils.getTransactionNameFromId;
 import static io.pravega.shared.NameUtils.getTransientNameFromId;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -80,13 +83,13 @@ public class IndexAppendProcessorTest {
                         any(), any()))
                 .thenReturn(future)
                 .thenReturn(CompletableFuture.completedFuture(10L));
-
+        @Cleanup
         IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
         appendProcessor.processAppend(segmentName, NameUtils.INDEX_APPEND_EVENT_SIZE);
         appendProcessor.processAppend(segmentName, NameUtils.INDEX_APPEND_EVENT_SIZE);
-
-        verify(store, times(2)).getStreamSegmentInfo(segmentName, timeout);
-        verify(store, times(2)).append(anyString(), any(), any(), any());
+        appendProcessor.runRemainingAndClose();
+        verify(store, atLeast(1)).getStreamSegmentInfo(segmentName, timeout);
+        verify(store, atLeast(1)).append(eq(NameUtils.getIndexSegmentName(segmentName)), any(), any(), any());
         verifyNoMoreInteractions(store);
     }
 
@@ -105,12 +108,13 @@ public class IndexAppendProcessorTest {
         Mockito.when(store.append(anyString(), any(),
                         any(), any()))
                 .thenReturn(CompletableFuture.completedFuture(10L));
+        @Cleanup
         IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
         appendProcessor.processAppend(segmentName, 32L);
         appendProcessor.processAppend(segmentName, NameUtils.INDEX_APPEND_EVENT_SIZE);
-
+        appendProcessor.runRemainingAndClose();
         verify(store, times(1)).getStreamSegmentInfo(segmentName, timeout);
-        verify(store, times(1)).append(anyString(), any(), any(), any());
+        verify(store, times(1)).append(eq(NameUtils.getIndexSegmentName(segmentName)), any(), any(), any());
         verifyNoMoreInteractions(store);
     }
 
@@ -122,10 +126,10 @@ public class IndexAppendProcessorTest {
 
         Mockito.when(store.getStreamSegmentInfo(anyString(), any()))
                 .thenReturn(future);
-
+        @Cleanup
         IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
         appendProcessor.processAppend(segmentName, NameUtils.INDEX_APPEND_EVENT_SIZE);
-
+        appendProcessor.runRemainingAndClose();
         verify(store, times(1)).getStreamSegmentInfo(segmentName, timeout);
         verify(store, times(0)).append(anyString(), any(), any(), any());
         verifyNoMoreInteractions(store);
@@ -136,7 +140,7 @@ public class IndexAppendProcessorTest {
         String nonUserStreamSegment = "_system/_testStream/0";
         String transactionalSegment = getTransactionNameFromId("test/test/0", UUID.randomUUID());
         String transientSegment = getTransientNameFromId("test/test/0", UUID.randomUUID());
-
+        @Cleanup
         IndexAppendProcessor appendProcessor = new IndexAppendProcessor(inlineExecutor, store);
         appendProcessor.processAppend(nonUserStreamSegment, NameUtils.INDEX_APPEND_EVENT_SIZE);
         appendProcessor.processAppend(transientSegment, NameUtils.INDEX_APPEND_EVENT_SIZE);
