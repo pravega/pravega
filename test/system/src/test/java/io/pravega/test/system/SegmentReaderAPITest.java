@@ -261,6 +261,27 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         Segment segment2 = Segment.fromScopedName(streamScope + "/" + streamName + "/2.#epoch.1");
         log.info("Segment1 name {} and Segment2 name {}", segment1.getScopedName(), segment2.getScopedName());
 
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .stream(stream.getScopedName())
+                .build();
+
+        readerGroup.resetReaderGroup(readerGroupConfig);
+        reader0.close();
+
+        reader0 = clientFactory.createReader(readerName,
+                readerGroupName,
+                new UTF8StringSerializer(),
+                ReaderConfig.builder().build());
+
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNull(reader0.readNextEvent(500).getEvent());
+        reader0.close();
+
         ArrayList<SegmentRange> segmentList1 = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         log.info("Segment List1 :{}", segmentList1);
 
@@ -326,6 +347,8 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(streamScope, controllerURI);
         ReaderGroupConfig readerGroupConfig1 = getReaderGroupConfig(streamCut0, streamCut1, stream);
         groupManager.createReaderGroup(readerGroupName, readerGroupConfig1);
+        @Cleanup
+        ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 
         // For reading the events between the two streamCut, startStreamCUt = streamCutMap0 and endStreamCut =streamCutMap1
         @Cleanup
@@ -366,6 +389,27 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         Segment segment2 = Segment.fromScopedName(streamScope + "/" + streamName + "/2.#epoch.1");
         log.info("Segment1 name {} and Segment2 name {}", segment1.getScopedName(), segment2.getScopedName());
 
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .stream(stream.getScopedName())
+                .build();
+
+        readerGroup.resetReaderGroup(readerGroupConfig);
+        reader0.close();
+
+        reader0 = clientFactory.createReader(readerName,
+                readerGroupName,
+                new UTF8StringSerializer(),
+                ReaderConfig.builder().build());
+
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNotNull(reader0.readNextEvent(500).getEvent());
+        assertNull(reader0.readNextEvent(500).getEvent());
+        reader0.close();
+
         long approxDistanceToNextOffset = 180L;
         StreamCut nextStreamCut2 = batchClient.getNextStreamCut(streamCut1, approxDistanceToNextOffset);
         log.info("Next stream cut2 {}", nextStreamCut2);
@@ -395,16 +439,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         Segment segment3 = Segment.fromScopedName(streamScope + "/" + streamName + "/3.#epoch.2");
         log.info("segment3 name :{}", segment3.getScopedName());
 
-        ArrayList<SegmentRange> segmentList2 = Lists.newArrayList(
-                batchClient.getSegments(Stream.of(streamScope, streamName), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
-        log.info("Segment List2 :{}", segmentList2);
-
-        Map<Segment, Long> map1 = segmentList2.stream().collect(Collectors.toMap(SegmentRange::getSegment, value -> value.getEndOffset()));
-        StreamCut streamCut = new StreamCutImpl(Stream.of(streamScope, streamName),
-                ImmutableMap.of(segment1, map1.get(segment1), segment2, map1.get(segment2)));
-        log.info("StreamCut : {}", streamCut);
-
-        StreamCut nextStreamCut3 = batchClient.getNextStreamCut(streamCut, approxDistanceToNextOffset);
+        StreamCut nextStreamCut3 = batchClient.getNextStreamCut(nextStreamCut2, approxDistanceToNextOffset);
         log.info("Next stream cut3 {}", nextStreamCut3);
 
         assertTrue(nextStreamCut3 != null);
