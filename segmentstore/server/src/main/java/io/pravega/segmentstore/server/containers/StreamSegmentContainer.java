@@ -263,15 +263,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         if (this.closed.compareAndSet(false, true)) {
             this.metadataStore.close();
             this.extensions.values().forEach(SegmentContainerExtension::close);
-            Futures.await(Services.stopAsync(this, this.executor));
             this.metadataCleaner.close();
             this.writer.close();
-            this.durableLog.close();
             this.readIndex.close();
             this.attributeIndex.close();
+            this.durableLog.close();
             this.storage.close();
             this.metrics.close();
             this.containerEventProcessor.close();
+            Futures.await(Services.stopAsync(this, this.executor));
             log.info("{}: Closed.", this.traceObjectId);
         }
     }

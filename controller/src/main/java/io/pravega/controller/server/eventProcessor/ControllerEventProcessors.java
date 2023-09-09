@@ -239,8 +239,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         try {
             log.info("Stopping controller event processors");
             stopEventProcessors();
-            rebalanceExecutor.shutdownNow();
             this.clientFactory.close();
+            rebalanceExecutor.shutdownNow();
             log.info("Controller event processors shutDown complete");
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
