@@ -852,7 +852,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             container1.deleteStreamSegment(segmentName, TIMEOUT).join();
 
             // Simulate segment eviction in metadata
-            StreamSegmentMetadata met = new TestStreamSegmentMetadata(segmentName, metadataId, container1.getId() );
+            StreamSegmentMetadata met = new TestStreamSegmentMetadata(segmentName, metadataId, container1.getId());
             val segmentMetadata = container1.metadata.getStreamSegmentMetadata(metadataId);
             met.copyFrom(segmentMetadata);
             met.setLastUsed(0);
@@ -3406,7 +3406,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    class TestStreamSegmentMetadata extends StreamSegmentMetadata {
+    static class TestStreamSegmentMetadata extends StreamSegmentMetadata {
         /**
          * Creates a new instance of the StreamSegmentMetadata class for a StreamSegment.
          *
