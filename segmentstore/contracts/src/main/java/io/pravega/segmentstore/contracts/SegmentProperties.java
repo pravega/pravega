@@ -75,11 +75,5 @@ public interface SegmentProperties {
      * @return The map.
      */
     Map<AttributeId, Long> getAttributes();
-    /**
-     * Gets a value indicating the segmentId of this StreamSegment.
-     *
-     * @return segmentId of this stream segment
-     */
-    long getStreamSegmentId();
 }
 

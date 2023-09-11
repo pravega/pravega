@@ -957,11 +957,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             }
 
             @Override
-            public long getStreamSegmentId() {
-                return id;
-            }
-
-            @Override
             public Map<AttributeId, Long> getAttributes(BiPredicate<AttributeId, Long> filter) {
                 return Collections.emptyMap();
             }

@@ -53,9 +53,6 @@ public class StreamSegmentInformation implements SegmentProperties {
     @Getter
     private final Map<AttributeId, Long> attributes;
 
-    @Getter
-    private final long streamSegmentId;
-
     //endregion
 
     //region Constructor
@@ -75,7 +72,7 @@ public class StreamSegmentInformation implements SegmentProperties {
      * @param lastModified     The last time the StreamSegment was modified.
      */
     @Builder
-    private StreamSegmentInformation(String name, long streamSegmentId, long startOffset, long length, long storageLength, boolean sealed, boolean deleted,
+    private StreamSegmentInformation(String name, long startOffset, long length, long storageLength, boolean sealed, boolean deleted,
                                      boolean sealedInStorage, boolean deletedInStorage, Map<AttributeId, Long> attributes, ImmutableDate lastModified) {
         Preconditions.checkArgument(startOffset >= 0, "startOffset must be a non-negative number.");
         Preconditions.checkArgument(length >= startOffset, "length must be a non-negative number and greater than startOffset.");
@@ -87,7 +84,6 @@ public class StreamSegmentInformation implements SegmentProperties {
             Preconditions.checkArgument(sealed, "sealed must be set if sealedInStorage is set.");
         }
         this.name = Exceptions.checkNotNullOrEmpty(name, "name");
-        this.streamSegmentId = streamSegmentId;
         this.startOffset = startOffset;
         this.length = length;
         this.storageLength = storageLength;
@@ -108,7 +104,6 @@ public class StreamSegmentInformation implements SegmentProperties {
     public static StreamSegmentInformationBuilder from(SegmentProperties base) {
         return StreamSegmentInformation.builder()
                                        .name(base.getName())
-                                       .streamSegmentId(base.getStreamSegmentId())
                                        .startOffset(base.getStartOffset())
                                        .length(base.getLength())
                                        .sealed(base.isSealed())
@@ -121,11 +116,11 @@ public class StreamSegmentInformation implements SegmentProperties {
 
     @Override
     public String toString() {
-        return String.format("Name = %s, streamSegmentId = %d, StartOffset = %d, Length = %d, Storage Length = %d, Sealed = %s, Deleted = %s, Sealed in Storage = %s, Deleted in Storage = %s", getName(),
-                getStreamSegmentId(), getStartOffset(), getLength(), getStorageLength(), isSealed(), isDeleted(), isSealedInStorage(), isDeletedInStorage());
+        return String.format("Name = %s, StartOffset = %d, Length = %d, Storage Length = %d, Sealed = %s, Deleted = %s, Sealed in Storage = %s, Deleted in Storage = %s", getName(),
+                getStartOffset(), getLength(), getStorageLength(), isSealed(), isDeleted(), isSealedInStorage(), isDeletedInStorage());
     }
 
     private static Map<AttributeId, Long> createAttributes(Map<AttributeId, Long> input) {
-        return input == null || input.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(input);
+        return input == null || input.size() == 0 ? Collections.emptyMap() : Collections.unmodifiableMap(input);
     }
 }
