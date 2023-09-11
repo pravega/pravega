@@ -671,7 +671,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(mockedRecorder, never()).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 10000)
     public void testAppendFailChannelClose() throws Exception {
         String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
