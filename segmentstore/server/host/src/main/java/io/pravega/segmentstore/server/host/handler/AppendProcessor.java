@@ -69,7 +69,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -87,8 +87,8 @@ import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEGMENT_EVENT_SIZE;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
-import static io.pravega.shared.NameUtils.isTransientSegment;
 import static io.pravega.shared.NameUtils.isTransactionSegment;
+import static io.pravega.shared.NameUtils.isTransientSegment;
 import static io.pravega.shared.NameUtils.isUserStreamSegment;
 
 /**
@@ -234,8 +234,8 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     }
 
     private CompletableFuture<Long> createIndexSegmentIfNotExists(String indexSegment, long requestId) {
-        CompletableFuture<Long> indexSegmentEventSize = store.getStreamSegmentInfo(indexSegment, TIMEOUT)
-                .handle((properties, u) -> {
+        CompletableFuture<Long> indexSegmentEventSize = store.getAttributes(indexSegment, List.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE), true, TIMEOUT)
+                .handle((value, u) -> {
                     long result;
                     if (u != null) {
                         u = Exceptions.unwrap(u);
@@ -252,8 +252,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                             throw Exceptions.sneakyThrow(u);
                         }
                     } else {
-                        Map<AttributeId, Long> attributes = properties.getAttributes();
-                        result = attributes.get(EXPECTED_INDEX_SEGMENT_EVENT_SIZE).longValue();
+                        result = value.get(EXPECTED_INDEX_SEGMENT_EVENT_SIZE).longValue();
                     }
                     return result;
                 });
