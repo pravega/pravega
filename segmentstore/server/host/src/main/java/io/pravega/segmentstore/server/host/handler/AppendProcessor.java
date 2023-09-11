@@ -85,7 +85,7 @@ import org.slf4j.LoggerFactory;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
-import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEG_EVENT_SIZE;
+import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEGMENT_EVENT_SIZE;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static io.pravega.shared.NameUtils.isTransientSegment;
 import static io.pravega.shared.NameUtils.isTransactionSegment;
@@ -245,7 +245,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                             Collection<AttributeUpdate> attributes = Arrays.asList(
                                     new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                                     new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
-                                    new AttributeUpdate(EXPECTED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, result)
+                                    new AttributeUpdate(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, AttributeUpdateType.None, result)
                             );
                             store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT).join();
                         } else {
@@ -253,7 +253,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                         }
                     } else {
                         Map<AttributeId, Long> attributes = properties.getAttributes();
-                        result = attributes.get(EXPECTED_INDEX_SEG_EVENT_SIZE).longValue();
+                        result = attributes.get(EXPECTED_INDEX_SEGMENT_EVENT_SIZE).longValue();
                     }
                     return result;
                 });
