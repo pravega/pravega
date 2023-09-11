@@ -169,6 +169,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         return result;
     }
 
+    @Override
+    public long getStreamSegmentId() {
+        return this.id;
+    }
+
     //endregion
 
     //region UpdateableSegmentMetadata implementation
