@@ -40,7 +40,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import java.util.Collections;
@@ -60,8 +60,8 @@ import static org.junit.Assert.assertTrue;
  */
 public class ControllerWatermarkingTest {
 
-    private final int controllerPort = TestUtils.getAvailableListenPort();
-    private final int servicePort = TestUtils.getAvailableListenPort();
+    private final int controllerPort = CommonUtils.getAvailableListenPort();
+    private final int servicePort = CommonUtils.getAvailableListenPort();
 
     private TestingServer zkTestServer;
     private ControllerWrapper controllerWrapper;

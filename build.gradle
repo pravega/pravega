@@ -420,6 +420,8 @@ project('client') {
 
 project('test:testcommon') {
     dependencies {
+        compile project(':common')
+        testCompile project(path:':common', configuration:'testRuntime')
         compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version

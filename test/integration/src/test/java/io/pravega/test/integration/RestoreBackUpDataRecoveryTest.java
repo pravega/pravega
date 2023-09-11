@@ -80,7 +80,7 @@ import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import lombok.Cleanup;
@@ -200,10 +200,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         private final AtomicReference<BookKeeperServiceRunner> bkService = new AtomicReference<>();
 
         BookKeeperRunner(int instanceId, int bookieCount) throws Exception {
-            bkPort = TestUtils.getAvailableListenPort();
+            bkPort = CommonUtils.getAvailableListenPort();
             val bookiePorts = new ArrayList<Integer>();
             for (int i = 0; i < bookieCount; i++) {
-                bookiePorts.add(TestUtils.getAvailableListenPort());
+                bookiePorts.add(CommonUtils.getAvailableListenPort());
             }
             this.bookKeeperServiceRunner = BookKeeperServiceRunner.builder()
                     .startZk(true)
@@ -267,7 +267,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Creates a segment store.
      */
     private static class SegmentStoreRunner implements AutoCloseable {
-        private final int servicePort = TestUtils.getAvailableListenPort();
+        private final int servicePort = CommonUtils.getAvailableListenPort();
         private final ServiceBuilder serviceBuilder;
         private final PravegaConnectionListener server;
         private final StreamSegmentStore streamSegmentStore;
@@ -312,7 +312,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Creates a controller instance and runs it.
      */
     private static class ControllerRunner implements AutoCloseable {
-        private final int controllerPort = TestUtils.getAvailableListenPort();
+        private final int controllerPort = CommonUtils.getAvailableListenPort();
         private final String serviceHost = "localhost";
         private final ControllerWrapper controllerWrapper;
         private final Controller controller;

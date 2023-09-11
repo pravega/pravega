@@ -42,7 +42,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.utils.ControllerWrapper;
@@ -76,9 +76,9 @@ public class BatchClientTest extends ThreadPooledTestSuite {
     private static final String STREAM = "testBatchStream";
     private static final String DATA_OF_SIZE_30 = "data of size 30"; // data length = 22 bytes , header = 8 bytes
 
-    protected final int controllerPort = TestUtils.getAvailableListenPort();
+    protected final int controllerPort = CommonUtils.getAvailableListenPort();
     protected final String serviceHost = "localhost";
-    protected final int servicePort = TestUtils.getAvailableListenPort();
+    protected final int servicePort = CommonUtils.getAvailableListenPort();
     protected final int containerCount = 4;
 
     protected TestingServer zkTestServer;

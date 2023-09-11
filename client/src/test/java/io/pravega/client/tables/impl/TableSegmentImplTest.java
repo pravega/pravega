@@ -41,7 +41,7 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.AbstractMap;
 import java.util.ArrayDeque;
@@ -405,10 +405,10 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         context.sendReply(createFailureReply.apply(connection1.getLastRequestId()));
 
         // Wait for the connection to be closed.
-        TestUtils.await(connection1::isClosed, 10, SHORT_TIMEOUT);
+        CommonUtils.await(connection1::isClosed, 10, SHORT_TIMEOUT);
 
         // Wait for the retry to be initiated and sent
-        TestUtils.await(() -> context.getConnection().getLastSentWireCommand() != null, 10, SHORT_TIMEOUT);
+        CommonUtils.await(() -> context.getConnection().getLastSentWireCommand() != null, 10, SHORT_TIMEOUT);
 
         // Send the successful reply.
         context.sendReply(createSuccessfulReply.apply(context.getConnection().getLastRequestId()));

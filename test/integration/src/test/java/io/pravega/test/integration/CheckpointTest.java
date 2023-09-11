@@ -43,7 +43,7 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.InlineExecutor;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -204,7 +204,7 @@ public class CheckpointTest {
         String streamName = "testCheckpointAndRestore";
         String readerName = "reader";
         String readerGroupName = "testCheckpointAndRestore-group";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "Scope1";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
@@ -299,7 +299,7 @@ public class CheckpointTest {
         String streamName = "testCPInternalExecutorAndRestore";
         String readerName = "reader";
         String readerGroupName = "testCPInternalExecutorAndRestore-group";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "ScopeInExecutor";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
@@ -389,7 +389,7 @@ public class CheckpointTest {
         String streamName = "testCheckpointAndRestoreLastCP";
         String readerName = "reader";
         String readerGroupName = "testCheckpointAndRestore-groupCP1";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String testString1 = "Hello world 1\n";
         String testString2 = "Hello world 2\n";
@@ -522,7 +522,7 @@ public class CheckpointTest {
         String streamName = "testCPAndRestoreNolastCP";
         String readerName = "readerCP";
         String readerGroupName = "testCPAndRestore-groupNolastCP";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String testString1 = "Hello world 1\n";
         String testString2 = "Hello world 2\n";
@@ -605,7 +605,7 @@ public class CheckpointTest {
         String streamName = "testCPAndRestoreToSCNoCP";
         String readerName = "reader";
         String readerGroupName = "testCheckpointAndRestore-groupSCNoCP";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String testString1 = "Hello world 1\n";
         String testString2 = "Hello world 2\n";
@@ -696,7 +696,7 @@ public class CheckpointTest {
         String streamNameNew = "testCPAndRestoreMewStream1";
         String readerName = "reader";
         String readerGroupName = "testCheckpointAndRestore-groupSCNoCP";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String testString1 = "Hello world 1\n";
         String testString2 = "Hello world 2\n";
@@ -853,7 +853,7 @@ public class CheckpointTest {
         String endpoint = "localhost";
         String streamName = "testMoreReadersThanSegments";
         String readerGroupName = "testMoreReadersThanSegments-group";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "Scope1";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
@@ -924,7 +924,7 @@ public class CheckpointTest {
         String endpoint = "localhost";
         String streamName = "testGenerateStreamCuts";
         String readerGroupName = "testGenerateStreamCuts-group1";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "Scope12";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
@@ -1014,7 +1014,7 @@ public class CheckpointTest {
         String streamName = "testGenerateStreamCuts";
         String readerName = "reader";
         String readerGroupName = "testGenerateStreamCuts-group";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "Scope1";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
@@ -1080,7 +1080,7 @@ public class CheckpointTest {
         String streamName = "testCP2RBeforeEOS";
         String readerName = "reader";
         String readerGroupName = "testCheckpoint2R-groupBefEOS";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String testString1 = "Hello world 1\n";
         String testString2 = "Hello world 2\n";

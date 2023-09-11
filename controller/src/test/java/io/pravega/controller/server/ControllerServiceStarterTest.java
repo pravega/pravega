@@ -30,7 +30,7 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Optional;
@@ -59,8 +59,8 @@ public abstract class ControllerServiceStarterTest {
     ControllerServiceStarterTest(final boolean disableControllerCluster, boolean enableAuth) {
         this.disableControllerCluster = disableControllerCluster;
         this.enableAuth = enableAuth;
-        this.grpcPort = TestUtils.getAvailableListenPort();
-        this.restPort = TestUtils.getAvailableListenPort();
+        this.grpcPort = CommonUtils.getAvailableListenPort();
+        this.restPort = CommonUtils.getAvailableListenPort();
     }
 
     @Before

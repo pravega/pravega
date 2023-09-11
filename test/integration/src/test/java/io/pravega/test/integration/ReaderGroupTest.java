@@ -32,7 +32,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.Data;
@@ -76,7 +76,7 @@ public class ReaderGroupTest {
     @Test(timeout = 20000)
     public void testEventHandoff() throws Exception {
         String endpoint = "localhost";
-        int servicePort = TestUtils.getAvailableListenPort();
+        int servicePort = CommonUtils.getAvailableListenPort();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
@@ -123,7 +123,7 @@ public class ReaderGroupTest {
     @Test(timeout = 10000)
     public void testMultiSegmentsPerReader() throws Exception {
         String endpoint = "localhost";
-        int servicePort = TestUtils.getAvailableListenPort();
+        int servicePort = CommonUtils.getAvailableListenPort();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();

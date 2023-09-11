@@ -24,7 +24,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import java.net.URI;
@@ -43,7 +43,7 @@ public class ControllerFailoverTest {
     private static final String SCOPE = "testScope";
     private static final String STREAM = "testStream";
 
-    private final int servicePort = TestUtils.getAvailableListenPort();
+    private final int servicePort = CommonUtils.getAvailableListenPort();
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
     private ServiceBuilder serviceBuilder;
@@ -78,7 +78,7 @@ public class ControllerFailoverTest {
 
     @Test(timeout = 120000)
     public void testSessionExpiryToleranceMinimalServices() throws Exception {
-        final int controllerPort = TestUtils.getAvailableListenPort();
+        final int controllerPort = CommonUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
         @Cleanup
@@ -89,12 +89,12 @@ public class ControllerFailoverTest {
 
     @Test(timeout = 120000)
     public void testSessionExpiryToleranceAllServices() throws Exception {
-        final int controllerPort = TestUtils.getAvailableListenPort();
+        final int controllerPort = CommonUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
         @Cleanup
         final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
-                false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.getAvailableListenPort());
+                false, controllerPort, serviceHost, servicePort, containerCount, CommonUtils.getAvailableListenPort());
         testSessionExpiryTolerance(controllerWrapper, controllerPort);
     }
 
@@ -136,12 +136,12 @@ public class ControllerFailoverTest {
 
     @Test(timeout = 30000)
     public void testStop() throws Exception {
-        final int controllerPort = TestUtils.getAvailableListenPort();
+        final int controllerPort = CommonUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int containerCount = 4;
         @Cleanup
         final ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
-                false, controllerPort, serviceHost, servicePort, containerCount, TestUtils.getAvailableListenPort());
+                false, controllerPort, serviceHost, servicePort, containerCount, CommonUtils.getAvailableListenPort());
         controllerWrapper.awaitRunning();
         controllerWrapper.close();
     }

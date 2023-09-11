@@ -70,7 +70,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -1674,7 +1674,7 @@ public class DurableLogTests extends OperationLogTestBase {
     @SneakyThrows(TimeoutException.class)
     private void awaitLastOperationAdded(DurableLog durableLog, UpdateableContainerMetadata metadata) {
         final long sn = metadata.getOperationSequenceNumber();
-        TestUtils.await(() -> durableLog.getInMemoryOperationLog().getLastSequenceNumber() >= sn, 10, TIMEOUT.toMillis());
+        CommonUtils.await(() -> durableLog.getInMemoryOperationLog().getLastSequenceNumber() >= sn, 10, TIMEOUT.toMillis());
     }
 
     //endregion

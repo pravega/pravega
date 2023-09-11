@@ -15,9 +15,9 @@
  */
 package io.pravega.test.common;
 
+import io.pravega.common.util.CommonUtils;
 import lombok.Getter;
 import org.apache.curator.test.TestingServer;
-
 /**
  * ZK curator TestingServer starter.
  */
@@ -27,7 +27,7 @@ public class TestingServerStarter {
     private final int adminServerPort;
 
     public TestingServerStarter() {
-        adminServerPort = TestUtils.getAvailableListenPort();
+        adminServerPort = CommonUtils.getAvailableListenPort();
     }
 
     public TestingServer start() throws Exception {

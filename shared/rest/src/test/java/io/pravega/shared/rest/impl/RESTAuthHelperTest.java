@@ -21,7 +21,7 @@ import io.pravega.auth.FakeAuthHandler;
 import io.pravega.shared.rest.security.RESTAuthHelper;
 import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.security.auth.UserPrincipal;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -46,7 +46,7 @@ public class RESTAuthHelperTest {
     public void init() {
         RESTServerConfig config = RESTServerConfigImpl.builder()
                 .host("localhost")
-                .port(TestUtils.getAvailableListenPort())
+                .port(CommonUtils.getAvailableListenPort())
                 .authorizationEnabled(true)
                 .userPasswordFile("passwd")
                 .tlsEnabled(false)

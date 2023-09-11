@@ -16,6 +16,7 @@
 package io.pravega.test.integration.utils;
 
 import io.pravega.client.control.impl.Controller;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
@@ -71,10 +72,10 @@ public class LocalServiceStarter {
 
         BookKeeperRunner(int instanceId, int bookieCount) throws Exception {
             this.ledgerPath = "/pravega/bookkeeper/ledgers" + instanceId;
-            this.bkPort = io.pravega.test.common.TestUtils.getAvailableListenPort();
+            this.bkPort = CommonUtils.getAvailableListenPort();
             val bookiePorts = new ArrayList<Integer>();
             for (int i = 0; i < bookieCount; i++) {
-                bookiePorts.add(io.pravega.test.common.TestUtils.getAvailableListenPort());
+                bookiePorts.add(CommonUtils.getAvailableListenPort());
             }
             this.bookKeeperServiceRunner = BookKeeperServiceRunner.builder()
                     .startZk(true)
@@ -138,9 +139,9 @@ public class LocalServiceStarter {
      */
     public static class SegmentStoreRunner implements AutoCloseable {
         @Getter
-        private final int servicePort = io.pravega.test.common.TestUtils.getAvailableListenPort();
+        private final int servicePort = CommonUtils.getAvailableListenPort();
         @Getter
-        private final int adminPort = io.pravega.test.common.TestUtils.getAvailableListenPort();
+        private final int adminPort = CommonUtils.getAvailableListenPort();
         @Getter
         private ServiceBuilder serviceBuilder;
         private final PravegaConnectionListener server;
@@ -196,7 +197,7 @@ public class LocalServiceStarter {
      * Creates a controller instance and runs it.
      */
     public static class ControllerRunner implements AutoCloseable {
-        private final int controllerPort = io.pravega.test.common.TestUtils.getAvailableListenPort();
+        private final int controllerPort = CommonUtils.getAvailableListenPort();
         private final String serviceHost = "localhost";
         private final ControllerWrapper controllerWrapper;
         @Getter

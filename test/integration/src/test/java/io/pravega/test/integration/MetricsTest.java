@@ -51,7 +51,7 @@ import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.SerializedClassRunner;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
@@ -102,9 +102,9 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
     @Before
     public void setup() throws Exception {
-        final int controllerPort = TestUtils.getAvailableListenPort();
+        final int controllerPort = CommonUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
-        final int servicePort = TestUtils.getAvailableListenPort();
+        final int servicePort = CommonUtils.getAvailableListenPort();
         final int containerCount = 4;
 
         // 1. Start Metrics service

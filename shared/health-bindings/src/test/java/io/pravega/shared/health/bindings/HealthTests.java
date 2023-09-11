@@ -27,7 +27,7 @@ import io.pravega.shared.rest.RESTServer;
 import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.After;
@@ -80,7 +80,7 @@ public class HealthTests {
     }
 
     RESTServerConfig getServerConfig() {
-        return RESTServerConfigImpl.builder().host(HOST).port(TestUtils.getAvailableListenPort())
+        return RESTServerConfigImpl.builder().host(HOST).port(CommonUtils.getAvailableListenPort())
                 .build();
     }
 

@@ -18,7 +18,7 @@ package io.pravega.common.concurrent;
 import io.pravega.common.AbstractTimer;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -381,7 +381,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
         }
 
         void awaitNewIteration() throws Exception {
-            TestUtils.await(() -> this.delayedFuture != null, 10, TIMEOUT_MILLIS);
+            CommonUtils.await(() -> this.delayedFuture != null, 10, TIMEOUT_MILLIS);
         }
 
         void advanceTime(Duration duration) {

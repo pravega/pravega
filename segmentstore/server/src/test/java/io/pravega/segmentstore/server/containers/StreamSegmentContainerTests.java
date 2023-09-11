@@ -111,7 +111,7 @@ import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -751,7 +751,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // which indicates the StorageWriter was able to successfully record it after its final Attribute Index update.
         for (String segmentName : segmentNames.keySet()) {
             Long oldValue = oldRootPointers.get(segmentName);
-            TestUtils.await(() -> {
+            CommonUtils.await(() -> {
                         val newVal = localContainer.getAttributes(segmentName, Collections.singleton(attr), false, TIMEOUT).join().get(attr);
                         return oldValue < newVal;
                     },

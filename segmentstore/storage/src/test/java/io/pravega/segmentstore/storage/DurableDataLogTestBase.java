@@ -22,7 +22,7 @@ import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -411,7 +411,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             }
 
             // Verify the correct number of invocations.
-            TestUtils.await(
+            CommonUtils.await(
                     () -> listener.getCount() == writeCount,
                     10,
                     TIMEOUT.toMillis());
@@ -420,7 +420,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             listener.close();
             log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).join();
             try {
-                TestUtils.await(
+                CommonUtils.await(
                         () -> listener.getCount() > writeCount,
                         10,
                         50);

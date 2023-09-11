@@ -47,7 +47,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.integration.utils.SetupUtils;
 import lombok.Cleanup;
 import lombok.val;
@@ -125,7 +125,7 @@ public class SingleThreadEndToEndTest {
         String streamName = "testEventPointer";
         String readerName = "reader";
         String readerGroup = "testEventPointer-group";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "fetchEvent-teststring ";
         String scope = "Scope1";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();

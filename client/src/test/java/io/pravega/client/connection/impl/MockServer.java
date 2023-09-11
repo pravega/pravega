@@ -20,7 +20,7 @@ import io.netty.buffer.Unpooled;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommand;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -45,7 +45,7 @@ class MockServer implements AutoCloseable {
     private final CompletableFuture<OutputStream> outputStream = new CompletableFuture<OutputStream>();
     
     MockServer() {
-        this.port = TestUtils.getAvailableListenPort();
+        this.port = CommonUtils.getAvailableListenPort();
         this.thread = new Thread(() -> listen(), "Mock server");
         thread.setDaemon(true);
     }

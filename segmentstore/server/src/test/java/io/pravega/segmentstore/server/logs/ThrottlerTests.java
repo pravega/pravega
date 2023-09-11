@@ -24,7 +24,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SerializedClassRunner;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -181,7 +181,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         Assert.assertFalse("Not expected throttle future to be completed yet.", t1.isDone());
         t.notifyThrottleSourceChanged();
 
-        TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
+        CommonUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
 
         Assert.assertEquals(
                 "Last reported delay is equal to last supplied delay.",
@@ -243,9 +243,9 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
 
             // Wait for the new cycle to begin (we use the recordDelay consumer above to figure this out).
             int expectedDelayCount = i + 1;
-            TestUtils.await(() -> delays.size() == expectedDelayCount, 5, TIMEOUT_MILLIS);
+            CommonUtils.await(() -> delays.size() == expectedDelayCount, 5, TIMEOUT_MILLIS);
         }
-        TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
+        CommonUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
 
         // Because the supplied delays is monotonically decreasing, only the first delay value should be used to calculate
         // the duration supplied.
@@ -286,9 +286,9 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
             t.notifyThrottleSourceChanged();
             // Wait for the new cycle to begin (we use the recordDelay consumer above to figure this out).
             int expectedDelayCount = i + 1;
-            TestUtils.await(() -> delays.size() == expectedDelayCount, 5, TIMEOUT_MILLIS);
+            CommonUtils.await(() -> delays.size() == expectedDelayCount, 5, TIMEOUT_MILLIS);
         }
-        TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
+        CommonUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
         // Because the supplied delays is monotonically decreasing, only the first delay value should be used to calculate
         // the duration supplied.
         AssertExtensions.assertGreaterThanOrEqual(
@@ -332,12 +332,12 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
 
             // Wait for the new cycle to begin (we use the recordDelay consumer above to figure this out).
             int expectedDelayCount = i + 1;
-            TestUtils.await(() -> delays.size() == expectedDelayCount, 5, TIMEOUT_MILLIS);
+            CommonUtils.await(() -> delays.size() == expectedDelayCount, 5, TIMEOUT_MILLIS);
         }
 
         // When we are done, complete the last throttle cycle and check final results.
         t.completeDelayFuture();
-        TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
+        CommonUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
         Assert.assertEquals("Unexpected number of delays recorded.", suppliedDelays.size(), delays.size());
 
         Assert.assertEquals("Unexpected first delay value.", suppliedDelays.get(0), delays.get(0));
@@ -375,7 +375,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         val suspended = new AtomicBoolean(false);
         TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), suspended::get, executorService(), metrics, delays::add);
         CompletableFuture<Void> throt = t.throttleOnce(wrap(calculator).getThrottlingDelay());
-        TestUtils.await(throt::isDone, 5, TIMEOUT_MILLIS);
+        CommonUtils.await(throt::isDone, 5, TIMEOUT_MILLIS);
         Assert.assertFalse("Error: Throttler has not throttled accoriding to expected delay.", t.lastDelayFuture.get().isCompletedExceptionally());
     }
 
@@ -409,7 +409,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         disabled.set(true);
         Assert.assertFalse("Not expected throttle future to be completed yet.", t1.isDone());
         t.notifyThrottleSourceChanged();
-        TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
+        CommonUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
 
         // Test 2: When the current delay future completes normally.
         disabled.set(false);
@@ -421,7 +421,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
 
         // We don't want to wait the actual timeout. Complete it now and check the result.
         t.completeDelayFuture();
-        TestUtils.await(t2::isDone, 5, TIMEOUT_MILLIS);
+        CommonUtils.await(t2::isDone, 5, TIMEOUT_MILLIS);
     }
 
     private ThrottlerCalculator wrap(ThrottlerCalculator.Throttler calculatorThrottler) {
@@ -499,7 +499,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         }
 
         void awaitCreateDelayFuture(int timeoutMillis) throws TimeoutException {
-            TestUtils.await(() -> this.lastDelayFuture.get() != null, 5, timeoutMillis);
+            CommonUtils.await(() -> this.lastDelayFuture.get() != null, 5, timeoutMillis);
         }
 
         void completeDelayFuture() {

@@ -44,7 +44,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.io.File;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -110,7 +110,7 @@ public class ConnectionPoolingTest {
     @Before
     public void setUp() throws Exception {
         // Configure SSL.
-        port = TestUtils.getAvailableListenPort();
+        port = CommonUtils.getAvailableListenPort();
         final SslContext sslCtx;
         if (ssl) {
             try {

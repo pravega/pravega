@@ -27,7 +27,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import java.util.Map;
@@ -51,14 +51,14 @@ public class StreamMetadataTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        int servicePort = TestUtils.getAvailableListenPort();
+        int servicePort = CommonUtils.getAvailableListenPort();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
                 serviceBuilder.getLowPriorityExecutor());
         server.startListening();
-        int controllerPort = TestUtils.getAvailableListenPort();
+        int controllerPort = CommonUtils.getAvailableListenPort();
         @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(
                 zkTestServer.getConnectString(),

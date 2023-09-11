@@ -35,7 +35,7 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import java.time.Duration;
@@ -75,9 +75,9 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private ControllerWrapper controllerWrapper = null;
     private Controller controller;
     private KeyValueTableFactory keyValueTableFactory;
-    private final int controllerPort = TestUtils.getAvailableListenPort();
+    private final int controllerPort = CommonUtils.getAvailableListenPort();
     private final String serviceHost = ENDPOINT;
-    private final int servicePort = TestUtils.getAvailableListenPort();
+    private final int servicePort = CommonUtils.getAvailableListenPort();
     private final int containerCount = 4;
 
     @Override

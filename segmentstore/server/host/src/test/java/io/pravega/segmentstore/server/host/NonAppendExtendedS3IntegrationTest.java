@@ -31,7 +31,7 @@ import io.pravega.storage.extendeds3.ExtendedS3ChunkStorage;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.storage.extendeds3.S3ClientMock;
 import io.pravega.storage.extendeds3.S3Mock;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import lombok.Getter;
 import lombok.val;
 import org.junit.After;
@@ -57,7 +57,7 @@ public class NonAppendExtendedS3IntegrationTest extends BookKeeperIntegrationTes
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        s3ConfigUri = "http://127.0.0.1:" + TestUtils.getAvailableListenPort() + "?identity=x&secretKey=x";
+        s3ConfigUri = "http://127.0.0.1:" + CommonUtils.getAvailableListenPort() + "?identity=x&secretKey=x";
         s3Mock = new S3Mock();
         this.configBuilder.include(ExtendedS3StorageConfig.builder()
                 .with(ExtendedS3StorageConfig.CONFIGURI, s3ConfigUri)

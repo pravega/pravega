@@ -46,7 +46,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import io.pravega.test.integration.utils.IntegerSerializer;
@@ -85,9 +85,9 @@ public class EndToEndTransactionOrderTest {
                                                           .scalingPolicy(ScalingPolicy.fixed(1))
                                                           .build();
 
-    final int controllerPort = TestUtils.getAvailableListenPort();
+    final int controllerPort = CommonUtils.getAvailableListenPort();
     final String serviceHost = "localhost";
-    final int servicePort = TestUtils.getAvailableListenPort();
+    final int servicePort = CommonUtils.getAvailableListenPort();
     ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     ConcurrentHashMap<String, List<UUID>> writersList = new ConcurrentHashMap<>();
     ConcurrentHashMap<Integer, UUID> eventToTxnMap = new ConcurrentHashMap<>();

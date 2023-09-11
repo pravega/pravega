@@ -56,7 +56,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import io.pravega.shared.controller.event.RequestProcessor;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.utils.ControllerWrapper;
@@ -192,12 +192,12 @@ public class EventProcessorTest extends ThreadPooledTestSuite {
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         store = serviceBuilder.createStreamSegmentService();
-        int servicePort = TestUtils.getAvailableListenPort();
+        int servicePort = CommonUtils.getAvailableListenPort();
         tableStore = serviceBuilder.createTableStoreService();
 
         server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
-        int controllerPort = TestUtils.getAvailableListenPort();
+        int controllerPort = CommonUtils.getAvailableListenPort();
 
         controllerWrapper = new ControllerWrapper(
                 zkTestServer.getConnectString(),

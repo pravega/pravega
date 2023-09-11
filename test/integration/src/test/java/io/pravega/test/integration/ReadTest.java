@@ -70,7 +70,7 @@ import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.NoOpScheduledExecutor;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -202,7 +202,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String scope = "scope";
         String stream = "readThroughSegmentClient";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
@@ -251,7 +251,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String scope = "scope";
         String stream = "readConditionalData";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         byte[] testString = "Hello world\n".getBytes();
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
@@ -299,7 +299,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         String streamName = "readThroughStreamClient";
         String readerName = "reader";
         String readerGroup = "readThroughStreamClient-group";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "Scope1";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
@@ -335,7 +335,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         String streamName = "testEventPointer";
         String readerName = "reader";
         String readerGroup = "testEventPointer-group";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world ";
         String scope = "Scope1";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
@@ -390,7 +390,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         @Cleanup("shutdown")
         ScheduledExecutorService readersWritersAndCheckers = ExecutorServiceHelpers.newScheduledThreadPool(4, "readers-writers-checkers");
         AtomicInteger finishedProcesses = new AtomicInteger(0);
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup

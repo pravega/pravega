@@ -36,7 +36,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.LeakDetectorTestSuite;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.io.Serializable;
 import lombok.Cleanup;
 import org.junit.AfterClass;
@@ -69,7 +69,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
         String groupName = "testTransactionalWritesOrderedCorrectly-group";
         String endpoint = "localhost";
         String streamName = "testTransactionalWritesOrderedCorrectly";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String txnEvent = "TXN Event\n";
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
@@ -147,7 +147,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
     public void testDoubleCommit() throws TxnFailedException {
         String endpoint = "localhost";
         String streamName = "testDoubleCommit";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String event = "Event\n";
         String routingKey = "RoutingKey";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
@@ -182,7 +182,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String groupName = "testDrop-group";
         String streamName = "testDrop";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String txnEvent = "TXN Event\n";
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
@@ -238,7 +238,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String scopeName = "scope";
         String streamName = "abc";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
 

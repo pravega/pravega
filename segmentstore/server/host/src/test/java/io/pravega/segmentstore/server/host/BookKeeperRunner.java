@@ -15,17 +15,18 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import io.pravega.common.util.CommonUtils;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
-import io.pravega.test.common.TestUtils;
-import java.util.ArrayList;
-import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+
+import javax.annotation.concurrent.NotThreadSafe;
+import java.util.ArrayList;
 
 /**
  * Helper class for Segment store integration tests.
@@ -48,10 +49,10 @@ public class BookKeeperRunner implements AutoCloseable {
     public void initialize() throws Exception {
         // BookKeeper
         // Pick random ports to reduce chances of collisions during concurrent test executions.
-        int zkPort = TestUtils.getAvailableListenPort();
+        int zkPort = CommonUtils.getAvailableListenPort();
         val bookiePorts = new ArrayList<Integer>();
         for (int i = 0; i < this.bookieCount; i++) {
-            bookiePorts.add(TestUtils.getAvailableListenPort());
+            bookiePorts.add(CommonUtils.getAvailableListenPort());
         }
 
         this.bkRunner = BookKeeperServiceRunner.builder()

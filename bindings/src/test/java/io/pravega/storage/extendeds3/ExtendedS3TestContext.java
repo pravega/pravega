@@ -16,7 +16,7 @@
 package io.pravega.storage.extendeds3;
 
 import com.emc.object.s3.S3Config;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.net.URI;
 import java.util.UUID;
 
@@ -34,7 +34,7 @@ public class ExtendedS3TestContext {
 
     public ExtendedS3TestContext() {
         try {
-            this.port = TestUtils.getAvailableListenPort();
+            this.port = CommonUtils.getAvailableListenPort();
             this.configUri = "http://127.0.0.1:" + port + "?identity=x&secretKey=x";
             String bucketName = BUCKET_NAME_PREFIX + UUID.randomUUID().toString();
             this.adapterConfig = ExtendedS3StorageConfig.builder()

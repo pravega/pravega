@@ -38,7 +38,7 @@ import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.io.File;
 import java.net.URI;
 import java.util.concurrent.TimeUnit;
@@ -64,7 +64,7 @@ public class ConnectionFactoryImplTest {
     @Before
     public void setUp() throws Exception {
         // Configure SSL.
-        port = TestUtils.getAvailableListenPort();
+        port = CommonUtils.getAvailableListenPort();
         if (ssl) {
             try {
                 sslCtx = SslContextBuilder.forServer(new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),

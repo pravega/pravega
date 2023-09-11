@@ -48,7 +48,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -1038,7 +1038,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         read1Future.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Wait for the data from the first read to be fully added to the cache. Without this the subsequent append will not write to this entry.
-        TestUtils.await(
+        CommonUtils.await(
                 () -> {
                     try {
                         return context.readIndex.read(0, 0, dataInStorage.getLength(), TIMEOUT).next().getType() == ReadResultEntryType.Cache;
@@ -1156,7 +1156,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         read2Future.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Wait for the data from the second read to be fully added to the cache (background task).
-        TestUtils.await(
+        CommonUtils.await(
                 () -> {
                     try {
                         return context.readIndex.read(0, read2Offset, read2Length, TIMEOUT).next().getType() == ReadResultEntryType.Cache;
@@ -1985,7 +1985,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // There are a number of async tasks going on here. One of them is in RedirectedReadResultEntry which needs to switch
         // from the first attempt to a second one. Since we have no hook to know when that happens exactly, the only thing
         // we can do is check periodically until that is done.
-        TestUtils.await(entry::hasSecondEntrySet, 10, TIMEOUT.toMillis());
+        CommonUtils.await(entry::hasSecondEntrySet, 10, TIMEOUT.toMillis());
 
         // Close the index.
         context.readIndex.close();
@@ -2326,7 +2326,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         segment1Read.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS); // This one should complete right away.
 
         // Wait for the delete callback to be latched.
-        TestUtils.await(() -> segment1Delete.getQueueLength() > 0, 10, TIMEOUT.toMillis());
+        CommonUtils.await(() -> segment1Delete.getQueueLength() > 0, 10, TIMEOUT.toMillis());
 
         // Initiate the second Storage read. This should also exceed the max cache size and trigger another cleanup, but
         // (most importantly) on a different thread.

@@ -76,7 +76,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.LeakDetectorTestSuite;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -251,7 +251,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     @Test(timeout = 10000)
     public void appendThroughSegmentClient() throws Exception {
         String endpoint = "localhost";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "scope";
         String stream = "appendThroughSegmentClient";
@@ -285,7 +285,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     @Test(timeout = 10000)
     public void appendThroughConditionalClient() throws Exception {
         String endpoint = "localhost";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "scope";
         String stream = "appendThroughConditionalClient";
@@ -319,7 +319,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     public void appendThroughStreamingClient() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "appendThroughStreamingClient";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
@@ -345,7 +345,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String scope = "Scope";
         String streamName = "appendALotOfData";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         long heapSize = Runtime.getRuntime().maxMemory();
         long messageSize = Math.min(1024 * 1024, heapSize / 20000);
         ByteBuffer payload = ByteBuffer.allocate((int) messageSize);
@@ -393,7 +393,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "miniBenchmark";
-        int port = TestUtils.getAvailableListenPort();
+        int port = CommonUtils.getAvailableListenPort();
         byte[] testPayload = new byte[1000];
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();

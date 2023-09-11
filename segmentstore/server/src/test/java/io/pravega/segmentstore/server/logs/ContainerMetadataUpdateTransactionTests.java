@@ -58,7 +58,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -563,10 +563,10 @@ public class ContainerMetadataUpdateTransactionTests {
         final AttributeId attributeReplaceIfEquals = AttributeId.randomUUID();
         final AttributeId attributeReplaceIfEqualsNullValue = AttributeId.randomUUID();
         if (checkAfterSuccess == null) {
-            checkAfterSuccess = TestUtils::doNothing;
+            checkAfterSuccess = CommonUtils::doNothing;
         }
         if (checkAfterRejection == null) {
-            checkAfterRejection = TestUtils::doNothing;
+            checkAfterRejection = CommonUtils::doNothing;
         }
 
         UpdateableContainerMetadata metadata = createMetadata();

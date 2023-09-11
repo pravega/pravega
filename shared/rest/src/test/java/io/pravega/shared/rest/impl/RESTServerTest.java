@@ -20,7 +20,7 @@ import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.shared.rest.resources.Ping;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import org.glassfish.jersey.SslConfigurator;
 import org.junit.After;
 import org.junit.Before;
@@ -93,7 +93,7 @@ public abstract class RESTServerTest {
 
         @Override
         RESTServerConfig getServerConfig() throws Exception {
-            return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
+            return RESTServerConfigImpl.builder().host("localhost").port(CommonUtils.getAvailableListenPort())
                     .build();
         }
     }
@@ -122,7 +122,7 @@ public abstract class RESTServerTest {
 
         @Override
         RESTServerConfig getServerConfig() throws Exception {
-            return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
+            return RESTServerConfigImpl.builder().host("localhost").port(CommonUtils.getAvailableListenPort())
                     .tlsEnabled(true)
                     .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                     .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
@@ -135,7 +135,7 @@ public abstract class RESTServerTest {
 
         @Override
         RESTServerConfig getServerConfig() throws Exception {
-            return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
+            return RESTServerConfigImpl.builder().host("localhost").port(CommonUtils.getAvailableListenPort())
                     .tlsEnabled(true)
                     .tlsProtocolVersion(SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                     .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))

@@ -37,7 +37,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.TestUtils;
+import io.pravega.common.util.CommonUtils;
 import io.pravega.test.integration.utils.IntegerSerializer;
 import io.pravega.test.integration.utils.SetupUtils;
 import java.util.ArrayList;
@@ -192,7 +192,7 @@ public class MultiReadersEndToEndTest {
     
     private void runTestUsingMock(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
             throws Exception {
-        int servicePort = TestUtils.getAvailableListenPort();
+        int servicePort = CommonUtils.getAvailableListenPort();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
