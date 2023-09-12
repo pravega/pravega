@@ -165,7 +165,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         StreamCut streamCut0 = new StreamCutImpl(Stream.of(streamScope, streamName), positions);
         log.info("Initial stream streamCut0 {}", streamCut0);
 
-        //Requested next stream cut at a distance of 170 bytes, and getting 180 offset as a response.
+        //Requested next stream cut at a distance of 170 bytes, and getting the next approx offset as a response.
         StreamCut streamCut1 = batchClient.getNextStreamCut(streamCut0, 170L);
         long streamCut1Position = streamCut1.asImpl().getPositions().get(list.get(0)).longValue();
         log.info("Next stream cut1 {} streamCut1 position {}", streamCut1, streamCut1Position);
@@ -348,7 +348,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         StreamCut streamCut0 = new StreamCutImpl(Stream.of(streamScope, streamName), positions);
         log.info("Initial stream streamCut0 {}", streamCut0);
 
-        //Requested next stream cut at a distance of 170 bytes, and getting 150 offset as a response.
+        //Requested next stream cut at a distance of 170 bytes, and getting the next approx offset as a response.
         StreamCut streamCut1 = batchClient.getNextStreamCut(streamCut0, 170L);
         long streamCut1Position = streamCut1.asImpl().getPositions().get(list.get(0)).longValue();
         log.info("Next stream cut1 {} streamCut1 position {}", streamCut1, streamCut1Position);
@@ -497,7 +497,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         return readerGroupConfig;
     }
 
-    public static int readEvent(EventStreamReader<String> reader) {
+    private static int readEvent(EventStreamReader<String> reader) {
         EventRead<String> event = reader.readNextEvent(500);
         int readCount = 0;
         // Reading events
