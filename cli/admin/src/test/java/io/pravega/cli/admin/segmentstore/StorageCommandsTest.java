@@ -57,8 +57,6 @@ import java.util.stream.Collectors;
 public class StorageCommandsTest extends ThreadPooledTestSuite {
 
     private static final String SCOPE = "testScope";
-    // Setup utility.
-    private final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
 
     private static final Duration TIMEOUT = Duration.ofMillis(30 * 1000);
     @Rule
@@ -66,6 +64,8 @@ public class StorageCommandsTest extends ThreadPooledTestSuite {
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
+    // Setup utility.
+    private final AtomicReference<AdminCommandState> state = new AtomicReference<>();
 
     /**
      * A directory for FILESYSTEM storage as LTS.
@@ -98,7 +98,7 @@ public class StorageCommandsTest extends ThreadPooledTestSuite {
 
     @After
     public void tearDown() {
-        STATE.get().close();
+        state.get().close();
         if (this.factory != null) {
             this.factory.close();
         }
@@ -130,16 +130,16 @@ public class StorageCommandsTest extends ThreadPooledTestSuite {
             componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
         }
 
-        STATE.set(new AdminCommandState());
+        state.set(new AdminCommandState());
         Properties pravegaProperties = new Properties();
         pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(pravegaRunner.getSegmentStoreRunner().getAdminPort()));
         pravegaProperties.setProperty("pravegaservice.container.count", "1");
         pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
         pravegaProperties.setProperty("pravegaservice.storage.layout", "CHUNKED_STORAGE");
         pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
-        STATE.get().getConfigBuilder().include(pravegaProperties);
+        state.get().getConfigBuilder().include(pravegaProperties);
 
-        String commandResult = TestUtils.executeCommand("storage list-chunks _system/containers/metadata_0 localhost", STATE.get());
+        String commandResult = TestUtils.executeCommand("storage list-chunks _system/containers/metadata_0 localhost", state.get());
         Assert.assertTrue(commandResult.contains("List of chunks for _system/containers/metadata_0"));
     }
 
@@ -172,12 +172,12 @@ public class StorageCommandsTest extends ThreadPooledTestSuite {
         Path outputDir = Files.createTempDirectory("outputDir").toAbsolutePath();
 
         //run command
-        STATE.set(new AdminCommandState());
+        state.set(new AdminCommandState());
         Assert.assertNotNull(StorageUpdateSnapshotCommand.descriptor());
         TestUtils.executeCommand("storage update-latest-journal-snapshot " + chunkDirPath.toAbsolutePath().toString() +
                 " " + sysJournal.getAbsolutePath() +
                 " " + snapshotFile.getAbsolutePath() +
-                " " + outputDir.toAbsolutePath().toString() + File.separator, STATE.get());
+                " " + outputDir.toAbsolutePath().toString() + File.separator, state.get());
 
         val outputJournal = Files.list(outputDir).collect(Collectors.toList());
         Assert.assertTrue("No journal created as part of", outputJournal.size() == 1);
