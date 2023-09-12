@@ -168,6 +168,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         //Requested next stream cut at a distance of 170 bytes, and getting the next approx offset as a response.
         StreamCut streamCut1 = batchClient.getNextStreamCut(streamCut0, 170L);
         long streamCut1Position = streamCut1.asImpl().getPositions().get(list.get(0)).longValue();
+        assertTrue(180 <= streamCut1Position);
         log.info("Next stream cut1 {} streamCut1 position {}", streamCut1, streamCut1Position);
 
         @Cleanup
@@ -186,15 +187,16 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 ReaderConfig.builder().build());
 
         int readCount1 = readEvent(reader0);
+        reader0.close();
         assertEquals(readCount1, streamCut1Position / 30);
         assertEquals(readCount1 * 30, streamCut1.asImpl().getPositions().get(list.get(0)).longValue());
 
         StreamCut streamCut2 = batchClient.getNextStreamCut(streamCut1, 80L);
         long streamCut2Position = streamCut2.asImpl().getPositions().get(list.get(0)).longValue();
+        assertTrue(270 <= streamCut2Position);
         long distanceBetweenTheStreamCut2 = streamCut2Position - streamCut1Position;
         log.info("Next stream cut2 {} stream cut position {} distance between the stream cut {}", streamCut2, streamCut2Position, distanceBetweenTheStreamCut2);
 
-        reader0.close();
         ReaderGroupConfig readerGroupConfig2 = getReaderGroupConfig(streamCut1, streamCut2, stream);
         readerGroup.resetReaderGroup(readerGroupConfig2);
 
@@ -205,16 +207,17 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 ReaderConfig.builder().build());
 
         int readCount2 = readEvent(reader0);
+        reader0.close();
         assertEquals(readCount2, distanceBetweenTheStreamCut2 / 30);
         assertEquals(readCount2 * 30, distanceBetweenTheStreamCut2);
 
         long approxDistanceToNextOffset = 350L;
         StreamCut streamCut3 = batchClient.getNextStreamCut(streamCut2, approxDistanceToNextOffset);
         long streamCut3Position = streamCut3.asImpl().getPositions().get(list.get(0)).longValue();
+        assertTrue(300 <= streamCut3Position);
         long distanceBetweenTheStreamCut3 = streamCut3Position - streamCut2Position;
         log.info("Next stream cut3 {} stream cut position {} distance between the stream cut {}", streamCut3, streamCut3Position, distanceBetweenTheStreamCut3);
 
-        reader0.close();
         ReaderGroupConfig readerGroupConfig3 = getReaderGroupConfig(streamCut2, streamCut3, stream);
         readerGroup.resetReaderGroup(readerGroupConfig3);
 
@@ -225,15 +228,17 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 ReaderConfig.builder().build());
 
         int readCount3 = readEvent(reader0);
+        reader0.close();
+
         assertEquals(readCount3, distanceBetweenTheStreamCut3 / 30);
         assertEquals(readCount3 * 30, distanceBetweenTheStreamCut3);
 
         StreamCut streamCut4 = batchClient.getNextStreamCut(streamCut3, approxDistanceToNextOffset);
         long streamCut4Position = streamCut4.asImpl().getPositions().get(list.get(0)).longValue();
+        assertTrue(300 <= streamCut4Position);
         long distanceBetweenTheStreamCut4 = streamCut4Position - streamCut3Position;
         log.info("Next stream cut4 {} stream cut position {} distance between the stream cut {}", streamCut4, streamCut4Position, distanceBetweenTheStreamCut4);
 
-        reader0.close();
         ReaderGroupConfig readerGroupConfig4 = getReaderGroupConfig(streamCut3, streamCut4, stream);
         readerGroup.resetReaderGroup(readerGroupConfig4);
 
@@ -351,6 +356,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         //Requested next stream cut at a distance of 170 bytes, and getting the next approx offset as a response.
         StreamCut streamCut1 = batchClient.getNextStreamCut(streamCut0, 170L);
         long streamCut1Position = streamCut1.asImpl().getPositions().get(list.get(0)).longValue();
+        assertTrue(180 <= streamCut1Position);
         log.info("Next stream cut1 {} streamCut1 position {}", streamCut1, streamCut1Position);
 
         @Cleanup
