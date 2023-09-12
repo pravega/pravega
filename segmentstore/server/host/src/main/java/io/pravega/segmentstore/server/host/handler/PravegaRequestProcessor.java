@@ -128,7 +128,7 @@ import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 import static io.pravega.common.function.Callbacks.invokeSafely;
-import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEG_EVENT_SIZE;
+import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEGMENT_EVENT_SIZE;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.ROLLOVER_SIZE;
@@ -511,7 +511,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                 new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
-                new AttributeUpdate(EXPECTED_INDEX_SEG_EVENT_SIZE, AttributeUpdateType.None, NameUtils.INDEX_APPEND_EVENT_SIZE)
+                new AttributeUpdate(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, AttributeUpdateType.None, NameUtils.INDEX_APPEND_EVENT_SIZE)
         );
         return segmentStore.createStreamSegment(getIndexSegmentName(segmentName), SegmentType.STREAM_SEGMENT,
                 attributes, TIMEOUT);
@@ -621,8 +621,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private CompletableFuture<Void> appendOnIndexSegment(String segmentName) {
-            return segmentStore.getAttributes(getIndexSegmentName(segmentName), Collections.singleton(EXPECTED_INDEX_SEG_EVENT_SIZE), true, TIMEOUT)
-                    .thenApply(attributes -> attributes.getOrDefault(EXPECTED_INDEX_SEG_EVENT_SIZE, 0L))
+            return segmentStore.getAttributes(getIndexSegmentName(segmentName), Collections.singleton(EXPECTED_INDEX_SEGMENT_EVENT_SIZE), true, TIMEOUT)
+                    .thenApply(attributes -> attributes.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L))
                     .exceptionally(e -> {
                         log.warn("Exception occured while getting max event size for index segment {}, exception: {}", getIndexSegmentName(segmentName), e);
                         return 0L;
@@ -724,7 +724,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         
         log.debug(requestId, "Locating offset {} ", locateOffset);
         try {
-            long offset = IndexRequestProcessor.locateOffsetForSegment(segmentStore, segment, locateOffset.getTargetOffset(), true);
+            long offset = IndexRequestProcessor.findNearestIndexedOffset(segmentStore, segment, locateOffset.getTargetOffset(), true);
             connection.send(new WireCommands.OffsetLocated(requestId, segment, offset));
         } catch (Exception e) {
             if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {

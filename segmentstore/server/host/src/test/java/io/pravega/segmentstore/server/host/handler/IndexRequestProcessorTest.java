@@ -79,7 +79,7 @@ public class IndexRequestProcessorTest {
         doReturn(CompletableFuture.completedFuture(indexSegmentProperties)).when(store).getStreamSegmentInfo(indexSegmentName, timeout);
         doReturn(CompletableFuture.completedFuture(segmentProperties)).when(store).getStreamSegmentInfo(segmentName, timeout);
 
-        long offset = IndexRequestProcessor.locateOffsetForSegment(store, segmentName, 10L, true);
+        long offset = IndexRequestProcessor.findNearestIndexedOffset(store, segmentName, 10L, true);
         assertEquals(1234, offset);
     }
 
@@ -109,9 +109,9 @@ public class IndexRequestProcessorTest {
         doReturn(CompletableFuture.completedFuture(segmentProperties)).when(store).getStreamSegmentInfo(eq(segmentName), any());
         doReturn(CompletableFuture.completedFuture(indexSegmentProperties)).when(store).getStreamSegmentInfo(eq(indexSegmentName), any());
         doReturn(CompletableFuture.completedFuture(result)).when(store).read(anyString(), anyLong(), anyInt(), any());
-        assertEquals(0, IndexRequestProcessor.locateOffsetForSegment(store, segmentName, 0L, false));
-        assertEquals(12, IndexRequestProcessor.locateOffsetForSegment(store, segmentName, 10L, true));
-        assertEquals(12, IndexRequestProcessor.locateOffsetForSegment(store, segmentName, 20L, true));
+        assertEquals(0, IndexRequestProcessor.findNearestIndexedOffset(store, segmentName, 0L, false));
+        assertEquals(12, IndexRequestProcessor.findNearestIndexedOffset(store, segmentName, 10L, true));
+        assertEquals(12, IndexRequestProcessor.findNearestIndexedOffset(store, segmentName, 20L, true));
     }
 
     @Test(timeout = 5000)

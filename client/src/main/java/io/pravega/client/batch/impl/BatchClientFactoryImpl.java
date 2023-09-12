@@ -233,6 +233,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     @Override
     public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
+        Preconditions.checkNotNull(startingStreamCut);
         Preconditions.checkArgument(approxDistanceToNextOffset > 0, "Ensure approxDistanceToNextOffset must be greater than 0");
         return retryWithBackoff.retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);

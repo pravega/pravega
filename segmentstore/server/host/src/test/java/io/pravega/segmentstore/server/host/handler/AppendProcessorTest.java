@@ -73,6 +73,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
@@ -183,6 +184,7 @@ public class AppendProcessorTest {
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
         indexAppendProcessor.runRemainingAndClose();
         verify(store, atLeast(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(streamIndexSegmentName), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         verify(store, atLeast(1)).append(eq(streamIndexSegmentName), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
@@ -230,9 +232,9 @@ public class AppendProcessorTest {
         IndexEntry indexEntry = IndexEntry.fromBytes(BufferView.wrap(acIndex.appendedData.get()));
         assertEquals(indexEntry1.getOffset(), indexEntry.getOffset());
         assertEquals(indexEntry1.getEventCount(), indexEntry.getEventCount());
-
+        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         verify(store, times(2)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
-        verify(store, times(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
@@ -245,17 +247,19 @@ public class AppendProcessorTest {
     }
 
     private void setMockForIndexSegmentAppends(String streamSegmentName, StreamSegmentStore store, long eventCount, long eventLength) {
-        CompletableFuture<SegmentProperties> toBeReturned = CompletableFuture.completedFuture(
-                StreamSegmentInformation.builder()
-                        .name(streamSegmentName)
-                        .length(eventLength)
-                        .attributes(ImmutableMap.<AttributeId, Long>builder()
-                                .put(Attributes.SCALE_POLICY_TYPE, 0L)
-                                .put(Attributes.EXPECTED_INDEX_SEG_EVENT_SIZE, (long) NameUtils.INDEX_APPEND_EVENT_SIZE)
-                                .put(EVENT_COUNT, eventCount)
-                                .put(Attributes.SCALE_POLICY_RATE, 10L).build())
-                        .build());
-        when(store.getStreamSegmentInfo(anyString(), any())).thenReturn(toBeReturned);
+        CompletableFuture<SegmentProperties> info = CompletableFuture.completedFuture(
+            StreamSegmentInformation.builder()
+                    .name(streamSegmentName)
+                    .length(eventLength)
+                    .attributes(ImmutableMap.<AttributeId, Long>builder()
+                            .put(Attributes.SCALE_POLICY_TYPE, 0L)
+                            .put(EVENT_COUNT, eventCount)
+                            .put(Attributes.SCALE_POLICY_RATE, 10L).build())
+                    .build());
+        when(store.getStreamSegmentInfo(eq(streamSegmentName), any())).thenReturn(info);
+        CompletableFuture<Map<AttributeId, Long>> attributes = CompletableFuture.completedFuture(ImmutableMap.<AttributeId, Long>builder()
+                                .put(Attributes.EXPECTED_INDEX_SEGMENT_EVENT_SIZE, (long) NameUtils.INDEX_APPEND_EVENT_SIZE).build());
+        when(store.getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), eq(List.of(Attributes.EXPECTED_INDEX_SEGMENT_EVENT_SIZE)), anyBoolean(), any())).thenReturn(attributes);
     }
 
     @Test
@@ -486,7 +490,8 @@ public class AppendProcessorTest {
         val ac3 = interceptAppend(store, streamSegmentName1, updateEventNumber(clientId, 20, 10, 1), CompletableFuture.completedFuture(3L));
         processor.append(new Append(streamSegmentName1, clientId, 20, 1, Unpooled.wrappedBuffer(data), null, requestId));
         verifyStoreAppend(verifier, ac3, data);
-        verify(store, atLeast(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName1)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName2)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         verify(store, atLeast(2)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(store);
     }
@@ -524,10 +529,13 @@ public class AppendProcessorTest {
         verify(connection).send(new DataAppended(requestId, clientId, 1, 0, data.length));
         verify(connection).send(new DataAppended(requestId, clientId, 2, 1, 2 * data.length));
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
+
         indexAppendProcessor.runRemainingAndClose();
         verify(store, atLeast(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
-        verify(store, atLeast(1)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
+        verify(store, atLeast(1)).append(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(store);
         verify(mockedRecorder, times(2)).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
@@ -576,7 +584,8 @@ public class AppendProcessorTest {
         verify(tracker, times(3)).updateOutstandingBytes(connection, -data.length, 0);
         indexAppendProcessor.runRemainingAndClose();
         verify(store, atLeast(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
-        verify(store, atLeast(1)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
+        verify(store, atLeast(1)).append(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
@@ -631,6 +640,7 @@ public class AppendProcessorTest {
         indexAppendProcessor.runRemainingAndClose();
         verifyNoMoreInteractions(connection);
         verify(store, atLeast(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(2)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         verify(store, atLeast(1)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(store);
         verify(mockedRecorder, times(2)).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
@@ -674,7 +684,8 @@ public class AppendProcessorTest {
         indexAppendProcessor.runRemainingAndClose();
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
         verify(store, atLeast(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
-        verify(store, atLeast(1)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
+        verify(store, atLeast(1)).append(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -703,7 +714,7 @@ public class AppendProcessorTest {
         }
         verify(store).getAttributes(anyString(), eq(Collections.singleton(AttributeId.fromUUID(clientId))), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 100));
-        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -773,7 +784,8 @@ public class AppendProcessorTest {
         verify(connection).send(new AppendSetup(3, segment2, clientId2, 0));
         verify(connection).send(new DataAppended(4, clientId2, data.length, 0, data.length));
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
-        verify(store, atLeast(2)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(segment1)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(segment2)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         verify(store, atLeast(2)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
@@ -917,6 +929,7 @@ public class AppendProcessorTest {
         verifyStoreAppend(ac2, data);
         indexAppendProcessor.runRemainingAndClose();
         verify(store, atLeast(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         verify(store, atLeast(1)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(store);
     }
@@ -972,7 +985,8 @@ public class AppendProcessorTest {
         indexAppendProcessor.runRemainingAndClose();
         verify(tracker).updateOutstandingBytes(connection, -data1.length, 0);
         verify(store, atLeast(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
-        verify(store, atLeast(1)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
+        verify(store, atLeast(1)).append(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -1039,7 +1053,8 @@ public class AppendProcessorTest {
                 ex -> ex instanceof IllegalStateException);
         indexAppendProcessor.runRemainingAndClose();
         verify(store, atLeast(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
-        verify(store, atLeast(1)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
+        verify(store, atLeast(1)).append(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(),  any(), eq(AppendProcessor.TIMEOUT));
         // Verify no more messages are sent over the connection.
         connectionVerifier.verifyNoMoreInteractions();
         verifyNoMoreInteractions(store);
@@ -1075,6 +1090,7 @@ public class AppendProcessorTest {
         verifyStoreAppend(ac2, data);
         indexAppendProcessor.runRemainingAndClose();
         verify(store, atLeast(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         verify(store, atLeast(1)).append(anyString(), any(),  any(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(store);
     }
@@ -1103,7 +1119,7 @@ public class AppendProcessorTest {
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new OperationUnsupported(requestId, "appending data", ""));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
-        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -1133,7 +1149,7 @@ public class AppendProcessorTest {
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).close();
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
-        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store, times(1)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -1258,7 +1274,7 @@ public class AppendProcessorTest {
         processor.setupAppend(new SetupAppend(requestId, clientId, streamSegmentName, ""));
         verify(store).getAttributes(eq(streamSegmentName), any(), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(connection).send(new WireCommands.AppendSetup(requestId, streamSegmentName, clientId, 0));
-        verify(store, times(1)).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        verify(store).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -1301,14 +1317,14 @@ public class AppendProcessorTest {
         CompletableFuture<SegmentProperties> toBeReturned = CompletableFuture.failedFuture(new StreamSegmentNotExistsException("Stream not exist"));
         CompletableFuture<SegmentProperties> authFailed = CompletableFuture.failedFuture(new TokenExpiredException("Token expired"));
         CompletableFuture<Void> createIndexFuture = CompletableFuture.completedFuture(null);
-        doReturn(toBeReturned).doReturn(authFailed).when(store).getStreamSegmentInfo(anyString(), eq(AppendProcessor.TIMEOUT));
+        doReturn(toBeReturned).doReturn(authFailed).when(store).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), eq(AppendProcessor.TIMEOUT));
         doReturn(createIndexFuture).when(store).createStreamSegment(anyString(), any(), any(), eq(AppendProcessor.TIMEOUT));
         processor.setupAppend(new SetupAppend(requestId, clientId, streamSegmentName, ""));
         processor.setupAppend(new SetupAppend(requestId, clientId, streamSegmentName, ""));
         verify(connection, times(2)).send(any());
-        verify(store, times(2)).getStreamSegmentInfo(anyString(), any());
-        verify(store, times(2)).getAttributes(anyString(), any(), anyBoolean(), any());
-        verify(store).createStreamSegment(anyString(), any(), any(), any());
+        verify(store, times(2)).getAttributes(eq(streamSegmentName), any(), anyBoolean(), any());
+        verify(store, times(2)).getAttributes(eq(NameUtils.getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), any());
+        verify(store, times(1)).createStreamSegment(anyString(), any(), any(), any());
         verify(connection).close();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
