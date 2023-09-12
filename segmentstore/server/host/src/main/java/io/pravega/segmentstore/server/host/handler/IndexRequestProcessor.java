@@ -16,7 +16,7 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.SortUtils;
+import io.pravega.common.util.SearchUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -43,7 +43,7 @@ public final class IndexRequestProcessor {
     }
 
     /**
-     * Locate the requested offset in segment.
+     * Locate an indexed offset near the target location in the segment.
      *
      * @param store  The StreamSegmentStore to attach to (and issue requests to).
      * @param segment Segment name.
@@ -53,8 +53,8 @@ public final class IndexRequestProcessor {
      * @return the corresponding offset position from the index segment entry.
      * @throws SegmentTruncatedException If the segment is truncated.
      */
-    public static long locateOffsetForSegment(StreamSegmentStore store, String segment, long targetOffset,
-                                              boolean greater) throws SegmentTruncatedException {
+    public static long findNearestIndexedOffset(StreamSegmentStore store, String segment, long targetOffset,
+                                                boolean greater) throws SegmentTruncatedException {
         String indexSegmentName = NameUtils.getIndexSegmentName(segment);
 
         // Fetch start and end idx.
@@ -68,7 +68,7 @@ public final class IndexRequestProcessor {
             return segmentProperties.getLength();
         }
 
-        Entry<Long, Long> result = SortUtils.newtonianSearch(idx -> {
+        Entry<Long, Long> result = SearchUtils.newtonianSearch(idx -> {
             ReadResult readResult = store.read(
                 indexSegmentName, idx * NameUtils.INDEX_APPEND_EVENT_SIZE, NameUtils.INDEX_APPEND_EVENT_SIZE, TIMEOUT)
                                      .join();
@@ -86,7 +86,7 @@ public final class IndexRequestProcessor {
     }
 
     /**
-     * Locate the requested offset in index segment.
+     * Find the offset in the index segment that works as a truncation point given the provided offset in the main segment.
      *
      * @param store  The StreamSegmentStore to attach to (and issue requests to).
      * @param segment Segment name.
@@ -106,7 +106,7 @@ public final class IndexRequestProcessor {
            return properties.getStartOffset();
         }
         
-        Entry<Long, Long> result = SortUtils.newtonianSearch(idx -> {
+        Entry<Long, Long> result = SearchUtils.newtonianSearch(idx -> {
             ReadResult readResult = store.read(indexSegmentName, idx * NameUtils.INDEX_APPEND_EVENT_SIZE, NameUtils.INDEX_APPEND_EVENT_SIZE, TIMEOUT).join();
             return getOffsetFromIndexEntry(indexSegmentName, readResult);
         }, startIdx, endIdx, targetOffset, false);

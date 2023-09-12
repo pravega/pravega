@@ -26,13 +26,13 @@ import lombok.Data;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static io.pravega.common.util.SortUtils.binarySearch;
-import static io.pravega.common.util.SortUtils.newtonianSearch;
+import static io.pravega.common.util.SearchUtils.binarySearch;
+import static io.pravega.common.util.SearchUtils.newtonianSearch;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-public class SortUtilTest {
+public class SearchUtilsTest {
 
     @Test
     public void targetValuePresent() {

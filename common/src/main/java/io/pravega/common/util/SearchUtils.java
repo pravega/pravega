@@ -23,7 +23,7 @@ import java.util.function.LongFunction;
 /**
  * A utility class to hold the searching/sorting functions.
  */
-public class SortUtils {
+public class SearchUtils {
      /**
      * Newtonian search: Identical to binary search, but specialized to searching lists of longs.
      * The difference is in how the midpoint is chosen. In a standard binary search, the middle
