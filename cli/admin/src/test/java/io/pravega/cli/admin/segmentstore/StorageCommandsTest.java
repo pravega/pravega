@@ -58,7 +58,7 @@ public class StorageCommandsTest extends ThreadPooledTestSuite {
 
     private static final String SCOPE = "testScope";
     // Setup utility.
-    private static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
+    private final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
 
     private static final Duration TIMEOUT = Duration.ofMillis(30 * 1000);
     @Rule
