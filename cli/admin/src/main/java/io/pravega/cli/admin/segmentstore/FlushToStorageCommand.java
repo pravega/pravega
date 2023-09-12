@@ -101,7 +101,10 @@ public class FlushToStorageCommand extends ContainerCommand {
         if (host == null || host.isEmpty()) {
             throw new RuntimeException("No host found for given container: " + containerId);
         }
-        return host;
+        // Quick Fix : Needs proper parsing and fixing
+        String[] parts = host.split("\\.");
+        Preconditions.checkState(parts.length >= 1);
+        return parts[0];
     }
 
     private Map<Integer, String> getHosts() {
