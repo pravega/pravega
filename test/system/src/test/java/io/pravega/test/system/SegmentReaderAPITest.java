@@ -274,7 +274,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         reader0.close();
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
                 .disableAutomaticCheckpoints()
-                .stream(stream.getScopedName())
+                .startingStreamCuts(startSC)
                 .build();
         readerGroup.resetReaderGroup(readerGroupConfig);
 
