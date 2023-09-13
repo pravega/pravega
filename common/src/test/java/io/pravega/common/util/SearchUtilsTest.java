@@ -21,18 +21,30 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.LongFunction;
 import lombok.Data;
 import org.junit.Assert;
 import org.junit.Test;
 
 import static io.pravega.common.util.SearchUtils.binarySearch;
-import static io.pravega.common.util.SearchUtils.newtonianSearch;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class SearchUtilsTest {
+    
+    protected Entry<Long, Long> newtonianSearch(LongFunction<Long> getValue, long fromIdx, long toIdx, long target, boolean greater) {
+        return SearchUtils.newtonianSearch(getValue, fromIdx, toIdx, target, greater);
+    }
+    
+    public static class AsyncSearchUtilsTest extends SearchUtilsTest {
+        protected Entry<Long, Long> newtonianSearch(LongFunction<Long> getValue, long fromIdx, long toIdx, long target, boolean greater) {
+            return SearchUtils.asyncNewtonianSearch((long idx) -> {
+                return CompletableFuture.completedFuture(getValue.apply(idx));
+            }, fromIdx, toIdx, target, greater).join();
+        }
+    }
 
     @Test
     public void targetValuePresent() {

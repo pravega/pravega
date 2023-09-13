@@ -19,6 +19,7 @@ import io.pravega.common.MathHelpers;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.function.LongFunction;
 
 /**
@@ -27,6 +28,18 @@ import java.util.function.LongFunction;
 public class SearchUtils {
     
     
+    /**
+     * Exactly the same as {@link #newtonianSearch(LongFunction, long, long, long, boolean)} but async.
+     * 
+     * @param getValue The function that returns a long given an index
+     * @param fromIdx The index from which to start the search
+     * @param toIdx The index at which to end the search
+     * @param target The value to search for
+     * @param greater If the element is not in the list true indicates that the next larger element
+     *            should be returned false indicates the next smaller element should be returned
+     * @return A future for an Entry object containing the closest index and its value
+     * @throws IllegalArgumentException if the input list is empty
+     */
     public static CompletableFuture<Entry<Long, Long>> asyncNewtonianSearch(LongFunction<CompletableFuture<Long>> getValue,
                                                                             long fromIdx, long toIdx, long target,
                                                                             boolean greater) {
@@ -40,12 +53,9 @@ public class SearchUtils {
         CompletableFuture<Long> toFuture = getValue.apply(toIdx);
 
         return fromFuture.thenCombine(toFuture, (fromValue, toValue) -> {
-            if (target <= fromValue) {
-                return CompletableFuture.completedFuture(new SimpleEntry<>(fromIdx, fromValue));
-            }
-
-            if (target >= toValue) {
-                return CompletableFuture.completedFuture(new SimpleEntry<>(toIdx, toValue));
+            SimpleEntry<Long, Long> singleEntry = getSimpleEntry(fromIdx, toIdx, target, fromValue, toValue);
+            if (singleEntry != null) {
+                return CompletableFuture.completedFuture(singleEntry);
             }
 
             double beginSlope = calculateSlope(fromIdx, toIdx, fromValue, toValue);
@@ -57,10 +67,13 @@ public class SearchUtils {
             }
             long guessIdx = generateNextGuess(fromIdx, toIdx, target, fromValue, toValue, beginSlope, endSlope);
             return recursivlyNarrowSearch(getValue, fromIdx, fromValue, toIdx, toValue, guessIdx, target, greater);
-        }).thenCompose(f -> {
-            // Casting to own class to remove "? extends" in signature
-            return (CompletableFuture<Entry<Long, Long>>) f;
-        });
+        }).thenCompose(f -> cast(f));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static CompletionStage<Entry<Long, Long>> cast(CompletableFuture<? extends Entry<Long, Long>> f) {
+        // Casting to own class to remove "? extends" in signature
+        return (CompletableFuture<Entry<Long, Long>>) f;
     }
     
     private static CompletableFuture<Entry<Long, Long>> recursivlyNarrowSearch(LongFunction<CompletableFuture<Long>> getValue,
@@ -124,14 +137,11 @@ public class SearchUtils {
         long fromValue = getValue.apply(fromIdx);
         long toValue = getValue.apply(toIdx);
 
-        if (target <= fromValue) {
-            return new SimpleEntry<>(fromIdx, fromValue);
-        }
-        
-        if (target >= toValue) {
-            return new SimpleEntry<>(toIdx, toValue);
-        }
+        SimpleEntry<Long, Long> singleEntry = getSimpleEntry(fromIdx, toIdx, target, fromValue, toValue);
 
+        if (singleEntry != null) {
+            return singleEntry;
+        }
         double beginSlope = calculateSlope(fromIdx, toIdx, fromValue, toValue);
         double endSlope = beginSlope;
         while (toIdx > fromIdx + 1) {
@@ -151,7 +161,7 @@ public class SearchUtils {
                 return new SimpleEntry<>(guessIdx, guessValue);
             }
         }
-         return getSimpleEntryBasedOnGreater(fromIdx, toIdx, greater, fromValue, toValue);
+        return getSimpleEntryBasedOnGreater(fromIdx, toIdx, greater, fromValue, toValue);
      }
 
     private static long generateNextGuess(long fromIdx, long toIdx, long target, long fromValue, long toValue,
@@ -174,6 +184,15 @@ public class SearchUtils {
         } else {
             return new SimpleEntry<>(fromIdx, fromValue);
         }
+    }
+
+    private static SimpleEntry<Long, Long> getSimpleEntry(long fromIdx, long toIdx, long target, long fromValue, long toValue) {
+        if (target <= fromValue) {
+            return new SimpleEntry<>(fromIdx, fromValue);
+        } else if (target >= toValue) {
+            return new SimpleEntry<>(toIdx, toValue);
+        }
+        return null;
     }
 
     private static double calculateSlope(long fromIdx, long toIdx, long fromValue, long toValue) {

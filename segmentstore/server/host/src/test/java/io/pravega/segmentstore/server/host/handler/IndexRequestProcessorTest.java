@@ -79,7 +79,7 @@ public class IndexRequestProcessorTest {
         doReturn(CompletableFuture.completedFuture(indexSegmentProperties)).when(store).getStreamSegmentInfo(indexSegmentName, timeout);
         doReturn(CompletableFuture.completedFuture(segmentProperties)).when(store).getStreamSegmentInfo(segmentName, timeout);
 
-        long offset = IndexRequestProcessor.findNearestIndexedOffset(store, segmentName, 10L, true);
+        long offset = IndexRequestProcessor.findNearestIndexedOffset(store, segmentName, 10L, true).join();
         assertEquals(1234, offset);
     }
 
