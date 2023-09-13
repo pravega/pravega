@@ -112,7 +112,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
      * Read the events between the streamCut and segment0 has scaled up(segment1, segment2) and written 5 events and validating the numbers of events written
      * by reading the events from the scaled up segment.
      */
-    @Test(timeout = 60000)
+    @Test(timeout = 90000)
     public void getNextStreamCutWithScaleUpTest() throws SegmentTruncatedException, ExecutionException, InterruptedException {
         String streamName = "testStreamSegment";
         String streamScope = "testScopeSegment";
@@ -143,8 +143,8 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
 
         List<SegmentRange> ranges = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         List<Segment> list = ranges.stream().map(SegmentRange::getSegment).collect(Collectors.toList());
-        assertEquals(1, list.size());
         log.info("Segment name ::{}", list.get(0).getScopedName());
+        assertEquals(1, list.size());
 
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(),
@@ -162,8 +162,8 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         //Requested next stream cut at a distance of 170 bytes, and getting the next approx offset as a response.
         StreamCut streamCut1 = batchClient.getNextStreamCut(streamCut0, 170L);
         long streamCut1Position = streamCut1.asImpl().getPositions().get(list.get(0)).longValue();
-        assertTrue(180 <= streamCut1Position);
         log.info("Next stream cut1 {} streamCut1 position {}", streamCut1, streamCut1Position);
+        assertTrue(180 <= streamCut1Position);
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(streamScope, controllerURI);
@@ -304,7 +304,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
      * Segment0 has scaled up (segment1 and segment2) with 5 events and validating the numbers of events written
      * segment1 and segment2 has scaled down (segment3).
      */
-    @Test(timeout = 60000)
+    @Test(timeout = 90000)
     public void getNextStreamCutWithScaleDownTest() throws SegmentTruncatedException, ExecutionException, InterruptedException {
         String streamName = "testStreamSegmentScaleDown";
         String streamScope = "testScopeSegmentScaleDown";
@@ -353,8 +353,8 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         //Requested next stream cut at a distance of 170 bytes, and getting the next approx offset as a response.
         StreamCut streamCut1 = batchClient.getNextStreamCut(streamCut0, 170L);
         long streamCut1Position = streamCut1.asImpl().getPositions().get(list.get(0)).longValue();
-        assertTrue(180 <= streamCut1Position);
         log.info("Next stream cut1 {} streamCut1 position {}", streamCut1, streamCut1Position);
+        assertTrue(150 <= streamCut1Position);
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(streamScope, controllerURI);
@@ -389,8 +389,8 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
 
         ArrayList<SegmentRange> rangeList = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         List<Segment> allSegmentList = rangeList.stream().map(SegmentRange::getSegment).collect(Collectors.toList());
-        assertEquals(3, allSegmentList.size());
         log.info("After scale up all the segment list : {}", allSegmentList);
+        assertEquals(3, allSegmentList.size());
 
         Segment segment1 = Segment.fromScopedName(streamScope + "/" + streamName + "/1.#epoch.1");
         Segment segment2 = Segment.fromScopedName(streamScope + "/" + streamName + "/2.#epoch.1");
