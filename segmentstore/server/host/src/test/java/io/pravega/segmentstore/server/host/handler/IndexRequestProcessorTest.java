@@ -109,9 +109,9 @@ public class IndexRequestProcessorTest {
         doReturn(CompletableFuture.completedFuture(segmentProperties)).when(store).getStreamSegmentInfo(eq(segmentName), any());
         doReturn(CompletableFuture.completedFuture(indexSegmentProperties)).when(store).getStreamSegmentInfo(eq(indexSegmentName), any());
         doReturn(CompletableFuture.completedFuture(result)).when(store).read(anyString(), anyLong(), anyInt(), any());
-        assertEquals(0, IndexRequestProcessor.findNearestIndexedOffset(store, segmentName, 0L, false));
-        assertEquals(12, IndexRequestProcessor.findNearestIndexedOffset(store, segmentName, 10L, true));
-        assertEquals(12, IndexRequestProcessor.findNearestIndexedOffset(store, segmentName, 20L, true));
+        assertEquals(0, IndexRequestProcessor.findNearestIndexedOffset(store, segmentName, 0L, false).join().longValue());
+        assertEquals(12, IndexRequestProcessor.findNearestIndexedOffset(store, segmentName, 10L, true).join().longValue());
+        assertEquals(12, IndexRequestProcessor.findNearestIndexedOffset(store, segmentName, 20L, true).join().longValue());
     }
 
     @Test(timeout = 5000)
@@ -134,7 +134,7 @@ public class IndexRequestProcessorTest {
         doReturn(CompletableFuture.completedFuture(indexSegmentProperties)).when(store).getStreamSegmentInfo(indexSegmentName, timeout);
         doReturn(CompletableFuture.completedFuture(segmentProperties)).when(store).getStreamSegmentInfo(segmentName, timeout);
 
-        assertEquals(0, IndexRequestProcessor.locateTruncateOffsetInIndexSegment(store, segmentName, 10L));
+        assertEquals(0, IndexRequestProcessor.locateTruncateOffsetInIndexSegment(store, segmentName, 10L).join().longValue());
     }
     
     @Test(timeout = 5000)
@@ -157,8 +157,8 @@ public class IndexRequestProcessorTest {
         doReturn(readResultEntry).when(result).next();
         doReturn(CompletableFuture.completedFuture(indexSegmentProperties)).when(store).getStreamSegmentInfo(eq(indexSegmentName), any());
         doReturn(CompletableFuture.completedFuture(result)).when(store).read(anyString(), anyLong(), anyInt(), any());
-        assertEquals(0, IndexRequestProcessor.locateTruncateOffsetInIndexSegment(store, segmentName, 10L));
-        assertEquals(24, IndexRequestProcessor.locateTruncateOffsetInIndexSegment(store, segmentName, 12L));
+        assertEquals(0, IndexRequestProcessor.locateTruncateOffsetInIndexSegment(store, segmentName, 10L).join().longValue());
+        assertEquals(24, IndexRequestProcessor.locateTruncateOffsetInIndexSegment(store, segmentName, 12L).join().longValue());
     }
     
 }

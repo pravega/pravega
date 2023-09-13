@@ -19,11 +19,12 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.SearchUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 
@@ -61,29 +62,27 @@ public final class IndexRequestProcessor {
         String indexSegmentName = NameUtils.getIndexSegmentName(segment);
 
         // Fetch start and end idx.
-        SegmentProperties properties = store.getStreamSegmentInfo(indexSegmentName, TIMEOUT).join();
-        long startIdx = properties.getStartOffset() / INDEX_APPEND_EVENT_SIZE;
-        long endIdx = properties.getLength() / INDEX_APPEND_EVENT_SIZE - 1;
-        // If startIdx and endIdx are same, then pass length of segment as a result.
+        return store.getStreamSegmentInfo(indexSegmentName, TIMEOUT).thenCompose(properties -> {
+            long startIdx = properties.getStartOffset() / INDEX_APPEND_EVENT_SIZE;
+            long endIdx = properties.getLength() / INDEX_APPEND_EVENT_SIZE - 1;
+            // If startIdx and endIdx are same, then pass length of segment as a result.
 
-        if (startIdx > endIdx) {
-            SegmentProperties segmentProperties = store.getStreamSegmentInfo(segment, TIMEOUT).join();
-            return CompletableFuture.completedFuture(segmentProperties.getLength());
-        }
+            if (startIdx > endIdx) {
+                return store.getStreamSegmentInfo(segment, TIMEOUT).thenApply(segmentProperties -> segmentProperties.getLength());
+            }
 
-        return SearchUtils.asyncNewtonianSearch(idx -> {
-            return store.read(indexSegmentName, idx * INDEX_APPEND_EVENT_SIZE, INDEX_APPEND_EVENT_SIZE, TIMEOUT)
-                        .thenApply(readResult -> getOffsetFromIndexEntry(indexSegmentName, readResult));
-        }, startIdx, endIdx, targetOffset, greater).thenApply(result -> {
-            if (greater && result.getValue() < targetOffset) {
-                SegmentProperties segmentProperties = store.getStreamSegmentInfo(segment, TIMEOUT).join();
-                return segmentProperties.getLength();
-            }
-            if (!greater && result.getValue() > targetOffset) {
-                SegmentProperties segmentProperties = store.getStreamSegmentInfo(segment, TIMEOUT).join();
-                return segmentProperties.getStartOffset();
-            }
-            return result.getValue();
+            return SearchUtils.asyncNewtonianSearch(idx -> {
+                return store.read(indexSegmentName, idx * INDEX_APPEND_EVENT_SIZE, INDEX_APPEND_EVENT_SIZE, TIMEOUT)
+                        .thenCompose(readResult -> getOffsetFromIndexEntry(indexSegmentName, readResult));
+            }, startIdx, endIdx, targetOffset, greater).thenCompose(result -> {
+                if (greater && result.getValue() < targetOffset) {
+                    return store.getStreamSegmentInfo(segment, TIMEOUT).thenApply(segmentProperties -> segmentProperties.getLength());
+                }
+                if (!greater && result.getValue() > targetOffset) {
+                    return store.getStreamSegmentInfo(segment, TIMEOUT).thenApply(segmentProperties -> segmentProperties.getStartOffset());
+                }
+                return CompletableFuture.completedFuture(result.getValue());
+            });
         });
     }
 
@@ -111,7 +110,7 @@ public final class IndexRequestProcessor {
 
             return SearchUtils.asyncNewtonianSearch(idx -> {
                 return store.read(indexSegmentName, idx * INDEX_APPEND_EVENT_SIZE, INDEX_APPEND_EVENT_SIZE, TIMEOUT)
-                            .thenApply(readResult -> getOffsetFromIndexEntry(indexSegmentName, readResult));
+                            .thenCompose(readResult -> getOffsetFromIndexEntry(indexSegmentName, readResult));
             }, startIdx, endIdx, targetOffset, false).thenApply(result -> {
                 if (targetOffset < result.getValue()) {
                     return result.getKey() * INDEX_APPEND_EVENT_SIZE;
@@ -122,25 +121,35 @@ public final class IndexRequestProcessor {
         });
     }
 
-    private static long getOffsetFromIndexEntry(String segment, ReadResult readResult) {
-        int bytesRead = 0;
-        ArrayList<BufferView> result = new ArrayList<>(1);
-        while (readResult.hasNext() && bytesRead < INDEX_APPEND_EVENT_SIZE) {
-            ReadResultEntry entry = readResult.next();
-            switch (entry.getType()) {
-            case Truncated:
-                throw new SegmentTruncatedException(String.format("Segment %s has been truncated.", segment));
-            case EndOfStreamSegment:
-                throw new IllegalStateException(String.format("Unexpected size of index segment of type: %s was encountered for segment %s.", entry.getType(), segment));
-            case Cache: // fallthrough
-            case Storage:
-            case Future:
-                entry.requestContent(TIMEOUT);
-                BufferView data = entry.getContent().join();
-                bytesRead += data.getLength();
-                result.add(data);
-            }
+    private static CompletableFuture<Long> getOffsetFromIndexEntry(String segment, ReadResult readResult) {
+        return readResult(segment, readResult, 0).thenApply(result -> IndexEntry.fromBytes(BufferView.wrap(result)).getOffset());
+    }
+
+    private static CompletableFuture<List<BufferView>> readResult(String segment, ReadResult readResult, int dataRead) {
+        if (!readResult.hasNext()) {            
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        } 
+
+        ReadResultEntry entry = readResult.next();
+        switch (entry.getType()) {
+        case Truncated:
+            throw new SegmentTruncatedException(String.format("Segment %s has been truncated.", segment));
+        case EndOfStreamSegment:
+            throw new IllegalStateException(String.format("Unexpected size of index segment of type: %s was encountered for segment %s.", entry.getType(), segment));
+        default:
+            entry.requestContent(TIMEOUT);
+            return entry.getContent().thenCompose(first -> {
+                if (dataRead + first.getLength() >= INDEX_APPEND_EVENT_SIZE) {
+                    return CompletableFuture.completedFuture(List.of(first));
+                } else {
+                    return readResult(segment, readResult, dataRead + first.getLength()).thenApply(rest -> {
+                        ArrayList<BufferView> result = new ArrayList<>(rest.size() + 1);
+                        result.add(first);
+                        result.addAll(rest);
+                        return result;
+                    });
+                }
+            });
         }
-        return IndexEntry.fromBytes(BufferView.wrap(result)).getOffset();
     }
 }
