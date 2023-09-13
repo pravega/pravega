@@ -207,7 +207,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     }
 
     private void closeConnection(Throwable exceptionToInflightRequests) {
-        log.debug("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
+        log.info("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
         closeClientConnection();
     }
 
@@ -233,6 +233,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     @Override
     public StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
+        Preconditions.checkNotNull(startingStreamCut);
         Preconditions.checkArgument(approxDistanceToNextOffset > 0, "Ensure approxDistanceToNextOffset must be greater than 0");
         return retryWithBackoff.retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
@@ -248,7 +249,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         }).run(() -> processNextStreamCut(startingStreamCut, approxDistanceToNextOffset));
     }
 
-    private StreamCut processNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) {
+    private StreamCut processNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         Stream stream = startingStreamCut.asImpl().getStream();
         Map<Segment, Long> nextPositionsMap = new HashMap<>();
         Map<Segment, Long> scaledSegmentsMap = new HashMap<>();
@@ -271,7 +272,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         return new StreamCutImpl(stream, nextPositionsMap);
     }
 
-    private long getNextOffsetForSegment(Segment segment, long targetOffset) {
+    private long getNextOffsetForSegment(Segment segment, long targetOffset) throws SegmentTruncatedException {
         RawClient connection = getConnection(segment);
         long requestId = connection.getFlow().getNextSequenceNumber();
         final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
@@ -287,9 +288,9 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         return existingOffset == nextOffset;
     }
 
-    private void checkSuccessorSegmentOffset(Map<Segment, Long> nextPositionsMap, Map<Segment, Long> scaledSegmentsMap, long approxDistanceToNextOffset) {
+    private void checkSuccessorSegmentOffset(Map<Segment, Long> nextPositionsMap, Map<Segment, Long> scaledSegmentsMap, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         log.debug("checkSuccessorSegmentOffset() -> Segments that may have scaled = {}", scaledSegmentsMap);
-        scaledSegmentsMap.entrySet().stream().forEach(entry -> {
+        for (val entry : scaledSegmentsMap.entrySet()) {
             CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors = controller.getSuccessors(entry.getKey());
             Map<SegmentWithRange, List<Long>> segmentToPredecessorMap = getSuccessors.join().getSegmentToPredecessor();
             int size = segmentToPredecessorMap.size();
@@ -322,7 +323,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                 nextPositionsMap.put(entry.getKey(), entry.getValue());
             }
 
-        });
+        }
     }
 
     // If no of segments is greater than approx distance then we need to request atleast for one byte.

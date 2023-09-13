@@ -401,6 +401,7 @@ public class PravegaRequestProcessorTest {
         doNothing().when(readResultEntry).requestContent(any());
 
         ReadResult result = mock(ReadResult.class);
+        doReturn(true).when(result).hasNext();
         doReturn(readResultEntry).when(result).next();
 
         doReturn(CompletableFuture.completedFuture(new IndexEntry(20, 1, 1233333).toBytes()))
@@ -1449,7 +1450,7 @@ public class PravegaRequestProcessorTest {
         recorderMockOrder.verify(recorderMock).getKeys(eq(tableSegmentName), eq(1), any());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testGetTableKeys() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         val rnd = new Random(0);
@@ -1523,7 +1524,7 @@ public class PravegaRequestProcessorTest {
         assertTrue(keyVersions.containsAll(getTableKeysReadResponse.getKeys().stream().map(WireCommands.TableKey::getKeyVersion).collect(Collectors.toList())));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testGetTableEntries() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         val rnd = new Random(0);
@@ -1606,7 +1607,7 @@ public class PravegaRequestProcessorTest {
         assertTrue(keyVersions.containsAll(getTableEntriesIteratorsResp.getEntries().getEntries().stream().map(e -> e.getKey().getKeyVersion()).collect(Collectors.toList())));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testReadTableEntriesDeltaEmpty() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         String tableSegmentName = "testReadTableEntriesDelta";
@@ -1632,7 +1633,7 @@ public class PravegaRequestProcessorTest {
         verify(recorderMock).iterateEntries(eq(tableSegmentName), eq(0), any());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testReadTableEntriesDeltaOutOfBounds() throws  Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         val rnd = new Random(0);
@@ -1673,7 +1674,7 @@ public class PravegaRequestProcessorTest {
         verify(recorderMock, times(0)).iterateEntries(eq(tableSegmentName), eq(3), any());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testReadTableEntriesDelta() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         val rnd = new Random(0);
@@ -1792,7 +1793,7 @@ public class PravegaRequestProcessorTest {
         assertFalse(results.contains(e5));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testCreateSealTruncateDeleteIndexSegment() throws Exception {
         String segment = "testCreateSealTruncateDeleteIndexSegment/testStream/0";
         String indexSegment = getIndexSegmentName(segment);
@@ -1850,7 +1851,7 @@ public class PravegaRequestProcessorTest {
         assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(indexSegment, PravegaRequestProcessor.TIMEOUT).join());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void testTruncateIndexSegmentWithNegativeOffset() throws Exception {
         String segment = "testTruncateIndexSegmentWithNegativeOffset/testStream/0";
         String indexSegment = getIndexSegmentName(segment);
@@ -1882,7 +1883,7 @@ public class PravegaRequestProcessorTest {
         assertTrue(exception.getMessage().contains("No reply to request"));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testTruncateIndexSegmentWithGreaterThenEndOffset() throws Exception {
         String segment = "testTruncateIndexSegmentWithGreaterThenEndOffset/testStream/0";
         String indexSegment = getIndexSegmentName(segment);

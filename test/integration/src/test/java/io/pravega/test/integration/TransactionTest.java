@@ -43,6 +43,7 @@ import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import java.io.Serializable;
 import java.time.Duration;
+import java.util.Collections;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -185,7 +186,8 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
     private void assertIndexSegment(StreamSegmentStore store, String segment, long expectedEventCount, long eventLength) throws Exception {
         AssertExtensions.assertEventuallyEquals(expectedEventCount,
-                () ->  store.getStreamSegmentInfo(segment, Duration.ofMinutes(1)).get().getAttributes().get(Attributes.EVENT_COUNT), 5000);
+                () -> store.getAttributes(segment, Collections.singleton(Attributes.EVENT_COUNT), true, Duration.ofMinutes(1))
+                           .get().get(Attributes.EVENT_COUNT), 5000);
         val si = store.getStreamSegmentInfo(segment, Duration.ofMinutes(1)).join();
         val segmentType = SegmentType.fromAttributes(si.getAttributes());
         assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem() || segmentType.isTableSegment());
