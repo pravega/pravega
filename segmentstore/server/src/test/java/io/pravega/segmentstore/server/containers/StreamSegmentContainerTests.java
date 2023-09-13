@@ -815,12 +815,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * The below test validates a case where the container does not bail out
      * post container recovery where the StorageWriter has to deal with an Operation
-     * on a segment that was originally evicted out( not present in metadata) yet
+     * on a segment that was originally evicted out(not present in metadata) yet
      * the Operation still exists in the BK Log and read during recovery and hence
      * processed by StorageWriter.
      * @throws Exception in case of exception.
      */
-    @Test(timeout = 300000)
+    @Test(timeout = 10000)
     public void testWritingEvictedSegmentOperations() throws Exception {
         final String segmentName = "segment";
         final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());

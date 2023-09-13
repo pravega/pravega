@@ -304,7 +304,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
     private CompletableFuture<Void> processSegmentOperation(SegmentOperation op) {
         val segmentMetadata = this.dataSource.getStreamSegmentMetadata(op.getStreamSegmentId());
-        if ( segmentMetadata == null ) {
+        if (segmentMetadata == null) {
             // We have seen instances post "container recoveries" where we get segmentMetadata as null here which ideally shouldnt happen.
             // SegmentMetadata being null here after it has been through the OperationProcessor basically
             // means the segment metadata is removed from the containerMetadata( StorageWriters' WriterDataSource.metadata).
