@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.segmentstore;
 
 import com.google.common.base.Preconditions;
+import com.google.common.net.InetAddresses;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.utils.ZKHelper;
@@ -101,10 +102,18 @@ public class FlushToStorageCommand extends ContainerCommand {
         if (host == null || host.isEmpty()) {
             throw new RuntimeException("No host found for given container: " + containerId);
         }
+        return extractHostName(host);
+    }
+
+    static String extractHostName(String host) {
         // Quick Fix : Needs proper parsing and fixing
-        String[] parts = host.split("\\.");
-        Preconditions.checkState(parts.length >= 1);
-        return parts[0];
+        if (InetAddresses.isInetAddress(host)) {
+            return host;
+        } else {
+            String[] parts = host.split("\\.");
+            Preconditions.checkState(parts.length >= 1);
+            return parts[0];
+        }
     }
 
     private Map<Integer, String> getHosts() {

@@ -594,6 +594,15 @@ public abstract class AbstractSegmentStoreCommandsTest {
         public void startUp() throws Exception {
             setup(false, false);
         }
+
+        @Test
+        public void testExtractHostName() {
+            Assert.assertEquals("1.2.3.4", FlushToStorageCommand.extractHostName("1.2.3.4"));
+            Assert.assertEquals("localhost", FlushToStorageCommand.extractHostName("localhost"));
+            Assert.assertEquals("host1", FlushToStorageCommand.extractHostName("host1"));
+            Assert.assertEquals("host1", FlushToStorageCommand.extractHostName("host1.example.com"));
+            Assert.assertEquals("host1", FlushToStorageCommand.extractHostName("host1.subdomain.example.com"));
+        }
     }
 
     //endregion
