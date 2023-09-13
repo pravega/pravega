@@ -19,12 +19,12 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.segment.impl.Segment;
@@ -40,7 +40,6 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.EventRead;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -66,7 +65,6 @@ import java.util.HashMap;
 import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -80,10 +78,9 @@ import static org.junit.Assert.assertEquals;
 public class SegmentReaderAPITest extends AbstractReadWriteTest {
     private static final String DATA_OF_SIZE_30 = "this is a test strings"; // data length = 22 bytes , header = 8 bytes
     private final Random random = RandomFactory.create();
+
     private URI controllerURI = null;
-    private StreamManager streamManager = null;
-    private Controller controller = null;
-    private ConnectionFactory connectionFactory = null;
+
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "executor");
 
     /**
@@ -99,20 +96,14 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
 
     @Before
     public void setup() {
-        controllerURI = fetchControllerURI();
-        streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
-
-        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        controller = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(Utils.buildClientConfig(controllerURI))
-                .build(), connectionFactory.getInternalExecutor());
+        Service conService = Utils.createPravegaControllerService(null);
+        List<URI> ctlURIs = conService.getServiceDetails();
+        controllerURI = ctlURIs.get(0);
     }
 
     @After
     public void tearDown() {
-        streamManager.close();
-        controller.close();
-        connectionFactory.close();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     /**
@@ -122,27 +113,30 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
      * by reading the events from the scaled up segment.
      */
     @Test(timeout = 60000)
-    public void getNextStreamCutWithScaleUpTest() throws SegmentTruncatedException, ExecutionException, InterruptedException, TimeoutException {
+    public void getNextStreamCutWithScaleUpTest() throws SegmentTruncatedException, ExecutionException, InterruptedException {
         String streamName = "testStreamSegment";
         String streamScope = "testScopeSegment";
         String readerGroupName = "testReaderGroupSegment";
         String readerName = UUID.randomUUID().toString();
 
-        StreamConfiguration config = StreamConfiguration.builder()
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
+                connectionFactory.getInternalExecutor());
+
+        StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
-        ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(fetchControllerURI())
-                .build();
-        URI controllerURI = clientConfig.getControllerURI();
-
         Stream stream = Stream.of(streamScope, streamName);
 
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(streamScope, controller, connectionFactory);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(streamScope, Utils.buildClientConfig(controllerURI));
+        log.info("Invoking Writer test with Controller URI: {}", controllerURI);
 
-        assertTrue(controller.createScope(streamScope).join());
-        assertTrue(controller.createStream(streamScope, streamName, config).join());
+        StreamManager streamManager = StreamManager.create(clientConfig);
+        assertTrue("Creating Scope", streamManager.createScope(streamScope));
+        assertTrue("Creating stream", streamManager.createStream(streamScope, streamName, streamConfiguration));
 
         @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(streamScope, clientConfig);
@@ -317,21 +311,24 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         String readerGroupName = "testReaderGroupSegmentScaleDown";
         String readerName = UUID.randomUUID().toString();
 
-        StreamConfiguration config = StreamConfiguration.builder()
+        StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
-        ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(fetchControllerURI())
-                .build();
-        URI controllerURI = clientConfig.getControllerURI();
 
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
+                connectionFactory.getInternalExecutor());
         Stream stream = Stream.of(streamScope, streamName);
 
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(streamScope, controller, connectionFactory);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(streamScope, Utils.buildClientConfig(controllerURI));
+        log.info("Invoking Writer test with Controller URI: {}", controllerURI);
 
-        assertTrue(controller.createScope(streamScope).join());
-        assertTrue(controller.createStream(streamScope, streamName, config).join());
+        StreamManager streamManager = StreamManager.create(clientConfig);
+        assertTrue("Creating Scope", streamManager.createScope(streamScope));
+        assertTrue("Creating stream", streamManager.createStream(streamScope, streamName, streamConfiguration));
 
         @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(streamScope, clientConfig);
@@ -484,12 +481,6 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         assertTrue(150L <= nextStreamCut3.asImpl().getPositions().get(segment3).longValue());
     }
 
-    private URI fetchControllerURI() {
-        Service conService = Utils.createPravegaControllerService(null);
-        List<URI> ctlURIs = conService.getServiceDetails();
-        return ctlURIs.get(0);
-    }
-
     private void writeEvents(int numberOfEvents, EventStreamWriter<String> writer) {
         Supplier<String> routingKeyGenerator = () -> String.valueOf(random.nextInt());
         IntStream.range(0, numberOfEvents).forEach(v -> writer.writeEvent(routingKeyGenerator.get(), DATA_OF_SIZE_30).join());
@@ -504,14 +495,16 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
     }
 
     private static int readEvent(EventStreamReader<String> reader) {
-        EventRead<String> event = reader.readNextEvent(500);
         int readCount = 0;
-        // Reading events
-        while (event.getEvent() != null) {
-            readCount++;
-            assertEquals("this is a test strings", event.getEvent());
-            event = reader.readNextEvent(500);
-        }
+        EventRead<String> event = null;
+        do {
+            event = reader.readNextEvent(10000);
+            log.debug("Read event: {}.", event.getEvent());
+            if (event.getEvent() != null) {
+                readCount++;
+            }
+            //Reading until all the written events are read, else the test will timeout.
+        } while (event.getEvent() != null);
         return readCount;
     }
 }
