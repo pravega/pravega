@@ -1,3 +1,19 @@
+/**
+ * Copyright Pravega Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.pravega.test.system;
 
 
@@ -10,7 +26,18 @@ import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.Checkpoint;
+import io.pravega.client.stream.EventRead;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -27,16 +54,18 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-
 import java.io.Serializable;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import static io.pravega.test.system.AbstractSystemTest.*;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertTrue;
@@ -52,6 +81,8 @@ public class ReaderCheckpointWithInternalThreadpool {
     private static final String CHECKPOINT1 = "checkpoint1";
     private static final String CHECKPOINT2 = "checkpoint2";
     private static final String READER = "reader";
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(7 * 60);
     private URI controllerURI = null;
     private StreamManager streamManager = null;
     private Controller controller = null;
@@ -59,16 +90,11 @@ public class ReaderCheckpointWithInternalThreadpool {
     private final StreamConfiguration streamConfig = StreamConfiguration.builder()
             .scalingPolicy(ScalingPolicy.fixed(1)).build();
 
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(7 * 60);
-
     private final ScheduledExecutorService readerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1,
             "readerCheckpoint-reader");
-    /**
-     * This is used to setup the various services required by the system test framework.
-     */
+    
     @Environment
-    public static void initialize() throws MarathonException {
+    public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
         URI controllerUri = ensureControllerRunning(zkUri);
@@ -110,7 +136,7 @@ public class ReaderCheckpointWithInternalThreadpool {
                 .stream(Stream.of(SCOPE, STREAM))
                 .disableAutomaticCheckpoints()
                 .build();
-        readerGroupManager.createReaderGroup(READER_GROUP_NAME,readerGroupConfig);
+        readerGroupManager.createReaderGroup(READER_GROUP_NAME, readerGroupConfig);
 
         @Cleanup
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP_NAME);
@@ -125,22 +151,21 @@ public class ReaderCheckpointWithInternalThreadpool {
         initiateCheckpoointAndVerify(readerGroup);
     }
 
-    private Checkpoint initiateCheckpoint(final ReaderGroup readerGroup, final String checkPointName){
+    private Checkpoint initiateCheckpoint(final ReaderGroup readerGroup, final String checkPointName) {
         Checkpoint result = null;
-        log.info("Called Initiating checkpoint for {} ",checkPointName);
+        log.info("Called Initiating checkpoint for {} ", checkPointName);
         CompletableFuture<Checkpoint> cp = readerGroup.initiateCheckpoint(checkPointName);
 
         try {
-            result= cp.get(5, TimeUnit.SECONDS);
+            result = cp.get(5, TimeUnit.SECONDS);
             log.info("Checkpoint isDone {} for checkpoint {} ", cp.isDone(), result.getName());
             //System.out.println(" ************ checkpoint name is "+cs.getName()+" at " + LocalDateTime.now().format(formatter));
         } catch (Exception e)  {
-            if(e instanceof InterruptedException || e instanceof ExecutionException || e instanceof TimeoutException){
+            if (e instanceof InterruptedException || e instanceof ExecutionException || e instanceof TimeoutException) {
                 log.error("Exception while initiating checkpoint: {}", checkPointName, e);
                 fail("Exception while initiating checkpoint is not expected");
             }
         }
-
         return result;
     }
 
@@ -153,13 +178,11 @@ public class ReaderCheckpointWithInternalThreadpool {
             cpResults.add(initiateCheckpoint( readerGroup, name));
         }
         //assert for checkpoint names
-        for(Checkpoint cp : cpResults){
+        for (Checkpoint cp : cpResults) {
             assertTrue(cpNames.contains(cp.getName()));
         }
-
-
-
     }
+
     private void asyncReadEvents(final String scope, final String readerId) {
         CompletableFuture<Void> result = CompletableFuture.supplyAsync(
                 () -> readEvents(scope, readerId), readerExecutor);
@@ -167,8 +190,8 @@ public class ReaderCheckpointWithInternalThreadpool {
                 t -> log.error("Error observed while reading events for reader id :{}", readerId, t));
 
     }
-    private <T extends Serializable> void writeEventsToStream(final String scope, final List<T> events) {
 
+    private <T extends Serializable> void writeEventsToStream(final String scope, final List<T> events) {
         ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
         try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
              EventStreamWriter<T> writer = clientFactory.createEventWriter(STREAM,
@@ -182,6 +205,7 @@ public class ReaderCheckpointWithInternalThreadpool {
             log.info("All events written successfully to stream {}", STREAM);
         }
     }
+
     private <T extends Serializable> Void readEvents(final String scope, final String readerId) {
 
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
@@ -197,7 +221,7 @@ public class ReaderCheckpointWithInternalThreadpool {
                 try {
                     event = reader.readNextEvent(READ_TIMEOUT);
                     //if (event.getEvent() != null) {
-                        log.info("Read event {}", event.getEvent());
+                    log.info("Read event {}", event.getEvent());
                     //}
                     if (event.isCheckpoint()) {
                         log.info("Read a check point event, checkpointName: {}", event.getCheckpointName());
