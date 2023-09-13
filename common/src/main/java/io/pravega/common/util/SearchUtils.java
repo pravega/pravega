@@ -16,14 +16,87 @@ package io.pravega.common.util;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.MathHelpers;
-import java.util.AbstractMap;
-import java.util.Map;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.Map.Entry;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.LongFunction;
 
 /**
  * A utility class to hold the searching/sorting functions.
  */
 public class SearchUtils {
+    
+    
+    public static CompletableFuture<Entry<Long, Long>> asyncNewtonianSearch(LongFunction<CompletableFuture<Long>> getValue,
+                                                                            long fromIdx, long toIdx, long target,
+                                                                            boolean greater) {
+        if (fromIdx > toIdx || fromIdx < 0) {
+            throw new IllegalArgumentException("Index size was negative");
+        } else if (fromIdx == toIdx) {
+            return getValue.apply(fromIdx).thenApply(value -> new SimpleEntry<>(fromIdx, value));
+        }
+
+        CompletableFuture<Long> fromFuture = getValue.apply(fromIdx);
+        CompletableFuture<Long> toFuture = getValue.apply(toIdx);
+
+        return fromFuture.thenCombine(toFuture, (fromValue, toValue) -> {
+            if (target <= fromValue) {
+                return CompletableFuture.completedFuture(new SimpleEntry<>(fromIdx, fromValue));
+            }
+
+            if (target >= toValue) {
+                return CompletableFuture.completedFuture(new SimpleEntry<>(toIdx, toValue));
+            }
+
+            double beginSlope = calculateSlope(fromIdx, toIdx, fromValue, toValue);
+            double endSlope = beginSlope;
+
+            if (toIdx <= fromIdx + 1) {
+                return CompletableFuture.completedFuture(
+                    getSimpleEntryBasedOnGreater(fromIdx, toIdx, greater, fromValue, toValue));
+            }
+            long guessIdx = generateNextGuess(fromIdx, toIdx, target, fromValue, toValue, beginSlope, endSlope);
+            return recursivlyNarrowSearch(getValue, fromIdx, fromValue, toIdx, toValue, guessIdx, target, greater);
+        }).thenCompose(f -> {
+            // Casting to own class to remove "? extends" in signature
+            return (CompletableFuture<Entry<Long, Long>>) f;
+        });
+    }
+    
+    private static CompletableFuture<Entry<Long, Long>> recursivlyNarrowSearch(LongFunction<CompletableFuture<Long>> getValue,
+                                                                                     long fromIdx, long fromValue,
+                                                                                     long toIdx, long toValue,
+                                                                                     long guessIdx, long target,
+                                                                                     boolean greater) {
+        return getValue.apply(guessIdx).thenCompose(guessValue -> {
+            double beginSlope = calculateSlope(fromIdx, guessIdx, fromValue, guessValue);
+            double endSlope = calculateSlope(guessIdx, toIdx, guessValue, toValue);
+            if (guessValue == target) {
+                return CompletableFuture.completedFuture(new SimpleEntry<>(guessIdx, guessValue));
+            }
+            long newFromIdx, newToIdx, newFromValue, newToValue;
+            if (guessValue < target) {
+                newFromIdx = guessIdx;
+                newFromValue = guessValue;
+                newToIdx = toIdx;
+                newToValue = toValue;
+            } else {
+                newToIdx = guessIdx;
+                newToValue = guessValue;
+                newFromIdx = fromIdx;
+                newFromValue = fromValue;
+            }
+            if (newToIdx <= newFromIdx + 1) {
+                return CompletableFuture.completedFuture(
+                    getSimpleEntryBasedOnGreater(newFromIdx, newToIdx, greater, newFromValue, newToValue));
+            }
+            long newGuessIdx = generateNextGuess(
+                newFromIdx, newToIdx, target, newFromValue, newToValue, beginSlope, endSlope);
+            return recursivlyNarrowSearch(
+                getValue, newFromIdx, newFromValue, newToIdx, newToValue, newGuessIdx, target, greater);
+        });
+    }
+
      /**
      * Newtonian search: Identical to binary search, but specialized to searching lists of longs.
      * The difference is in how the midpoint is chosen. In a standard binary search, the middle
@@ -41,33 +114,28 @@ public class SearchUtils {
      * @return an Entry object containing the closest index and its value
      * @throws IllegalArgumentException if the input list is empty
      */
-     public static Map.Entry<Long, Long> newtonianSearch(LongFunction<Long> getValue, long fromIdx, long toIdx, long target, boolean greater) {
+     public static Entry<Long, Long> newtonianSearch(LongFunction<Long> getValue, long fromIdx, long toIdx, long target, boolean greater) {
         if (fromIdx > toIdx || fromIdx < 0) {
             throw new IllegalArgumentException("Index size was negative");
         } else if (fromIdx == toIdx) {
-            return new AbstractMap.SimpleEntry<>(fromIdx, getValue.apply(fromIdx));
+            return new SimpleEntry<>(fromIdx, getValue.apply(fromIdx));
         }
 
         long fromValue = getValue.apply(fromIdx);
         long toValue = getValue.apply(toIdx);
 
-        AbstractMap.SimpleEntry<Long, Long> fromIdx1 = getSimpleEntry(fromIdx, toIdx, target, greater, fromValue, toValue);
-
-        if (fromIdx1 != null) {
-            return fromIdx1;
+        if (target <= fromValue) {
+            return new SimpleEntry<>(fromIdx, fromValue);
         }
+        
+        if (target >= toValue) {
+            return new SimpleEntry<>(toIdx, toValue);
+        }
+
         double beginSlope = calculateSlope(fromIdx, toIdx, fromValue, toValue);
         double endSlope = beginSlope;
         while (toIdx > fromIdx + 1) {
-            double guessProportion = ((double) target - (double) fromValue) / ((double) toValue - (double) fromValue);
-            double slope = (1.0 - guessProportion) * beginSlope + guessProportion * endSlope;
-            long guessIdx;
-            if ( guessProportion < 0.5 ) {
-                guessIdx = fromIdx + (long) (((double) (target - fromValue)) / slope);
-            } else {
-                guessIdx = toIdx - (long) (((double) (toValue - target)) / slope);
-            }
-            guessIdx = MathHelpers.minMax(guessIdx, fromIdx + 1, toIdx - 1);
+            long guessIdx = generateNextGuess(fromIdx, toIdx, target, fromValue, toValue, beginSlope, endSlope);
 
             long guessValue = getValue.apply(guessIdx);
             beginSlope = calculateSlope(fromIdx, guessIdx, fromValue, guessValue);
@@ -80,27 +148,32 @@ public class SearchUtils {
                 toIdx = guessIdx;
                 toValue = guessValue;
             } else {
-                return new AbstractMap.SimpleEntry<>(guessIdx, guessValue);
+                return new SimpleEntry<>(guessIdx, guessValue);
             }
         }
          return getSimpleEntryBasedOnGreater(fromIdx, toIdx, greater, fromValue, toValue);
      }
 
-    private static AbstractMap.SimpleEntry<Long, Long> getSimpleEntryBasedOnGreater(long fromIdx, long toIdx, boolean greater, long fromValue, long toValue) {
-        if (greater) {
-            return new AbstractMap.SimpleEntry<>(toIdx, toValue);
+    private static long generateNextGuess(long fromIdx, long toIdx, long target, long fromValue, long toValue,
+                                          double beginSlope, double endSlope) {
+        double guessProportion = ((double) target - (double) fromValue) / ((double) toValue - (double) fromValue);
+        double slope = (1.0 - guessProportion) * beginSlope + guessProportion * endSlope;
+        long guessIdx;
+        if ( guessProportion < 0.5 ) {
+            guessIdx = fromIdx + (long) (((double) (target - fromValue)) / slope);
         } else {
-            return new AbstractMap.SimpleEntry<>(fromIdx, fromValue);
+            guessIdx = toIdx - (long) (((double) (toValue - target)) / slope);
         }
+        guessIdx = MathHelpers.minMax(guessIdx, fromIdx + 1, toIdx - 1);
+        return guessIdx;
     }
 
-    private static AbstractMap.SimpleEntry<Long, Long> getSimpleEntry(long fromIdx, long toIdx, long target, boolean greater, long fromValue, long toValue) {
-        if (target <= fromValue) {
-            return new AbstractMap.SimpleEntry<>(fromIdx, fromValue);
-        } else if (target >= toValue) {
-            return new AbstractMap.SimpleEntry<>(toIdx, toValue);
+    private static SimpleEntry<Long, Long> getSimpleEntryBasedOnGreater(long fromIdx, long toIdx, boolean greater, long fromValue, long toValue) {
+        if (greater) {
+            return new SimpleEntry<>(toIdx, toValue);
+        } else {
+            return new SimpleEntry<>(fromIdx, fromValue);
         }
-        return null;
     }
 
     private static double calculateSlope(long fromIdx, long toIdx, long fromValue, long toValue) {
@@ -121,16 +194,16 @@ public class SearchUtils {
      * @throws IllegalArgumentException if the input list is empty
      */
     @VisibleForTesting
-    static Map.Entry<Integer, Long> binarySearch(LongFunction<Long> getValue, int fromIdx, int toIdx, long target) {
+    static Entry<Integer, Long> binarySearch(LongFunction<Long> getValue, int fromIdx, int toIdx, long target) {
         if (fromIdx > toIdx) {
             throw new IllegalArgumentException("Index size was negitive");
         } else if (fromIdx == toIdx) {
-            return new AbstractMap.SimpleEntry<>(fromIdx, getValue.apply(fromIdx));
+            return new SimpleEntry<>(fromIdx, getValue.apply(fromIdx));
         }
         long fromValue = getValue.apply(fromIdx);
         long toValue = getValue.apply(toIdx);
 
-        AbstractMap.SimpleEntry<Integer, Long> fromIdx1 = getIntLongSimpleEntry(fromIdx, toIdx, target, fromValue, toValue);
+        SimpleEntry<Integer, Long> fromIdx1 = getIntLongSimpleEntry(fromIdx, toIdx, target, fromValue, toValue);
         if (fromIdx1 != null) {
             return fromIdx1;
         }
@@ -146,18 +219,18 @@ public class SearchUtils {
                 toIdx = mid;
                 toValue = midValue;
             } else {
-                return new AbstractMap.SimpleEntry<>(mid, midValue);
+                return new SimpleEntry<>(mid, midValue);
             }
         }
-        return new AbstractMap.SimpleEntry<>(fromIdx, fromValue);
+        return new SimpleEntry<>(fromIdx, fromValue);
     }
 
-    private static AbstractMap.SimpleEntry<Integer, Long> getIntLongSimpleEntry(int fromIdx, int toIdx, long target, long fromValue, long toValue) {
+    private static SimpleEntry<Integer, Long> getIntLongSimpleEntry(int fromIdx, int toIdx, long target, long fromValue, long toValue) {
         if (target <= fromValue) {
-            return new AbstractMap.SimpleEntry<>(fromIdx, fromValue);
+            return new SimpleEntry<>(fromIdx, fromValue);
         }
         if (target >= toValue) {
-            return new AbstractMap.SimpleEntry<>(toIdx, toValue);
+            return new SimpleEntry<>(toIdx, toValue);
         }
         return null;
     }
