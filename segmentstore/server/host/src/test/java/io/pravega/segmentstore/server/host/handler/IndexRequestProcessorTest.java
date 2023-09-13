@@ -25,6 +25,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -84,7 +86,7 @@ public class IndexRequestProcessorTest {
     }
 
     @Test(timeout = 5000)
-    public void locateOffsetForSegmentWithFuture() {
+    public void locateOffsetForSegmentWithFuture() throws ExecutionException, InterruptedException {
         String segmentName = "test";
         String indexSegmentName = getIndexSegmentName(segmentName);
         SegmentProperties segmentProperties = StreamSegmentInformation.builder()
