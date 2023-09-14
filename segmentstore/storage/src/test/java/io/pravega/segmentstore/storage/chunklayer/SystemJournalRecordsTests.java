@@ -427,4 +427,26 @@ public class SystemJournalRecordsTests {
         }
     }
 
+    @Test
+    public void testSystemSnapshotInfoSerialization() throws Exception {
+        testSystemSnapshotInfoSerialization(SnapshotInfo.builder()
+                .build());
+        testSystemSnapshotInfoSerialization(SnapshotInfo.builder()
+                .snapshotId(1)
+                .build());
+        testSystemSnapshotInfoSerialization(SnapshotInfo.builder()
+                .epoch(2)
+                .build());
+        testSystemSnapshotInfoSerialization(SnapshotInfo.builder()
+                .snapshotId(3)
+                .epoch(4)
+                .build());
+    }
+
+    private void testSystemSnapshotInfoSerialization(SnapshotInfo original) throws Exception {
+        val serializer = new SnapshotInfo.Serializer();
+        val bytes = serializer.serialize(original);
+        val obj = serializer.deserialize(bytes);
+        Assert.assertEquals(original, obj);
+    }
 }

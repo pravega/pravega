@@ -80,12 +80,7 @@ public class FlakyChunkStorage extends BaseChunkStorage {
         // Apply any interceptors with identifier 'doWrite.before' or 'doWrite.after'
         interceptor.intercept(chunkName, "doWrite.before");
         // Make sure you are calling methods on super class.
-        ChunkHandle handle = innerChunkStorage.doCreate(chunkName);
-        int bytesWritten = innerChunkStorage.doWrite(handle, 0, length, data);
-        if (bytesWritten < length) {
-            innerChunkStorage.doDelete(ChunkHandle.writeHandle(chunkName));
-            throw new ChunkStorageException(chunkName, "doCreateWithContent - invalid length returned");
-        }
+        val handle = innerChunkStorage.doCreateWithContent(chunkName, length, data);
         interceptor.intercept(chunkName, "doWrite.after");
         return handle;
     }
