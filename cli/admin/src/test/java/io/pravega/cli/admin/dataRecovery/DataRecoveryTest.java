@@ -594,7 +594,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .doReturn(true).doReturn(true).doReturn(false).doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doReturn(1L).doReturn(1L).doReturn(2L).doReturn(1L).doReturn(2L).doReturn(123L)
-                .doReturn(2L).doReturn(2L).doReturn(3L).doReturn(1L).doReturn(10L).doReturn(timestamp)
+                .doReturn(2L).doReturn(2L).doReturn(2L).doReturn(3L).doReturn(1L).doReturn(10L).doReturn(timestamp)
                 .doReturn(3L).doReturn(3L)
                 .doReturn(4L).doReturn(4L).doReturn(3L).doReturn(1L).doReturn(2L)
                 .when(command).getLongUserInput(Mockito.any());
