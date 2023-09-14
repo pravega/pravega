@@ -92,7 +92,7 @@ public class ReaderCheckpointWithInternalThreadpool {
 
     private final ScheduledExecutorService readerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1,
             "readerCheckpoint-reader");
-    
+
     @Environment
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
