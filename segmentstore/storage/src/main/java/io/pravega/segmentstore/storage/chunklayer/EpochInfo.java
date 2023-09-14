@@ -33,7 +33,7 @@ public class EpochInfo {
     /**
      * Epoch.
      */
-    final private long epoch;
+    private final long epoch;
 
     /**
      * Builder that implements {@link ObjectBuilder}.
