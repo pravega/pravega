@@ -103,21 +103,26 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
+import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
+import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -810,6 +815,67 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         checkAttributeIterators(segment2, sortedAttributes, expectedValues);
 
         localContainer.stopAsync().awaitTerminated();
+    }
+
+    /**
+     * The below test validates a case where the container does not bail out
+     * post container recovery where the StorageWriter has to deal with an Operation
+     * on a segment that was originally evicted out(not present in metadata) yet
+     * the Operation still exists in the BK Log and read during recovery and hence
+     * processed by StorageWriter.
+     * @throws Exception in case of exception.
+     */
+    @Test(timeout = 10000)
+    public void testWritingEvictedSegmentOperations() throws Exception {
+        final String segmentName = "segment";
+        final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
+
+        final TestContainerConfig containerConfig = new TestContainerConfig();
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+
+        @Cleanup
+        TestContext context = createContext(containerConfig);
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+
+        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
+        try (val container1 = new MetadataCleanupContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                context.getDefaultExtensions(), executorService())) {
+            container1.startAsync().awaitRunning();
+
+            // Create segment and make one append to it.
+            container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            val metadataId = container1.metadata.getStreamSegmentId(segmentName, true);
+            // Wait until the segment is forgotten.
+            container1.triggerMetadataCleanup(Collections.singleton(segmentName)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            // Add a read so the segment is re-instated.
+            container1.read(segmentName, 0, 5, TIMEOUT).join();
+
+            container1.deleteStreamSegment(segmentName, TIMEOUT).join();
+
+            // Simulate segment eviction in metadata
+            StreamSegmentMetadata met = new TestStreamSegmentMetadata(segmentName, metadataId, container1.getId());
+            val segmentMetadata = container1.metadata.getStreamSegmentMetadata(metadataId);
+            met.copyFrom(segmentMetadata);
+            met.setLastUsed(0);
+            Collection<SegmentMetadata> evictSegment = List.of(met);
+            container1.metadata.cleanup(evictSegment, container1.metadata.getOperationSequenceNumber());
+            // Generate a checkpoint without the segment metadata.
+            durableLog.get().checkpoint(TIMEOUT).join();
+            container1.stopAsync().awaitTerminated();
+        }
+
+        // Restart container and verify it started successfully.
+        @Cleanup
+        val container2 = new MetadataCleanupContainer(CONTAINER_ID, containerConfig, localDurableLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                context.getDefaultExtensions(), executorService());
+        container2.startAsync().awaitRunning();
+        container2.flushToStorage(TIMEOUT).join();
+        container2.stopAsync().awaitTerminated();
     }
 
     /**
@@ -2902,6 +2968,100 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         return segmentNames;
     }
 
+    @Test(timeout = 120000)
+    public void testLTSRecovery() throws Exception {
+        final String segmentName = "segment512";
+        final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
+
+        final TestContainerConfig containerConfig = new TestContainerConfig();
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+
+        @Cleanup
+        TestContext context = createContext(containerConfig);
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+
+        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
+        FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
+        try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService())) {
+            container1.startAsync().awaitRunning();
+
+            // Create segment and make one append to it.
+            container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.flushToStorage(TIMEOUT).join();
+            container1.stopAsync().awaitTerminated();
+        }
+
+        context = createContext(containerConfig); // new context again
+        val localDurableLogFactoryForRecovery = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+
+        try (val container2 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, localDurableLogFactoryForRecovery,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService())) {
+            container2.startAsync().awaitRunning();
+            ReadResult readResult = container2.read(segmentName, 0, appendData.getLength(), TIMEOUT).join();
+            while ( readResult.hasNext() ) {
+                  val readResultEntry = readResult.next();
+                  readResultEntry.requestContent(TIMEOUT);
+                  val entry = readResultEntry.getContent().join();
+                  String output = new String(entry.getCopy());
+                 Assert.assertEquals(new String(appendData.array()), output);
+            }
+        }
+    }
+
+    @Test (timeout = 120000)
+    public void testFlushToStorageForEpochFileAlreadyExists() throws Exception {
+        final String segmentName = "segment512";
+        final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
+
+        final TestContainerConfig containerConfig = new TestContainerConfig();
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+
+        @Cleanup
+        TestContext context = createContext(containerConfig);
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+
+        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
+        FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
+        try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService())) {
+            container1.startAsync().awaitRunning();
+
+            // Create segment and make one append to it.
+            container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            // Test 1: Exercise epoch already exists flow in flushtostorage
+            container1.flushToStorage(TIMEOUT).join();
+            container1.flushToStorage(TIMEOUT).join();
+            // Test 1 ends
+
+            // Test 2: Exercise saved epoch is higher than contaier epoch
+            container1.metadata.setContainerEpochAfterRecovery(5);
+            container1.flushToStorage(TIMEOUT).join();
+            container1.metadata.setContainerEpochAfterRecovery(3);
+            AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
+            //Test 2 ends
+            container1.stopAsync().awaitTerminated();
+        }
+    }
+
+    @SneakyThrows
+    private FileSystemSimpleStorageFactory createFileSystemStorageFactory() {
+        File baseDir = Files.createTempDirectory("TestStorage").toFile().getAbsoluteFile();
+        FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
+                .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
+                .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
+                .build();
+        ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
+        return new FileSystemSimpleStorageFactory(config, adapterConfig, executorService());
+    }
+
     private HashMap<String, ArrayList<String>> createTransactions(Collection<String> segmentNames, TestContext context) {
         // Create the Transaction.
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
@@ -3342,6 +3502,56 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             OperationLog log = this.wrappedFactory.createDurableLog(containerMetadata, readIndex);
             this.onCreateLog.accept(log);
             return log;
+        }
+    }
+
+    static class TestStreamSegmentMetadata extends StreamSegmentMetadata {
+        /**
+         * Creates a new instance of the StreamSegmentMetadata class for a StreamSegment.
+         *
+         * @param streamSegmentName The name of the StreamSegment.
+         * @param streamSegmentId   The Id of the StreamSegment.
+         * @param containerId       The Id of the Container this StreamSegment belongs to.
+         * @throws IllegalArgumentException If either of the arguments are invalid.
+         */
+        public TestStreamSegmentMetadata(String streamSegmentName, long streamSegmentId, int containerId) {
+            super(streamSegmentName, streamSegmentId, containerId);
+        }
+
+        public synchronized void copyFrom(SegmentMetadata base) {
+            Exceptions.checkArgument(this.getId() == base.getId(), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentId).");
+            Exceptions.checkArgument(this.getName().equals(base.getName()), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentName).");
+
+            setStorageLength(base.getStorageLength());
+            setLength(base.getLength());
+
+            // Update StartOffset after (potentially) updating the length, since he Start Offset must be less than or equal to Length.
+            setStartOffset(base.getStartOffset());
+            setLastModified(base.getLastModified());
+            updateAttributes(base.getAttributes());
+            refreshDerivedProperties();
+
+            if (base.isSealed()) {
+                markSealed();
+                if (base.isSealedInStorage()) {
+                    markSealedInStorage();
+                }
+            }
+
+            if (base.isMerged()) {
+                markMerged();
+            }
+
+            if (base.isDeleted()) {
+                markDeleted();
+                if (base.isDeletedInStorage()) {
+                    markDeletedInStorage();
+                }
+            }
+
+            if (base.isPinned()) {
+                markPinned();
+            }
         }
     }
 
