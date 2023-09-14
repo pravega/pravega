@@ -65,7 +65,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -205,21 +204,6 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         log.debug("getNextStreamCut() -> startingStreamCut = {}, approxDistanceToNextOffset = {}", startingStreamCut, approxDistanceToNextOffset);
         Preconditions.checkNotNull(startingStreamCut);
         Preconditions.checkArgument(approxDistanceToNextOffset > 0, "Ensure approxDistanceToNextOffset must be greater than 0");
-        return retryWithBackoff.retryWhen(t -> {
-            Throwable ex = Exceptions.unwrap(t);
-            if (ex instanceof ConnectionFailedException) {
-                log.info("Connection failure while getting next streamcut: {}. Retrying", ex.getMessage());
-                return true;
-            } else if (ex instanceof TokenExpiredException) {
-                log.info("Authentication token expired while  getting next streamcut. Retrying");
-                return true;
-            } else {
-                return false;
-            }
-        }).run(() -> processNextStreamCut(startingStreamCut, approxDistanceToNextOffset));
-    }
-
-    private StreamCut processNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         Stream stream = startingStreamCut.asImpl().getStream();
 
         Map<Segment, Long> positions = startingStreamCut.asImpl().getPositions();
@@ -250,20 +234,32 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     }
 
     private CompletableFuture<Long> getNextOffsetForSegment(Segment segment, long targetOffset) {
-        @Cleanup
-        RawClient connection = new RawClient(controller, connectionPool, segment);
-        long requestId = connection.getFlow().getNextSequenceNumber();
-        final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
-                .create(controller, segment, AccessOperation.READ);
-        return tokenProvider.retrieveToken().thenCompose(token -> {
-            return connection.sendRequest(requestId, new WireCommands.LocateOffset(requestId, segment.getScopedName(), targetOffset, token));
-        }).handle((r, e) -> {
-            connection.close();
-            if (e != null) {
-                throw Exceptions.sneakyThrow(e);
-            } 
-            return transformReply(r, WireCommands.OffsetLocated.class).getOffset();
-        });
+        return retryWithBackoff.retryWhen(t -> {
+            Throwable ex = Exceptions.unwrap(t);
+            if (ex instanceof ConnectionFailedException) {
+                log.info("Connection failure while getting next streamcut: {}. Retrying", ex.getMessage());
+                return true;
+            } else if (ex instanceof TokenExpiredException) {
+                log.info("Authentication token expired while  getting next streamcut. Retrying");
+                return true;
+            } else {
+                return false;
+            }
+        }).runAsync(() -> {
+            RawClient connection = new RawClient(controller, connectionPool, segment);
+            long requestId = connection.getFlow().getNextSequenceNumber();
+            final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
+                    .create(controller, segment, AccessOperation.READ);
+            return tokenProvider.retrieveToken().thenCompose(token -> {
+                return connection.sendRequest(requestId, new WireCommands.LocateOffset(requestId, segment.getScopedName(), targetOffset, token));
+            }).handle((r, e) -> {
+                connection.close();
+                if (e != null) {
+                    throw Exceptions.sneakyThrow(e);
+                } 
+                return transformReply(r, WireCommands.OffsetLocated.class).getOffset();
+            });
+        }, connectionPool.getInternalExecutor());
     }
 
     private void checkSuccessorSegmentOffset(Map<Segment, Long> nextPositionsMap, Map<Segment, Long> scaledSegmentsMap, long approxDistanceToNextOffset) throws SegmentTruncatedException {
