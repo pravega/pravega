@@ -111,7 +111,7 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
         final String operation = "flushToStorage";
         final int containerId = flushToStorage.getContainerId();
 
-        if (!verifyToken(null, flushToStorage.getRequestId(), flushToStorage.getDelegationToken(), operation)) {
+        if (!verifyToken("", flushToStorage.getRequestId(), flushToStorage.getDelegationToken(), operation)) {
             return;
         }
 
