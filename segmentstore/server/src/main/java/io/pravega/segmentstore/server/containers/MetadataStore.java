@@ -128,6 +128,17 @@ public abstract class MetadataStore implements AutoCloseable {
      */
     abstract CompletableFuture<Void> initialize(Duration timeout);
 
+    /**
+     * Unlike the initialize method which initializes blbank container metadata, this method
+     * takes in a SegmentProperties to initialize container metadata with. This method will be
+     * used for the recover-from-storage workflow, where we construct a SegmentProperties object
+     * for container metadata with data that is stored in storage.
+     * @param segmentProperties SegmentProperties of the recovered container metadata.
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the initialization is done.
+     */
+    abstract CompletableFuture<Void> recover(SegmentProperties segmentProperties, Duration timeout);
+
     //endregion
 
     //region Create Segments
