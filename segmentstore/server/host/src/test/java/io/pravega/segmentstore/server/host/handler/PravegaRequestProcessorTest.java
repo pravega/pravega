@@ -781,7 +781,7 @@ public class PravegaRequestProcessorTest {
         assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
         order.verify(connection).send(Mockito.argThat(t -> t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists()));
-        doReturn(CompletableFuture.completedFuture(new IllegalStateException())).when(store).getAttributes(eq(getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), any());
+        doReturn(CompletableFuture.failedFuture(new StreamSegmentNotExistsException(getIndexSegmentName(streamSegmentName)))).when(store).getAttributes(eq(getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), any());
         processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), ""));
         order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, ImmutableList.of(transactionName), ImmutableList.of(2L)));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
@@ -803,6 +803,71 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
                 new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
+        // create stream segment
+        processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
+        // create txn segment
+        String transientName = NameUtils.getTransientNameFromId(streamSegmentName, writerId);
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transientName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transientName));
+
+        assertTrue(append(transientName, 1, store));
+
+        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transientName, ""));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transientName, 1L));
+
+        order.verifyNoMoreInteractions();
+    }
+
+    @Test(timeout = 10000)
+    public void testIndexSegmentNotExistOnMerge() throws Exception {
+        String streamSegmentName = "scope/stream/testTxn";
+        UUID writerId = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
+
+        doReturn(CompletableFuture.completedFuture(null))
+                .when(store).createStreamSegment(eq(NameUtils.getIndexSegmentName(streamSegmentName)),
+                any(), any(), any());
+        // create stream segment
+        processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
+        // create txn segment
+        String transientName = NameUtils.getTransientNameFromId(streamSegmentName, writerId);
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transientName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transientName));
+
+        assertTrue(append(transientName, 1, store));
+
+        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transientName, ""));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transientName, 1L));
+
+        order.verifyNoMoreInteractions();
+    }
+
+    @Test(timeout = 10000)
+    public void testIndexSegmentNotCreatedOnMerge() throws Exception {
+        String streamSegmentName = "scope/stream/testTxn";
+        UUID writerId = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
+
+        doReturn(CompletableFuture.completedFuture(null))
+                .doReturn(CompletableFuture.failedFuture(new RuntimeException("Exception")))
+                .when(store).createStreamSegment(eq(NameUtils.getIndexSegmentName(streamSegmentName)),
+                        any(), any(), any());
         // create stream segment
         processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));

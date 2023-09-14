@@ -70,6 +70,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -86,6 +87,7 @@ import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYP
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEGMENT_EVENT_SIZE;
+import static io.pravega.shared.NameUtils.INDEX_APPEND_EVENT_SIZE;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static io.pravega.shared.NameUtils.isTransactionSegment;
 import static io.pravega.shared.NameUtils.isTransientSegment;
@@ -234,29 +236,36 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     }
 
     private CompletableFuture<Long> createIndexSegmentIfNotExists(String indexSegment, long requestId) {
-        CompletableFuture<Long> indexSegmentEventSize = store.getAttributes(indexSegment, List.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE), true, TIMEOUT)
-                .handle((value, u) -> {
-                    long result;
-                    if (u != null) {
-                        u = Exceptions.unwrap(u);
-                        if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
-                            log.info("Creating index segment {} while processing request: {}.", indexSegment, requestId);
-                            result = NameUtils.INDEX_APPEND_EVENT_SIZE;
-                            Collection<AttributeUpdate> attributes = Arrays.asList(
-                                    new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
-                                    new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
-                                    new AttributeUpdate(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, AttributeUpdateType.None, result)
-                            );
-                            store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT).join();
+        return store.getAttributes(indexSegment, List.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE), true, TIMEOUT)
+                    .exceptionally(ex -> {
+                        log.warn("Unable to get attribute for index segment {} due to ", indexSegment, ex);
+                        ex = Exceptions.unwrap(ex);
+                        if (ex instanceof NoSuchSegmentException || ex instanceof StreamSegmentNotExistsException) {
+                            return Map.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, -1L);
                         } else {
-                            throw Exceptions.sneakyThrow(u);
+                            throw Exceptions.sneakyThrow(ex);
                         }
-                    } else {
-                        result = value.get(EXPECTED_INDEX_SEGMENT_EVENT_SIZE).longValue();
-                    }
-                    return result;
-                });
-        return indexSegmentEventSize;
+                    }).thenCompose(value -> {
+                        Long size = value.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L);
+                        if (size != -1) {
+                            return CompletableFuture.completedFuture(size);
+                        } 
+                        return createIndexSegmentAndFetchEventSize(indexSegment, requestId);
+                    });
+    }
+
+    private CompletableFuture<Long> createIndexSegmentAndFetchEventSize(String indexSegment, long requestId) {
+        log.info("Creating index segment {} while processing request: {}.", indexSegment, requestId);
+        Collection<AttributeUpdate> attributes = Arrays.asList(
+                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
+                new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
+                new AttributeUpdate(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, AttributeUpdateType.None, INDEX_APPEND_EVENT_SIZE)
+        );
+        return store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
+                    .thenApply(eventSize -> {
+                        log.info("Index segment {} created successfully.", indexSegment);
+                        return Long.valueOf(INDEX_APPEND_EVENT_SIZE);
+                    });
     }
 
     @VisibleForTesting
