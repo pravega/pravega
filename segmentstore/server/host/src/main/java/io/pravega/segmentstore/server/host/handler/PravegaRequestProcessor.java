@@ -723,19 +723,19 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
         
         log.debug(requestId, "Locating offset {} ", locateOffset);
-        try {
-            long offset = IndexRequestProcessor.findNearestIndexedOffset(segmentStore, segment, locateOffset.getTargetOffset(), true);
+        IndexRequestProcessor.findNearestIndexedOffset(segmentStore, segment, locateOffset.getTargetOffset(), true).thenAccept(offset -> {
             connection.send(new WireCommands.OffsetLocated(requestId, segment, offset));
-        } catch (Exception e) {
+        }).exceptionally(e -> {
             if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
                 log.info("Index segment does not exist for segment : {}, hence returning the segment length as offset", segment);
-                segmentStore.getStreamSegmentInfo(segment, TIMEOUT)
-                        .thenAccept(info -> connection.send(new WireCommands.OffsetLocated(requestId, segment, info.getLength())))
-                        .exceptionally(ex -> handleException(requestId, segment, operation, ex));
+                segmentStore.getStreamSegmentInfo(segment, TIMEOUT).thenAccept(info -> {
+                    connection.send(new WireCommands.OffsetLocated(requestId, segment, info.getLength()));
+                }).exceptionally(ex -> handleException(requestId, segment, operation, ex));
             } else {
                 handleException(requestId, segment, operation, e);
             }
-        }
+            return null;
+        });
     }
 
     @Override
@@ -1079,30 +1079,27 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private CompletableFuture<Void> truncateIndexSegment(String segment, long offset) {
         String indexSegment = getIndexSegmentName(segment);
-        long indexSegmentOffset;
-        try {
-            if (!isUserStreamSegment(segment)) {
-                log.debug("No need to perform truncation of index segment for {}.", segment);
-                return CompletableFuture.completedFuture(null);
-            }
-            indexSegmentOffset = IndexRequestProcessor.locateTruncateOffsetInIndexSegment(segmentStore, segment, offset);
-            log.info("Truncating index segment {} at offset {}.", indexSegment, indexSegmentOffset);
-        } catch (Exception e) {
+        if (!isUserStreamSegment(segment)) {
+            log.debug("No need to perform truncation of index segment for {}.", segment);
+            return CompletableFuture.completedFuture(null);
+        }
+        return IndexRequestProcessor.locateTruncateOffsetInIndexSegment(segmentStore, segment, offset).exceptionally(e -> {
             Throwable ex = Exceptions.unwrap(e);
             if (ex instanceof StreamSegmentNotExistsException) {
                 log.info("Stream segment {} does not exists, so skipping truncation of index segment.", segment);
-                return CompletableFuture.completedFuture(null);
+                return 0L;
             }
             log.warn("Unable to locate offset for index segment {} for offset {} due to ", indexSegment, offset, e);
             // throw  exception to the caller.
-            throw new CompletionException(ex);
-        }
-
-        if (indexSegmentOffset == 0) {
-            log.debug("Index Segment {} offset is 0. No need to truncate it.", indexSegment);
-            return CompletableFuture.completedFuture(null);
-        }
-        return segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT);
+            throw new CompletionException(ex); 
+        }).thenCompose(indexSegmentOffset -> {
+            if (indexSegmentOffset == 0) {
+                log.debug("Index Segment {} offset is 0. No need to truncate it.", indexSegment);
+                return CompletableFuture.completedFuture(null);
+            }
+            log.info("Truncating index segment {} at offset {}.", indexSegment, indexSegmentOffset);
+            return segmentStore.truncateStreamSegment(indexSegment, indexSegmentOffset, TIMEOUT);
+        });
     }
 
     private WireCommands.TableEntries getTableEntriesCommand(final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {
