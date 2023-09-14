@@ -803,8 +803,6 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
                 new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
-
-
         // create stream segment
         processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, "", 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
@@ -820,6 +818,7 @@ public class PravegaRequestProcessorTest {
 
         order.verifyNoMoreInteractions();
     }
+
     @Test(timeout = 10000)
     public void testIndexSegmentNotExistOnMerge() throws Exception {
         String streamSegmentName = "scope/stream/testTxn";
@@ -832,7 +831,6 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
                 new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
-
 
         doReturn(CompletableFuture.completedFuture(null))
                 .when(store).createStreamSegment(eq(NameUtils.getIndexSegmentName(streamSegmentName)),
@@ -865,7 +863,6 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection,
                 new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
-
 
         doReturn(CompletableFuture.completedFuture(null))
                 .doReturn(CompletableFuture.failedFuture(new RuntimeException("Exception")))
