@@ -33,7 +33,6 @@ import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
@@ -41,10 +40,10 @@ import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
@@ -56,7 +55,6 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.security.auth.AccessOperation;
-
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -65,14 +63,11 @@ import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-
+import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.concurrent.GuardedBy;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -85,11 +80,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     private final SegmentInputStreamFactory inputStreamFactory;
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
     private final StreamCutHelper streamCutHelper;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final Object lock = new Object();
-    @GuardedBy("lock")
-    private RawClient client = null;
-    private  Retry.RetryWithBackoff retryWithBackoff;
+    private final Retry.RetryWithBackoff retryWithBackoff;
 
     public BatchClientFactoryImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory) {
         this(controller, clientConfig, connectionFactory, Retry.withExpBackoff(1, 10, 10, Duration.ofSeconds(30).toMillis()));
@@ -196,28 +187,6 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     public void close() {
         controller.close();
         connectionPool.close();
-        if (closed.compareAndSet(false, true)) {
-            closeConnection(new ConnectionClosedException());
-        }
-    }
-
-    private void closeConnection(Reply badReply) {
-        log.info("Closing connection as a result of receiving: {}", badReply);
-        closeClientConnection();
-    }
-
-    private void closeConnection(Throwable exceptionToInflightRequests) {
-        log.info("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
-        closeClientConnection();
-    }
-
-    RawClient getConnection(Segment segment) {
-        synchronized (lock) {
-            if (client == null || client.isClosed()) {
-                client = new RawClient(controller, connectionPool, segment);
-            }
-            return client;
-        }
     }
 
     @Override
@@ -273,7 +242,8 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     }
 
     private long getNextOffsetForSegment(Segment segment, long targetOffset) throws SegmentTruncatedException {
-        RawClient connection = getConnection(segment);
+        @Cleanup
+        RawClient connection = new RawClient(controller, connectionPool, segment);
         long requestId = connection.getFlow().getNextSequenceNumber();
         final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
                 .create(controller, segment, AccessOperation.READ);
@@ -341,10 +311,8 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     @SneakyThrows({ConnectionFailedException.class, SegmentTruncatedException.class})
     private <T extends Reply> T transformReply(Reply reply, Class<T> klass) {
         if (klass.isAssignableFrom(reply.getClass())) {
-            closeClientConnection();
             return (T) reply;
         }
-        closeConnection(reply);
         if (reply instanceof WireCommands.NoSuchSegment || reply instanceof WireCommands.SegmentTruncated) {
             log.error("Exception occurred while locating next offset: {}", reply);
             throw new SegmentTruncatedException(reply.toString());
@@ -359,21 +327,6 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
             log.error("Unexpected exception occurred: {}", reply);
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting a "
                     + klass.getName());
-        }
-    }
-
-    private void closeClientConnection() {
-        RawClient c;
-        synchronized (lock) {
-            c = client;
-            client = null;
-        }
-        if (c != null) {
-            try {
-                c.close();
-            } catch (Exception e) {
-                log.warn("Exception tearing down connection: ", e);
-            }
         }
     }
 }
