@@ -180,7 +180,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
 
-        int readCount1 = readEvent(reader0);
+        int readCount1 = readEvent(reader0, streamCut1Position / 30);
         reader0.close();
         assertEquals(readCount1, streamCut1Position / 30);
         assertEquals(readCount1 * 30, streamCut1.asImpl().getPositions().get(list.get(0)).longValue());
@@ -200,7 +200,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
 
-        int readCount2 = readEvent(reader0);
+        int readCount2 = readEvent(reader0, distanceBetweenTheStreamCut2 / 30);
         reader0.close();
         assertEquals(readCount2, distanceBetweenTheStreamCut2 / 30);
         assertEquals(readCount2 * 30, distanceBetweenTheStreamCut2);
@@ -221,7 +221,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
 
-        int readCount3 = readEvent(reader0);
+        int readCount3 = readEvent(reader0, distanceBetweenTheStreamCut3 / 30);
         reader0.close();
 
         assertEquals(readCount3, distanceBetweenTheStreamCut3 / 30);
@@ -241,7 +241,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 readerGroupName,
                 new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
-        assertEquals(readEvent(reader0), 0);
+        assertEquals(readEvent(reader0, 0), 0);
         assertEquals(300, streamCut4.asImpl().getPositions().get(list.get(0)).longValue());
         reader0.close();
 
@@ -282,7 +282,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 readerGroupName,
                 new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
-        assertEquals(readEvent(reader0), 4);
+        assertEquals(readEvent(reader0, 4), 4);
 
         ArrayList<SegmentRange> segmentList1 = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         log.info("Segment List1 :{}", segmentList1);
@@ -370,7 +370,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
 
-        int readCount1 = readEvent(reader0);
+        int readCount1 = readEvent(reader0, streamCut1Position / 30);
         assertEquals(readCount1, streamCut1Position / 30);
         assertEquals(readCount1 * 30, streamCut1.asImpl().getPositions().get(list.get(0)).longValue());
 
@@ -413,7 +413,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 readerGroupName,
                 new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
-        assertEquals(readEvent(reader0), 5);
+        assertEquals(readEvent(reader0, 5), 5);
         reader0.close();
 
         long approxDistanceToNextOffset = 180L;
@@ -462,7 +462,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 readerGroupName,
                 new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
-        assertEquals(readEvent(reader0), 5);
+        assertEquals(readEvent(reader0, 5), 5);
         reader0.close();
 
         ArrayList<SegmentRange> rangeList3 = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
@@ -494,7 +494,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         return readerGroupConfig;
     }
 
-    private static int readEvent(EventStreamReader<String> reader) {
+    private static int readEvent(EventStreamReader<String> reader, long readExpectedCount) {
         int readCount = 0;
         EventRead<String> event = null;
         do {
@@ -504,7 +504,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 readCount++;
             }
             //Reading until all the written events are read, else the test will timeout.
-        } while (event.getEvent() != null);
+        } while (event.getEvent() != null && readCount <= readExpectedCount);
         return readCount;
     }
 }
