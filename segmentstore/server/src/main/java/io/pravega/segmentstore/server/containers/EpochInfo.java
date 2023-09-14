@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.segmentstore.storage.chunklayer;
+package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -25,34 +25,29 @@ import lombok.Data;
 import java.io.IOException;
 
 /**
- * Basic info about snapshot.
+ * Basic info about Container epoch.
  */
 @Data
 @Builder
-public class SnapshotInfo {
+public class EpochInfo {
     /**
      * Epoch.
      */
-    final private long epoch;
-
-    /**
-     * Id of the snapshot.
-     */
-    final private long snapshotId;
+    private final long epoch;
 
     /**
      * Builder that implements {@link ObjectBuilder}.
      */
-    public static class SnapshotInfoBuilder implements ObjectBuilder<SnapshotInfo> {
+    public static class EpochInfoBuilder implements ObjectBuilder<EpochInfo> {
     }
 
     /**
      * Serializer that implements {@link VersionedSerializer}.
      */
-    public static class Serializer extends VersionedSerializer.WithBuilder<SnapshotInfo, SnapshotInfoBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<EpochInfo, EpochInfoBuilder> {
         @Override
-        protected SnapshotInfo.SnapshotInfoBuilder newBuilder() {
-            return SnapshotInfo.builder();
+        protected EpochInfo.EpochInfoBuilder newBuilder() {
+            return EpochInfo.builder();
         }
 
         @Override
@@ -65,14 +60,12 @@ public class SnapshotInfo {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void write00(SnapshotInfo object, RevisionDataOutput output) throws IOException {
+        private void write00(EpochInfo object, RevisionDataOutput output) throws IOException {
             output.writeCompactLong(object.epoch);
-            output.writeCompactLong(object.snapshotId);
         }
 
-        private void read00(RevisionDataInput input, SnapshotInfo.SnapshotInfoBuilder b) throws IOException {
+        private void read00(RevisionDataInput input, EpochInfo.EpochInfoBuilder b) throws IOException {
             b.epoch(input.readCompactLong());
-            b.snapshotId(input.readCompactLong());
         }
     }
 }
