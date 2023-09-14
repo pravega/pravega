@@ -333,7 +333,7 @@ public class PravegaRequestProcessorTest {
         verifyNoMoreInteractions(connection);
     }
 
-    @Test//(timeout = 20000)
+    @Test(timeout = 20000)
     public void testLocateOffsetThrowingStreamSegmentNotExistException() throws DurableDataLogException {
         // Set up PravegaRequestProcessor instance to execute read segment request against
         String streamSegmentName = "scope/stream/testLocateOffset";
