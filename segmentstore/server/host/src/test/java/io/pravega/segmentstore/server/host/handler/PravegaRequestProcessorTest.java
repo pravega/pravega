@@ -781,7 +781,7 @@ public class PravegaRequestProcessorTest {
         assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
         order.verify(connection).send(Mockito.argThat(t -> t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists()));
-        doReturn(CompletableFuture.completedFuture(new IllegalStateException())).when(store).getAttributes(eq(getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), any());
+        doReturn(CompletableFuture.failedFuture(new StreamSegmentNotExistsException(getIndexSegmentName(streamSegmentName)))).when(store).getAttributes(eq(getIndexSegmentName(streamSegmentName)), any(), anyBoolean(), any());
         processor.mergeSegmentsBatch(new WireCommands.MergeSegmentsBatch(requestId, streamSegmentName, ImmutableList.of(transactionName), ""));
         order.verify(connection).send(new WireCommands.SegmentsBatchMerged(requestId, streamSegmentName, ImmutableList.of(transactionName), ImmutableList.of(2L)));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
