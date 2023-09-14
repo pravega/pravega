@@ -503,7 +503,6 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
             if (event.getEvent() != null) {
                 readCount++;
             }
-            //Reading until all the written events are read, else the test will timeout.
         } while (event.getEvent() != null && readCount <= readExpectedCount);
         return readCount;
     }
