@@ -99,16 +99,18 @@ public class ReaderCheckpointWithInternalThreadpool {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
         URI controllerUri = ensureControllerRunning(zkUri);
+        log.info("controller Uri {}", controllerUri);
         ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @Before
     public void setup() {
         controllerURI = fetchControllerURI();
+        log.info("controller Uri in setup {}", controllerURI);
         clientConfig = Utils.buildClientConfig(controllerURI);
         streamManager = StreamManager.create(clientConfig);
 
-        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         controller = new ControllerImpl(ControllerImplConfig.builder()
                 .clientConfig(clientConfig)
                 .build(), connectionFactory.getInternalExecutor());
