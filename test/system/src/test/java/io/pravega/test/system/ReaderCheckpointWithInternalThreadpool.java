@@ -44,6 +44,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.Service;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -82,10 +83,9 @@ public class ReaderCheckpointWithInternalThreadpool {
     private static final String READER = "reader";
     @Rule
     public Timeout globalTimeout = Timeout.seconds(7 * 60);
-    //private URI controllerURI = null;
+    private URI controllerURI = null;
     private StreamManager streamManager = null;
     private Controller controller = null;
-    private static URI controllerUri = null;
     private ConnectionFactory connectionFactory = null;
     private ClientConfig clientConfig = null;
     private final StreamConfiguration streamConfig = StreamConfiguration.builder()
@@ -98,14 +98,14 @@ public class ReaderCheckpointWithInternalThreadpool {
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        controllerUri = ensureControllerRunning(zkUri);
+        URI controllerUri = ensureControllerRunning(zkUri);
         ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @Before
     public void setup() {
-        //controllerURI = fetchControllerURI();
-        clientConfig = Utils.buildClientConfig(controllerUri);
+        controllerURI = fetchControllerURI();
+        clientConfig = Utils.buildClientConfig(controllerURI);
         streamManager = StreamManager.create(clientConfig);
 
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -230,10 +230,10 @@ public class ReaderCheckpointWithInternalThreadpool {
         return null;
     }
 
-    /*private URI fetchControllerURI() {
+    private URI fetchControllerURI() {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         return ctlURIs.get(0);
-    }*/
+    }
 
 }
