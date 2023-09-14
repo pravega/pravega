@@ -59,6 +59,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -220,16 +221,23 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
 
     private StreamCut processNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         Stream stream = startingStreamCut.asImpl().getStream();
+
+        Map<Segment, Long> positions = startingStreamCut.asImpl().getPositions();
+        int numberOfSegments = positions.size();
+        long approxNextOffsetDistancePerSegment = getApproxNextOffsetDistancePerSegment(numberOfSegments, approxDistanceToNextOffset);
+        Map<Segment, CompletableFuture<Long>> retreivedPositions = new HashMap<>(numberOfSegments);
+        for (Map.Entry<Segment, Long> position : positions.entrySet()) {
+            Segment segment = position.getKey();
+            long targetOffset = getTargetOffset(position.getValue(), approxNextOffsetDistancePerSegment);
+            retreivedPositions.put(segment, getNextOffsetForSegment(segment, targetOffset));
+        }
+        Futures.await(Futures.allOf(retreivedPositions.values()));
         Map<Segment, Long> nextPositionsMap = new HashMap<>();
         Map<Segment, Long> scaledSegmentsMap = new HashMap<>();
-        int numberOfSegments = startingStreamCut.asImpl().getPositions().size();
-        long approxNextOffsetDistancePerSegment = getApproxNextOffsetDistancePerSegment(numberOfSegments, approxDistanceToNextOffset);
-        for (Map.Entry<Segment, Long> positions : startingStreamCut.asImpl().getPositions().entrySet()) {
-            Segment segment = positions.getKey();
-            long targetOffset = getTargetOffset(positions.getValue(), approxNextOffsetDistancePerSegment);
-            long nextOffset = getNextOffsetForSegment(segment, targetOffset);
-            boolean isNextOffsetSame = checkIfNextOffsetSame(positions.getValue(), nextOffset);
-            if (isNextOffsetSame) {
+        for (Entry<Segment, CompletableFuture<Long>> position : retreivedPositions.entrySet()) {
+            Segment segment = position.getKey();
+            long nextOffset = Futures.getThrowingException(position.getValue());
+            if (nextOffset == positions.get(segment)) {
                 // Probably this segment has scaled, so putting it here to later check for its successors
                 scaledSegmentsMap.put(segment, nextOffset);
             } else {
@@ -241,35 +249,40 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         return new StreamCutImpl(stream, nextPositionsMap);
     }
 
-    private long getNextOffsetForSegment(Segment segment, long targetOffset) throws SegmentTruncatedException {
+    private CompletableFuture<Long> getNextOffsetForSegment(Segment segment, long targetOffset) {
         @Cleanup
         RawClient connection = new RawClient(controller, connectionPool, segment);
         long requestId = connection.getFlow().getNextSequenceNumber();
         final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
                 .create(controller, segment, AccessOperation.READ);
-        WireCommands.OffsetLocated offsetLocated = tokenProvider.retrieveToken()
-                .thenCompose(token -> connection.sendRequest(requestId, new WireCommands.LocateOffset(requestId,
-                        segment.getScopedName(), targetOffset, token)))
-                .thenApply(r -> transformReply(r, WireCommands.OffsetLocated.class)).join();
-        return offsetLocated.getOffset();
-    }
-
-    private boolean checkIfNextOffsetSame(long existingOffset, long nextOffset) {
-        return existingOffset == nextOffset;
+        return tokenProvider.retrieveToken().thenCompose(token -> {
+            return connection.sendRequest(requestId, new WireCommands.LocateOffset(requestId, segment.getScopedName(), targetOffset, token));
+        }).handle((r, e) -> {
+            connection.close();
+            if (e != null) {
+                throw Exceptions.sneakyThrow(e);
+            } 
+            return transformReply(r, WireCommands.OffsetLocated.class).getOffset();
+        });
     }
 
     private void checkSuccessorSegmentOffset(Map<Segment, Long> nextPositionsMap, Map<Segment, Long> scaledSegmentsMap, long approxDistanceToNextOffset) throws SegmentTruncatedException {
         log.debug("checkSuccessorSegmentOffset() -> Segments that may have scaled = {}", scaledSegmentsMap);
+        HashMap<Segment, CompletableFuture<StreamSegmentsWithPredecessors>> successors = new HashMap<>(scaledSegmentsMap.size());
+        for (Segment s : scaledSegmentsMap.keySet()) {
+            successors.put(s, controller.getSuccessors(s));
+        }
+        Futures.await(Futures.allOf(successors.values()));
         for (val entry : scaledSegmentsMap.entrySet()) {
-            CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors = controller.getSuccessors(entry.getKey());
-            Map<SegmentWithRange, List<Long>> segmentToPredecessorMap = getSuccessors.join().getSegmentToPredecessor();
+            StreamSegmentsWithPredecessors getSuccessors = Futures.getThrowingException(successors.get(entry.getKey()));
+            Map<SegmentWithRange, List<Long>> segmentToPredecessorMap = getSuccessors.getSegmentToPredecessor();
             int size = segmentToPredecessorMap.size();
             if (size > 1) { //scale up happened to the segment
                 log.debug("Segment {} has scaled up", entry.getKey());
                 long approxNextOffsetDistancePerSegment = getApproxNextOffsetDistancePerSegment(size, approxDistanceToNextOffset);
                 for (SegmentWithRange segmentWithRange : segmentToPredecessorMap.keySet()) {
                     Segment segment = segmentWithRange.getSegment();
-                    long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistancePerSegment);
+                    long nextOffset = Futures.getThrowingException(getNextOffsetForSegment(segment, approxNextOffsetDistancePerSegment));
                     nextPositionsMap.put(segment, nextOffset);
                 }
             } else if (size == 1) { //scale down happened to the segments
@@ -282,7 +295,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                     long approxNextOffsetDistancePerSegment = approxDistanceToNextOffset * segmentToPredecessorMap.values().stream().findFirst().get().size();
                     if (!segmentIds.contains(segmentId)) {
                         Segment segment = segmentToPredecessorMap.keySet().stream().findFirst().get().getSegment();
-                        long nextOffset = getNextOffsetForSegment(segment, approxNextOffsetDistancePerSegment);
+                        long nextOffset = Futures.getThrowingException(getNextOffsetForSegment(segment, approxNextOffsetDistancePerSegment));
                         nextPositionsMap.put(segment, nextOffset);
                     }
                 } else {
