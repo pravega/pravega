@@ -44,7 +44,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.Service;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -83,10 +82,12 @@ public class ReaderCheckpointWithInternalThreadpool {
     private static final String READER = "reader";
     @Rule
     public Timeout globalTimeout = Timeout.seconds(7 * 60);
-    private URI controllerURI = null;
+    //private URI controllerURI = null;
     private StreamManager streamManager = null;
     private Controller controller = null;
+    private static URI controllerUri = null;
     private ConnectionFactory connectionFactory = null;
+    private ClientConfig clientConfig = null;
     private final StreamConfiguration streamConfig = StreamConfiguration.builder()
             .scalingPolicy(ScalingPolicy.fixed(1)).build();
 
@@ -97,18 +98,19 @@ public class ReaderCheckpointWithInternalThreadpool {
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = ensureControllerRunning(zkUri);
+        controllerUri = ensureControllerRunning(zkUri);
         ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @Before
     public void setup() {
-        controllerURI = fetchControllerURI();
-        streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
+        //controllerURI = fetchControllerURI();
+        clientConfig = Utils.buildClientConfig(controllerUri);
+        streamManager = StreamManager.create(clientConfig);
 
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         controller = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(Utils.buildClientConfig(controllerURI))
+                .clientConfig(clientConfig)
                 .build(), connectionFactory.getInternalExecutor());
     }
 
@@ -126,7 +128,6 @@ public class ReaderCheckpointWithInternalThreadpool {
 
     @Test
     public void initiateCheckpointTest() {
-        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, streamConfig));
 
@@ -159,7 +160,6 @@ public class ReaderCheckpointWithInternalThreadpool {
         try {
             result = cp.get(5, TimeUnit.SECONDS);
             log.info("Checkpoint isDone {} for checkpoint {} ", cp.isDone(), result.getName());
-            //System.out.println(" ************ checkpoint name is "+cs.getName()+" at " + LocalDateTime.now().format(formatter));
         } catch (Exception e)  {
             if (e instanceof InterruptedException || e instanceof ExecutionException || e instanceof TimeoutException) {
                 log.error("Exception while initiating checkpoint: {}", checkPointName, e);
@@ -192,13 +192,11 @@ public class ReaderCheckpointWithInternalThreadpool {
     }
 
     private <T extends Serializable> void writeEventsToStream(final String scope, final List<T> events) {
-        ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
         try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
              EventStreamWriter<T> writer = clientFactory.createEventWriter(STREAM,
                      new JavaSerializer<T>(),
                      EventWriterConfig.builder().build())) {
             for (T event : events) {
-                //String routingKey = String.valueOf(event);
                 log.info("Writing message: {} with routing-key: {} to stream {}", event, "", STREAM);
                 writer.writeEvent("", event);
             }
@@ -207,9 +205,6 @@ public class ReaderCheckpointWithInternalThreadpool {
     }
 
     private <T extends Serializable> Void readEvents(final String scope, final String readerId) {
-
-        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
-
         try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
              EventStreamReader<T> reader = clientFactory.createReader(readerId,
                      READER_GROUP_NAME,
@@ -220,9 +215,7 @@ public class ReaderCheckpointWithInternalThreadpool {
             do {
                 try {
                     event = reader.readNextEvent(READ_TIMEOUT);
-                    //if (event.getEvent() != null) {
                     log.info("Read event {}", event.getEvent());
-                    //}
                     if (event.isCheckpoint()) {
                         log.info("Read a check point event, checkpointName: {}", event.getCheckpointName());
                     }
@@ -233,14 +226,14 @@ public class ReaderCheckpointWithInternalThreadpool {
             } while (event.isCheckpoint() && event.getCheckpointName() != CHECKPOINT2);
             //stop reading if CHECKPOINT_2 is acked by reader.
             log.info("No more events from {}/{} for readerId: {}", scope, STREAM, readerId);
-        } //reader.close() will automatically invoke ReaderGroup#readerOffline(String, Position)
+        }
         return null;
     }
 
-    private URI fetchControllerURI() {
+    /*private URI fetchControllerURI() {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         return ctlURIs.get(0);
-    }
+    }*/
 
 }
