@@ -585,65 +585,64 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
         log.info(mergeSegments.getRequestId(), "Merging Segments Batch in-order {} ", mergeSegments);
         Futures.allOfWithResults(sources.stream().map(source -> Futures.handleCompose(getSegmentEventCount(source)
-                .thenCompose(eventCount -> {
-                    AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
-                    attributeUpdates.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
-                    return segmentStore.mergeStreamSegment(mergeSegments.getTargetSegmentId(), source, attributeUpdates, TIMEOUT);
-                }), (r, e) -> {
-            if (e != null) {
-                Throwable unwrap = Exceptions.unwrap(e);
-                if (unwrap instanceof StreamSegmentMergedException) {
-                   log.info(mergeSegments.getRequestId(), "Stream segment already merged '{}'.", source);
-                   return segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties::getLength);
-                }
-                if (unwrap instanceof StreamSegmentNotExistsException) {
-                    StreamSegmentNotExistsException ex = (StreamSegmentNotExistsException) unwrap;
-                    if (ex.getStreamSegmentName().equals(source)) {
+            .thenCompose(eventCount -> {
+                AttributeUpdateCollection attributeUpdates = new AttributeUpdateCollection();
+                attributeUpdates.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
+                return segmentStore.mergeStreamSegment(mergeSegments.getTargetSegmentId(), source, attributeUpdates, TIMEOUT);
+            }), (r, e) -> {
+                if (e != null) {
+                    Throwable unwrap = Exceptions.unwrap(e);
+                    if (unwrap instanceof StreamSegmentMergedException) {
                         log.info(mergeSegments.getRequestId(), "Stream segment already merged '{}'.", source);
                         return segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties::getLength);
                     }
+                    if (unwrap instanceof StreamSegmentNotExistsException) {
+                        StreamSegmentNotExistsException ex = (StreamSegmentNotExistsException) unwrap;
+                        if (ex.getStreamSegmentName().equals(source)) {
+                            log.info(mergeSegments.getRequestId(), "Stream segment already merged '{}'.", source);
+                            return segmentStore.getStreamSegmentInfo(mergeSegments.getTargetSegmentId(), TIMEOUT).thenApply(SegmentProperties::getLength);
+                        }
+                    }
+                    throw new CompletionException(e);
+                } else {
+                    recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
+                    return appendOnIndexSegment(mergeSegments.getTargetSegmentId()).thenApply(v -> r.getTargetSegmentLength());
                 }
-                throw new CompletionException(e);
-            } else {
-                recordStatForTransaction(r, mergeSegments.getTargetSegmentId());
-                return appendOnIndexSegment(mergeSegments.getTargetSegmentId())
-                        .thenCompose(v -> CompletableFuture.completedFuture(r.getTargetSegmentLength()));
-            }
-        })).collect(Collectors.toUnmodifiableList())).thenAccept(mergeResults -> {
-                    connection.send(new WireCommands.SegmentsBatchMerged(mergeSegments.getRequestId(),
-                           mergeSegments.getTargetSegmentId(),
-                           sources,
-                           mergeResults));
-               })
-               .exceptionally(e -> {
-                   log.debug("error");
-                   return handleException(mergeSegments.getRequestId(), mergeSegments.getTargetSegmentId(), operation, e);
-               });
+            })).collect(Collectors.toUnmodifiableList())).thenAccept(mergeResults -> {
+                connection.send(new WireCommands.SegmentsBatchMerged(mergeSegments.getRequestId(),
+                    mergeSegments.getTargetSegmentId(),
+                    sources,
+                    mergeResults));
+            })
+        .exceptionally(e -> {
+            log.debug("error");
+            return handleException(mergeSegments.getRequestId(), mergeSegments.getTargetSegmentId(), operation, e);
+        });
     }
 
     private CompletableFuture<Void> appendOnIndexSegment(String segmentName) {
         return segmentStore.getAttributes(getIndexSegmentName(segmentName), Collections.singleton(EXPECTED_INDEX_SEGMENT_EVENT_SIZE), true, TIMEOUT)
-                           .exceptionally(e -> {
-                               log.warn("Exception occurred while getting max event size for index segment {}, exception: {}", getIndexSegmentName(segmentName), e);
-                               if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
-                                   return Map.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, -1L);
-                               }
-                               return Map.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L);
-                           })
-                           .thenCompose(attributes -> {
-                               if (attributes.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L) == -1L) {
-                                   log.info("Creating index segment {} as it doesn't exist.", getIndexSegmentName(segmentName));
-                                   return createIndexSegment(segmentName).thenApply(v -> {
-                                       log.info("Index segment {} created successfully.", getIndexSegmentName(segmentName));
-                                       return Long.valueOf(INDEX_APPEND_EVENT_SIZE);
-                                   }).exceptionally(ex -> {
-                                       log.warn("Exception occurred while creating the index segment {}.", getIndexSegmentName(segmentName));
-                                       return 0L;
-                                   });
-                               } else {
-                                   return CompletableFuture.completedFuture(attributes.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L));
-                               }
-                           }).thenAccept(eventSize -> indexAppendProcessor.processAppend(segmentName, eventSize));
+                .exceptionally(e -> {
+                    log.warn("Exception occurred while getting max event size for index segment {}, exception: {}", getIndexSegmentName(segmentName), e);
+                    if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
+                        return Map.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, -1L);
+                    }
+                    return Map.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L);
+                })
+                .thenCompose(attributes -> {
+                    long size = attributes.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L);
+                    if (size != -1L) {
+                        return CompletableFuture.completedFuture(size);
+                    } 
+                    log.info("Creating index segment {} as it doesn't exist.", getIndexSegmentName(segmentName));
+                    return createIndexSegment(segmentName).thenApply(v -> {
+                        log.info("Index segment {} created successfully.", getIndexSegmentName(segmentName));
+                        return Long.valueOf(INDEX_APPEND_EVENT_SIZE);
+                    }).exceptionally(ex -> {
+                        log.warn("Exception occurred while creating the index segment {}.", getIndexSegmentName(segmentName));
+                        return 0L;
+                    });
+                }).thenAccept(eventSize -> indexAppendProcessor.processAppend(segmentName, eventSize));
     }
 
     @Override

@@ -245,9 +245,13 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                         } else {
                             throw Exceptions.sneakyThrow(ex);
                         }
-                    }).thenCompose(value -> value.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L) == -1
-                        ? createIndexSegmentAndFetchEventSize(indexSegment, requestId)
-                        : CompletableFuture.completedFuture(value.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L)));
+                    }).thenCompose(value -> {
+                        Long size = value.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L);
+                        if (size != -1) {
+                            return CompletableFuture.completedFuture(size);
+                        } 
+                        return createIndexSegmentAndFetchEventSize(indexSegment, requestId);
+                    });
     }
 
     private CompletableFuture<Long> createIndexSegmentAndFetchEventSize(String indexSegment, long requestId) {
