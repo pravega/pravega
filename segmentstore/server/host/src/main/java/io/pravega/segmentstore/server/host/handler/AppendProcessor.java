@@ -70,13 +70,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
@@ -237,26 +237,30 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
 
     private CompletableFuture<Long> createIndexSegmentIfNotExists(String indexSegment, long requestId) {
         return store.getAttributes(indexSegment, List.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE), true, TIMEOUT)
-                    .thenApply(value -> value.get(EXPECTED_INDEX_SEGMENT_EVENT_SIZE))
                     .exceptionally(ex -> {
+                        log.warn("Unable to get attribute for index segment {} due to ", indexSegment, ex);
                         ex = Exceptions.unwrap(ex);
                         if (ex instanceof NoSuchSegmentException || ex instanceof StreamSegmentNotExistsException) {
-                            log.info("Creating index segment {} while processing request: {}.", indexSegment, requestId);
-                            Collection<AttributeUpdate> attributes = Arrays.asList(
-                                    new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
-                                    new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
-                                    new AttributeUpdate(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, AttributeUpdateType.None, INDEX_APPEND_EVENT_SIZE)
-                            );
-                            AtomicReference<Long> result = new AtomicReference<>(0L);
-                            store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
-                                 .thenAccept(eventSize -> {
-                                     log.info("Index segment {} created successfully.", indexSegment);
-                                     result.set(Long.valueOf(INDEX_APPEND_EVENT_SIZE));
-                                 });
-                            return result.get();
+                            return Map.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, -1L);
                         } else {
                             throw Exceptions.sneakyThrow(ex);
                         }
+                    }).thenCompose(value -> value.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L) == -1
+                        ? createIndexSegmentAndFetchEventSize(indexSegment, requestId)
+                        : CompletableFuture.completedFuture(value.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L)));
+    }
+
+    private CompletableFuture<Long> createIndexSegmentAndFetchEventSize(String indexSegment, long requestId) {
+        log.info("Creating index segment {} while processing request: {}.", indexSegment, requestId);
+        Collection<AttributeUpdate> attributes = Arrays.asList(
+                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
+                new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
+                new AttributeUpdate(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, AttributeUpdateType.None, INDEX_APPEND_EVENT_SIZE)
+        );
+        return store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
+                    .thenApply(eventSize -> {
+                        log.info("Index segment {} created successfully.", indexSegment);
+                        return Long.valueOf(INDEX_APPEND_EVENT_SIZE);
                     });
     }
 

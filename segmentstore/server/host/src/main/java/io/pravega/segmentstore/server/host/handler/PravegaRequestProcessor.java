@@ -112,7 +112,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -129,13 +128,13 @@ import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 import static io.pravega.common.function.Callbacks.invokeSafely;
-import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEGMENT_EVENT_SIZE;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
+import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
+import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEGMENT_EVENT_SIZE;
 import static io.pravega.segmentstore.contracts.Attributes.ROLLOVER_SIZE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
-import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
@@ -624,22 +623,27 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private CompletableFuture<Void> appendOnIndexSegment(String segmentName) {
         return segmentStore.getAttributes(getIndexSegmentName(segmentName), Collections.singleton(EXPECTED_INDEX_SEGMENT_EVENT_SIZE), true, TIMEOUT)
-                    .thenApply(attributes -> attributes.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L))
-                    .exceptionally(e -> {
-                        log.warn("Exception occurred while getting max event size for index segment {}, exception: {}", getIndexSegmentName(segmentName), e);
-                        AtomicLong eventSize = new AtomicLong(0L);
-                        if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
-                            log.info("Creating index segment {} as it doesn't exist.", getIndexSegmentName(segmentName));
-                            createIndexSegment(segmentName).thenAccept(v -> {
-                                eventSize.set(INDEX_APPEND_EVENT_SIZE);
-                                log.info("Index segment {} created successfully.", getIndexSegmentName(segmentName));
-                            }).exceptionally(ex -> {
-                                log.warn("Exception occurred while creating the index segment {}.", getIndexSegmentName(segmentName));
-                                return null;
-                            });
-                        }
-                        return eventSize.get();
-                    }).thenAccept(eventSize -> indexAppendProcessor.processAppend(segmentName, eventSize));
+                           .exceptionally(e -> {
+                               log.warn("Exception occurred while getting max event size for index segment {}, exception: {}", getIndexSegmentName(segmentName), e);
+                               if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
+                                   return Map.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, -1L);
+                               }
+                               return Map.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L);
+                           })
+                           .thenCompose(attributes -> {
+                               if (attributes.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L) == -1L) {
+                                   log.info("Creating index segment {} as it doesn't exist.", getIndexSegmentName(segmentName));
+                                   return createIndexSegment(segmentName).thenApply(v -> {
+                                       log.info("Index segment {} created successfully.", getIndexSegmentName(segmentName));
+                                       return Long.valueOf(INDEX_APPEND_EVENT_SIZE);
+                                   }).exceptionally(ex -> {
+                                       log.warn("Exception occurred while creating the index segment {}.", getIndexSegmentName(segmentName));
+                                       return 0L;
+                                   });
+                               } else {
+                                   return CompletableFuture.completedFuture(attributes.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L));
+                               }
+                           }).thenAccept(eventSize -> indexAppendProcessor.processAppend(segmentName, eventSize));
     }
 
     @Override
