@@ -312,7 +312,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
             // after this `op` was processed.
             // Segment evicted means the effects of metadata have already been recorded through StorageWriter for this op.
             // Yet if we still land here, just ignore these operations instead of failing the pipeline later with DataCorruption.
-            log.info("{}: No segment metadata found. Ignoring this operation {}", this.traceObjectId, op);
+            log.warn("{}: No segment metadata found. Ignoring this operation {}", this.traceObjectId, op);
             return CompletableFuture.completedFuture(null);
         }
 
