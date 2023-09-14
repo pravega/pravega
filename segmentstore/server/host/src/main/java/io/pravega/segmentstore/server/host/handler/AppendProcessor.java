@@ -76,6 +76,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
@@ -86,6 +87,7 @@ import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYP
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEGMENT_EVENT_SIZE;
+import static io.pravega.shared.NameUtils.INDEX_APPEND_EVENT_SIZE;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static io.pravega.shared.NameUtils.isTransactionSegment;
 import static io.pravega.shared.NameUtils.isTransientSegment;
@@ -234,29 +236,28 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     }
 
     private CompletableFuture<Long> createIndexSegmentIfNotExists(String indexSegment, long requestId) {
-        CompletableFuture<Long> indexSegmentEventSize = store.getAttributes(indexSegment, List.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE), true, TIMEOUT)
-                .handle((value, u) -> {
-                    long result;
-                    if (u != null) {
-                        u = Exceptions.unwrap(u);
-                        if (u instanceof NoSuchSegmentException || u instanceof StreamSegmentNotExistsException) {
+        return store.getAttributes(indexSegment, List.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE), true, TIMEOUT)
+                    .thenApply(value -> value.get(EXPECTED_INDEX_SEGMENT_EVENT_SIZE))
+                    .exceptionally(ex -> {
+                        ex = Exceptions.unwrap(ex);
+                        if (ex instanceof NoSuchSegmentException || ex instanceof StreamSegmentNotExistsException) {
                             log.info("Creating index segment {} while processing request: {}.", indexSegment, requestId);
-                            result = NameUtils.INDEX_APPEND_EVENT_SIZE;
                             Collection<AttributeUpdate> attributes = Arrays.asList(
                                     new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
                                     new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
-                                    new AttributeUpdate(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, AttributeUpdateType.None, result)
+                                    new AttributeUpdate(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, AttributeUpdateType.None, INDEX_APPEND_EVENT_SIZE)
                             );
-                            store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT).join();
+                            AtomicReference<Long> result = new AtomicReference<>(0L);
+                            store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
+                                 .thenAccept(eventSize -> {
+                                     log.info("Index segment {} created successfully.", indexSegment);
+                                     result.set(Long.valueOf(INDEX_APPEND_EVENT_SIZE));
+                                 });
+                            return result.get();
                         } else {
-                            throw Exceptions.sneakyThrow(u);
+                            throw Exceptions.sneakyThrow(ex);
                         }
-                    } else {
-                        result = value.get(EXPECTED_INDEX_SEGMENT_EVENT_SIZE).longValue();
-                    }
-                    return result;
-                });
-        return indexSegmentEventSize;
+                    });
     }
 
     @VisibleForTesting

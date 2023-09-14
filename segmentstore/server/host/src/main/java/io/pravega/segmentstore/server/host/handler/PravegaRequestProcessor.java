@@ -112,6 +112,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -139,6 +140,7 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
+import static io.pravega.shared.NameUtils.INDEX_APPEND_EVENT_SIZE;
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static io.pravega.shared.NameUtils.isTransientSegment;
 import static io.pravega.shared.NameUtils.isUserStreamSegment;
@@ -620,13 +622,23 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                });
     }
 
-    private CompletableFuture<Void> appendOnIndexSegment(String segmentName) {
-            return segmentStore.getAttributes(getIndexSegmentName(segmentName), Collections.singleton(EXPECTED_INDEX_SEGMENT_EVENT_SIZE), true, TIMEOUT)
+    private void appendOnIndexSegment(String segmentName) {
+        segmentStore.getAttributes(getIndexSegmentName(segmentName), Collections.singleton(EXPECTED_INDEX_SEGMENT_EVENT_SIZE), true, TIMEOUT)
                     .thenApply(attributes -> attributes.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L))
                     .exceptionally(e -> {
-                        log.warn("Exception occured while getting max event size for index segment {}, exception: {}", getIndexSegmentName(segmentName), e);
-                        return 0L;
-                    }).thenAccept(eventSize ->  indexAppendProcessor.processAppend(segmentName, eventSize));
+                        log.warn("Exception occurred while getting max event size for index segment {}, exception: {}", getIndexSegmentName(segmentName), e);
+                        AtomicLong eventSize = new AtomicLong(0L);
+                        if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
+                            log.info("Creating index segment {} as it doesn't exist.", getIndexSegmentName(segmentName));
+                            createIndexSegment(getIndexSegmentName(segmentName)).thenAccept(v -> {
+                                eventSize.set(INDEX_APPEND_EVENT_SIZE);
+                            }).exceptionally(ex -> {
+                                log.warn("Exception occurred while creating the index segment {}.", getIndexSegmentName(segmentName));
+                                return null;
+                            });
+                        }
+                        return eventSize.get();
+                    }).thenAccept(eventSize -> indexAppendProcessor.processAppend(segmentName, eventSize));
     }
 
     @Override
