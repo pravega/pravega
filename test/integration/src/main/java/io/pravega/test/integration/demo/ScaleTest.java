@@ -26,6 +26,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -62,9 +63,10 @@ public class ScaleTest {
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
             TableStore tableStore = serviceBuilder.createTableStoreService();
             int port = Config.SERVICE_PORT;
+            IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store);
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                    serviceBuilder.getLowPriorityExecutor());
+                    serviceBuilder.getLowPriorityExecutor(), indexAppendProcessor);
             server.startListening();
 
             // Create controller object for testing against a separate controller report.

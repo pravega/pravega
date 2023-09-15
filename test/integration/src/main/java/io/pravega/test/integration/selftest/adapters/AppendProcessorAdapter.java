@@ -27,6 +27,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
 import io.pravega.segmentstore.server.host.handler.ConnectionTracker;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.ServerConnection;
 import io.pravega.segmentstore.server.host.handler.TrackedConnection;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
@@ -245,7 +246,8 @@ public class AppendProcessorAdapter extends StoreAdapter {
         SegmentHandler(String segmentName, int producerCount, StreamSegmentStore segmentStore) {
             this.segmentName = segmentName;
             this.producerCount = producerCount;
-            this.appendProcessor = AppendProcessor.defaultBuilder()
+            IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(testExecutor, segmentStore);
+            this.appendProcessor = AppendProcessor.defaultBuilder(indexAppendProcessor)
                                                   .store(segmentStore)
                                                   .connection(new TrackedConnection(this, connectionTracker))
                                                   .statsRecorder(autoScaleMonitor.getStatsRecorder())

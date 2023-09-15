@@ -16,6 +16,7 @@
 package io.pravega.test.integration.utils;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -223,11 +224,12 @@ public class ClusterWrapper implements AutoCloseable {
         if (authEnabled) {
             passwordInputFile = createAuthFile(this.passwordAuthHandlerEntries);
         }
-
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store);
         segmentStoreServer = new PravegaConnectionListener(this.tlsEnabled, false, "localhost", segmentStorePort, store, tableStore,
             SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
             authEnabled ? new TokenVerifierImpl(tokenSigningKeyBasis) : null,
-            this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
+            this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor(),
+                tlsProtocolVersion, indexAppendProcessor);
 
         segmentStoreServer.startListening();
     }
