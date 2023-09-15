@@ -97,6 +97,11 @@ public final class NameUtils {
     public static final int MAX_NAME_SIZE = 255;
 
     /**
+     * Max event size for index segment appends in StreamSegments.
+     */
+    public static final int INDEX_APPEND_EVENT_SIZE = 24;
+
+    /**
      * Size of the name that can be specified by user.
      */
     public static final int MAX_GIVEN_NAME_SIZE = MAX_NAME_SIZE - MAX_PREFIX_OR_SUFFIX_SIZE;
@@ -254,6 +259,11 @@ public final class NameUtils {
     private static final String CONTAINER_EVENT_PROCESSOR_SEGMENT_NAME = INTERNAL_CONTAINER_PREFIX + "event_processor_%s_%d";
 
     private static final String CONTAINER_EPOCH_INFO = INTERNAL_CONTAINER_PREFIX + "container_%d_epoch";
+
+    /**
+     * This is appended at the end of the Segment name to indicate it stores its index metadata.
+     */
+    private static final String INDEX_SEGMENT_SUFFIX = "#index";
 
     //endregion
 
@@ -903,6 +913,29 @@ public final class NameUtils {
     }
 
     /**
+     * Validates a user created stream segment.
+     *
+     * @param streamSegmentName User supplied stream segment name to validate.
+     * @return True, if its a user created stream segment.
+     */
+    public static boolean isUserStreamSegment(String streamSegmentName) {
+        try {
+            if (isTableSegment(streamSegmentName) || isTransactionSegment(streamSegmentName) || isTransientSegment(streamSegmentName)
+                    || isIndexSegment(streamSegmentName)) {
+                return false;
+            }
+            validateUserStreamName(getStreamName(streamSegmentName));
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static String getStreamName(String streamSegment) {
+        return streamSegment.split("/")[1];
+    }
+
+    /**
      * Validates a user-created Key-Value Table name.
      * @param name User supplied Key-Value Table name to validate.
      * @return The name, if valid.
@@ -987,7 +1020,6 @@ public final class NameUtils {
         sb.append(stream);
         return sb.toString();
     }
-    // endregion
 
     /**
      * Parse the connection name to fetch the connection details.
@@ -998,5 +1030,26 @@ public final class NameUtils {
     public static String[] getConnectionDetails(String connection) {
         Preconditions.checkNotNull(connection);
         return connection.split(":");
+    }
+
+    /**
+     * Checks whether the given name is an Index Segment or not.
+     *
+     * @param segmentName   The name of the segment.
+     * @return              True if the segment is an index Segment, false otherwise.
+     */
+    public static boolean isIndexSegment(String segmentName) {
+        return segmentName.endsWith(INDEX_SEGMENT_SUFFIX);
+    }
+
+    /**
+     * Gets the name of the index-Segment mapped to the given Segment Name that is responsible with storing index metadata.
+     *
+     * @param segmentName The name of the Segment to get the index segment name for.
+     * @return The result.
+     */
+    public static String getIndexSegmentName(String segmentName) {
+        Preconditions.checkArgument(!isIndexSegment(segmentName), "segmentName is already an index segment name");
+        return segmentName + INDEX_SEGMENT_SUFFIX;
     }
 }

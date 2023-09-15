@@ -231,4 +231,29 @@ public class NameUtilsTest {
         Assert.assertEquals("localhost", NameUtils.getConnectionDetails("localhost :12345")[0].trim());
         Assert.assertEquals("12345", NameUtils.getConnectionDetails("localhost :12345")[1].trim());
     }
+
+    @Test
+    public void testIndexSegmentName() {
+        String scope = "scope";
+        String stream = "stream";
+        String qualifiedStreamSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, 0L);
+        String indexSegmentName = NameUtils.getIndexSegmentName(qualifiedStreamSegmentName);
+        Assert.assertTrue("Passed segment is an index segment", NameUtils.isIndexSegment(indexSegmentName));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateStreamName(indexSegmentName));
+        AssertExtensions.assertThrows("", () -> NameUtils.getIndexSegmentName(indexSegmentName), ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test(timeout = 5000)
+    public void isUserStreamSegment() {
+        testUserStreamVerifier(NameUtils::isUserStreamSegment);
+    }
+
+    private void testUserStreamVerifier(Function<String, Boolean> toTest) {
+        Assert.assertEquals(Boolean.TRUE, toTest.apply("testScope/testStream/0"));
+        Assert.assertEquals(Boolean.FALSE, toTest.apply("_stream/_requestStream/0"));
+        Assert.assertEquals(Boolean.FALSE, toTest.apply(null));
+        Assert.assertEquals(Boolean.TRUE, toTest.apply("test/a-b-c/1"));
+        Assert.assertEquals(Boolean.TRUE, toTest.apply("test/1.2.3/0"));
+        Assert.assertEquals(Boolean.FALSE, toTest.apply("test/1.2.3/0#index"));
+    }
 }

@@ -157,6 +157,11 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     }
 
     @Override
+    public void locateOffset(WireCommands.LocateOffset locateOffset) {
+        getNextRequestProcessor().locateOffset(locateOffset);
+    }
+    
+    @Override
     public void connectionDropped() {
         getNextRequestProcessor().connectionDropped();
     }

@@ -29,23 +29,31 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import java.io.Serializable;
+import java.time.Duration;
+import java.util.Collections;
 import lombok.Cleanup;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 @Slf4j
 public class TransactionTest extends LeakDetectorTestSuite {
@@ -78,7 +86,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -144,7 +152,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
     @Test(timeout = 10000)
     @SuppressWarnings("deprecation")
-    public void testDoubleCommit() throws TxnFailedException {
+    public void testDoubleCommit() throws Exception {
         String endpoint = "localhost";
         String streamName = "testDoubleCommit";
         int port = TestUtils.getAvailableListenPort();
@@ -155,7 +163,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -173,7 +181,18 @@ public class TransactionTest extends LeakDetectorTestSuite {
         Transaction<String> transaction = producer.beginTxn();
         transaction.writeEvent(routingKey, event);
         transaction.commit();
-        AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
+        assertIndexSegment(store, NameUtils.getIndexSegmentName(NameUtils.getQualifiedStreamSegmentName("scope", streamName, 0)), 1, 24);
+    }
+
+    private void assertIndexSegment(StreamSegmentStore store, String segment, long expectedEventCount, long eventLength) throws Exception {
+        AssertExtensions.assertEventuallyEquals(expectedEventCount,
+                () -> store.getAttributes(segment, Collections.singleton(Attributes.EVENT_COUNT), true, Duration.ofMinutes(1))
+                           .get().get(Attributes.EVENT_COUNT), 5000);
+        val si = store.getStreamSegmentInfo(segment, Duration.ofMinutes(1)).join();
+        val segmentType = SegmentType.fromAttributes(si.getAttributes());
+        assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem() || segmentType.isTableSegment());
+        assertEquals(SegmentType.STREAM_SEGMENT, segmentType);
+        assertEquals(eventLength, si.getLength());
     }
 
     @Test(timeout = 10000)
@@ -191,7 +210,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -244,7 +263,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                                                                         SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scopeName, endpoint, port);
