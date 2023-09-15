@@ -215,13 +215,12 @@ public class BatchClientImplTest {
         cf.provideConnection(endpoint, connection);
         @Cleanup
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
-        client.getConnection(segment1);
-        ReplyProcessor processor = cf.getProcessor(endpoint);
+
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) {
-
                 WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                ReplyProcessor processor = cf.getProcessor(endpoint);
                 processor.process(new WireCommands.OffsetLocated(locateOffset.getRequestId(), locateOffset.getSegment(), 90L));
                 return null;
             }
@@ -254,13 +253,12 @@ public class BatchClientImplTest {
         cf.provideConnection(endpoint, connection);
         @Cleanup
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
-        client.getConnection(segment1);
-        ReplyProcessor processor = cf.getProcessor(endpoint);
+
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) {
-
                 WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                ReplyProcessor processor = cf.getProcessor(endpoint);
                 processor.process(new WireCommands.OffsetLocated(locateOffset.getRequestId(), locateOffset.getSegment(), 90L));
                 return null;
             }
@@ -295,13 +293,12 @@ public class BatchClientImplTest {
         cf.provideConnection(endpoint, connection);
         @Cleanup
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
-        client.getConnection(segment1);
-        ReplyProcessor processor = cf.getProcessor(endpoint);
+
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) {
-
                 WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                ReplyProcessor processor = cf.getProcessor(endpoint);
                 processor.process(new WireCommands.OffsetLocated(locateOffset.getRequestId(), locateOffset.getSegment(), 90L));
                 return null;
             }
@@ -335,13 +332,12 @@ public class BatchClientImplTest {
         cf.provideConnection(endpoint, connection);
         @Cleanup
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
-        client.getConnection(segment1);
-        ReplyProcessor processor = cf.getProcessor(endpoint);
+
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) {
-
                 WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                ReplyProcessor processor = cf.getProcessor(endpoint);
                 processor.process(new WireCommands.OffsetLocated(locateOffset.getRequestId(), locateOffset.getSegment(), 90L));
                 return null;
             }
@@ -373,13 +369,12 @@ public class BatchClientImplTest {
         cf.provideConnection(endpoint, connection);
         @Cleanup
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
-        client.getConnection(segment1);
-        ReplyProcessor processor = cf.getProcessor(endpoint);
+
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) {
-
                 WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                ReplyProcessor processor = cf.getProcessor(endpoint);
                 processor.process(new WireCommands.OffsetLocated(locateOffset.getRequestId(), locateOffset.getSegment(), 90L));
                 return null;
             }
@@ -407,25 +402,24 @@ public class BatchClientImplTest {
         cf.provideConnection(endpoint, connection);
         @Cleanup
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf, RETRY_WITH_BACKOFF);
-        client.getConnection(segment1);
-        ReplyProcessor processor = cf.getProcessor(endpoint);
-        Mockito.doAnswer((Answer<Void>) invocation -> {
 
+        Mockito.doAnswer((Answer<Void>) invocation -> {
             WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+            ReplyProcessor processor = cf.getProcessor(endpoint);
             processor.process(new WireCommands.NoSuchSegment(locateOffset.getRequestId(), locateOffset.getSegment(), "", 30L));
             return null;
         }).when(connection).send(any(WireCommands.LocateOffset.class));
         AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> client.getNextStreamCut(startingSC, 50L));
         Mockito.doAnswer((Answer<Void>) invocation -> {
-
             WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+            ReplyProcessor processor = cf.getProcessor(endpoint);
             processor.process(new WireCommands.AuthTokenCheckFailed(locateOffset.getRequestId(), "Token expired", WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
             return null;
         }).when(connection).send(any(WireCommands.LocateOffset.class));
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> client.getNextStreamCut(startingSC, 50L));
         Mockito.doAnswer((Answer<Void>) invocation -> {
-
             WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+            ReplyProcessor processor = cf.getProcessor(endpoint);
             processor.process(new WireCommands.AuthTokenCheckFailed(locateOffset.getRequestId(), "Token expired", WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
             return null;
         }).when(connection).send(any(WireCommands.LocateOffset.class));
@@ -447,13 +441,12 @@ public class BatchClientImplTest {
         cf.provideConnection(endpoint, connection);
         @Cleanup
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf, RETRY_WITH_BACKOFF);
-        client.getConnection(segment1);
-        ReplyProcessor processor = cf.getProcessor(endpoint);
+
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) {
-
                 WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                ReplyProcessor processor = cf.getProcessor(endpoint);
                 processor.process(new WireCommands.AuthTokenCheckFailed(locateOffset.getRequestId(), "server-stacktrace",
                         WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
                 return null;
@@ -477,13 +470,12 @@ public class BatchClientImplTest {
         cf.provideConnection(endpoint, connection);
         @Cleanup
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf, RETRY_WITH_BACKOFF);
-        client.getConnection(segment1);
-        ReplyProcessor processor = cf.getProcessor(endpoint);
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) {
 
                 WireCommands.LocateOffset locateOffset = invocation.getArgument(0);
+                ReplyProcessor processor = cf.getProcessor(endpoint);
                 processor.process(new WireCommands.AuthTokenCheckFailed(locateOffset.getRequestId(), "server-stacktrace",
                         WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
                 return null;
