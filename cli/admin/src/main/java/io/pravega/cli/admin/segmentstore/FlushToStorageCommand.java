@@ -93,6 +93,9 @@ public class FlushToStorageCommand extends ContainerCommand {
     }
 
     private int getAdminPortForHost(int configuredAdminPort, String ssHost) {
+        if (InetAddresses.isInetAddress(ssHost)) {
+            return configuredAdminPort;
+        }
         String[] ssHostParts = ssHost.split("-");
         String ssHostIndex = ssHostParts[ssHostParts.length-1];
         Preconditions.checkState(ssHostParts.length > 1 && !ssHostIndex.isEmpty() && StringUtils.isNumeric(ssHostIndex), "Unexpected host-name retrieved");
