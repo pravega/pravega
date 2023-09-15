@@ -149,7 +149,7 @@ public class ReaderCheckpointWithInternalThreadpool {
         writeEventsToStream(SCOPE, IntStream.range(start, end).boxed().collect(Collectors.toList()));
         asyncReadEvents(SCOPE, READER);
         //Initiate 2 checkpoints and make sure its completed
-        initiateCheckpoointAndVerify(readerGroup);
+        initiateCheckpointAndVerify(readerGroup);
     }
 
     private Checkpoint initiateCheckpoint(final ReaderGroup readerGroup, final String checkPointName) {
@@ -169,7 +169,7 @@ public class ReaderCheckpointWithInternalThreadpool {
         return result;
     }
 
-    private void initiateCheckpoointAndVerify(final ReaderGroup readerGroup) {
+    private void initiateCheckpointAndVerify(final ReaderGroup readerGroup) {
         log.info("Initiating checkpoint ");
         final List<Checkpoint> cpResults = new ArrayList<>(2);
         final List<String> cpNames = new ArrayList<>(Arrays.asList(CHECKPOINT1, CHECKPOINT2));
