@@ -18,7 +18,10 @@ package io.pravega.segmentstore.server.host.handler;
 import io.pravega.auth.InvalidTokenException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.InlineExecutor;
 import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -35,8 +38,9 @@ public class AppendProcessorAuthFailedTest {
     public void setUp() throws Exception {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         connection = mock(ServerConnection.class);
-
-        processor = AppendProcessor.defaultBuilder()
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = new InlineExecutor();
+        processor = AppendProcessor.defaultBuilder(new IndexAppendProcessor(executor, store))
                                    .store(store)
                                    .connection(new TrackedConnection(connection))
                                    .tokenVerifier((resource, token, expectedLevel) -> {

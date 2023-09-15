@@ -15,6 +15,7 @@
  */
 package io.pravega.test.common;
 
+import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -80,6 +81,7 @@ public class InlineExecutor implements ScheduledExecutorService, AutoCloseable {
 
     @Override
     public <T> Future<T> submit(Callable<T> task) {
+        Preconditions.checkState(!delayedExecutor.isShutdown());
         try {
             return completedFuture(task.call());
         } catch (Exception e) {
@@ -89,6 +91,7 @@ public class InlineExecutor implements ScheduledExecutorService, AutoCloseable {
 
     @Override
     public <T> Future<T> submit(Runnable task, T result) {
+        Preconditions.checkState(!delayedExecutor.isShutdown());
         try {
             task.run();
             return completedFuture(result);
@@ -99,6 +102,7 @@ public class InlineExecutor implements ScheduledExecutorService, AutoCloseable {
 
     @Override
     public Future<?> submit(Runnable task) {
+        Preconditions.checkState(!delayedExecutor.isShutdown());
         try {
             task.run();
             return completedFuture(null);
@@ -109,6 +113,7 @@ public class InlineExecutor implements ScheduledExecutorService, AutoCloseable {
 
     @Override
     public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptedException {
+        Preconditions.checkState(!delayedExecutor.isShutdown());
         List<Future<T>> result = new ArrayList<>(tasks.size());
         for (Callable<T> task : tasks) {
             result.add(submit(task));
@@ -124,6 +129,7 @@ public class InlineExecutor implements ScheduledExecutorService, AutoCloseable {
 
     @Override
     public <T> T invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
+        Preconditions.checkState(!delayedExecutor.isShutdown());
         for (Callable<T> task : tasks) {
             try {
                 return task.call();
@@ -142,6 +148,7 @@ public class InlineExecutor implements ScheduledExecutorService, AutoCloseable {
 
     @Override
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+        Preconditions.checkState(!delayedExecutor.isShutdown());
         if (delay == 0) {
             try {
                 command.run();
@@ -156,6 +163,7 @@ public class InlineExecutor implements ScheduledExecutorService, AutoCloseable {
 
     @Override
     public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
+        Preconditions.checkState(!delayedExecutor.isShutdown());
         if (delay == 0) {
             try {
                 return new NonScheduledFuture<>(completedFuture(callable.call()));
@@ -169,6 +177,7 @@ public class InlineExecutor implements ScheduledExecutorService, AutoCloseable {
 
     @Override
     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
+        Preconditions.checkState(!delayedExecutor.isShutdown());
         if (initialDelay == 0) {
             try {
                 command.run();
@@ -182,6 +191,7 @@ public class InlineExecutor implements ScheduledExecutorService, AutoCloseable {
 
     @Override
     public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
+        Preconditions.checkState(!delayedExecutor.isShutdown());
         if (initialDelay == 0) {
             try {
                 command.run();

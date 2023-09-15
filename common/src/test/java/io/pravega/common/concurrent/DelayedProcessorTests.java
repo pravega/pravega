@@ -51,7 +51,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
     /**
      * Tests {@link DelayedProcessor#process} when no duplication or cancellation occurs.
      */
-    @Test
+    @Test(timeout = 5000)
     public void testProcessNormal() throws Exception {
         val processedItems = Collections.synchronizedList(new ArrayList<>());
         val currentProcessFuture = new AtomicReference<CompletableFuture<Void>>();
@@ -61,7 +61,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
             currentProcessFuture.set(r);
             return r;
         };
-        @Cleanup
+        @Cleanup("shutdown")
         val p = new TestProcessor(itemProcessor);
 
         val i1 = new TestItem("1");
@@ -129,7 +129,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
     /**
      * Tests {@link DelayedProcessor#process} when duplicated items are added.
      */
-    @Test
+    @Test(timeout = 5000)
     public void testProcessDuplicated() throws Exception {
         val processedItems = Collections.synchronizedList(new ArrayList<>());
         val currentProcessFuture = new AtomicReference<CompletableFuture<Void>>();
@@ -139,7 +139,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
             currentProcessFuture.set(r);
             return r;
         };
-        @Cleanup
+        @Cleanup("shutdown")
         val p = new TestProcessor(itemProcessor);
 
         val i1 = new TestItem("1");
@@ -182,7 +182,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
     /**
      * Tests the ability to handle processing errors from external handlers.
      */
-    @Test
+    @Test(timeout = 5000)
     public void testProcessWithErrors() throws Exception {
         val processedItems = Collections.synchronizedList(new ArrayList<>());
         val currentProcessFuture = new AtomicReference<CompletableFuture<Void>>();
@@ -192,7 +192,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
             currentProcessFuture.set(r);
             return r;
         };
-        @Cleanup
+        @Cleanup("shutdown")
         val p = new TestProcessor(itemProcessor);
 
         val i1 = new TestItem("1");
@@ -230,7 +230,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
     /**
      * Tests the ability to cancel items using {@link DelayedProcessor#cancel} before they start executing.
      */
-    @Test
+    @Test(timeout = 5000)
     public void testCancel() throws Exception {
         val processedItems = Collections.synchronizedList(new ArrayList<>());
         val currentProcessFuture = new AtomicReference<CompletableFuture<Void>>();
@@ -240,7 +240,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
             currentProcessFuture.set(r);
             return r;
         };
-        @Cleanup
+        @Cleanup("shutdown")
         val p = new TestProcessor(itemProcessor);
 
         val i1 = new TestItem("1");
@@ -275,7 +275,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
      * Tests the ability to cancel items using {@link DelayedProcessor#cancel} while they are processing. This should have
      * no effect, however it should not cause the processor to skip other items or otherwise function unexpectedly.
      */
-    @Test
+    @Test(timeout = 5000)
     public void testCancelWhileProcessing() throws Exception {
         val processedItems = Collections.synchronizedList(new ArrayList<>());
         val currentProcessFuture = new AtomicReference<CompletableFuture<Void>>();
@@ -285,7 +285,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
             currentProcessFuture.set(r);
             return r;
         };
-        @Cleanup
+        @Cleanup("shutdown")
         val p = new TestProcessor(itemProcessor);
 
         val i1 = new TestItem("1");
@@ -325,7 +325,7 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
     /**
      * Tests {@link DelayedProcessor#close()} and its ability to immediately shut down the processor.
      */
-    @Test
+    @Test(timeout = 5000)
     public void testClose() throws Exception {
         val processedItemCount = new AtomicInteger(0);
         val currentProcessFuture = new AtomicReference<CompletableFuture<Void>>();
@@ -339,24 +339,22 @@ public class DelayedProcessorTests extends ThreadPooledTestSuite {
         val i1 = new TestItem("1");
 
         // First test is when we cancel while delaying for next iteration.
-        @Cleanup
         val p1 = new TestProcessor(itemProcessor);
         p1.awaitNewIteration();
         p1.process(i1);
         p1.advanceTime(DEFAULT_DELAY);
-        p1.close();
+        p1.shutdown();
         p1.releaseDelayedFuture();
         Assert.assertEquals("Not expecting any items to be processed when closed while waiting.", 0, processedItemCount.get());
 
         // Second test is when we cancel while executing next iteration.
-        @Cleanup
         val p2 = new TestProcessor(itemProcessor);
         p2.process(i1);
         p2.awaitNewIteration();
         p2.advanceTime(DEFAULT_DELAY);
         p2.releaseDelayedFuture();
         AssertExtensions.assertEventuallyEquals(1, processedItemCount::get, TIMEOUT_MILLIS);
-        p1.close();
+        p1.shutdown();
         currentProcessFuture.getAndSet(null).complete(null);
 
         Assert.assertEquals("Unexpected number of items processed.", 1, processedItemCount.get());

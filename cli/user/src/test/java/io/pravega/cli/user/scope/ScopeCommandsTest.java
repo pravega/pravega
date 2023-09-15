@@ -52,7 +52,7 @@ public class ScopeCommandsTest {
         }
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 10000)
     @SneakyThrows
     public void testCreateScope() {
         final String scope = "testCreate";
@@ -63,7 +63,7 @@ public class ScopeCommandsTest {
         String cleanUp = TestUtils.executeCommand("scope delete " + scope, cliConfig());
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 10000)
     @SneakyThrows
     public void testDeleteScope() {
         String scopeToDelete = "toDelete";

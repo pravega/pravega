@@ -25,11 +25,10 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.AdminRequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
-import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.ArrayList;
 import java.util.List;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Request processor for admin commands issues from Admin CLI.
@@ -49,10 +48,11 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
      * @param segmentStore The StreamSegmentStore to attach to (and issue requests to).
      * @param tableStore The TableStore to attach to (and issue requests to).
      * @param connection   The ServerConnection to attach to (and send responses to).
+     * @param indexAppendProcessor Index append processor to be used for appending on index segment.
      */
     public AdminRequestProcessorImpl(@NonNull StreamSegmentStore segmentStore, @NonNull TableStore tableStore,
-                                     @NonNull ServerConnection connection) {
-        this(segmentStore, tableStore, new TrackedConnection(connection, new ConnectionTracker()), new PassingTokenVerifier());
+                                     @NonNull ServerConnection connection, @NonNull IndexAppendProcessor indexAppendProcessor) {
+        this(segmentStore, tableStore, new TrackedConnection(connection, new ConnectionTracker()), new PassingTokenVerifier(), indexAppendProcessor);
     }
 
     /**
@@ -62,11 +62,13 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
      * @param tableStore The TableStore to attach to (and issue requests to).
      * @param connection   The ServerConnection to attach to (and send responses to).
      * @param tokenVerifier  Verifier class that verifies delegation token.
+     * @param indexAppendProcessor Index append processor to be used for appending on index segment.
      */
     public AdminRequestProcessorImpl(@NonNull StreamSegmentStore segmentStore, @NonNull TableStore tableStore,
-                                     @NonNull TrackedConnection connection, @NonNull DelegationTokenVerifier tokenVerifier) {
+                                     @NonNull TrackedConnection connection, @NonNull DelegationTokenVerifier tokenVerifier,
+                                     @NonNull IndexAppendProcessor indexAppendProcessor) {
         this(segmentStore, tableStore, connection, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
-                tokenVerifier, true);
+                tokenVerifier, true, indexAppendProcessor);
     }
 
     /**
@@ -79,11 +81,13 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
      * @param tableStatsRecorder A TableSegmentStatsRecorder for Metrics for Table Segments.
      * @param tokenVerifier  Verifier class that verifies delegation token.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
+     * @param indexAppendProcessor Index append processor to be used for appending on index segment.
      */
     public AdminRequestProcessorImpl(@NonNull StreamSegmentStore segmentStore, @NonNull TableStore tableStore, @NonNull TrackedConnection connection,
                                      @NonNull SegmentStatsRecorder statsRecorder, @NonNull TableSegmentStatsRecorder tableStatsRecorder,
-                                     @NonNull DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
-        super(segmentStore, tableStore, connection, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError);
+                                     @NonNull DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError,
+                                     @NonNull IndexAppendProcessor indexAppendProcessor) {
+        super(segmentStore, tableStore, connection, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError, indexAppendProcessor);
     }
 
     //endregion
