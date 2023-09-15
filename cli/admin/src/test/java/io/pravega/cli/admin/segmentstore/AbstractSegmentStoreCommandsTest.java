@@ -231,7 +231,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testFlushToStorageCommandAllCase() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.1.1", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         String commandResult = TestUtils.executeCommand("container flush-to-storage all", STATE.get());
         for (int id = 0; id < CONTAINER_COUNT; id++) {
             Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId " + id + " to Storage."));
