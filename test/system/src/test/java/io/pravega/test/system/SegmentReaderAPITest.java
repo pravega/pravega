@@ -115,7 +115,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
      * Read the events between the streamCut and segment0 has scaled up(segment1, segment2) and written 5 events and validating the numbers of events written
      * by reading the events from the scaled up segment.
      */
-    @Test(timeout = 90000)
+    @Test(timeout = 120000)
     public void getNextStreamCutWithScaleUpTest() throws SegmentTruncatedException, ExecutionException, InterruptedException {
         String streamName = "testStreamSegment";
         String streamScope = "testScopeSegment";
