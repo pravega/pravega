@@ -16,34 +16,74 @@
   </module>
   <module name="SuppressWarningsFilter"/>
   <module name="FileTabCharacter"/>
+  <module name="LineLength">
+    <property name="max" value="200"/>
+  </module>
   <module name="TreeWalker">
-    <module name="SuppressWarningsHolder" />
+    <module name="SuppressWarningsHolder"/>
     <module name="SuppressWarnings"/>
     <!-- code cleanup -->
     <module name="UnusedImports"/>
     <module name="RedundantImport"/>
-    <module name="IllegalImport" />
+    <module name="IllegalImport"/>
     <module name="EqualsHashCode"/>
+    <module name="AvoidDoubleBraceInitialization"/>
+    <module name="CovariantEquals"/>
+    <module name="DefaultComesLast"/>
     <module name="NoClone"/>
+    <module name="NoFinalizer"/>
+    <module name="OneStatementPerLine"/>
+    <module name="InterfaceIsType"/>
+    <module name="MutableException"/>
+    <module name="OneTopLevelClass"/>
+    <module name="EmptyCatchBlock"/>
     <module name="MissingOverride"/>
     <module name="IllegalThrows">
-        <property name="illegalClassNames" value="java.lang.Throwable, java.lang.Error, java.lang.RuntimeException, PravegaException"/>
+      <property name="illegalClassNames" value="java.lang.Throwable, java.lang.Error, java.lang.RuntimeException, PravegaException"/>
     </module>
     <module name="FallThrough"/>
     <module name="SimplifyBooleanExpression"/>
     <module name="OneStatementPerLine"/>
-    <module name="UnnecessaryParentheses" />
     <module name="SimplifyBooleanReturn"/>
     <module name="DeclarationOrder"/>
+    <module name="NestedForDepth">
+      <property name="max" value="2"/>
+    </module>
+    <module name="NestedIfDepth">
+      <property name="max" value="3"/>
+    </module>
+    <module name="NestedTryDepth">
+      <property name="max" value="3"/>
+    </module>
+    <module name="BooleanExpressionComplexity">
+      <property name="tokens" value="BAND, BOR, BXOR"/>
+    </module>
+    <module name="ClassFanOutComplexity">
+      <property name="max" value="100"/>
+      <property name="excludedPackages" value="java.util, java.util.concurrent, java.util.function, com.google.common.base, javax.annotation.concurrent, lombok, io.pravega.common, io.pravega.common.util, io.pravega.common.concurrent, io.pravega.segmentstore.contracts, io.pravega.segmentstore.contracts.tables"/>
+    </module>
+    <module name="CyclomaticComplexity">
+      <property name="max" value="20"/>
+    </module>
+    <module name="LambdaBodyLength">
+      <property name="max" value="70"/>
+    </module>
     <!--<module name="InnerAssignment"/> This doesn't work with lambdas-->
     <module name="ModifiedControlVariable"/>
     <module name="OverloadMethodsDeclarationOrder"/>
     <module name="ReturnCount">
-        <property name="maxForVoid" value="4"/>
-        <property name="max" value="4"/>
+      <property name="maxForVoid" value="4"/>
+      <property name="max" value="4"/>
     </module>
+    <module name="MethodCount"/>
     <module name="StringLiteralEquality"/>
-
+    <module name="MethodLength">
+      <property name="max" value="200"/>
+    </module>
+    <module name="ParameterNumber">
+      <property name="max" value="10"/>
+      <property name="tokens" value="METHOD_DEF"/>
+    </module>
 
     <!-- style -->
     <module name="NoLineWrap"/>
@@ -72,7 +112,7 @@
     <module name="PackageName"/>
     <module name="ParameterName"/>
     <module name="StaticVariableName">
-        <property name="format" value="Static non-final variables are not allowed."/>
+      <property name="format" value="Static non-final variables are not allowed."/>
     </module>
     <module name="TypeName"/>
     <module name="AvoidStarImport">
@@ -80,18 +120,27 @@
            <property name="allowClassImports" value="false"/>
            <property name="allowStaticMemberImports" value="true"/>
     </module>
-
+    <module name="AnonInnerLength">
+      <property name="max" value="50"/>
+    </module>
     <!-- dependencies -->
     <module name="ImportControl">
       <property name="file" value="${importControlFile}"/>
     </module>
+    <module name="LambdaParameterName"/>
+    <module name="LocalVariableName"/>
+    <module name="MemberName"/>
+    <module name="MethodName"/>
+    <module name="PackageName"/>
+    <module name="TypeName"/>
+    <module name="OuterTypeNumber"/>
 
     <!-- whitespace -->
     <module name="GenericWhitespace"/>
     <module name="NoWhitespaceBefore"/>
-    <module name="WhitespaceAfter" />
+    <module name="WhitespaceAfter"/>
     <module name="NoWhitespaceAfter">
-        <property name="tokens" value="INC, DEC, UNARY_MINUS, UNARY_PLUS, BNOT, LNOT, DOT, ARRAY_DECLARATOR, INDEX_OP"/>
+      <property name="tokens" value="INC, DEC, UNARY_MINUS, UNARY_PLUS, BNOT, LNOT, DOT, ARRAY_DECLARATOR, INDEX_OP"/>
     </module>
     <module name="WhitespaceAround">
       <property name="allowEmptyConstructors" value="true"/>
@@ -116,7 +165,6 @@
       <property name="checkHtml" value="true"/>
     </module>
     <module name="MissingOverride"/>
-    <module name="MissingDeprecated"/>
     <module name="AnnotationLocation">
         <property name="allowSamelineMultipleAnnotations" value="false"/>
         <property name="allowSamelineSingleParameterlessAnnotation" value="false"/>
@@ -124,16 +172,19 @@
         <property name="tokens" value="VARIABLE_DEF"/>
     </module>
     <module name="JavadocMethod">
-      <property name="scope" value="protected"/>
-      <property name="validateThrows" value="true"/>
-      <property name="allowUndeclaredRTE" value="true"/>
-      <property name="allowMissingThrowsTags" value="false"/>
+      <property name="accessModifiers" value="public, protected"/>
+      <property name="validateThrows" value="false"/>
       <property name="allowMissingParamTags" value="false"/>
       <property name="allowMissingReturnTag" value="true"/>
-      <property name="allowMissingJavadoc" value="true"/> <!--TODO: this should be enabled at one point. -->
-      <property name="ignoreMethodNamesRegex" value="^get.*$"/> <!--It would be nice if we could allow checking that the doc exists without also verifying the @returns is there also, but checkstyle does not allow that. -->
-      <property name="ignoreMethodNamesRegex" value="^has.*$"/> <!-- accessor for boolean e.g. hasVersion -->
-      <property name="suppressLoadErrors" value="false"/>
+<!--      <property name="ignoreMethodNamesRegex" value="^get.*$"/>--> <!--It would be nice if we could allow checking that the doc exists without also verifying the @returns is there also, but checkstyle does not allow that. -->
+<!--      <property name="ignoreMethodNamesRegex" value="^has.*$"/>--> <!-- accessor for boolean e.g. hasVersion -->
+    </module>
+    <module name="MissingJavadocMethod">
+      <property name="scope" value="public"/>
+      <property name="minLineCount" value="2"/>
+      <property name="allowMissingPropertyJavadoc" value="true"/>
+      <property name="ignoreMethodNamesRegex" value="^(?:read|get|encode|decode).*"/>
+      <property name="tokens" value="METHOD_DEF"/>
     </module>
     <module name="RegexpSinglelineJava">
   	  <property name="format" value="Collections\.synchronizedList"/>

@@ -3,13 +3,18 @@
         "-//Puppy Crawl//DTD Suppressions 1.1//EN"
         "http://www.puppycrawl.com/dtds/suppressions_1_1.dtd">
 <suppressions>
+    <suppress checks="MissingJavadocMethod" files="io[\\/]pravega[\\/](?:controller|segmentstore|test).*" />
+    <suppress checks="NoFinalizer" files="io[\\/]pravega[\\/]common" />
+    <suppress checks="BooleanExpressionComplexity" files="io[\\/]pravega[\\/]common" />
     <suppress checks="JavadocStyle" files=".+Tests\.java" />
     <suppress checks="JavadocMethod" files=".+Tests\.java" />
     <suppress checks="JavadocStyle" files=".+Test\.java" />
     <suppress checks="JavadocMethod" files=".+Test\.java" />
     <suppress checks="RegexpSinglelineJava" files=".+Tests?\.java" />
+    <suppress checks="MissingJavadocMethod" files=".+Tests?\.java" />
     <suppress files="[\\/]generated[\\/]" checks="[a-zA-Z0-9]*"/>
     <suppress files="\.pem" checks="[a-zA-Z0-9]*"/>
     <suppress files="passwd" checks="[a-zA-Z0-9]*"/>
+    <suppress  files=".*[\\/]grpc[\\/].*" checks="[a-zA-Z0-9]*"/>
 </suppressions>
 
