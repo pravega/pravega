@@ -85,6 +85,9 @@ public final class AdminCLIRunner {
         val initialConfigCmd = new ConfigListCommand(new CommandArgs(Collections.emptyList(), state));
         initialConfigCmd.execute();
 
+        // Load configured A
+        ConfigUtils.loadAdminCLIPortProperties(state);
+
         if (args == null || args.length == 0) {
             interactiveMode(state);
         } else {

@@ -16,7 +16,9 @@
 package io.pravega.cli.admin.segmentstore;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.net.InetAddresses;
+import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.utils.ZKHelper;
@@ -47,6 +49,10 @@ public class FlushToStorageCommand extends ContainerCommand {
     private static final int REQUEST_TIMEOUT_SECONDS = 60 * 30;
     private static final String ALL_CONTAINERS = "all";
 
+    private static final String ADMIN_PORT_ENV_SEARCH_PROPERTY = "SERVICE_PORT_CLI";
+
+    private static final Map<Integer, Integer> HOST_INDEX_TO_ADMIN_PORT = ImmutableMap.<Integer, Integer>builder().build();
+
     /**
      * Creates new instance of the FlushToStorageCommand.
      *
@@ -54,6 +60,7 @@ public class FlushToStorageCommand extends ContainerCommand {
      */
     public FlushToStorageCommand(CommandArgs args) {
         super(args);
+        buildHostIndexToAdminPortMapping(args.getState());
     }
 
     @Override
@@ -85,21 +92,35 @@ public class FlushToStorageCommand extends ContainerCommand {
     private CompletableFuture<WireCommands.StorageFlushed> flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId) throws Exception {
         String ssHost = this.getHostByContainer(containerId);
         CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(containerId,
-                new PravegaNodeUri( ssHost, getAdminPortForHost(getServiceConfig().getAdminGatewayPort(), ssHost)), super.authHelper.retrieveMasterToken());
+                new PravegaNodeUri( ssHost, getAdminPortForHost(ssHost)), super.authHelper.retrieveMasterToken());
         return reply.thenApply(result -> {
             output("Flushed the Segment Container with containerId %d to Storage.", containerId);
             return result;
         });
     }
 
-    private int getAdminPortForHost(int configuredAdminPort, String ssHost) {
+    private void buildHostIndexToAdminPortMapping(AdminCommandState state) {
+        output("build hostindex to admin port mapping", new Object[0]);
+        state.getConfigBuilder().build().forEach((k, v) -> {
+            if (k.toString().contains(ADMIN_PORT_ENV_SEARCH_PROPERTY)) {
+                String[] adminPortParts = k.toString().split(ADMIN_PORT_ENV_SEARCH_PROPERTY);
+                String hostIndex = adminPortParts[0].split("_")[adminPortParts.length - 1];
+                output("build port mapping with hostIndex %d for port %d", new Object[] { Integer.valueOf(Integer.parseInt(hostIndex)), Integer.valueOf(Integer.parseInt(v.toString())) });
+                HOST_INDEX_TO_ADMIN_PORT.put(Integer.parseInt(hostIndex), Integer.parseInt(v.toString()));
+            }
+        });
+    }
+
+    private int getAdminPortForHost(String ssHost) {
         if (InetAddresses.isInetAddress(ssHost)) {
-            return configuredAdminPort;
+            output("host is a ip address %s", new Object[] { ssHost });
+            return getServiceConfig().getAdminGatewayPort();
         }
         String[] ssHostParts = ssHost.split("-");
-        String ssHostIndex = ssHostParts[ssHostParts.length-1];
+        String ssHostIndex = ssHostParts[ssHostParts.length - 1];
+        output("SSHost index is %d", new Object[] { ssHostIndex });
         Preconditions.checkState(ssHostParts.length > 1 && !ssHostIndex.isEmpty() && StringUtils.isNumeric(ssHostIndex), "Unexpected host-name retrieved");
-        return  configuredAdminPort + Integer.parseInt(ssHostIndex);
+        return ((Integer) HOST_INDEX_TO_ADMIN_PORT.getOrDefault(Integer.parseInt(ssHostIndex), getServiceConfig().getAdminGatewayPort())).intValue();
     }
 
     public static CommandDescriptor descriptor() {

@@ -30,6 +30,7 @@ public class ConfigUtils {
     private static final String CONFIG_FILE_PROPERTY_NAME = "pravega.configurationFile";
     private static final String PRAVEGA_SERVICE_PROPERTY_NAME = "pravegaservice";
     private static final String CLI_PROPERTY_NAME = "cli";
+    private static final String ADMIN_PORT_ENV_SEARCH_PROPERTY = "SERVICE_PORT_CLI";
     private static final String BOOKKEEPER_PROPERTY_NAME = "bookkeeper";
 
     public static void loadProperties(AdminCommandState state) {
@@ -67,5 +68,17 @@ public class ConfigUtils {
             return envValue;
         }
         return value;
+    }
+
+    public static void loadAdminCLIPortProperties(AdminCommandState state) {
+        Properties cliPortProperties = new Properties();
+        System.getenv().forEach((k, v) -> {
+            if (k.toString().contains(ADMIN_PORT_ENV_SEARCH_PROPERTY)) {
+                cliPortProperties.put(k.toString(), v.toString());
+            }
+        });
+        if ( cliPortProperties.size() > 0 ) {
+            state.getConfigBuilder().include(cliPortProperties);
+        }
     }
 }
