@@ -183,7 +183,7 @@
       <property name="scope" value="public"/>
       <property name="minLineCount" value="2"/>
       <property name="allowMissingPropertyJavadoc" value="true"/>
-      <property name="ignoreMethodNamesRegex" value="^(?:read|get|encode|decode).*"/>
+      <property name="ignoreMethodNamesRegex" value="^(?:read|write|get|encode|decode).*"/>
       <property name="tokens" value="METHOD_DEF"/>
     </module>
     <module name="RegexpSinglelineJava">
