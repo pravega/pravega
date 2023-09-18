@@ -407,7 +407,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         Segment segment2 = Segment.fromScopedName(streamScope + "/" + streamName + "/2.#epoch.1");
         log.info("Segment1 name {} and Segment2 name {}", segment1.getScopedName(), segment2.getScopedName());
 
-        assertTrue(streamCut2 != null);
+        assertNotNull(streamCut2);
         assertTrue(streamCut2.asImpl().getPositions().size() == 2);
         assertTrue(streamCut2.asImpl().getPositions().containsKey(segment1) &&
                 streamCut2.asImpl().getPositions().containsKey(segment2));
