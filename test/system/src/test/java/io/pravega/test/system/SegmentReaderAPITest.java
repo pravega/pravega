@@ -73,13 +73,13 @@ import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertNotNull;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class SegmentReaderAPITest extends AbstractReadWriteTest {
     private static final String DATA_OF_SIZE_30 = "this is a test strings"; // data length = 22 bytes , header = 8 bytes
     private static final long CLOCK_ADVANCE_INTERVAL = 5 * 1000000000L;
-    private final ReaderConfig readerConfig = ReaderConfig.builder().build();
     private final Random random = RandomFactory.create();
 
     private URI controllerURI = null;
@@ -149,8 +149,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         log.info("Initial stream streamCut0 {}", streamCut0);
         assertEquals(1, streamCut0.asImpl().getPositions().size());
 
-        List<SegmentRange> ranges = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
-        List<Segment> list = ranges.stream().map(SegmentRange::getSegment).collect(Collectors.toList());
+        List<Segment> list = streamCut0.asImpl().getPositions().keySet().stream().collect(Collectors.toList());
 
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(),
@@ -266,7 +265,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         log.info("Segment List1 :{}", segmentList1);
 
         Map<Segment, Long> map = segmentList1.stream().collect(Collectors.toMap(SegmentRange::getSegment, value -> value.getEndOffset()));
-        assertNull(nextStreamCut5);
+        assertNotNull(nextStreamCut5);
         assertTrue(nextStreamCut5.asImpl().getPositions().size() == 2);
         assertTrue(nextStreamCut5.asImpl().getPositions().containsKey(segment1) &&
                 nextStreamCut5.asImpl().getPositions().containsKey(segment2));
@@ -331,12 +330,11 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(streamScope, clientConfig);
 
-        List<SegmentRange> ranges = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
-        List<Segment> list = ranges.stream().map(SegmentRange::getSegment).collect(Collectors.toList());
-
         StreamCut streamCut0 = streamManager.fetchStreamInfo(streamScope, streamName).join().getHeadStreamCut();
         log.info("Initial stream streamCut0 {}", streamCut0);
         assertEquals(1, streamCut0.asImpl().getPositions().size());
+
+        List<Segment> list = streamCut0.asImpl().getPositions().keySet().stream().collect(Collectors.toList());
 
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(),
@@ -431,7 +429,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         writeEvents(5, writer);
 
         StreamCut streamCut3 = batchClient.getNextStreamCut(streamCut2, approxDistanceToNextOffset);
-        log.info("Next stream cut4 {}", streamCut3);
+        log.info("Next stream cut3 {}", streamCut3);
 
         Segment segment3 = Segment.fromScopedName(streamScope + "/" + streamName + "/3.#epoch.2");
         log.info("segment3 name :{}", segment3.getScopedName());
@@ -454,7 +452,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         assertEquals(readEvent(reader0, 5), 5);
         reader0.close();
 
-        assertNull(streamCut3);
+        assertNotNull(streamCut3);
         assertTrue(streamCut3.asImpl().getPositions().size() == 1);
         assertTrue(150 <= streamCut3.asImpl().getPositions().get(segment3).longValue());
     }
