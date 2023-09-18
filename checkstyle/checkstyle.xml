@@ -12,7 +12,7 @@
     <property name="header" value="/\*\*\n * Copyright Pravega Authors\."/>
   </module>
   <module name="SuppressionFilter">
-        <property name="file" value="${suppressionsFile}"/>
+    <property name="file" value="${suppressionsFile}"/>
   </module>
   <module name="SuppressWarningsFilter"/>
   <module name="FileTabCharacter"/>
@@ -20,6 +20,9 @@
     <property name="max" value="200"/>
   </module>
   <module name="TreeWalker">
+    <module name="SuppressionXpathFilter">
+      <property name="file" value="${grandfatheredFile}"/>
+    </module>
     <module name="SuppressWarningsHolder"/>
     <module name="SuppressWarnings"/>
     <!-- code cleanup -->

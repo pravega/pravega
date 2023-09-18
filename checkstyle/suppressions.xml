@@ -15,6 +15,6 @@
     <suppress files="[\\/]generated[\\/]" checks="[a-zA-Z0-9]*"/>
     <suppress files="\.pem" checks="[a-zA-Z0-9]*"/>
     <suppress files="passwd" checks="[a-zA-Z0-9]*"/>
-    <suppress  files=".*[\\/]grpc[\\/].*" checks="[a-zA-Z0-9]*"/>
+    <suppress files=".*[\\/]grpc[\\/].*" checks="[a-zA-Z0-9]*"/>
 </suppressions>
 
