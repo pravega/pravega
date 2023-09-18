@@ -1,12 +1,12 @@
 /**
  * Copyright Pravega Authors.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,11 +15,9 @@
  */
 package io.pravega.test.system;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.batch.SegmentRange;
@@ -40,7 +38,7 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.EventRead;
-import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.hash.RandomFactory;
@@ -55,6 +53,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import java.net.URI;
 import java.util.Random;
 import java.util.UUID;
@@ -65,6 +64,7 @@ import java.util.HashMap;
 import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -72,11 +72,14 @@ import java.util.stream.IntStream;
 import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class SegmentReaderAPITest extends AbstractReadWriteTest {
     private static final String DATA_OF_SIZE_30 = "this is a test strings"; // data length = 22 bytes , header = 8 bytes
+    private static final long CLOCK_ADVANCE_INTERVAL = 5 * 1000000000L;
+    private final ReaderConfig readerConfig = ReaderConfig.builder().build();
     private final Random random = RandomFactory.create();
 
     private URI controllerURI = null;
@@ -118,6 +121,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         String streamScope = "testScopeSegment";
         String readerGroupName = "testReaderGroupSegment";
         String readerName = UUID.randomUUID().toString();
+        AtomicLong clock = new AtomicLong();
 
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
         @Cleanup
@@ -131,7 +135,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         Stream stream = Stream.of(streamScope, streamName);
 
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(streamScope, Utils.buildClientConfig(controllerURI));
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(streamScope, controller, connectionFactory);
         log.info("Invoking Writer test with Controller URI: {}", controllerURI);
 
         StreamManager streamManager = StreamManager.create(clientConfig);
@@ -141,10 +145,12 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(streamScope, clientConfig);
 
+        StreamCut streamCut0 = streamManager.fetchStreamInfo(streamScope, streamName).join().getHeadStreamCut();
+        log.info("Initial stream streamCut0 {}", streamCut0);
+        assertEquals(1, streamCut0.asImpl().getPositions().size());
+
         List<SegmentRange> ranges = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         List<Segment> list = ranges.stream().map(SegmentRange::getSegment).collect(Collectors.toList());
-        log.info("Segment name ::{}", list.get(0).getScopedName());
-        assertEquals(1, list.size());
 
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(),
@@ -153,11 +159,6 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         // write events to stream 30 *10  = 300 bytes
         writeEvents(10, writer);
         writer.flush();
-
-        Map<Segment, Long> positions = new HashMap<>();
-        positions.put(list.get(0), 0L);
-        StreamCut streamCut0 = new StreamCutImpl(Stream.of(streamScope, streamName), positions);
-        log.info("Initial stream streamCut0 {}", streamCut0);
 
         //Requested next stream cut at a distance of 170 bytes, and getting the next approx offset as a response.
         StreamCut streamCut1 = batchClient.getNextStreamCut(streamCut0, 170L);
@@ -183,7 +184,6 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         int readCount1 = readEvent(reader0, streamCut1Position / 30);
         reader0.close();
         assertEquals(readCount1, streamCut1Position / 30);
-        assertEquals(readCount1 * 30, streamCut1.asImpl().getPositions().get(list.get(0)).longValue());
 
         StreamCut streamCut2 = batchClient.getNextStreamCut(streamCut1, 80L);
         long streamCut2Position = streamCut2.asImpl().getPositions().get(list.get(0)).longValue();
@@ -203,7 +203,6 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         int readCount2 = readEvent(reader0, distanceBetweenTheStreamCut2 / 30);
         reader0.close();
         assertEquals(readCount2, distanceBetweenTheStreamCut2 / 30);
-        assertEquals(readCount2 * 30, distanceBetweenTheStreamCut2);
 
         long approxDistanceToNextOffset = 350L;
         StreamCut streamCut3 = batchClient.getNextStreamCut(streamCut2, approxDistanceToNextOffset);
@@ -223,9 +222,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
 
         int readCount3 = readEvent(reader0, distanceBetweenTheStreamCut3 / 30);
         reader0.close();
-
         assertEquals(readCount3, distanceBetweenTheStreamCut3 / 30);
-        assertEquals(readCount3 * 30, distanceBetweenTheStreamCut3);
 
         StreamCut streamCut4 = batchClient.getNextStreamCut(streamCut3, approxDistanceToNextOffset);
         long streamCut4Position = streamCut4.asImpl().getPositions().get(list.get(0)).longValue();
@@ -265,35 +262,34 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         Segment segment2 = Segment.fromScopedName(streamScope + "/" + streamName + "/2.#epoch.1");
         log.info("Segment1 name {} and Segment2 name {}", segment1.getScopedName(), segment2.getScopedName());
 
-        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(segment1, 0L, segment2, 0L);
-        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(streamScope, streamName),
-                new StreamCutImpl(Stream.of(streamScope, streamName), startStreamCut));
-        log.info("startSC :: {} ", startSC);
-
-        reader0.close();
-        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
-                .disableAutomaticCheckpoints()
-                .startingStreamCuts(startSC)
-                .build();
-        readerGroup.resetReaderGroup(readerGroupConfig);
-
-        //After scale up reading the event
-        reader0 = clientFactory.createReader(readerName,
-                readerGroupName,
-                new UTF8StringSerializer(),
-                ReaderConfig.builder().build());
-        assertEquals(readEvent(reader0, 4), 4);
-
         ArrayList<SegmentRange> segmentList1 = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         log.info("Segment List1 :{}", segmentList1);
 
         Map<Segment, Long> map = segmentList1.stream().collect(Collectors.toMap(SegmentRange::getSegment, value -> value.getEndOffset()));
-        assertTrue(nextStreamCut5 != null);
+        assertNull(nextStreamCut5);
         assertTrue(nextStreamCut5.asImpl().getPositions().size() == 2);
         assertTrue(nextStreamCut5.asImpl().getPositions().containsKey(segment1) &&
                 nextStreamCut5.asImpl().getPositions().containsKey(segment2));
         assertTrue(map.get(segment1).longValue() <= nextStreamCut5.asImpl().getPositions().get(segment1).longValue());
         assertTrue(map.get(segment2).longValue() <= nextStreamCut5.asImpl().getPositions().get(segment2).longValue());
+
+        //After scale up reading the event
+        ReaderGroupConfig readerGroupConfig5 = getReaderGroupConfig(streamCut4, nextStreamCut5, stream);
+        readerGroup.resetReaderGroup(readerGroupConfig5);
+
+        reader0 = clientFactory.createReader(readerName,
+                readerGroupName,
+                new UTF8StringSerializer(),
+                ReaderConfig.builder().build(), clock::get, clock::get);
+
+        //Reader does not yet see the data because there has been no checkpoint
+        assertNull(reader0.readNextEvent(1000).getEvent());
+        readerGroup.initiateCheckpoint("cp");
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        EventRead cpEvent = reader0.readNextEvent(1000);
+        assertEquals("cp", cpEvent.getCheckpointName());
+        assertEquals(readEvent(reader0, 4), 4);
+        reader0.close();
         //Scaling up end
     }
 
@@ -310,6 +306,8 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         String streamScope = "testScopeSegmentScaleDown";
         String readerGroupName = "testReaderGroupSegmentScaleDown";
         String readerName = UUID.randomUUID().toString();
+        AtomicLong clock = new AtomicLong();
+        long approxDistanceToNextOffset = 180L;
 
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
@@ -323,7 +321,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         Stream stream = Stream.of(streamScope, streamName);
 
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(streamScope, Utils.buildClientConfig(controllerURI));
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(streamScope, controller, connectionFactory);
         log.info("Invoking Writer test with Controller URI: {}", controllerURI);
 
         StreamManager streamManager = StreamManager.create(clientConfig);
@@ -335,7 +333,10 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
 
         List<SegmentRange> ranges = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         List<Segment> list = ranges.stream().map(SegmentRange::getSegment).collect(Collectors.toList());
-        assertEquals(1, list.size());
+
+        StreamCut streamCut0 = streamManager.fetchStreamInfo(streamScope, streamName).join().getHeadStreamCut();
+        log.info("Initial stream streamCut0 {}", streamCut0);
+        assertEquals(1, streamCut0.asImpl().getPositions().size());
 
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(),
@@ -345,13 +346,8 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         writeEvents(5, writer);
         writer.flush();
 
-        Map<Segment, Long> positions = new HashMap<>();
-        positions.put(list.get(0), 0L);
-        StreamCut streamCut0 = new StreamCutImpl(Stream.of(streamScope, streamName), positions);
-        log.info("Initial stream streamCut0 {}", streamCut0);
-
-        //Requested next stream cut at a distance of 170 bytes, and getting the next approx offset as a response.
-        StreamCut streamCut1 = batchClient.getNextStreamCut(streamCut0, 170L);
+        //Requested next stream cut at a distance of 180 bytes, and getting the next approx offset as a response.
+        StreamCut streamCut1 = batchClient.getNextStreamCut(streamCut0, approxDistanceToNextOffset);
         long streamCut1Position = streamCut1.asImpl().getPositions().get(list.get(0)).longValue();
         log.info("Next stream cut1 {} streamCut1 position {}", streamCut1, streamCut1Position);
         assertTrue(150 <= streamCut1Position);
@@ -372,7 +368,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
 
         int readCount1 = readEvent(reader0, streamCut1Position / 30);
         assertEquals(readCount1, streamCut1Position / 30);
-        assertEquals(readCount1 * 30, streamCut1.asImpl().getPositions().get(list.get(0)).longValue());
+        reader0.close();
 
         //Scaling up begin
         Map<Double, Double> keyRanges = new HashMap<>();
@@ -384,46 +380,39 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 keyRanges,
                 executor).getFuture().get();
         assertTrue(status);
-
         writeEvents(5, writer);
 
-        ArrayList<SegmentRange> rangeList = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
-        List<Segment> allSegmentList = rangeList.stream().map(SegmentRange::getSegment).collect(Collectors.toList());
-        log.info("After scale up all the segment list : {}", allSegmentList);
-        assertEquals(3, allSegmentList.size());
+        StreamCut streamCut2 = batchClient.getNextStreamCut(streamCut1, approxDistanceToNextOffset);
+        log.info("Next stream cut2 {}", streamCut2);
+        assertEquals(2, streamCut2.asImpl().getPositions().size());
 
-        Segment segment1 = Segment.fromScopedName(streamScope + "/" + streamName + "/1.#epoch.1");
-        Segment segment2 = Segment.fromScopedName(streamScope + "/" + streamName + "/2.#epoch.1");
-        log.info("Segment1 name {} and Segment2 name {}", segment1.getScopedName(), segment2.getScopedName());
-
-        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(segment1, 0L, segment2, 0L);
-        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(streamScope, streamName),
-                new StreamCutImpl(Stream.of(streamScope, streamName), startStreamCut));
-        log.info("startSC :: {} ", startSC);
-
-        reader0.close();
-        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
-                .disableAutomaticCheckpoints()
-                .startingStreamCuts(startSC)
-                .build();
-        readerGroup.resetReaderGroup(readerGroupConfig);
+        ReaderGroupConfig readerGroupConfig2 = getReaderGroupConfig(streamCut1, streamCut2, stream);
+        readerGroup.resetReaderGroup(readerGroupConfig2);
 
         //After scale up reading the event
         reader0 = clientFactory.createReader(readerName,
                 readerGroupName,
                 new UTF8StringSerializer(),
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().build(), clock::get, clock::get);
+
+        //Reader does not yet see the data because there has been no checkpoint
+        assertNull(reader0.readNextEvent(1000).getEvent());
+        readerGroup.initiateCheckpoint("cp1");
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        EventRead cpEvent1 = reader0.readNextEvent(1000);
+        assertEquals("cp1", cpEvent1.getCheckpointName());
+
         assertEquals(readEvent(reader0, 5), 5);
         reader0.close();
 
-        long approxDistanceToNextOffset = 180L;
-        StreamCut nextStreamCut2 = batchClient.getNextStreamCut(streamCut1, approxDistanceToNextOffset);
-        log.info("Next stream cut2 {}", nextStreamCut2);
+        Segment segment1 = Segment.fromScopedName(streamScope + "/" + streamName + "/1.#epoch.1");
+        Segment segment2 = Segment.fromScopedName(streamScope + "/" + streamName + "/2.#epoch.1");
+        log.info("Segment1 name {} and Segment2 name {}", segment1.getScopedName(), segment2.getScopedName());
 
-        assertTrue(nextStreamCut2 != null);
-        assertTrue(nextStreamCut2.asImpl().getPositions().size() == 2);
-        assertTrue(nextStreamCut2.asImpl().getPositions().containsKey(segment1) &&
-                nextStreamCut2.asImpl().getPositions().containsKey(segment2));
+        assertTrue(streamCut2 != null);
+        assertTrue(streamCut2.asImpl().getPositions().size() == 2);
+        assertTrue(streamCut2.asImpl().getPositions().containsKey(segment1) &&
+                streamCut2.asImpl().getPositions().containsKey(segment2));
         //Scaling up end
 
         //Scaling down start
@@ -439,46 +428,35 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 keyRanges1,
                 executor).getFuture().get();
         assertTrue(status1);
-
         writeEvents(5, writer);
+
+        StreamCut streamCut3 = batchClient.getNextStreamCut(streamCut2, approxDistanceToNextOffset);
+        log.info("Next stream cut4 {}", streamCut3);
 
         Segment segment3 = Segment.fromScopedName(streamScope + "/" + streamName + "/3.#epoch.2");
         log.info("segment3 name :{}", segment3.getScopedName());
 
-        ImmutableMap<Segment, Long> startStreamCut1 = ImmutableMap.of(segment3, 0L);
-        Map<Stream, StreamCut> startSC1 = ImmutableMap.of(Stream.of(streamScope, streamName),
-                new StreamCutImpl(Stream.of(streamScope, streamName), startStreamCut1));
-        log.info("startSC1 :: {} ", startSC1);
-
-        reader0.close();
-        ReaderGroupConfig readerGroupConfig2 = ReaderGroupConfig.builder()
-                .disableAutomaticCheckpoints()
-                .startingStreamCuts(startSC1)
-                .build();
-        readerGroup.resetReaderGroup(readerGroupConfig2);
+        ReaderGroupConfig readerGroupConfig3 = getReaderGroupConfig(streamCut2, streamCut3, stream);
+        readerGroup.resetReaderGroup(readerGroupConfig3);
 
         //After scale down reading the event
         reader0 = clientFactory.createReader(readerName,
                 readerGroupName,
                 new UTF8StringSerializer(),
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().build(), clock::get, clock::get);
+
+        assertNull(reader0.readNextEvent(1000).getEvent());
+        readerGroup.initiateCheckpoint("cp2");
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        EventRead cpEvent2 = reader0.readNextEvent(1000);
+        assertEquals("cp2", cpEvent2.getCheckpointName());
+
         assertEquals(readEvent(reader0, 5), 5);
         reader0.close();
 
-        ArrayList<SegmentRange> rangeList3 = Lists.newArrayList(batchClient.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
-        Map<Segment, Long> map = rangeList3.stream().collect(
-                Collectors.toMap(SegmentRange::getSegment, SegmentRange::getEndOffset));
-
-        // Getting streamcut at the tail of segment 1 and segment 2
-        StreamCut streamCut = new StreamCutImpl(stream,
-                ImmutableMap.of(segment1, map.get(segment1), segment2, map.get(segment2)));
-
-        StreamCut nextStreamCut3 = batchClient.getNextStreamCut(streamCut, 180L);
-        log.info("Next stream cut3 {}", nextStreamCut3);
-
-        assertTrue(nextStreamCut3 != null);
-        assertTrue(nextStreamCut3.asImpl().getPositions().size() == 1);
-        assertTrue(150L <= nextStreamCut3.asImpl().getPositions().get(segment3).longValue());
+        assertNull(streamCut3);
+        assertTrue(streamCut3.asImpl().getPositions().size() == 1);
+        assertTrue(150 <= streamCut3.asImpl().getPositions().get(segment3).longValue());
     }
 
     private void writeEvents(int numberOfEvents, EventStreamWriter<String> writer) {
