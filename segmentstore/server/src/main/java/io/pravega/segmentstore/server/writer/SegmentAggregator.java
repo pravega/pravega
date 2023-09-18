@@ -961,7 +961,8 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
 
                     if (transProperties.getLength() != mergeOp.getLength()) {
                         throw new CompletionException(new DataCorruptionException(String.format(
-                                "Transaction Segment '%s' cannot be merged into parent '%s' because the declared length in the operation disagrees with the Storage. Operation.Length=%d, Storage.StorageLength=%d",
+                                "Transaction Segment '%s' cannot be merged into parent '%s' because the declared length in the operation disagrees with the Storage. "
+                              + "Operation.Length=%d, Storage.StorageLength=%d",
                                 transactionMetadata.getName(),
                                 this.metadata.getName(),
                                 mergeOp.getLength(),
@@ -1393,7 +1394,8 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         return Futures
                 .loop(
                         () -> reconciledBytes.get() < readLength,
-                        () -> this.storage.read(this.handle.get(), op.getStreamSegmentOffset() + reconciledBytes.get(), storageData, reconciledBytes.get(), (int) readLength - reconciledBytes.get(), timer.getRemaining()),
+                        () -> this.storage.read(this.handle.get(), op.getStreamSegmentOffset() + reconciledBytes.get(), storageData,
+                                                reconciledBytes.get(), (int) readLength - reconciledBytes.get(), timer.getRemaining()),
                         bytesRead -> {
                             assert bytesRead > 0 : String.format("Unable to make any read progress when reconciling operation '%s' after reading %s bytes.", op, reconciledBytes);
                             reconciledBytes.addAndGet(bytesRead);
@@ -1793,7 +1795,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         @Override
         public String toString() {
-            return String.format("AggregatedAppend: SegmentId = %s, Offsets = [%s-%s), SeqNo = %s", getStreamSegmentId(), getStreamSegmentOffset(), getStreamSegmentOffset() + getLength(), getSequenceNumber());
+            return String.format(
+                "AggregatedAppend: SegmentId = %s, Offsets = [%s-%s), SeqNo = %s", getStreamSegmentId(),
+                getStreamSegmentOffset(), getStreamSegmentOffset() + getLength(), getSequenceNumber());
         }
 
         //endregion

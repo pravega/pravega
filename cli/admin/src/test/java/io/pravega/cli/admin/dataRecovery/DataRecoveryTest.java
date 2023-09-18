@@ -596,7 +596,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .doReturn(true).doReturn(true).doReturn(false).doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doReturn(1L).doReturn(1L).doReturn(2L).doReturn(1L).doReturn(2L).doReturn(123L)
-                .doReturn(2L).doReturn(2L).doReturn(3L).doReturn(1L).doReturn(10L).doReturn(timestamp)
+                .doReturn(2L).doReturn(2L).doReturn(2L).doReturn(3L).doReturn(1L).doReturn(10L).doReturn(timestamp)
                 .doReturn(3L).doReturn(3L)
                 .doReturn(4L).doReturn(4L).doReturn(3L).doReturn(1L).doReturn(2L)
                 .when(command).getLongUserInput(Mockito.any());
@@ -890,13 +890,15 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Assert.assertEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)),
                 new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
         // Equality of payload operations are checked by type and sequence number, which are the common attributes of Operation class.
-        DurableDataLogRepairCommand.LogEditOperation deleteOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(2));
+        DurableDataLogRepairCommand.LogEditOperation deleteOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                                                                                                 1, 2, new DeleteSegmentOperation(2));
         Assert.assertEquals(deleteOp, new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
         deleteOp.getNewOperation().resetSequenceNumber(123);
         Assert.assertNotEquals(deleteOp, new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
 
         // Test the cases for the same object reference and for null comparison.
-        DurableDataLogRepairCommand.LogEditOperation sameOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1));
+        DurableDataLogRepairCommand.LogEditOperation sameOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                                                                                               1, 2, new DeleteSegmentOperation(1));
         Assert.assertEquals(sameOp, sameOp);
         Assert.assertNotEquals(sameOp, null);
 
@@ -1241,14 +1243,14 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
-        Map<Long, Long> origOperationsCountMap = getOperationsCountMapByAttributes(originalOperations);
+        Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
         Mockito.doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doReturn(1L).when(command).getLongUserInput(Mockito.any());
-        Mockito.doReturn("Attributes").doReturn("value").doReturn("no")
+        Mockito.doReturn("SequenceNumber").doReturn("value").doReturn("no")
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
-        Map<Long, Long> savedOpCountMap = getOperationsCountMapByAttributes(getSavedResult(testDataFile.getAbsolutePath()));
+        Map<Long, Long> savedOpCountMap = getOperationsCountMapBySequenceNumber(getSavedResult(testDataFile.getAbsolutePath()));
         Assert.assertEquals(origOperationsCountMap.get(1L), savedOpCountMap.get(1L));
 
         this.factory.close();
@@ -1318,8 +1320,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .doReturn(true).doReturn(false).doReturn(false)
                 .doReturn(true).doReturn(false).doReturn(false)
                 .when(command).confirmContinue();
-        Mockito.doReturn(1L).doReturn(1000L)
-                .doReturn(1L).doReturn(1000L)
+        Mockito.doReturn(1L).doReturn(2000L)
+                .doReturn(1L).doReturn(2000L)
                 .doReturn(1L).doReturn(10000L)
                 .when(command).getLongUserInput(Mockito.any());
         Mockito.doReturn("SequenceNumber").doReturn("range").doReturn(">").doReturn("and")
@@ -1720,7 +1722,10 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         }
         // Command under test
         TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + " all", STATE.get());
-        AssertExtensions.assertThrows("Container out of range ", () -> TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + "81", STATE.get()), ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows(
+            "Container out of range ",
+            () -> TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + "81", STATE.get()),
+            ex -> ex instanceof IllegalArgumentException);
         Assert.assertNotNull(RecoverFromStorageCommand.descriptor());
     }
 

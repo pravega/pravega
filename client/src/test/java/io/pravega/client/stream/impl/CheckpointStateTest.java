@@ -96,6 +96,23 @@ public class CheckpointStateTest {
     }
 
     @Test
+    public void testRemoveOutstandingCheckpointsCleared() {
+        CheckpointState state = new CheckpointState();
+        state.beginNewCheckpoint("1", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        state.beginNewCheckpoint("2", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        state.beginNewCheckpoint("3", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        assertEquals("1", state.getCheckpointForReader("a"));
+        assertEquals("1", state.getCheckpointForReader("b"));
+        assertEquals(null, state.getCheckpointForReader("c"));
+        state.readerCheckpointed("1", "a", Collections.emptyMap());
+        assertEquals("2", state.getCheckpointForReader("a"));
+        assertEquals("1", state.getCheckpointForReader("b"));
+        assertEquals(3, state.getOutstandingCheckpoints().size());
+        state.removeOutstandingCheckpoints();
+        assertEquals(0, state.getOutstandingCheckpoints().size());
+    }
+
+    @Test
     public void testOutstandingCheckpoint() {
         CheckpointState state = new CheckpointState();
         state.beginNewCheckpoint("1", ImmutableSet.of("a"), Collections.emptyMap());

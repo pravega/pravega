@@ -61,10 +61,11 @@ import io.pravega.cli.admin.readerGroup.ParseReaderGroupStreamCommand;
 import io.pravega.cli.admin.segmentstore.CreateSegmentCommand;
 import io.pravega.cli.admin.segmentstore.DeleteSegmentCommand;
 import io.pravega.cli.admin.segmentstore.FlushToStorageCommand;
+import io.pravega.cli.admin.segmentstore.GetContainerIdOfSegmentCommand;
+import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
-import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.storage.ListChunksCommand;
 import io.pravega.cli.admin.segmentstore.storage.StorageUpdateSnapshotCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentEntryCommand;
@@ -72,6 +73,7 @@ import io.pravega.cli.admin.segmentstore.tableSegment.GetTableSegmentInfoCommand
 import io.pravega.cli.admin.segmentstore.tableSegment.ListTableSegmentKeysCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.ModifyTableSegmentEntry;
 import io.pravega.cli.admin.segmentstore.tableSegment.PutTableSegmentEntryCommand;
+import io.pravega.cli.admin.segmentstore.tableSegment.RemoveTableSegmentKeyCommand;
 import io.pravega.cli.admin.segmentstore.tableSegment.SetSerializerCommand;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.utils.CLIConfig;
@@ -404,6 +406,8 @@ public abstract class AdminCommand {
                         .put(GetSegmentAttributeCommand::descriptor, GetSegmentAttributeCommand::new)
                         .put(UpdateSegmentAttributeCommand::descriptor, UpdateSegmentAttributeCommand::new)
                         .put(FlushToStorageCommand::descriptor, FlushToStorageCommand::new)
+                        .put(GetContainerIdOfSegmentCommand::descriptor, GetContainerIdOfSegmentCommand::new)
+                        .put(RemoveTableSegmentKeyCommand::descriptor, RemoveTableSegmentKeyCommand::new)
                         .put(GetTableSegmentInfoCommand::descriptor, GetTableSegmentInfoCommand::new)
                         .put(GetTableSegmentEntryCommand::descriptor, GetTableSegmentEntryCommand::new)
                         .put(PutTableSegmentEntryCommand::descriptor, PutTableSegmentEntryCommand::new)
