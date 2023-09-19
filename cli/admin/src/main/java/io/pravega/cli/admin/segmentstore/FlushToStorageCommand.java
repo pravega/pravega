@@ -16,7 +16,6 @@
 package io.pravega.cli.admin.segmentstore;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.net.InetAddresses;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
@@ -51,7 +50,7 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private static final String ADMIN_PORT_ENV_SEARCH_PROPERTY = "SERVICE_PORT_CLI";
 
-    private static final Map<Integer, Integer> HOST_INDEX_TO_ADMIN_PORT = ImmutableMap.<Integer, Integer>builder().build();
+    private static final Map<Integer, Integer> HOST_INDEX_TO_ADMIN_PORT = new HashMap<>();
 
     /**
      * Creates new instance of the FlushToStorageCommand.
