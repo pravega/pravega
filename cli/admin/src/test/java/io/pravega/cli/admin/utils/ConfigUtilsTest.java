@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.utils;
 
 import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SerializedClassRunner;
 import lombok.Cleanup;
 import org.junit.Test;
@@ -43,6 +44,12 @@ public class ConfigUtilsTest {
         System.setProperty("pravega.configurationFile", "dummy");
         System.setProperty("pravegaservice", "pravegaservice");
         ConfigUtils.loadProperties(commandState);
+    }
+
+    @Test
+    public void testGetIfEnvWithInvalidEnvVariable() {
+        AssertExtensions.assertThrows("It is not a valid environment variable.", () -> ConfigUtils.getIfEnv("$test"),
+                ex -> ex instanceof IllegalArgumentException);
     }
 
 }
