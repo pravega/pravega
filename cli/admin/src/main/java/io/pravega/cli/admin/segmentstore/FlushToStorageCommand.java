@@ -91,7 +91,7 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private CompletableFuture<WireCommands.StorageFlushed> flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId) throws Exception {
         String ssHost = this.getHostByContainer(containerId);
-        PravegaNodeUri pravegaNodeUri = new PravegaNodeUri(ssHost, getAdminPortForHost(ssHost);
+        PravegaNodeUri pravegaNodeUri = new PravegaNodeUri(ssHost, getAdminPortForHost(ssHost));
                 output("Inside method flushContainerToStorage " + pravegaNodeUri.toString());
         CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(containerId,
                 pravegaNodeUri, super.authHelper.retrieveMasterToken());
