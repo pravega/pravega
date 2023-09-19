@@ -25,7 +25,7 @@ public class AdminCLIRunnerTests {
 
     @Test
     public void testWrongExecCommandInputs() throws IOException {
-        val commands = Arrays.asList("", "fakecommand", "scope fakeoption", "help", "controller describe-scope 1 2 3");
+        val commands = Arrays.asList("", "fakecommand", "scope fakeoption", "help", "exit", "controller describe-scope 1 2 3");
         for (val cmd : commands) {
             @Cleanup
             val state = new AdminCommandState();
@@ -43,6 +43,20 @@ public class AdminCLIRunnerTests {
     public void testCommandDetails() {
         AdminCLIRunner.printCommandDetails(Parser.parse("controller describe-scope"));
         AdminCLIRunner.printCommandDetails(Parser.parse("wrong command"));
+    }
+
+    @Test
+    public void testExecCommandWithException() throws IOException {
+        @Cleanup
+        val state = new AdminCommandState();
+        AdminCLIRunner.processCommand("container flush-to-storage all", state);
+    }
+
+    @Test
+    public void testExecCommandWithInvalidOption() throws IOException {
+        @Cleanup
+        val state = new AdminCommandState();
+        AdminCLIRunner.processCommand("container flush-to-storage aa", state);
     }
 
 }
