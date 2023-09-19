@@ -59,4 +59,10 @@ public class AdminCLIRunnerTests {
         AdminCLIRunner.processCommand("container flush-to-storage aa", state);
     }
 
+    @Test
+    public void testMain() throws Exception {
+        System.setProperty("pravega.configurationFile", "../../config/admin-cli.properties");
+        AdminCLIRunner.main(new String[]{"scope", "wrongCommand"});
+    }
+
 }
