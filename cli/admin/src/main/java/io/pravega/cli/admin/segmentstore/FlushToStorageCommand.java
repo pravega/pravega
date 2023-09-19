@@ -105,10 +105,11 @@ public class FlushToStorageCommand extends ContainerCommand {
     private void buildHostIndexToAdminPortMapping(AdminCommandState state) {
         output("Inside method buildHostIndexToAdminPortMapping ");
         state.getConfigBuilder().build().forEach((k, v) -> {
-            output("Value of key " + k.toString());
+            output("Value of key " + k.toString() + " value " + v.toString());
             if (k.toString().contains(ADMIN_PORT_ENV_SEARCH_PROPERTY)) {
                 String[] adminPortParts = k.toString().split(ADMIN_PORT_ENV_SEARCH_PROPERTY);
-                String hostIndex = adminPortParts[0].split("_")[adminPortParts.length - 1];
+                String[] prefix = adminPortParts[0].split("_");
+                String hostIndex = prefix[prefix.length - 1];
                 HOST_INDEX_TO_ADMIN_PORT.put(Integer.parseInt(hostIndex), Integer.parseInt(v.toString()));
             }
         });
