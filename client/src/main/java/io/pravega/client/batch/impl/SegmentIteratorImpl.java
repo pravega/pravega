@@ -17,10 +17,14 @@ package io.pravega.client.batch.impl;
 
 import com.google.common.annotations.Beta;
 import io.pravega.client.batch.SegmentIterator;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
@@ -29,7 +33,10 @@ import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeoutException;
 
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
+import io.pravega.shared.security.auth.AccessOperation;
+import lombok.Cleanup;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,14 +50,19 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
     private final long startingOffset;
     private final long endingOffset;
     private final EventSegmentReader input;
+    private final long timeoutInMilli = 2000L;
+    private final Controller controller;
+    private final SegmentMetadataClientFactory segmentMetadataClientFactory;
     private final Retry.RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 9, 30000);
 
-    public SegmentIteratorImpl(SegmentInputStreamFactory factory, Segment segment,
-            Serializer<T> deserializer, long startingOffset, long endingOffset) {
+    public SegmentIteratorImpl(SegmentInputStreamFactory factory, SegmentMetadataClientFactory segmentMetadataClientFactory, Controller controller, Segment segment,
+                               Serializer<T> deserializer, long startingOffset, long endingOffset) {
         this.segment = segment;
         this.deserializer = deserializer;
         this.startingOffset = startingOffset;
         this.endingOffset = endingOffset;
+        this.segmentMetadataClientFactory = segmentMetadataClientFactory;
+        this.controller = controller;
         input = factory.createEventReaderForSegment(segment, startingOffset, endingOffset);
     }
 
@@ -78,11 +90,25 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
                                        }
                                        return buffer;
                                    } catch (NoSuchSegmentException | SegmentTruncatedException e) {
+                                       handleSegmentTruncated(segment);
                                        throw new TruncatedDataException("Segment " + segment + " has been truncated.");
                                    }
                                });
 
         return deserializer.deserialize(read);
+    }
+
+    private void handleSegmentTruncated(Segment segmentId)  {
+        log.info("{} encountered truncation for segment while read{} ", this, segmentId);
+        @Cleanup
+        SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segmentId,
+                DelegationTokenProviderFactory.create(controller, segmentId, AccessOperation.READ));
+        try {
+            long startingOffset = Futures.getThrowingExceptionWithTimeout(metadataClient.getSegmentInfo(), timeoutInMilli).getStartingOffset();
+            input.setOffset(startingOffset);
+        } catch (TimeoutException te) {
+            log.warn("A timeout has occurred while attempting to retrieve segment information from the server");
+        }
     }
 
     @Override
