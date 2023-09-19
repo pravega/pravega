@@ -112,7 +112,10 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         val store = getStreamSegmentStore();
         this.autoScaleMonitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
         this.listener = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store,
-                getTableStore(), autoScaleMonitor.getStatsRecorder(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, false, NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+                                                      getTableStore(), autoScaleMonitor.getStatsRecorder(),
+                                                      TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
+                                                      null, null, false, NoOpScheduledExecutor.get(),
+                                                      SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
         this.listener.startListening();
 
         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);

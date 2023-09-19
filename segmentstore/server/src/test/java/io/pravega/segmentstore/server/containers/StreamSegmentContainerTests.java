@@ -604,7 +604,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 .collect(Collectors.toMap(StreamSegmentContainerTests::getSegmentName, i -> i % 2 == 0 ? variableAttributeIdLength : 0));
         ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
         for (val sn : segmentNames.entrySet()) {
-            opFutures.add(localContainer.createStreamSegment(sn.getKey(), SegmentType.STREAM_SEGMENT, AttributeUpdateCollection.from(new AttributeUpdate(Attributes.ATTRIBUTE_ID_LENGTH, AttributeUpdateType.None, sn.getValue())), TIMEOUT));
+            opFutures.add(localContainer.createStreamSegment(
+                sn.getKey(), SegmentType.STREAM_SEGMENT,
+                AttributeUpdateCollection.from(new AttributeUpdate(Attributes.ATTRIBUTE_ID_LENGTH, AttributeUpdateType.None, sn.getValue())),
+                TIMEOUT));
         }
         Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Predicate<Map.Entry<String, Integer>> isUUIDOnly = e -> e.getValue() == 0;
@@ -1146,14 +1149,21 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             while (readResult.hasNext()) {
                 ReadResultEntry readEntry = readResult.next();
                 if (readEntry.getStreamSegmentOffset() >= segmentLength) {
-                    Assert.assertEquals("Unexpected value for isEndOfStreamSegment when reaching the end of sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
+                    Assert.assertEquals(
+                        "Unexpected value for isEndOfStreamSegment when reaching the end of sealed segment "
+                                + segmentName,
+                        ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
                     AssertExtensions.assertSuppliedFutureThrows(
                             "ReadResultEntry.getContent() returned a result when reached the end of sealed segment " + segmentName,
                             readEntry::getContent,
                             ex -> ex instanceof IllegalStateException);
                 } else {
-                    Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment before reaching end of sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
-                    Assert.assertTrue("getContent() did not return a completed future for segment" + segmentName, readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
+                    Assert.assertNotEquals(
+                        "Unexpected value for isEndOfStreamSegment before reaching end of sealed segment " + segmentName,
+                        ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
+                    Assert.assertTrue(
+                        "getContent() did not return a completed future for segment" + segmentName,
+                        readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
                     BufferView readEntryContents = readEntry.getContent().join();
                     expectedCurrentOffset += readEntryContents.getLength();
                     readLength += readEntryContents.getLength();
@@ -2733,7 +2743,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
                 BufferView readEntryContents = readEntry.getContent().join();
                 byte[] actualData = readEntryContents.getCopy();
-                AssertExtensions.assertArrayEquals("Unexpected data read from segment " + segmentName + " at offset " + expectedCurrentOffset, expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
+                AssertExtensions.assertArrayEquals(
+                    "Unexpected data read from segment " + segmentName + " at offset " + expectedCurrentOffset,
+                    expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
                 expectedCurrentOffset += readEntryContents.getLength();
             }
 
@@ -2816,7 +2828,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         AssertExtensions.assertEventuallyEquals(0, () -> (int) appends.stream().mapToInt(RefCountByteArraySegment::getRefCount).sum(), 1000);
     }
 
-    private void appendToParentsAndTransactions(Collection<String> segmentNames, HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
+    private void appendToParentsAndTransactions(Collection<String> segmentNames,
+                                                HashMap<String, ArrayList<String>> transactionsBySegment,
+                                                HashMap<String, Long> lengths,
+                                                HashMap<String, ByteArrayOutputStream> segmentContents,
+                                                TestContext context) throws Exception {
         ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (String segmentName : segmentNames) {

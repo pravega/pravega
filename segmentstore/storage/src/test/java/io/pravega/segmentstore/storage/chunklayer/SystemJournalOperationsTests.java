@@ -672,7 +672,9 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         return chunkId;
     }
 
-    void testWithFlakyChunkStorage(ChunkedSegmentStorageConfig config, TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod1, String interceptMethod2, int[] primes) throws Exception {
+    void testWithFlakyChunkStorage(ChunkedSegmentStorageConfig config, TestMethod test,
+                                   TestScenarioProvider scenarioProvider, String interceptMethod1,
+                                   String interceptMethod2, int[] primes) throws Exception {
         for (val prime1 : primes) {
             for (val prime2 : primes) {
                 FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(new InMemoryChunkStorage(executorService()), executorService());

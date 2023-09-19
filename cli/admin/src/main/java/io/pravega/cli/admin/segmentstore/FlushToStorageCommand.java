@@ -91,9 +91,12 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "flush-to-storage", "Persist the given Segment Container into Storage.",
-                new ArgDescriptor("start-container-id", "The start container Id of the Segment Container that needs to be persisted, " +
-                        "if given as \"all\" all the containers will be persisted. If given as container id without "), new ArgDescriptor("end-container-id", "The end container Id of the Segment Container that needs to be persisted, " +
-                "This is an optional parameter. If not given then only start container id will be flushed"));
+                                     new ArgDescriptor("start-container-id",
+                                                       "The start container Id of the Segment Container that needs to be persisted, "
+                                                     + "if given as \"all\" all the containers will be persisted. If given as container id without "),
+                                     new ArgDescriptor("end-container-id",
+                                                       "The end container Id of the Segment Container that needs to be persisted, "
+                                                     + "This is an optional parameter. If not given then only start container id will be flushed"));
     }
 
     private String getHostByContainer(int containerId) {

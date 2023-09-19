@@ -870,7 +870,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      * @param maxLength                     Max length for the segment policy.
      * @throws Exception Throws exception in case of any error.
      */
-    private void testBootstrapWithTruncate(String initialGarbageThatIsTruncated, String garbageAfterFailure, String validWriteBeforeFailure, String validWriteAfterFailure, int maxLength) throws Exception {
+    private void testBootstrapWithTruncate(String initialGarbageThatIsTruncated, String garbageAfterFailure,
+                                           String validWriteBeforeFailure, String validWriteAfterFailure,
+                                           int maxLength) throws Exception {
         @Cleanup
         CleanupHelper cleanupHelper = new CleanupHelper();
         @Cleanup

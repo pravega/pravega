@@ -286,7 +286,8 @@ public class ReaderGroupImplTest {
 
         verify(synchronizer, times(1)).fetchUpdates();
         verify(controller, times(1)).updateReaderGroup(eq(SCOPE), eq(GROUP_NAME), argThat(new ReaderGroupConfigMatcher(config1)));
-        verify(controller, times(1)).updateReaderGroup(eq(SCOPE), eq(GROUP_NAME), argThat(new ReaderGroupConfigMatcher(ReaderGroupConfig.cloneConfig(config1, config1.getReaderGroupId(), config2.getGeneration()))));
+        verify(controller, times(1)).updateReaderGroup(eq(SCOPE), eq(GROUP_NAME), 
+            argThat(new ReaderGroupConfigMatcher(ReaderGroupConfig.cloneConfig(config1, config1.getReaderGroupId(), config2.getGeneration()))));
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
         verify(synchronizer, times(4)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }

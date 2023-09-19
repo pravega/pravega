@@ -105,7 +105,9 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
 
     private CompletableFuture<Void> removeTagsFromIndex(OperationContext context, String scope, String stream, long requestId) {
         return Futures.exceptionallyExpecting(streamMetadataStore.getConfiguration(scope, stream, context, executor)
-                                                                 .thenCompose(cfg -> streamMetadataStore.removeTagsFromIndex(scope, stream, cfg.getTags(), context, executor)), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null);
+                                                                 .thenCompose(cfg -> {
+                                                                    return streamMetadataStore.removeTagsFromIndex(scope, stream, cfg.getTags(), context, executor);
+                                                                }), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null);
     }
 
     private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream, long requestId) {

@@ -41,7 +41,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
@@ -60,10 +59,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
 import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -72,6 +70,10 @@ import org.junit.runner.RunWith;
 
 import static io.pravega.shared.MetricsTags.readerGroupTags;
 import static io.pravega.shared.MetricsTags.streamTags;
+import static io.pravega.shared.metrics.MetricRegistryUtils.getCounter;
+import static io.pravega.shared.metrics.MetricRegistryUtils.getGauge;
+import static io.pravega.shared.metrics.MetricRegistryUtils.getTimer;
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -182,8 +184,8 @@ public class StreamMetricsTest {
                 .build();
         rgConfig = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 0L);
         // Here, the system scope and streams are already created.
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
-        assertEquals(4, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
+        assertEquals(1, (long) getCounter(MetricsNames.CREATE_SCOPE).count());
+        assertEquals(4, (long) getCounter(MetricsNames.CREATE_STREAM).count());
 
         controllerWrapper.getControllerService().createScope(scopeName, 0L).get();
         if (!controller.createStream(scopeName, streamName, config).get()) {
@@ -191,33 +193,33 @@ public class StreamMetricsTest {
             return;
         }
         // Check that the new scope and stream are accounted in metrics.
-        assertEquals(2, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
-        assertEquals(5, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
+        assertEquals(2, (long) getCounter(MetricsNames.CREATE_SCOPE).count());
+        assertEquals(5, (long) getCounter(MetricsNames.CREATE_STREAM).count());
 
         // Update the Stream.
         controllerWrapper.getControllerService().updateStream(scopeName, streamName,
                 StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build(), 0L).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
+        assertEquals(1, (long) getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
         assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_UPDATE_STREAM_LATENCY) > 0);
 
         final String subscriber = "subscriber1";
         CreateReaderGroupResponse createRGStatus = controllerWrapper.getControllerService().createReaderGroup(
                 scopeName, subscriber, rgConfig, System.currentTimeMillis(), 0L).get();
         assertEquals(CreateReaderGroupResponse.Status.SUCCESS, createRGStatus.getStatus());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.CREATE_READER_GROUP)).count());
+        assertEquals(1, (long) getCounter(MetricsNames.globalMetricName(MetricsNames.CREATE_READER_GROUP)).count());
 
         final String subscriberScopedName = NameUtils.getScopedReaderGroupName(scopeName, subscriber);
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
         controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, subscriberScopedName,
                 rgConfig.getReaderGroupId().toString(), 0L, streamCut1, 0L).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_SUBSCRIBER)).count());
+        assertEquals(1, (long) getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_SUBSCRIBER)).count());
 
         controllerWrapper.getControllerService().updateReaderGroup(scopeName, subscriber, rgConfig, 0L).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_READER_GROUP)).count());
+        assertEquals(1, (long) getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_READER_GROUP)).count());
 
         controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber,
                 rgConfig.getReaderGroupId().toString(), 0L).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.DELETE_READER_GROUP)).count());
+        assertEquals(1, (long) getCounter(MetricsNames.globalMetricName(MetricsNames.DELETE_READER_GROUP)).count());
 
         // Truncate stream
         controllerWrapper.getControllerService().truncateStream(scopeName, streamName, streamCut1, 0L).get();
@@ -225,14 +227,14 @@ public class StreamMetricsTest {
 
         // Seal the Stream.
         controllerWrapper.getControllerService().sealStream(scopeName, streamName, 0L).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
+        assertEquals(1, (long) getCounter(MetricsNames.SEAL_STREAM).count());
         assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_SEAL_STREAM_LATENCY) > 0);
 
         // Delete the Stream and Scope and check for the respective metrics.
         controllerWrapper.getControllerService().deleteStream(scopeName, streamName, 0L).get();
         controllerWrapper.getControllerService().deleteScope(scopeName, 0L).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
+        assertEquals(1, (long) getCounter(MetricsNames.DELETE_STREAM).count());
+        assertEquals(1, (long) getCounter(MetricsNames.DELETE_SCOPE).count());
 
         assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_DELETE_STREAM_LATENCY) > 0);
 
@@ -254,21 +256,21 @@ public class StreamMetricsTest {
         StreamMetrics.getInstance().deleteReaderGroupFailed(failedRG, failedRG);
         StreamMetrics.getInstance().updateReaderGroupFailed(failedRG, failedRG);
         StreamMetrics.getInstance().updateTruncationSCFailed(failedRG, failedRG);
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED, failedScopeTags).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED, failedScopeTags).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED, failedScopeStreamTags).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM_FAILED, failedScopeStreamTags).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_STREAM_FAILED, failedScopeStreamTags).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.TRUNCATE_STREAM_FAILED, failedScopeStreamTags).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM_FAILED, failedScopeStreamTags).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_READER_GROUP_FAILED, failedRGTags).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP_FAILED, failedRGTags).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP_FAILED, failedRGTags).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER_FAILED, streamTags(failedRG, failedRG)).count());
+        assertEquals(1, (long) getCounter(MetricsNames.CREATE_SCOPE_FAILED, failedScopeTags).count());
+        assertEquals(1, (long) getCounter(MetricsNames.DELETE_SCOPE_FAILED, failedScopeTags).count());
+        assertEquals(1, (long) getCounter(MetricsNames.CREATE_STREAM_FAILED, failedScopeStreamTags).count());
+        assertEquals(1, (long) getCounter(MetricsNames.DELETE_STREAM_FAILED, failedScopeStreamTags).count());
+        assertEquals(1, (long) getCounter(MetricsNames.UPDATE_STREAM_FAILED, failedScopeStreamTags).count());
+        assertEquals(1, (long) getCounter(MetricsNames.TRUNCATE_STREAM_FAILED, failedScopeStreamTags).count());
+        assertEquals(1, (long) getCounter(MetricsNames.SEAL_STREAM_FAILED, failedScopeStreamTags).count());
+        assertEquals(1, (long) getCounter(MetricsNames.CREATE_READER_GROUP_FAILED, failedRGTags).count());
+        assertEquals(1, (long) getCounter(MetricsNames.DELETE_READER_GROUP_FAILED, failedRGTags).count());
+        assertEquals(1, (long) getCounter(MetricsNames.UPDATE_READER_GROUP_FAILED, failedRGTags).count());
+        assertEquals(1, (long) getCounter(MetricsNames.UPDATE_SUBSCRIBER_FAILED, streamTags(failedRG, failedRG)).count());
     }
 
     private long getTimerMillis(String timerName) {
-        val timer = MetricRegistryUtils.getTimer(timerName);
+        val timer = getTimer(timerName);
         return (long) timer.totalTime(TimeUnit.MILLISECONDS);
     }
 
@@ -295,9 +297,9 @@ public class StreamMetricsTest {
             return;
         }
 
-        assertEquals(3, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleScopeName, scaleStreamName)).value());
-        assertEquals(1, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleScopeName, scaleStreamName)).value());
-        assertEquals(0, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleScopeName, scaleStreamName)).value());
+        assertEquals(3, (long) getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleScopeName, scaleStreamName)).value());
+        assertEquals(1, (long) getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleScopeName, scaleStreamName)).value());
+        assertEquals(0, (long) getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleScopeName, scaleStreamName)).value());
 
         //merge back to 2 segments
         keyRanges = new HashMap<>();
@@ -309,9 +311,9 @@ public class StreamMetricsTest {
             return;
         }
 
-        assertEquals(2, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleScopeName, scaleStreamName)).value());
-        assertEquals(1, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleScopeName, scaleStreamName)).value());
-        assertEquals(1, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleScopeName, scaleStreamName)).value());
+        assertEquals(2, (long) getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleScopeName, scaleStreamName)).value());
+        assertEquals(1, (long) getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleScopeName, scaleStreamName)).value());
+        assertEquals(1, (long) getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleScopeName, scaleStreamName)).value());
     }
 
     @Test(timeout = 30000)
@@ -334,15 +336,15 @@ public class StreamMetricsTest {
 
         Transaction<String> transaction = writer.beginTxn();
 
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
+        assertEquals(1, (long) getCounter(MetricsNames.CREATE_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
 
         transaction.writeEvent("Test");
         transaction.flush();
         transaction.commit();
 
         AssertExtensions.assertEventuallyEquals(true, () -> transaction.checkStatus().equals(Transaction.Status.COMMITTED), 10000);
-        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getCounter(MetricsNames.COMMIT_TRANSACTION, streamTags(txScopeName, txStreamName)) != null, 10000);
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.COMMIT_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
+        AssertExtensions.assertEventuallyEquals(true, () -> getCounter(MetricsNames.COMMIT_TRANSACTION, streamTags(txScopeName, txStreamName)) != null, 10000);
+        assertEquals(1, (long) getCounter(MetricsNames.COMMIT_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
         assertTrue(getTimerMillis(MetricsNames.CONTROLLER_EVENT_PROCESSOR_COMMIT_TRANSACTION_LATENCY) > 0);
 
         Transaction<String> transaction2 = writer.beginTxn();
@@ -350,8 +352,8 @@ public class StreamMetricsTest {
         transaction2.abort();
 
         AssertExtensions.assertEventuallyEquals(true, () -> transaction2.checkStatus().equals(Transaction.Status.ABORTED), 10000);
-        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getCounter(MetricsNames.ABORT_TRANSACTION, streamTags(txScopeName, txStreamName)) != null, 10000);
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.ABORT_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
+        AssertExtensions.assertEventuallyEquals(true, () -> getCounter(MetricsNames.ABORT_TRANSACTION, streamTags(txScopeName, txStreamName)) != null, 10000);
+        assertEquals(1, (long) getCounter(MetricsNames.ABORT_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
     }
 
     @Test(timeout = 30000)
@@ -384,16 +386,16 @@ public class StreamMetricsTest {
             fail("Scale stream: splitting segment into three failed, exiting");
         }
 
-        assertEquals(3, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
-        assertEquals(1, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
-        assertEquals(0, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
+        assertEquals(3, (long) getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
+        assertEquals(1, (long) getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
+        assertEquals(0, (long) getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
 
         transaction.flush();
         transaction.commit();
 
         String message = "Inconsistency found between metadata and metrics";
-        AssertExtensions.assertEventuallyEquals(message, 3L, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 500, 30000);
-        AssertExtensions.assertEventuallyEquals(message, 2L, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 200, 30000);
-        AssertExtensions.assertEventuallyEquals(message, 1L, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 200, 30000);
+        assertEventuallyEquals(message, 3L, () -> (long) getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 500, 30000);
+        assertEventuallyEquals(message, 2L, () -> (long) getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 200, 30000);
+        assertEventuallyEquals(message, 1L, () -> (long) getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 200, 30000);
     }
 }
