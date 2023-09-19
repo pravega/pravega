@@ -100,12 +100,10 @@ public class FlushToStorageCommand extends ContainerCommand {
     }
 
     private void buildHostIndexToAdminPortMapping(AdminCommandState state) {
-        output("build hostindex to admin port mapping", new Object[0]);
         state.getConfigBuilder().build().forEach((k, v) -> {
             if (k.toString().contains(ADMIN_PORT_ENV_SEARCH_PROPERTY)) {
                 String[] adminPortParts = k.toString().split(ADMIN_PORT_ENV_SEARCH_PROPERTY);
                 String hostIndex = adminPortParts[0].split("_")[adminPortParts.length - 1];
-                output("build port mapping with hostIndex %d for port %d", new Object[] { Integer.valueOf(Integer.parseInt(hostIndex)), Integer.valueOf(Integer.parseInt(v.toString())) });
                 HOST_INDEX_TO_ADMIN_PORT.put(Integer.parseInt(hostIndex), Integer.parseInt(v.toString()));
             }
         });
@@ -113,12 +111,10 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private int getAdminPortForHost(String ssHost) {
         if (InetAddresses.isInetAddress(ssHost)) {
-            output("host is a ip address %s", new Object[] { ssHost });
             return getServiceConfig().getAdminGatewayPort();
         }
         String[] ssHostParts = ssHost.split("-");
         String ssHostIndex = ssHostParts[ssHostParts.length - 1];
-        output("SSHost index is %d", new Object[] { ssHostIndex });
         Preconditions.checkState(ssHostParts.length > 1 && !ssHostIndex.isEmpty() && StringUtils.isNumeric(ssHostIndex), "Unexpected host-name retrieved");
         return ((Integer) HOST_INDEX_TO_ADMIN_PORT.getOrDefault(Integer.parseInt(ssHostIndex), getServiceConfig().getAdminGatewayPort())).intValue();
     }
