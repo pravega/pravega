@@ -91,8 +91,11 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private CompletableFuture<WireCommands.StorageFlushed> flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId) throws Exception {
         String ssHost = this.getHostByContainer(containerId);
+        PravegaNodeUri pravegaNodeUri = new PravegaNodeUri(ssHost, getAdminPortForHost(ssHost);
+                output("Inside method flushContainerToStorage " + pravegaNodeUri.toString());
         CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(containerId,
-                new PravegaNodeUri( ssHost, getAdminPortForHost(ssHost)), super.authHelper.retrieveMasterToken());
+                pravegaNodeUri, super.authHelper.retrieveMasterToken());
+        output("Inside method flushContainerToStorage ");
         return reply.thenApply(result -> {
             output("Flushed the Segment Container with containerId %d to Storage.", containerId);
             return result;
@@ -100,13 +103,16 @@ public class FlushToStorageCommand extends ContainerCommand {
     }
 
     private void buildHostIndexToAdminPortMapping(AdminCommandState state) {
+        output("Inside method buildHostIndexToAdminPortMapping ");
         state.getConfigBuilder().build().forEach((k, v) -> {
+            output("Value of key " + k.toString());
             if (k.toString().contains(ADMIN_PORT_ENV_SEARCH_PROPERTY)) {
                 String[] adminPortParts = k.toString().split(ADMIN_PORT_ENV_SEARCH_PROPERTY);
                 String hostIndex = adminPortParts[0].split("_")[adminPortParts.length - 1];
                 HOST_INDEX_TO_ADMIN_PORT.put(Integer.parseInt(hostIndex), Integer.parseInt(v.toString()));
             }
         });
+        output("Exit method buildHostIndexToAdminPortMapping ");
     }
 
     private int getAdminPortForHost(String ssHost) {
