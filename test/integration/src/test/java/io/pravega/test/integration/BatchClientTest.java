@@ -76,6 +76,7 @@ import org.junit.Test;
 import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
 
 @Slf4j
 public class BatchClientTest extends ThreadPooledTestSuite {
@@ -258,6 +259,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
             eventList.addAll(Lists.newArrayList(segmentIterator));
         } catch (TruncatedDataException e) {
             // Now Offset should be pointing to valid offset after the truncation that is 60 and it should properly read the remaining event in s0
+            assertNotNull(segmentIterator);
             assertEquals(60L, segmentIterator.getOffset());
             eventList.addAll(Lists.newArrayList(segmentIterator));
             assertEquals(DATA_OF_SIZE_30, eventList.get(0));
