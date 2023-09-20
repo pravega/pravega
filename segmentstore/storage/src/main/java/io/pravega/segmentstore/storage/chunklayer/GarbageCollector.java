@@ -128,6 +128,9 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
      */
     private final MultiKeySequentialProcessor<String> taskScheduler;
 
+    @Getter
+    private final AtomicBoolean shouldDelayProcessing = new AtomicBoolean();
+
     /**
      * Constructs a new instance.
      *
@@ -447,21 +450,29 @@ public class GarbageCollector implements AutoCloseable, StatsReporter {
                 log.debug("{}: deleteGarbage - transaction is still active - re-queuing {}.", traceObjectId, infoToDelete.transactionId);
                 taskQueue.addTask(taskQueueName, infoToDelete);
             } else {
-                val f = executeSerialized(() -> processTask(infoToDelete), infoToDelete.name);
                 val now = currentTimeSupplier.get();
                 if (infoToDelete.scheduledTime > currentTimeSupplier.get()) {
                     futures.add(delaySupplier.apply(Duration.ofMillis(infoToDelete.scheduledTime - now))
-                            .thenComposeAsync(v -> f, storageExecutor));
+                            .thenComposeAsync(v -> executeSerialized(() -> processTask(infoToDelete), infoToDelete.name), storageExecutor));
                 } else {
-                    futures.add(f);
+                    // Task is ready
+                    futures.add(executeSerialized(() -> processTask(infoToDelete), infoToDelete.name));
                 }
             }
         }
-        return Futures.allOf(futures)
+        val batchFuture = Futures.allOf(futures)
                 .thenRunAsync(() -> {
                     queueSize.addAndGet(-batch.size());
                     SLTS_GC_TASK_PROCESSED.add(batch.size());
                 }, storageExecutor);
+
+        if (shouldDelayProcessing.get()) {
+            return delaySupplier.apply(Duration.ofMinutes(10))
+                    .thenComposeAsync(v -> batchFuture, storageExecutor)
+                    .thenAcceptAsync(v -> shouldDelayProcessing.set(false), storageExecutor);
+        } else {
+            return batchFuture;
+        }
     }
 
     /**

@@ -852,9 +852,16 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         val containerId = this.metadata.getContainerId();
         log.info("{}: Starting flush to storage for container ID: {}", this.traceObjectId, containerId);
         val flusher = new LogFlusher(containerId, this.durableLog, this.writer, this.metadataCleaner, this.executor);
+        delayStorageGarbageCollection();
         return flusher.flushToStorage(timeout)
                 .thenComposeAsync( v -> saveEpochInfo(containerId, this.metadata.getContainerEpoch(), timeout), this.executor)
                 .thenAcceptAsync(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
+    }
+
+    private void delayStorageGarbageCollection() {
+        if (storage instanceof ChunkedSegmentStorage) {
+            ((ChunkedSegmentStorage) storage).getGarbageCollector().getShouldDelayProcessing().set(true);
+        }
     }
 
     private CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, Duration timeout) {
