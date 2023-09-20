@@ -27,6 +27,7 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.ReadOnlyLogMetadata;
 import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.segmentstore.storage.WriteTooLongException;
@@ -134,10 +135,22 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
+    public ReadOnlyLogMetadata loadMetadata() throws DataLogInitializationException {
+        return null;
+    }
+
+    @Override
     public long getEpoch() {
         ensurePreconditions();
         synchronized (this.entries) {
             return this.epoch;
+        }
+    }
+
+    @Override
+    public void overrideEpoch(long epoch) throws DurableDataLogException {
+        synchronized (this.entries) {
+            this.epoch = epoch;
         }
     }
 
