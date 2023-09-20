@@ -110,7 +110,7 @@ public class FlushToStorageCommand extends ContainerCommand {
                 String[] prefix = adminPortParts[0].split("_");
                 String hostIndex = prefix[prefix.length - 1];
                 HOST_INDEX_TO_ADMIN_PORT.put(Integer.parseInt(hostIndex), Integer.parseInt(v.toString()));
-                output("Host "+hostIndex+ " Port " + HOST_INDEX_TO_ADMIN_PORT.get(Integer.parseInt(hostIndex)));
+                output("Host " + hostIndex + " Port " + HOST_INDEX_TO_ADMIN_PORT.get(Integer.parseInt(hostIndex)));
             }
         });
         output("Exit method buildHostIndexToAdminPortMapping ");
@@ -138,7 +138,7 @@ public class FlushToStorageCommand extends ContainerCommand {
         if (host == null || host.isEmpty()) {
             throw new RuntimeException("No host found for given container: " + containerId);
         }
-        output("Container id "+containerId+" host is :"+ host);
+        output("Container id " + containerId + " host is :" + host);
         return extractHostName(host);
     }
 
@@ -169,9 +169,11 @@ public class FlushToStorageCommand extends ContainerCommand {
 
         Map<Integer, String> containerHostMap = new HashMap<>();
         for (Map.Entry<Host, Set<Integer>> entry: hostMap.entrySet()) {
+            output("Host entry value is: " + entry.toString());
             String ipAddr = entry.getKey().getIpAddr();
             Set<Integer> containerIds = entry.getValue();
             for (Integer containerId : containerIds) {
+                output("Setting container id " + containerId + " with host :" + ipAddr);
                 containerHostMap.put(containerId, ipAddr);
             }
         }
