@@ -3,15 +3,20 @@
         "-//Puppy Crawl//DTD Suppressions 1.1//EN"
         "http://www.puppycrawl.com/dtds/suppressions_1_1.dtd">
 <suppressions>
+    <!-- Internal stuff that doesn't strictly need javadocs -->
     <suppress checks="MissingJavadocMethod" files="io[\\/]pravega[\\/](?:controller|segmentstore|test).*" />
     <suppress checks="MissingJavadocMethod" files="src[\\/]test[\\/]java" />
+    <!-- Common is exempted from some low level checks -->
     <suppress checks="NoFinalizer" files="io[\\/]pravega[\\/]common" />
+    <suppress checks="IllegalToken" files="io[\\/]pravega[\\/]common" />
     <suppress checks="BooleanExpressionComplexity" files="io[\\/]pravega[\\/]common" />
+    <!-- Things that don't matter for tests' -->
     <suppress checks="JavadocStyle" files=".+Tests\.java" />
     <suppress checks="JavadocMethod" files=".+Tests\.java" />
     <suppress checks="JavadocStyle" files=".+Test\.java" />
     <suppress checks="JavadocMethod" files=".+Test\.java" />
     <suppress checks="RegexpSinglelineJava" files=".+Tests?\.java" />
+    <!-- Files that we don't actually edit manually -->
     <suppress files="[\\/]generated[\\/]" checks="[a-zA-Z0-9]*"/>
     <suppress files="\.pem" checks="[a-zA-Z0-9]*"/>
     <suppress files="passwd" checks="[a-zA-Z0-9]*"/>

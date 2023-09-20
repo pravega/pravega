@@ -31,6 +31,9 @@
     <module name="IllegalImport"/>
     <module name="EqualsHashCode"/>
     <module name="AvoidDoubleBraceInitialization"/>
+    <module name="IllegalToken">
+      <property name="tokens" value="LITERAL_NON_SEALED, LITERAL_VOLATILE, LABELED_STAT"/>
+    </module>
     <module name="CovariantEquals"/>
     <module name="DefaultComesLast"/>
     <module name="NoClone"/>
