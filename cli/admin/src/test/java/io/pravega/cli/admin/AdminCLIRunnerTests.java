@@ -19,8 +19,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import lombok.Cleanup;
 import lombok.val;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class AdminCLIRunnerTests {
 
     @Test
