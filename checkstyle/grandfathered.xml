@@ -342,4 +342,7 @@
     <suppress-xpath files="EventProcessorTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='EventProcessorTest']]" />
     <suppress-xpath files="ReaderGroupStreamCutUpdateTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ReaderGroupStreamCutUpdateTest']]" />
     <suppress-xpath files="EndToEndTruncationTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='EndToEndTruncationTest']]" />
+    <suppress-xpath files="PravegaRequestProcessorTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='PravegaRequestProcessorTest']]" />
+    <suppress-xpath files="GetContainerIdOfSegmentCommand.java" checks="MissingJavadocMethodCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='GetContainerIdOfSegmentCommand']]/OBJBLOCK/METHOD_DEF[./IDENT[@text='descriptor']]" />
+    <suppress-xpath files="RemoveTableSegmentKeyCommand.java" checks="MissingJavadocMethodCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='RemoveTableSegmentKeyCommand']]/OBJBLOCK/METHOD_DEF[./IDENT[@text='descriptor']]" />
 </suppressions>

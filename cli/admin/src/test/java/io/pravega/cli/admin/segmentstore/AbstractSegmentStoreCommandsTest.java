@@ -461,14 +461,16 @@ public abstract class AbstractSegmentStoreCommandsTest {
     @Test
     public void testGetContainerIdOfSegmentCommandWithIncorrectArgs() {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getContainerIdOfSegmentCommandWrongArgTest", StreamConfiguration.builder().build());
-        AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("segmentstore get-container-id segmentstore/getContainerIdOfSegmentCommandWrongArgTest/0.#epoch.0 localhost", STATE.get()),
+        AssertExtensions.assertThrows("Incorrect argument count.", 
+                () -> TestUtils.executeCommand("segmentstore get-container-id segmentstore/getContainerIdOfSegmentCommandWrongArgTest/0.#epoch.0 localhost", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testGetContainerIdOfSegmentCommandWithInvalidSegmentName() {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getContainerIdOfSegmentCommandInvalidSegmentName", StreamConfiguration.builder().build());
-        AssertExtensions.assertThrows("Invalid qualified-segment-name.", () -> TestUtils.executeCommand("segmentstore get-container-id segmentstore/getContainerIdOfSegmentCommandInvalidSegmentName", STATE.get()),
+        AssertExtensions.assertThrows("Invalid qualified-segment-name.", 
+                () -> TestUtils.executeCommand("segmentstore get-container-id segmentstore/getContainerIdOfSegmentCommandInvalidSegmentName", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
