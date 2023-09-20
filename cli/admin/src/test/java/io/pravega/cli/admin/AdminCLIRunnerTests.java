@@ -25,7 +25,7 @@ public class AdminCLIRunnerTests {
 
     @Test
     public void testWrongExecCommandInputs() throws IOException {
-        val commands = Arrays.asList("", "fakecommand", "scope fakeoption", "help", "exit", "controller describe-scope 1 2 3");
+        val commands = Arrays.asList("", "fakecommand", "scope fakeoption", "help", "controller describe-scope 1 2 3");
         for (val cmd : commands) {
             @Cleanup
             val state = new AdminCommandState();
@@ -53,16 +53,16 @@ public class AdminCLIRunnerTests {
     }
 
     @Test
-    public void testExecCommandWithInvalidOption() throws IOException {
+    public void testExecCommandWithException1() throws IOException {
         @Cleanup
         val state = new AdminCommandState();
-        AdminCLIRunner.processCommand("container flush-to-storage aa", state);
+        AdminCLIRunner.processCommand("container", state);
     }
 
     @Test
-    public void testMain() throws Exception {
+    public void testZExit() throws Exception {
         System.setProperty("pravega.configurationFile", "../../config/admin-cli.properties");
-        AdminCLIRunner.main(new String[]{"scope", "wrongCommand"});
+        AdminCLIRunner.main(new String[]{"exit"});
     }
 
 }

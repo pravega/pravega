@@ -256,6 +256,48 @@ public abstract class AbstractSegmentStoreCommandsTest {
     }
 
     @Test
+    public void testFlushToStorageCommandWithException() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost-0", 1234);
+        AssertExtensions.assertThrows("Unexpected host-name retrieved", () -> TestUtils.executeCommand("container flush-to-storage 0", STATE.get()),
+                ex -> ex instanceof WireCommandFailedException);
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithEmptyHostName() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "", 1234);
+        AssertExtensions.assertThrows("Unexpected host-name retrieved", () -> TestUtils.executeCommand("container flush-to-storage 0", STATE.get()),
+                ex -> ex instanceof RuntimeException);
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithZeroHost() throws Exception {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), ".", 1234);
+        AssertExtensions.assertThrows("Unexpected host-name retrieved", () -> TestUtils.executeCommand("container flush-to-storage 0", STATE.get()),
+                ex -> ex instanceof IllegalStateException);
+    }
+
+
+    @Test
+    public void testFlushToStorageCommandWithEndContainerLessThanStartContainer1() throws Exception {
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("SERVICE_PORT_CLI_0", "SERVICE_PORT_CLI_0");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
+        AssertExtensions.assertThrows("", () -> TestUtils.executeCommand("container flush-to-storage 0", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithEndContainerLessThanStartContainer() throws Exception {
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "2");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
+        AssertExtensions.assertThrows("End container id must be greater than or equal to start container id.", () -> TestUtils.executeCommand("container flush-to-storage 1 0", STATE.get()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
     public void testFlushToStorageCommandWithUnexpectedHostName() throws Exception {
         TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost.-0", 1234);
         AssertExtensions.assertThrows("Unexpected host-name retrieved", () -> TestUtils.executeCommand("container flush-to-storage 0", STATE.get()),
