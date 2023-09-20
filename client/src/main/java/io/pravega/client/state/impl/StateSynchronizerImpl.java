@@ -175,9 +175,10 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void initialize(InitialUpdate<StateT> initial) {
-        Revision result = client.writeConditionally(client.fetchOldestRevision(), new UpdateOrInit<>(initial));
+        Revision result = client.writeConditionally(new RevisionImpl(segment, 0, 0), new UpdateOrInit<>(initial));
         if (result == null) {
-            fetchUpdates();
+            log.info("Segment {} was already initialized", segment);
+            handleTruncation();
         } else {
             updateCurrentState(initial.create(segment.getScopedStreamName(), result));
         }

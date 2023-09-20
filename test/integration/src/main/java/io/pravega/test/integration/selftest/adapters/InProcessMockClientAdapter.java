@@ -48,6 +48,7 @@ import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
 import io.pravega.segmentstore.contracts.tables.TableSegmentInfo;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -111,11 +112,12 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         int segmentStorePort = this.testConfig.getSegmentStorePort(0);
         val store = getStreamSegmentStore();
         this.autoScaleMonitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(executor, store);
         this.listener = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store,
                                                       getTableStore(), autoScaleMonitor.getStatsRecorder(),
                                                       TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
                                                       null, null, false, NoOpScheduledExecutor.get(),
-                                                      SecurityConfigDefaults.TLS_PROTOCOL_VERSION);
+                                                      SecurityConfigDefaults.TLS_PROTOCOL_VERSION, indexAppendProcessor);
         this.listener.startListening();
 
         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);

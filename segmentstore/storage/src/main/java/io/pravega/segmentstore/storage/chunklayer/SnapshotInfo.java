@@ -15,8 +15,14 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
+
+import java.io.IOException;
 
 /**
  * Basic info about snapshot.
@@ -33,4 +39,40 @@ public class SnapshotInfo {
      * Id of the snapshot.
      */
     final private long snapshotId;
+
+    /**
+     * Builder that implements {@link ObjectBuilder}.
+     */
+    public static class SnapshotInfoBuilder implements ObjectBuilder<SnapshotInfo> {
+    }
+
+    /**
+     * Serializer that implements {@link VersionedSerializer}.
+     */
+    public static class Serializer extends VersionedSerializer.WithBuilder<SnapshotInfo, SnapshotInfoBuilder> {
+        @Override
+        protected SnapshotInfo.SnapshotInfoBuilder newBuilder() {
+            return SnapshotInfo.builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void write00(SnapshotInfo object, RevisionDataOutput output) throws IOException {
+            output.writeCompactLong(object.epoch);
+            output.writeCompactLong(object.snapshotId);
+        }
+
+        private void read00(RevisionDataInput input, SnapshotInfo.SnapshotInfoBuilder b) throws IOException {
+            b.epoch(input.readCompactLong());
+            b.snapshotId(input.readCompactLong());
+        }
+    }
 }
