@@ -130,6 +130,11 @@
       <message key="matchxpath.match"
               value="Sleeping is not allowed inside of tests."/>
     </module>
+    <module name="MatchXpath">
+      <property name="query" value="//METHOD_CALL[./DOT[./IDENT[ends-with(@text, 'Async')]] and ./ELIST[./LAMBDA and not(COMMA)]]"/>
+      <message key="matchxpath.match"
+              value="Completable future async methods should not be run on the default executor. Either pass one explicetly or use the non-async version of method."/>
+    </module>
     <module name="TypeName"/>
     <module name="AvoidStarImport">
        <!--    <property name="excludes" value="java.io,java.net,java.lang.Math"/> -->
