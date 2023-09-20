@@ -310,4 +310,36 @@
     <suppress-xpath files="PageWrapper.java" checks="IllegalTokenCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='PageWrapper']]/OBJBLOCK/VARIABLE_DEF[./IDENT[@text='entryCountDelta']]/MODIFIERS/LITERAL_VOLATILE" />
     <suppress-xpath files="TaskBase.java" checks="IllegalTokenCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='TaskBase']]/OBJBLOCK/VARIABLE_DEF[./IDENT[@text='ready']]/MODIFIERS/LITERAL_VOLATILE" />
     <suppress-xpath files="StreamTransactionMetadataTasks.java" checks="IllegalTokenCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='StreamTransactionMetadataTasks']]/OBJBLOCK/VARIABLE_DEF[./IDENT[@text='ready']]/MODIFIERS/LITERAL_VOLATILE" />
+    <suppress-xpath files="SegmentStatsRecorderTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='SegmentStatsRecorderTest']]" />
+    <suppress-xpath files="AppendProcessorTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='AppendProcessorTest']]" />
+    <suppress-xpath files="ZKSegmentContainerMonitorTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ZKSegmentContainerMonitorTest']]" />
+    <suppress-xpath files="AppendEncodeDecodeTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='AppendEncodeDecodeTest']]" />
+    <suppress-xpath files="ControllerImplTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ControllerImplTest']]" />
+    <suppress-xpath files="ControllerImplLBTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ControllerImplLBTest']]" />
+    <suppress-xpath files="FlowToBatchSizeTrackerTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='FlowToBatchSizeTrackerTest']]" />
+    <suppress-xpath files="ClientConnectionTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ClientConnectionTest']]" />
+    <suppress-xpath files="ConcurrentEPSerializedRHTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ConcurrentEPSerializedRHTest']]" />
+    <suppress-xpath files="EventProcessorTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='EventProcessorTest']]" />
+    <suppress-xpath files="ZkStoreBucketServiceTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ZkStoreBucketServiceTest']]" />
+    <suppress-xpath files="ZkStreamTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ZkStreamTest']]" />
+    <suppress-xpath files="AbstractReadWriteTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='AbstractReadWriteTest']]" />
+    <suppress-xpath files="ReadWriteAndScaleWithFailoverTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ReadWriteAndScaleWithFailoverTest']]" />
+    <suppress-xpath files="MultiSegmentStoreTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='MultiSegmentStoreTest']]" />
+    <suppress-xpath files="ReadWriteAndAutoScaleWithFailoverTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ReadWriteAndAutoScaleWithFailoverTest']]" />
+    <suppress-xpath files="WatermarkingTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='WatermarkingTest']]" />
+    <suppress-xpath files="RetentionTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='RetentionTest']]" />
+    <suppress-xpath files="ControllerFailoverTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ControllerFailoverTest']]" />
+    <suppress-xpath files="ReadTxnWriteScaleWithFailoverTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ReadTxnWriteScaleWithFailoverTest']]" />
+    <suppress-xpath files="BookieFailoverTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='BookieFailoverTest']]" />
+    <suppress-xpath files="ReadTxnWriteAutoScaleWithFailoverTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ReadTxnWriteAutoScaleWithFailoverTest']]" />
+    <suppress-xpath files="EndToEndTransactionTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='EndToEndTransactionTest']]" />
+    <suppress-xpath files="EndToEndAutoScaleUpWithTxnTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='EndToEndAutoScaleUpWithTxnTest']]" />
+    <suppress-xpath files="AppendTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='AppendTest']]" />
+    <suppress-xpath files="DelegationTokenTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='DelegationTokenTest']]" />
+    <suppress-xpath files="StreamRecreationTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='StreamRecreationTest']]" />
+    <suppress-xpath files="MetricsTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='MetricsTest']]" />
+    <suppress-xpath files="ReadTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ReadTest']]" />
+    <suppress-xpath files="EventProcessorTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='EventProcessorTest']]" />
+    <suppress-xpath files="ReaderGroupStreamCutUpdateTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='ReaderGroupStreamCutUpdateTest']]" />
+    <suppress-xpath files="EndToEndTruncationTest.java" checks="MatchXpathCheck" query="/COMPILATION_UNIT/CLASS_DEF[./IDENT[@text='EndToEndTruncationTest']]" />
 </suppressions>

@@ -125,7 +125,11 @@
       <message key="matchxpath.match"
               value="Static non-final variables are not allowed. (AtomicReferences are not allowed as a way out of this)'"/>
     </module>
-    
+    <module name="MatchXpath">
+      <property name="query" value="//CLASS_DEF[./IDENT[ends-with(@text, 'Test')] and //METHOD_CALL[./DOT[./IDENT[@text='Thread'] and ./IDENT[@text='sleep']]]]"/>
+      <message key="matchxpath.match"
+              value="Sleeping is not allowed inside of tests."/>
+    </module>
     <module name="TypeName"/>
     <module name="AvoidStarImport">
        <!--    <property name="excludes" value="java.io,java.net,java.lang.Math"/> -->
