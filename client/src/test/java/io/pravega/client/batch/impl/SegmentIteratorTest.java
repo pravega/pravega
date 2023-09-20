@@ -21,7 +21,6 @@ import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
@@ -154,8 +153,7 @@ public class SegmentIteratorTest {
         SegmentMetadataClientFactory metaFactory = mock(SegmentMetadataClientFactory.class);
         SegmentMetadataClient metaClient = mock(SegmentMetadataClient.class);
         when(metaFactory.createSegmentMetadataClient(any(Segment.class), any(DelegationTokenProvider.class))).thenReturn(metaClient);
-        doReturn(CompletableFuture.completedFuture(new SegmentInfo(segment, 0L, length, false, 1L)))
-                .when(metaClient).getSegmentInfo();
+        doReturn(CompletableFuture.completedFuture(10L)).when(metaClient).fetchCurrentSegmentHeadOffset();
         @Cleanup
         SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, metaFactory, controller, segment, stringSerializer, 0, length);
         assertEquals("1", iter.next());
@@ -183,8 +181,7 @@ public class SegmentIteratorTest {
         SegmentMetadataClientFactory metaFactory = mock(SegmentMetadataClientFactory.class);
         SegmentMetadataClient metaClient = mock(SegmentMetadataClient.class);
         when(metaFactory.createSegmentMetadataClient(any(Segment.class), any(DelegationTokenProvider.class))).thenReturn(metaClient);
-        doReturn(CompletableFuture.completedFuture(new SegmentInfo(segment, 0L, endOffset, false, 1L)))
-                .when(metaClient).getSegmentInfo();
+        doReturn(CompletableFuture.completedFuture(10L)).when(metaClient).fetchCurrentSegmentHeadOffset();
         @Cleanup
         SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, metaFactory, controller, segment, stringSerializer, 0, endOffset);
         assertEquals("s", iter.next());

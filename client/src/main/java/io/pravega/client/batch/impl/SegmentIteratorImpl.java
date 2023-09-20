@@ -104,10 +104,9 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
         SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segmentId,
                 DelegationTokenProviderFactory.create(controller, segmentId, AccessOperation.READ));
         try {
-            long startingOffset = Futures.getThrowingExceptionWithTimeout(metadataClient.getSegmentInfo(), timeoutInMilli).getStartingOffset();
-            input.setOffset(startingOffset);
+            input.setOffset(Futures.getThrowingExceptionWithTimeout(metadataClient.fetchCurrentSegmentHeadOffset(), timeoutInMilli));
         } catch (TimeoutException te) {
-            log.warn("A timeout has occurred while attempting to retrieve segment information from the server");
+            log.warn("A timeout has occurred while attempting to retrieve segment information from the server for segment {}", segmentId);
         }
     }
 
