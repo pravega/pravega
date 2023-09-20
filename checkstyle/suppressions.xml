@@ -16,6 +16,7 @@
     <suppress checks="JavadocStyle" files=".+Test\.java" />
     <suppress checks="JavadocMethod" files=".+Test\.java" />
     <suppress checks="RegexpSinglelineJava" files=".+Tests?\.java" />
+    <suppress checks="MatchXpath" files=".*[\\/]cli[\\/].+Test\.java" />
     <!-- Files that we don't actually edit manually -->
     <suppress files="[\\/]generated[\\/]" checks="[a-zA-Z0-9]*"/>
     <suppress files="\.pem" checks="[a-zA-Z0-9]*"/>
