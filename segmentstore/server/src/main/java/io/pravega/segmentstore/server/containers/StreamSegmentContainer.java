@@ -408,7 +408,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                     log.error("{}: Could not save storage metadata info in container metadata. Failed with exception {}", this.traceObjectId, e );
                                     return Futures.failedFuture(e);
                                 }
-                                log.debug("{}: Reconciled length post restore for storage segment.", this.traceObjectId);
+                                log.debug("{}: Reconciled length post restore for Storage Metadata segment.", this.traceObjectId);
                                 return CompletableFuture.completedFuture(null);
                     }, this.executor);
         } catch (Exception ex) {
