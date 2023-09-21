@@ -15,6 +15,7 @@
  */
 package io.pravega.client.batch.impl;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
@@ -94,7 +95,7 @@ public class SegmentIteratorTest {
         SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment, DelegationTokenProviderFactory.createWithEmptyToken());
         long length = metadataClient.getSegmentInfo().join().getWriteOffset();
         @Cleanup
-        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, metaFactory, controller, segment, stringSerializer, 0, length);
+        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, metaFactory, controller, ClientConfig.builder().build(), segment, stringSerializer, 0, length);
         assertTrue(iter.hasNext());
         assertTrue(iter.hasNext());
         assertEquals("1", iter.next());
@@ -121,7 +122,7 @@ public class SegmentIteratorTest {
                 DelegationTokenProviderFactory.createWithEmptyToken());
         long length = metadataClient.getSegmentInfo().join().getWriteOffset();
         @Cleanup
-        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, metaFactory, controller, segment, stringSerializer, 0, length);
+        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, metaFactory, controller, ClientConfig.builder().build(), segment, stringSerializer, 0, length);
         assertEquals(0, iter.getOffset());
         assertEquals("1", iter.next());
         assertEquals(length / 3, iter.getOffset());
@@ -156,14 +157,14 @@ public class SegmentIteratorTest {
         when(metaFactory.createSegmentMetadataClient(any(Segment.class), any(DelegationTokenProvider.class))).thenReturn(metaClient);
         doReturn(CompletableFuture.completedFuture(10L)).when(metaClient).fetchCurrentSegmentHeadOffset();
         @Cleanup
-        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, metaFactory, controller, segment, stringSerializer, 0, length);
+        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, metaFactory, controller, ClientConfig.builder().build(), segment, stringSerializer, 0, length);
         assertEquals("1", iter.next());
         long segmentLength = metadataClient.fetchCurrentSegmentLength().join();
         assertEquals(0, segmentLength % 3);
         metadataClient.truncateSegment(segmentLength * 2 / 3).join();
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> iter.next());
         @Cleanup
-        SegmentIteratorImpl<String> iter2 = new SegmentIteratorImpl<>(factory, metaFactory, controller, segment, stringSerializer,
+        SegmentIteratorImpl<String> iter2 = new SegmentIteratorImpl<>(factory, metaFactory, controller, ClientConfig.builder().build(), segment, stringSerializer,
                                                                       segmentLength * 2 / 3, length);
         assertTrue(iter2.hasNext());
         assertEquals("3", iter2.next());
@@ -184,7 +185,7 @@ public class SegmentIteratorTest {
         when(metaFactory.createSegmentMetadataClient(any(Segment.class), any(DelegationTokenProvider.class))).thenReturn(metaClient);
         doReturn(CompletableFuture.completedFuture(10L)).when(metaClient).fetchCurrentSegmentHeadOffset();
         @Cleanup
-        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, metaFactory, controller, segment, stringSerializer, 0, endOffset);
+        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, metaFactory, controller, ClientConfig.builder().build(), segment, stringSerializer, 0, endOffset);
         assertEquals("s", iter.next());
         verify(input, times(2)).read();
         when(input.read()).thenThrow(SegmentTruncatedException.class);
@@ -192,7 +193,8 @@ public class SegmentIteratorTest {
         // Ensure fetchCurrentSegmentHeadOffset returns incompleteFuture.
         CompletableFuture<SegmentInfo> incompleteFuture = new CompletableFuture();
         doReturn(incompleteFuture).when(metaClient).fetchCurrentSegmentHeadOffset();
-        SegmentIteratorImpl<String> iter1 = new SegmentIteratorImpl<>(factory, metaFactory, controller, segment, stringSerializer, 0, endOffset);
+        ClientConfig clinetConfig = ClientConfig.builder().connectTimeoutMilliSec(1000).build();
+        SegmentIteratorImpl<String> iter1 = new SegmentIteratorImpl<>(factory, metaFactory, controller, clinetConfig, segment, stringSerializer, 0, endOffset);
         assertThrows(TruncatedDataException.class, () -> iter1.next());
     }
 

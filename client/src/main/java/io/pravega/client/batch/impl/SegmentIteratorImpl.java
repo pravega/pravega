@@ -16,6 +16,7 @@
 package io.pravega.client.batch.impl;
 
 import com.google.common.annotations.Beta;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
@@ -50,12 +51,13 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
     private final long startingOffset;
     private final long endingOffset;
     private final EventSegmentReader input;
-    private final long timeoutInMilli = 2000L;
+    private final ClientConfig clientConfig;
     private final Controller controller;
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
     private final Retry.RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 9, 30000);
 
-    public SegmentIteratorImpl(SegmentInputStreamFactory factory, SegmentMetadataClientFactory segmentMetadataClientFactory, Controller controller, Segment segment,
+    public SegmentIteratorImpl(SegmentInputStreamFactory factory, SegmentMetadataClientFactory segmentMetadataClientFactory,
+                               Controller controller, ClientConfig clientConfig, Segment segment,
                                Serializer<T> deserializer, long startingOffset, long endingOffset) {
         this.segment = segment;
         this.deserializer = deserializer;
@@ -63,6 +65,7 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
         this.endingOffset = endingOffset;
         this.segmentMetadataClientFactory = segmentMetadataClientFactory;
         this.controller = controller;
+        this.clientConfig = clientConfig;
         input = factory.createEventReaderForSegment(segment, startingOffset, endingOffset);
     }
 
@@ -104,7 +107,8 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
         SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segmentId,
                 DelegationTokenProviderFactory.create(controller, segmentId, AccessOperation.READ));
         try {
-            input.setOffset(Futures.getThrowingExceptionWithTimeout(metadataClient.fetchCurrentSegmentHeadOffset(), timeoutInMilli));
+            input.setOffset(Futures.getThrowingExceptionWithTimeout(metadataClient.fetchCurrentSegmentHeadOffset(),
+                    clientConfig.getConnectTimeoutMilliSec()));
         } catch (TimeoutException te) {
             log.warn("A timeout has occurred while attempting to retrieve segment information from the server for segment {}", segmentId);
         }
