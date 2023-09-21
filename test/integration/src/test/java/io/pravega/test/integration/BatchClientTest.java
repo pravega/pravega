@@ -76,6 +76,7 @@ import org.junit.Test;
 import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
 
 @Slf4j
 public class BatchClientTest extends ThreadPooledTestSuite {
@@ -225,6 +226,44 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         @Cleanup
         SegmentIterator<String> segmentIterator = batchClient.readSegment(s0, serializer);
         eventList.addAll(Lists.newArrayList(segmentIterator));
+    }
+
+    @Test(timeout = 50000)
+    public void testBatchClientWithStreamTruncationReadAfterException() throws InterruptedException, ExecutionException {
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
+        createTestStreamWithEvents(clientFactory);
+
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig);
+        // 1. Fetch Segments.
+        ArrayList<SegmentRange> segmentsPostTruncation = Lists.newArrayList(
+                batchClient.getSegments(Stream.of(SCOPE, STREAM), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+
+        // 2. Create a StreamCut at the end of segment 0 ( offset = 2 * 30 = 60)
+        StreamCut streamCut60L = new StreamCutImpl(Stream.of(SCOPE, STREAM),
+                ImmutableMap.of(new Segment(SCOPE, STREAM, 0), 60L));
+        // 3. Truncate stream.
+        assertTrue("truncate stream",
+                controllerWrapper.getController().truncateStream(SCOPE, STREAM, streamCut60L).join());
+        // 4. Use SegmentRange obtained before truncation.
+        SegmentRange s0 = segmentsPostTruncation.stream().filter(
+                segmentRange -> segmentRange.getSegmentId() == 0L).findFirst().get();
+        // 5. Read non existent segment.
+        List<String> eventList = new ArrayList<>();
+
+        @Cleanup
+        SegmentIterator<String> segmentIterator = null;
+        try {
+            segmentIterator = batchClient.readSegment(s0, serializer);
+            eventList.addAll(Lists.newArrayList(segmentIterator));
+        } catch (TruncatedDataException e) {
+            // Now Offset should be pointing to valid offset after the truncation that is 60 and it should properly read the remaining event in s0
+            assertNotNull(segmentIterator);
+            assertEquals(60L, segmentIterator.getOffset());
+            eventList.addAll(Lists.newArrayList(segmentIterator));
+            assertEquals(DATA_OF_SIZE_30, eventList.get(0));
+        }
     }
 
     @Test(timeout = 50000)
