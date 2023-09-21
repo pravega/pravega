@@ -193,7 +193,7 @@ public class ControllerService {
                 return KeyValueTableConfigResponse.newBuilder().setStatus(KeyValueTableConfigResponse.Status.TABLE_NOT_FOUND).build();
             }
             return KeyValueTableConfigResponse.newBuilder().setStatus(KeyValueTableConfigResponse.Status.FAILURE).build();
-        });
+        }, executor);
     }
 
     /**

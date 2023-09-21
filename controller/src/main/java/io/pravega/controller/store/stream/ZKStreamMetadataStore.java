@@ -250,7 +250,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
                                                                       OperationContext context, Executor executor) {
         long requestId = getOperationContext(context).getRequestId();
         return storeHelper.getData(String.format(DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)), x -> BitConverter.readInt(x, 0))
-                          .handleAsync((data, ex) -> {
+                          .handle((data, ex) -> {
                               if (ex == null) {
                                   return data.getObject() + 1;
                               } else if (ex instanceof StoreException.DataNotFoundException) {

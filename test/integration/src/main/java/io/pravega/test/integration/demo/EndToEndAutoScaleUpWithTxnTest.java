@@ -53,6 +53,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.pravega.test.integration.utils.ControllerWrapper;
@@ -85,7 +86,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, connectionFactory);
 
             @Cleanup("shutdownNow")
-            val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+            val executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
 
             @Cleanup
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -154,7 +155,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             assert event2.equals("2");
             final AtomicBoolean done = new AtomicBoolean(false);
 
-            startWriter(test, done);
+            startWriter(test, executor, done);
 
             Retry.withExpBackoff(10, 10, 100, 10000)
                     .retryingOn(NotDoneException.class)
@@ -180,11 +181,9 @@ public class EndToEndAutoScaleUpWithTxnTest {
             log.error("Test failed with exception: {}", e);
             System.exit(-1);
         }
-
-        System.exit(0);
     }
 
-    private static void startWriter(TransactionalEventStreamWriter<String> test, AtomicBoolean done) {
+    private static void startWriter(TransactionalEventStreamWriter<String> test, ScheduledExecutorService executor, AtomicBoolean done) {
         CompletableFuture.runAsync(() -> {
             while (!done.get()) {
                 try {
@@ -200,7 +199,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
                     log.error("test exception writing events {}", e);
                 }
             }
-        });
+        }, executor);
     }
 }
 

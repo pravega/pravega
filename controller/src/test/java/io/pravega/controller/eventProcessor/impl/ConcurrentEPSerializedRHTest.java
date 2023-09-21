@@ -74,7 +74,7 @@ public class ConcurrentEPSerializedRHTest {
 
         // process throwing retryable exception. Verify that event is written back and checkpoint has moved forward
         @Cleanup("shutdownNow")
-        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(3, "test");
         TestRequestHandler2 requestHandler = new TestRequestHandler2(executor);
         ConcurrentEventProcessor<TestBase, TestRequestHandler2> processor = new ConcurrentEventProcessor<>(
                 requestHandler, 1, executor, null, writer, 1, TimeUnit.SECONDS);
@@ -85,7 +85,7 @@ public class ConcurrentEPSerializedRHTest {
                 processor.process((TestBase) take, null);
                 Exceptions.handleInterrupted(() -> Thread.sleep(100));
             }
-        });
+        }, executor);
 
         waitingForPhase1.join();
 

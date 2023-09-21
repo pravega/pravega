@@ -34,13 +34,13 @@ import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
-import io.pravega.client.segment.impl.SegmentTruncatedException;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
-import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.segment.impl.SegmentMetadataClient;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.InvalidStreamException;
@@ -59,8 +59,6 @@ import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AccessOperation;
-import lombok.extern.slf4j.Slf4j;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -69,10 +67,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-
-import lombok.Getter;
 import lombok.AccessLevel;
 import lombok.Cleanup;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 
@@ -345,7 +343,7 @@ public class StreamManagerImpl implements StreamManager {
             } catch (NoSuchSegmentException | SegmentTruncatedException e) {
                 throw Exceptions.sneakyThrow(new NoSuchEventException("Event no longer exists."));
             }
-        });
+        }, connectionPool.getInternalExecutor());
         return completableFuture;
     }
 

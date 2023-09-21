@@ -131,7 +131,7 @@ abstract class BucketService extends AbstractService {
                 log.info("{}: bucket {} service start completed", getServiceType(), getBucketId());
                 serviceStartFuture.complete(null);
             }
-        });
+        }, executor);
     }
 
     abstract void startBucketChangeListener();

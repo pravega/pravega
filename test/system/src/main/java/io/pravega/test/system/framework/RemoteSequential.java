@@ -16,7 +16,6 @@
 package io.pravega.test.system.framework;
 
 import feign.Response;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.metronome.AuthEnabledMetronomeClient;
@@ -33,7 +32,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 
@@ -49,9 +47,6 @@ public class RemoteSequential implements TestExecutor {
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
-        Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(60));
-        // This will be removed once issue https://github.com/pravega/pravega/issues/1665 is resolved.
-
         log.debug("Starting test execution for method: {}", testMethod);
         final Metronome client = AuthEnabledMetronomeClient.getClient();
 
@@ -68,7 +63,7 @@ public class RemoteSequential implements TestExecutor {
             } else {
                 log.info("Created job succeeded with: " + response.toString());
             }
-        }).thenCompose(v2 -> waitForJobCompletion(jobId, client))
+        }, executorService).thenCompose(v2 -> waitForJobCompletion(jobId, client))
                 .<Void>thenApply(v1 -> {
                     if (client.getJob(jobId).getHistory().getFailureCount() != 0) {
                         throw new AssertionError("Test failed, detailed logs can be found at " +

@@ -419,17 +419,17 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         log.info("Writer {} finished writing {} events.", writer, totalEvents - initialPoint);
     }
 
-    <T extends Serializable> List<CompletableFuture<Integer>> readEventFutures(EventStreamClientFactory client, String rGroup, int numReaders, int limit) {
+    <T extends Serializable> List<CompletableFuture<Integer>> readEventFutures(EventStreamClientFactory client, String rGroup, int numReaders, int limit, ScheduledExecutorService executor) {
         List<EventStreamReader<T>> readers = new ArrayList<>();
         for (int i = 0; i < numReaders; i++) {
             readers.add(client.createReader(rGroup + "-" + i, rGroup, new JavaSerializer<>(), ReaderConfig.builder().build()));
         }
 
-        return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r, limit / numReaders))).collect(toList());
+        return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r, limit / numReaders), executor)).collect(toList());
     }
 
-    List<CompletableFuture<Integer>> readEventFutures(EventStreamClientFactory clientFactory, String readerGroup, int numReaders) {
-        return readEventFutures(clientFactory, readerGroup, numReaders, Integer.MAX_VALUE);
+    List<CompletableFuture<Integer>> readEventFutures(EventStreamClientFactory clientFactory, String readerGroup, int numReaders, ScheduledExecutorService executor) {
+        return readEventFutures(clientFactory, readerGroup, numReaders, Integer.MAX_VALUE, executor);
     }
 
     // Private methods region

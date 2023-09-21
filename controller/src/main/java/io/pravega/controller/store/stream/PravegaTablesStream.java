@@ -169,7 +169,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                           .thenComposeAsync(data -> {
                 idRef.compareAndSet(null, data.getObject().toString());
                 return getId(context);
-            });
+            }, executor);
         }
     }
 

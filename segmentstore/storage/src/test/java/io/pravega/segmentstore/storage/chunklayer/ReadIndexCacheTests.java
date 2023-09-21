@@ -18,14 +18,17 @@ package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalNotification;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Tests for {@link ReadIndexCache}.
@@ -210,13 +213,15 @@ public class ReadIndexCacheTests {
 
     @Test
     public void testParallelMultiGenerationAddRemove() {
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "testParallelMultiGenerationAddRemove");
         ReadIndexCache cache = new ReadIndexCache(5, 5);
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<CompletableFuture<Void>>();
         for (int i = 0; i < 100; i++) {
             for (int j = 0; j < 100; j++) {
                 val m = i;
                 val n = j;
-                futures.add( CompletableFuture.runAsync(() -> cache.addIndexEntry("testSegment" + m, "chunk" + n, n)));
+                futures.add( CompletableFuture.runAsync(() -> cache.addIndexEntry("testSegment" + m, "chunk" + n, n), executor));
             }
         }
         Futures.allOf(futures).join();

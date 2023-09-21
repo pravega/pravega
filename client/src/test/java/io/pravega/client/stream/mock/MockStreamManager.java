@@ -42,21 +42,16 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.EventSegmentReaderUtility;
 import io.pravega.client.stream.TransactionInfo;
+import io.pravega.client.stream.impl.EventSegmentReaderUtility;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
-import lombok.Cleanup;
-import lombok.Getter;
-import org.apache.commons.lang3.NotImplementedException;
-
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -67,6 +62,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
+import lombok.Getter;
+import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
@@ -291,19 +289,16 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     public <T> CompletableFuture<T> fetchEvent(EventPointer pointer, Serializer<T> serializer) {
         Preconditions.checkNotNull(pointer);
         Preconditions.checkNotNull(serializer);
-        CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
-            @Cleanup
-            EventSegmentReader inputStream = eventSegmentReaderUtility.createEventSegmentReader(pointer);
-            try {
-                ByteBuffer buffer = inputStream.read();
-                return  serializer.deserialize(buffer);
-            } catch (EndOfSegmentException e) {
-                throw Exceptions.sneakyThrow(new NoSuchEventException(e.getMessage()));
-            } catch (NoSuchSegmentException | SegmentTruncatedException e) {
-                throw Exceptions.sneakyThrow(new NoSuchEventException("Event no longer exists."));
-            }
-        });
-        return completableFuture;
+        @Cleanup
+        EventSegmentReader inputStream = eventSegmentReaderUtility.createEventSegmentReader(pointer);
+        try {
+            ByteBuffer buffer = inputStream.read();
+            return CompletableFuture.completedFuture(serializer.deserialize(buffer));
+        } catch (EndOfSegmentException e) {
+            return Futures.failedFuture(new NoSuchEventException(e.getMessage()));
+        } catch (NoSuchSegmentException | SegmentTruncatedException e) {
+            return Futures.failedFuture(new NoSuchEventException("Event no longer exists."));
+        }
     }
 
     @Override

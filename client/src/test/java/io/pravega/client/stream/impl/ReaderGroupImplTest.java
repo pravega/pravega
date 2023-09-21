@@ -391,6 +391,7 @@ public class ReaderGroupImplTest {
 
         // run the first call async.
         final ReaderGroupConfig newConf = config2;
+        @SuppressWarnings("MatchXpath")
         CompletableFuture<Void> future = CompletableFuture.runAsync(() -> readerGroup.resetReaderGroup(newConf));
         // Once the first call has reached the controller.updateReaderGroup step then signal so he waits.
         signal.join();

@@ -169,7 +169,7 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> {
         log.info("{}: Started. Iteration Delay = {} ms.", this.traceObjectId, this.itemDelay.toMillis());
         return Futures.loop(
                 () -> !this.closed.get(),
-                () -> delay().thenComposeAsync(v -> runOneIteration()),
+                () -> delay().thenCompose(v -> runOneIteration()),
                 this.executor);
     }
 

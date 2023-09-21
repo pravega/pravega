@@ -444,7 +444,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                       //recover metadata store.
                                       log.info("{}: Recovering Metadata Store.", this.traceObjectId);
                                      return this.storage.getStreamSegmentInfo(NameUtils.getMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout())
-                                              .thenComposeAsync( info -> this.metadataStore.recover(info, this.config.getMetadataStoreInitTimeout()));
+                                              .thenComposeAsync( info -> this.metadataStore.recover(info, this.config.getMetadataStoreInitTimeout()), this.executor);
                                   } else {
                                       log.info("{}: Initializing Metadata Store.", this.traceObjectId);
                                       return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
@@ -855,7 +855,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         val flusher = new LogFlusher(containerId, this.durableLog, this.writer, this.metadataCleaner, this.executor);
         return flusher.flushToStorage(timeout)
                 .thenComposeAsync( v -> saveEpochInfo(containerId, this.metadata.getContainerEpoch(), timeout), this.executor)
-                .thenAcceptAsync(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
+                .thenAccept(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
     }
 
     private CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, Duration timeout) {
