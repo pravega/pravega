@@ -48,7 +48,11 @@ public class TableSegmentUtils {
             Preconditions.checkState((unprocessedBytesFromLastChunk > 0 && partialEntryFromLastChunk != null) || (unprocessedBytesFromLastChunk == 0 && partialEntryFromLastChunk == null));
             ByteArraySegment chunkData = new ByteArraySegment(getBytesToProcess(partialEntryFromLastChunk, f));
             unprocessedBytesFromLastChunk = scanAllEntriesInTableSegmentChunks(chunkData, tableSegmentOperations);
-            partialEntryFromLastChunk = unprocessedBytesFromLastChunk > 0 ? chunkData.getReader(chunkData.getLength() - unprocessedBytesFromLastChunk, unprocessedBytesFromLastChunk).readAllBytes() : null;
+            if (unprocessedBytesFromLastChunk > 0) {
+                partialEntryFromLastChunk = chunkData.getReader(chunkData.getLength() - unprocessedBytesFromLastChunk, unprocessedBytesFromLastChunk).readAllBytes();
+            } else {
+                partialEntryFromLastChunk = null;
+            }
         }
         return tableSegmentOperations;
     }
@@ -71,10 +75,14 @@ public class TableSegmentUtils {
                 int valueLength = header.getValueLength() < 0 ? 0 : header.getValueLength(); // In case of a removal, use 0 instead of -1.
                 int totalEntryLength = EntrySerializer.HEADER_LENGTH + header.getKeyLength() + valueLength;
                 byte[] keyBytes = slice.slice(EntrySerializer.HEADER_LENGTH, header.getKeyLength()).getReader().readNBytes(header.getKeyLength());
-                byte[] valueBytes = valueLength == 0 ? new byte[0] : slice.slice(EntrySerializer.HEADER_LENGTH + header.getKeyLength(), header.getValueLength()).getReader().readNBytes(header.getValueLength());
 
                 // Add the operation to the list of operations to replay later on (PUT or DELETE).
-                tableSegmentOperations.add(valueBytes.length == 0 ? new TableSegmentUtils.DeleteOperation(TableSegmentEntry.unversioned(keyBytes, valueBytes)) : new TableSegmentUtils.PutOperation(TableSegmentEntry.unversioned(keyBytes, valueBytes)));
+                if (valueLength == 0) {
+                    tableSegmentOperations.add(new TableSegmentUtils.DeleteOperation(TableSegmentEntry.unversioned(keyBytes, new byte[0])));
+                } else {
+                    byte[] valueBytes = slice.slice(EntrySerializer.HEADER_LENGTH + header.getKeyLength(), header.getValueLength()).getReader().readNBytes(header.getValueLength());
+                    tableSegmentOperations.add(new TableSegmentUtils.PutOperation(TableSegmentEntry.unversioned(keyBytes, valueBytes)));
+                }
                 // Full entry read, so reset unprocessed bytes.
                 Preconditions.checkState(unprocessedBytesFromLastChunk < totalEntryLength, "Some bytes are missing to process.");
                 unprocessedBytesFromLastChunk = 0;

@@ -97,7 +97,9 @@ public class ControllerEventProcessorPravegaTablesStreamTest extends ControllerE
         List<VersionedTransactionData> txnDataList = createAndCommitTransactions(3);
         int epoch = txnDataList.get(0).getEpoch();
         spyStreamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
-        CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, spyStreamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, spyStreamMetadataTasks,
+                                                                             streamTransactionMetadataTasks,
+                                                                             bucketStore, executor);
 
         final String committingTxnsRecordKey = "committingTxns";
         long failingClientRequestId = 123L;
@@ -106,8 +108,12 @@ public class ControllerEventProcessorPravegaTablesStreamTest extends ControllerE
         OperationContext context = this.streamStore.createStreamContext(scope, stream, failingClientRequestId);
         streamStore.startCommitTransactions(scope, stream, 100, context, executor).join();
 
-        doReturn(Futures.failedFuture(new RuntimeException())).when(storeHelper).updateEntry(anyString(), eq(committingTxnsRecordKey), any(), ArgumentMatchers.<Function<String, byte[]>>any(), any(), eq(failingClientRequestId));
-        AssertExtensions.assertFutureThrows("Updating CommittingTxnRecord fails", commitEventProcessor.processEvent(new CommitEvent(scope, stream, epoch)), e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        doReturn(Futures.failedFuture(new RuntimeException())).when(storeHelper)
+                                                              .updateEntry(anyString(), eq(committingTxnsRecordKey), any(),
+                                                                           ArgumentMatchers.<Function<String, byte[]>>any(),
+                                                                           any(), eq(failingClientRequestId));
+        AssertExtensions.assertFutureThrows("Updating CommittingTxnRecord fails", 
+            commitEventProcessor.processEvent(new CommitEvent(scope, stream, epoch)), e -> Exceptions.unwrap(e) instanceof RuntimeException);
         verify(storeHelper, times(1)).removeEntries(anyString(), any(), eq(failingClientRequestId));
         VersionedMetadata<CommittingTransactionsRecord> versionedCommitRecord = this.streamStore.getVersionedCommittingTransactionsRecord(scope, stream, context, executor).join();
         CommittingTransactionsRecord commitRecord = versionedCommitRecord.getObject();

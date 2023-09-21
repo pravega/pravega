@@ -17,7 +17,10 @@ package io.pravega.cli.admin.segmentstore.storage;
 
 import com.google.common.base.Preconditions;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
+import io.pravega.segmentstore.storage.chunklayer.SystemJournal.SegmentSnapshotRecord;
+import io.pravega.segmentstore.storage.chunklayer.SystemJournal.SystemJournalRecord;
+import io.pravega.segmentstore.storage.chunklayer.SystemJournal.SystemJournalRecordBatch;
+import io.pravega.segmentstore.storage.chunklayer.SystemJournal.SystemSnapshotRecord;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import lombok.val;
 
@@ -53,7 +56,7 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
 
     public static final String INTERNAL_CONTAINER_PREFIX = "_system/containers/";
 
-    private static final SystemJournal.SystemSnapshotRecord.Serializer SYSTEM_SNAPSHOT_SERIALIZER = new SystemJournal.SystemSnapshotRecord.Serializer();
+    private static final SystemSnapshotRecord.Serializer SYSTEM_SNAPSHOT_SERIALIZER = new SystemSnapshotRecord.Serializer();
     private static final String SNAPSHOT = "snapshot";
     private static final String EPOCH_SPLITTER = ".E-";
     private static final String SEGMENT_PART_SPLITTER = "\\/";
@@ -103,12 +106,12 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
                 collect(Collectors.toList());
         byte[] journalBytesRead = Files.readAllBytes(journalFile.toPath());
         val journalRecords = deserializer.deserialize(journalBytesRead);
-        SystemJournal.SystemSnapshotRecord systemSnapshot = null;
+        SystemSnapshotRecord systemSnapshot = null;
         // There could be other type of records like ChunkAddedRecord when using a JournalFileDeserializer;
         // Make sure we are picking the SystemSnapShotRecord in it.
-        for (SystemJournal.SystemJournalRecord record : journalRecords) {
-            if (record instanceof SystemJournal.SystemSnapshotRecord) {
-                systemSnapshot = (SystemJournal.SystemSnapshotRecord) record;
+        for (SystemJournalRecord record : journalRecords) {
+            if (record instanceof SystemSnapshotRecord) {
+                systemSnapshot = (SystemSnapshotRecord) record;
                 break;
             }
         }
@@ -119,20 +122,20 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
     }
 
     private interface JournalDeserializer {
-        Collection<SystemJournal.SystemJournalRecord> deserialize(byte[] bytes) throws Exception;
+        Collection<SystemJournalRecord> deserialize(byte[] bytes) throws Exception;
     }
 
     private static class JournalSnapshotDeserializer implements JournalDeserializer {
-        public Collection<SystemJournal.SystemJournalRecord> deserialize(byte[] bytes) throws IOException {
+        public Collection<SystemJournalRecord> deserialize(byte[] bytes) throws IOException {
             val systemSnapshotRecord = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(bytes);
             return Collections.singletonList(systemSnapshotRecord);
         }
     }
 
     private static class JournalFileDeserializer implements JournalDeserializer {
-        private static final SystemJournal.SystemJournalRecordBatch.SystemJournalRecordBatchSerializer SYSTEM_JOURNAL_BATCH_SERIALIZER = new SystemJournal.SystemJournalRecordBatch.SystemJournalRecordBatchSerializer();
+        private static final SystemJournalRecordBatch.SystemJournalRecordBatchSerializer SYSTEM_JOURNAL_BATCH_SERIALIZER = new SystemJournalRecordBatch.SystemJournalRecordBatchSerializer();
 
-        public Collection<SystemJournal.SystemJournalRecord> deserialize(byte[] bytes) throws IOException {
+        public Collection<SystemJournalRecord> deserialize(byte[] bytes) throws IOException {
             val journalRecordBatch = SYSTEM_JOURNAL_BATCH_SERIALIZER.deserialize(bytes);
             return journalRecordBatch.getSystemJournalRecords();
         }
@@ -161,13 +164,13 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
      * @param chunkFiles     the segment chunks whose properties need to
      *                       be updated in the passed system snapshot.
      */
-    private void updateSystemSnapShotRecord(SystemJournal.SystemSnapshotRecord systemSnapshot, List<File> chunkFiles) {
-        Collection<SystemJournal.SegmentSnapshotRecord> records = systemSnapshot.getSegmentSnapshotRecords();
+    private void updateSystemSnapShotRecord(SystemSnapshotRecord systemSnapshot, List<File> chunkFiles) {
+        Collection<SegmentSnapshotRecord> records = systemSnapshot.getSegmentSnapshotRecords();
         List<ChunkMetadata> chunks = generateChunks(chunkFiles);
-        SystemJournal.SegmentSnapshotRecord recordToBeSaved;
-        Iterator<SystemJournal.SegmentSnapshotRecord> segmentIterator = records.iterator();
+        SegmentSnapshotRecord recordToBeSaved;
+        Iterator<SegmentSnapshotRecord> segmentIterator = records.iterator();
         while (segmentIterator.hasNext()) {
-            SystemJournal.SegmentSnapshotRecord record = segmentIterator.next();
+            SegmentSnapshotRecord record = segmentIterator.next();
             if (isSegmentBeingEdited(record.getSegmentMetadata().getName(), chunkFiles.get(0).getName())) {
                 output("Updating SystemSnapshot with relevant data.");
                 record.getSegmentMetadata().setLength(segmentLength.get());

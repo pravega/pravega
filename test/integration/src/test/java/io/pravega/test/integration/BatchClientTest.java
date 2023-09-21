@@ -189,7 +189,8 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         ArrayList<SegmentRange> segmentsPostTruncation1 = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         // 3b. Fetch Segments using fetchStreamInfo() api.
         StreamInfo streamInfo = streamManager.fetchStreamInfo(SCOPE, STREAM).get();
-        ArrayList<SegmentRange> segmentsPostTruncation2 = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), streamInfo.getHeadStreamCut(), streamInfo.getTailStreamCut()).getIterator());
+        ArrayList<SegmentRange> segmentsPostTruncation2 = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), 
+                                                                             streamInfo.getHeadStreamCut(), streamInfo.getTailStreamCut()).getIterator());
         // Validate results.
         validateSegmentCountAndEventCount(batchClient, segmentsPostTruncation1);
         validateSegmentCountAndEventCount(batchClient, segmentsPostTruncation2);

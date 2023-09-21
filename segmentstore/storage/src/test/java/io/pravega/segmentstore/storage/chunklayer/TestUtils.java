@@ -133,7 +133,9 @@ public class TestUtils {
      * @param checkReadIndex True if readIndex entries should be checked.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
-    public static void checkReadIndexEntries(ChunkedSegmentStorage chunkedSegmentStorage, ChunkMetadataStore metadataStore, String segmentName, long startOffset, long endOffset, boolean checkReadIndex) throws Exception {
+    public static void checkReadIndexEntries(ChunkedSegmentStorage chunkedSegmentStorage,
+                                             ChunkMetadataStore metadataStore, String segmentName, long startOffset,
+                                             long endOffset, boolean checkReadIndex) throws Exception {
         val blockSize = chunkedSegmentStorage.getConfig().getIndexBlockSize();
         val segmentReadIndex = chunkedSegmentStorage.getReadIndexCache().getSegmentsReadIndexCache().getIfPresent(segmentName);
         try (val txn = metadataStore.beginTransaction(true, new String[] {segmentName})) {
@@ -339,7 +341,10 @@ public class TestUtils {
      * @param actualChunkMetadataList   Actual list of {@link ChunkMetadata}.
      * @throws Exception {@link AssertionError} is thrown in case of mismatch.
      */
-    public static void assertEquals(SegmentMetadata expectedSegmentMetadata, ArrayList<ChunkMetadata> expectedChunkMetadataList, SegmentMetadata actualSegmentMetadata, ArrayList<ChunkMetadata> actualChunkMetadataList) throws Exception {
+    public static void assertEquals(SegmentMetadata expectedSegmentMetadata,
+                                    ArrayList<ChunkMetadata> expectedChunkMetadataList,
+                                    SegmentMetadata actualSegmentMetadata,
+                                    ArrayList<ChunkMetadata> actualChunkMetadataList) throws Exception {
         Assert.assertEquals(expectedSegmentMetadata, actualSegmentMetadata);
         Assert.assertEquals(expectedChunkMetadataList.size(), actualChunkMetadataList.size());
 

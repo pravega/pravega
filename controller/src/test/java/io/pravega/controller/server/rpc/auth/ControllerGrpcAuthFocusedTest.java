@@ -1062,10 +1062,14 @@ public class ControllerGrpcAuthFocusedTest {
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READUPDATE, defaultPassword, "prn::/scope:scope1/stream:stream1,READ_UPDATE"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READ, defaultPassword, "prn::/scope:scope1/stream:stream1,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM2_READ, defaultPassword, "prn::/scope:scope1/stream:stream2,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_LIST_READ, defaultPassword, "prn::/scope:scope1,READ;prn::/scope:scope1/stream:stream1,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_3_LIST_READ, defaultPassword, "prn::/scope:scope1,READ;prn::/scope:scope1/stream:stream1,READ;prn::/scope:scope1/stream:stream3,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_LIST_READ, defaultPassword, "prn::/scope:scope1,READ;prn::/scope:scope1/key-value-table:table1,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_3_LIST_READ, defaultPassword, "prn::/scope:scope1,READ;prn::/scope:scope1/key-value-table:table1,READ;prn::/scope:scope1/key-value-table:table3,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_LIST_READ, defaultPassword,
+                        "prn::/scope:scope1,READ;prn::/scope:scope1/stream:stream1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_3_LIST_READ, defaultPassword,
+                        "prn::/scope:scope1,READ;prn::/scope:scope1/stream:stream1,READ;prn::/scope:scope1/stream:stream3,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_LIST_READ, defaultPassword,
+                        "prn::/scope:scope1,READ;prn::/scope:scope1/key-value-table:table1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_3_LIST_READ, defaultPassword,
+                        "prn::/scope:scope1,READ;prn::/scope:scope1/key-value-table:table1,READ;prn::/scope:scope1/key-value-table:table3,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "prn::/scope:scope1,READ"));
             }
             return result;
