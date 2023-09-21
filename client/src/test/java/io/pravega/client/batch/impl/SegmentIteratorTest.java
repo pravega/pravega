@@ -21,6 +21,7 @@ import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
@@ -188,6 +189,11 @@ public class SegmentIteratorTest {
         verify(input, times(2)).read();
         when(input.read()).thenThrow(SegmentTruncatedException.class);
         assertThrows(TruncatedDataException.class, () -> iter.next());
+        // Ensure fetchCurrentSegmentHeadOffset returns incompleteFuture.
+        CompletableFuture<SegmentInfo> incompleteFuture = new CompletableFuture();
+        doReturn(incompleteFuture).when(metaClient).fetchCurrentSegmentHeadOffset();
+        SegmentIteratorImpl<String> iter1 = new SegmentIteratorImpl<>(factory, metaFactory, controller, segment, stringSerializer, 0, endOffset);
+        assertThrows(TruncatedDataException.class, () -> iter1.next());
     }
 
     private void sendData(String data, SegmentOutputStream outputStream) {
