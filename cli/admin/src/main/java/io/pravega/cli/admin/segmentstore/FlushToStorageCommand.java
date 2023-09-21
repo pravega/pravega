@@ -31,6 +31,7 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,6 +47,7 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private static final int REQUEST_TIMEOUT_SECONDS = 60 * 30;
     private static final String ALL_CONTAINERS = "all";
+    private boolean useAdminPort = true;
 
     /**
      * Creates new instance of the FlushToStorageCommand.
@@ -93,7 +95,7 @@ public class FlushToStorageCommand extends ContainerCommand {
     }
 
     private int getAdminPortForHost(int configuredAdminPort, String ssHost) {
-        if (InetAddresses.isInetAddress(ssHost)) {
+        if ( InetAddresses.isInetAddress(ssHost) || useAdminPort) {
             return configuredAdminPort;
         }
         String[] ssHostParts = ssHost.split("-");
@@ -130,6 +132,7 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private Map<Integer, String> getHosts() {
         Map<Host, Set<Integer>> hostMap;
+        Set<Integer> ports = new HashSet<>();
         try {
             @Cleanup
             ZKHelper zkStoreHelper = ZKHelper.create(getServiceConfig().getZkURL(), getServiceConfig().getClusterName());
@@ -145,10 +148,14 @@ public class FlushToStorageCommand extends ContainerCommand {
         Map<Integer, String> containerHostMap = new HashMap<>();
         for (Map.Entry<Host, Set<Integer>> entry: hostMap.entrySet()) {
             String ipAddr = entry.getKey().getIpAddr();
+            ports.add(entry.getKey().getPort());
             Set<Integer> containerIds = entry.getValue();
             for (Integer containerId : containerIds) {
                 containerHostMap.put(containerId, ipAddr);
             }
+        }
+        if (ports.size() > 1) {
+            useAdminPort = false;
         }
         return containerHostMap;
     }
