@@ -231,7 +231,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testFlushToStorageCommandAllCase() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         String commandResult = TestUtils.executeCommand("container flush-to-storage all", STATE.get());
         for (int id = 0; id < CONTAINER_COUNT; id++) {
             Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId " + id + " to Storage."));
@@ -241,7 +241,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testFlushToStorageCommand() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         String commandResult = TestUtils.executeCommand("container flush-to-storage 0", STATE.get());
         Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId 0 to Storage."));
         Assert.assertNotNull(FlushToStorageCommand.descriptor());
@@ -249,7 +249,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testFlushToStorageCommandRangeCase() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         String commandResult = TestUtils.executeCommand("container flush-to-storage 0 " + (CONTAINER_COUNT - 1), STATE.get());
         Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId 0 to Storage."));
         Assert.assertNotNull(FlushToStorageCommand.descriptor());
@@ -257,28 +257,28 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testFlushToStorageCommandWithEndContainerNotNumber() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         AssertExtensions.assertThrows("End container id must be a number.", () -> TestUtils.executeCommand("container flush-to-storage 0 all", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testFlushToStorageCommandWithoutGettingSegmentStoreHost() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         AssertExtensions.assertThrows("Error getting segment store hosts for containers.", () -> TestUtils.executeCommand("container flush-to-storage 0 all", STATE.get()),
                 ex -> ex instanceof RuntimeException);
     }
 
     @Test
     public void testFlushToStorageCommandWithThreeArguments() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("container flush-to-storage 0 1 1", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testFlushToStorageCommandWithoutGettingSegmentStoreHostForGivenContainer() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         Properties pravegaProperties = new Properties();
         pravegaProperties.setProperty("pravegaservice.container.count", "8");
         STATE.get().getConfigBuilder().include(pravegaProperties);
@@ -290,42 +290,42 @@ public abstract class AbstractSegmentStoreCommandsTest {
 
     @Test
     public void testFlushToStorageCommandWithoutArguments() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("container flush-to-storage", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testFlushToStorageCommandAllCaseWithRange() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("container flush-to-storage all 0", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testFlushToStorageCommandWithInvalidStartContainer() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("container flush-to-storage 100", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testFlushToStorageCommandWithInvalidEndContainer() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         AssertExtensions.assertThrows("Incorrect argument count.", () -> TestUtils.executeCommand("container flush-to-storage 0 100", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testFlushToStorageCommandWithNegativeStartContainerId() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         AssertExtensions.assertThrows("The start container id must be a positive number.", () -> TestUtils.executeCommand("container flush-to-storage -1", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testFlushToStorageCommandWithNegativeEndContainerId() throws Exception {
-        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost", 1234);
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         AssertExtensions.assertThrows("The end container id must be a positive number.", () -> TestUtils.executeCommand("container flush-to-storage 0 -1", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
