@@ -446,7 +446,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                       //recover metadata store.
                                       log.info("{}: Recovering Metadata Store.", this.traceObjectId);
                                      return this.storage.getStreamSegmentInfo(NameUtils.getMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout())
-                                              .thenComposeAsync( info -> this.metadataStore.recover(info, this.config.getMetadataStoreInitTimeout()));
+                                              .thenComposeAsync( info -> this.metadataStore.recover(info, this.config.getMetadataStoreInitTimeout()), this.executor);
                                   } else {
                                       log.info("{}: Initializing Metadata Store.", this.traceObjectId);
                                       return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
