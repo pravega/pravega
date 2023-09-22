@@ -204,6 +204,20 @@ public final class TestUtils {
         zkHostStore.updateHostContainersMap(dummyHostContainerAssignment);
     }
 
+    public static void createMultipleDummyHostContainerAssignment(String zkConnectString, String hostIp1, int hostPort1, String hostIp2, int hostPort2) {
+        @Cleanup
+        CuratorFramework curatorFramework = CuratorFrameworkFactory.builder().namespace("pravega/pravega-cluster")
+                .connectString(zkConnectString)
+                .retryPolicy(new RetryOneTime(5000)).build();
+        curatorFramework.start();
+        ZKHostStore zkHostStore = new ZKHostStore(curatorFramework, 4);
+        Map<Host, Set<Integer>> dummyHostContainerAssignment = new HashMap<>();
+        dummyHostContainerAssignment.put(new Host(hostIp1, hostPort1, ""), new HashSet<>(Arrays.asList(0, 1)));
+        dummyHostContainerAssignment.put(new Host(hostIp2, hostPort2, ""), new HashSet<>(Arrays.asList(2, 3)));
+        zkHostStore.updateHostContainersMap(dummyHostContainerAssignment);
+    }
+
+
     /**
      * Creates the given scope and stream using the given controller instance.
      *
