@@ -97,7 +97,10 @@ public class StorageReadManagerTests extends ThreadPooledTestSuite {
 
             Assert.assertNotNull("No data returned for request " + request, readData);
             Assert.assertEquals("Unexpected read length for request " + request, expectedReadLength, readData.getData().getLength());
-            AssertExtensions.assertStreamEquals("Unexpected read contents for request " + request, new ByteArrayInputStream(segmentData, (int) request.getOffset(), expectedReadLength), readData.getData().getReader(), expectedReadLength);
+            AssertExtensions.assertStreamEquals(
+                "Unexpected read contents for request " + request,
+                new ByteArrayInputStream(segmentData, (int) request.getOffset(), expectedReadLength),
+                readData.getData().getReader(), expectedReadLength);
         }
     }
 

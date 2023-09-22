@@ -19,7 +19,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import java.util.concurrent.ForkJoinPool;
+
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -88,7 +88,8 @@ class Reporter extends AbstractScheduledService {
      */
     void outputState() {
         val testPoolSnapshot = ExecutorServiceHelpers.getSnapshot(this.executorService);
-        val joinPoolSnapshot = ExecutorServiceHelpers.getSnapshot(ForkJoinPool.commonPool());
+        @SuppressWarnings("ImportControl")
+        val joinPoolSnapshot = ExecutorServiceHelpers.getSnapshot(java.util.concurrent.ForkJoinPool.commonPool());
         val storePoolSnapshot = this.storePoolSnapshotProvider.get();
         long time = System.nanoTime();
         long producedLength = this.testState.getProducedLength();

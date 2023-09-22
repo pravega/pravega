@@ -81,6 +81,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
     private final StreamCutHelper streamCutHelper;
     private final Retry.RetryWithBackoff retryWithBackoff;
+    private final ClientConfig clientConfig;
 
     public BatchClientFactoryImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory) {
         this(controller, clientConfig, connectionFactory, Retry.withExpBackoff(1, 10, 10, Duration.ofSeconds(30).toMillis()));
@@ -94,6 +95,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
         this.retryWithBackoff = retryWithBackoff;
+        this.clientConfig = clientConfig;
     }
 
     @Override
@@ -104,7 +106,8 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
 
     @Override
     public <T> SegmentIterator<T> readSegment(final SegmentRange segment, final Serializer<T> deserializer) {
-        return new SegmentIteratorImpl<>(inputStreamFactory, segment.asImpl().getSegment(), deserializer,
+        return new SegmentIteratorImpl<>(inputStreamFactory, segmentMetadataClientFactory, controller, clientConfig,
+                segment.asImpl().getSegment(), deserializer,
                 segment.asImpl().getStartOffset(), segment.asImpl().getEndOffset());
     }
 

@@ -88,6 +88,7 @@ import static io.pravega.shared.MetricsTags.readerGroupTags;
  */
 public final class StreamMetrics extends AbstractControllerMetrics {
 
+    @SuppressWarnings("MatchXpath")
     private static final AtomicReference<StreamMetrics> INSTANCE = new AtomicReference<>();
 
     private final OpStatsLogger createStreamLatency;

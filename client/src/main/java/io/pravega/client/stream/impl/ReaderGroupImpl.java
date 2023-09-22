@@ -161,9 +161,10 @@ public final class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             val outstandingCheckpoints = checkpointState.getOutstandingCheckpoints();
             int currentOutstandingCheckpointRequest = outstandingCheckpoints.size();
             if (currentOutstandingCheckpointRequest >= maxOutstandingCheckpointRequest) {
-                log.warn("Current outstanding checkpoints are : {}, " +
-                                 "maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}, readers blocking checkpoint are: {}",
-                         outstandingCheckpoints, maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage, maxOutstandingCheckpointRequest, checkpointState.getReaderBlockingCheckpointsMap());
+                log.warn("Current outstanding checkpoints are : {}, "
+                       + "maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}, readers blocking checkpoint are: {}",
+                         outstandingCheckpoints, maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest,
+                         rejectMessage, maxOutstandingCheckpointRequest, checkpointState.getReaderBlockingCheckpointsMap());
 
                 return false;
             } else {

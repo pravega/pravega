@@ -401,9 +401,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                 val storageMetadataSegmentInfo = MetadataStore.SegmentInfo.deserialize(storageMetadataSegmentBytes);
                                 val toBeSerializedSM = constructStorageMetadataSegmentInfoWithLength(storageMetadataSegmentInfo, storageSegment.getLength());
                                 val serializedStorageSegment = MetadataStore.SegmentInfo.serialize(toBeSerializedSM);
-                                val unversionedEntry = TableEntry.unversioned(new ByteArraySegment(NameUtils.getStorageMetadataSegmentName(this.getId()).getBytes(Charsets.UTF_8)), serializedStorageSegment);
+                                val unversionedEntry = TableEntry.unversioned(new ByteArraySegment(NameUtils.getStorageMetadataSegmentName(this.getId()).getBytes(Charsets.UTF_8)),
+                                        serializedStorageSegment);
                                 try {
-                                    extension.put(NameUtils.getMetadataSegmentName(this.getId()), Collections.singletonList(unversionedEntry), this.config.getMetadataStoreInitTimeout()).get(this.config.getMetadataStoreInitTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                                    extension.put(NameUtils.getMetadataSegmentName(this.getId()), Collections.singletonList(unversionedEntry),
+                                            this.config.getMetadataStoreInitTimeout()).get(this.config.getMetadataStoreInitTimeout().toMillis(), TimeUnit.MILLISECONDS);
                                 } catch (Exception e) {
                                     log.error("{}: Could not save storage metadata info in container metadata. Failed with exception {}", this.traceObjectId, e );
                                     return Futures.failedFuture(e);
@@ -880,7 +882,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                             .thenComposeAsync(savedEpoch -> {
                                                 if (savedEpoch.getEpoch() > epochInfo.getEpoch()) {
                                                     return CompletableFuture.failedFuture(
-                                                            new IllegalContainerStateException(String.format("Unexpected epoch. Expected = {} actual = {}", epochInfo.getEpoch(), savedEpoch.getEpoch())));
+                                                        new IllegalContainerStateException(String.format(
+                                                            "Unexpected epoch. Expected = {} actual = {}",
+                                                            epochInfo.getEpoch(), savedEpoch.getEpoch())));
                                                 } else {
                                                     return chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunk));
                                                 }

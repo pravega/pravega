@@ -98,7 +98,9 @@ public class MetadataCheckpointPolicy {
     @Override
     public String toString() {
         synchronized (this) {
-            return String.format("Count = %d/%d, Length = %d/%d", this.commitCount, this.config.getCheckpointCommitCountThreshold(), this.accumulatedLength, this.config.getCheckpointTotalCommitLengthThreshold());
+            return String.format(
+                "Count = %d/%d, Length = %d/%d", this.commitCount, this.config.getCheckpointCommitCountThreshold(),
+                this.accumulatedLength, this.config.getCheckpointTotalCommitLengthThreshold());
         }
     }
 

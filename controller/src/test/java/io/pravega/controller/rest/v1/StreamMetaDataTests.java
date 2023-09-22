@@ -781,8 +781,11 @@ public class StreamMetaDataTests {
         tagStream.add("streamForTags");
         ImmutablePair<List<String>, String> tagPair = new ImmutablePair<>(tagStream, "");
         ImmutablePair<List<String>, String> emptyPair = new ImmutablePair<>(Collections.emptyList(), "");
-        when(mockControllerService.listStreamsForTag(eq("scope1"), eq("testTag"), anyString(), anyLong())).thenReturn(CompletableFuture.completedFuture(tagPair)).thenReturn(CompletableFuture.completedFuture(emptyPair));
-        when(mockControllerService.getStream(eq("scope1"), eq("streamForTags"), anyLong())).thenReturn(CompletableFuture.completedFuture(streamConfigurationForTags));
+        when(mockControllerService.listStreamsForTag(eq("scope1"), eq("testTag"), anyString(), anyLong()))
+            .thenReturn(CompletableFuture.completedFuture(tagPair))
+            .thenReturn(CompletableFuture.completedFuture(emptyPair));
+        when(mockControllerService.getStream(eq("scope1"), eq("streamForTags"), anyLong()))
+            .thenReturn(CompletableFuture.completedFuture(streamConfigurationForTags));
         response = addAuthHeaders(client.target(resourceURI).queryParam("filter_type", "tag").queryParam("filter_value", "testTag").request()).buildGet().invoke();
         assertEquals("List Streams response code", 200, response.getStatus());
         assertTrue(response.bufferEntity());

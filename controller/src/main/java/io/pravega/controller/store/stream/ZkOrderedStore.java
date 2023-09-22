@@ -103,31 +103,33 @@ class ZkOrderedStore {
         // add persistent sequential node to the latest collection number 
         // if collectionNum is sealed, increment collection number and write the entity there. 
         return getLatestCollection(scope, stream)
-                .thenCompose(latestcollectionNum ->
-                        storeHelper.createPersistentSequentialZNode(getEntitySequentialPath(scope, stream, latestcollectionNum),
-                                entity.getBytes(Charsets.UTF_8))
-                                   .thenCompose(positionPath -> {
-                                       int position = getPositionFromPath(positionPath);
-                                       if (position > rollOverAfter) {
-                                           // if newly created position exceeds rollover limit, we need to delete that entry 
-                                           // and roll over. 
-                                           // 1. delete newly created path
-                                           return storeHelper.deletePath(positionPath, false)
-                                                             // 2. seal latest collection
-                                                             .thenCompose(v -> storeHelper.createZNodeIfNotExist(
-                                                                     getCollectionSealedPath(scope, stream, latestcollectionNum)))
-                                                             // 3. create new collection and put the entity in
-                                                             .thenCompose(v -> storeHelper.createPersistentSequentialZNode(getEntitySequentialPath(scope, stream, latestcollectionNum + 1), entity.getBytes(Charsets.UTF_8)))
-                                                             .thenApply(newPositionPath -> Position.toLong(latestcollectionNum + 1, getPositionFromPath(newPositionPath)))
-                                                             // 4. delete empty sealed collection path
-                                                             .thenCompose(orderedPosition -> 
-                                                                     tryDeleteSealedCollection(scope, stream, latestcollectionNum)
-                                                                     .thenApply(v -> orderedPosition));
-
-                                       } else {
-                                           return CompletableFuture.completedFuture(Position.toLong(latestcollectionNum, position));
-                                       }
-                                   }))
+                .thenCompose(latestcollectionNum -> {
+                    return storeHelper.createPersistentSequentialZNode(getEntitySequentialPath(scope, stream, latestcollectionNum), entity.getBytes(Charsets.UTF_8))
+                        .thenCompose(positionPath -> {
+                            int position = getPositionFromPath(positionPath);
+                            if (position > rollOverAfter) {
+                                // if newly created position exceeds rollover limit, we need to delete that entry 
+                                // and roll over. 
+                                // 1. delete newly created path
+                                return storeHelper.deletePath(positionPath, false)
+                                                  // 2. seal latest collection
+                                                  .thenCompose(v -> storeHelper.createZNodeIfNotExist(
+                                                          getCollectionSealedPath(scope, stream, latestcollectionNum)))
+                                                  // 3. create new collection and put the entity in
+                                                  .thenCompose(v -> {
+                                                      String path = getEntitySequentialPath(scope, stream, latestcollectionNum + 1);
+                                                      return storeHelper.createPersistentSequentialZNode(path, entity.getBytes(Charsets.UTF_8));
+                                                  })
+                                                  .thenApply(newPositionPath -> Position.toLong(latestcollectionNum + 1, getPositionFromPath(newPositionPath)))
+                                                  // 4. delete empty sealed collection path
+                                                  .thenCompose(orderedPosition -> {
+                                                      return tryDeleteSealedCollection(scope, stream, latestcollectionNum).thenApply(v -> orderedPosition);
+                                                  });
+                            } else {
+                                return CompletableFuture.completedFuture(Position.toLong(latestcollectionNum, position));
+                            }
+                        });
+                    })
                 .whenComplete((r, e) -> {
                     if (e != null) {
                         log.error(requestId, 
