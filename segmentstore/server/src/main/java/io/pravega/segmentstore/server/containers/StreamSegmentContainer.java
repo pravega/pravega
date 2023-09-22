@@ -398,20 +398,17 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             log.debug("{}: Storage Metadata segment details retrieved: {}", this.traceObjectId, storageSegment);
             return this.metadataStore.getSegmentInfoInternal(NameUtils.getStorageMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout())
                     .thenComposeAsync( storageMetadataSegmentBytes -> {
-                                val storageMetadataSegmentInfo = MetadataStore.SegmentInfo.deserialize(storageMetadataSegmentBytes);
-                                val toBeSerializedSM = constructStorageMetadataSegmentInfoWithLength(storageMetadataSegmentInfo, storageSegment.getLength());
-                                val serializedStorageSegment = MetadataStore.SegmentInfo.serialize(toBeSerializedSM);
-                                val unversionedEntry = TableEntry.unversioned(new ByteArraySegment(NameUtils.getStorageMetadataSegmentName(this.getId()).getBytes(Charsets.UTF_8)),
-                                        serializedStorageSegment);
-                                try {
-                                    extension.put(NameUtils.getMetadataSegmentName(this.getId()), Collections.singletonList(unversionedEntry),
-                                            this.config.getMetadataStoreInitTimeout()).get(this.config.getMetadataStoreInitTimeout().toMillis(), TimeUnit.MILLISECONDS);
-                                } catch (Exception e) {
-                                    log.error("{}: Could not save storage metadata info in container metadata. Failed with exception {}", this.traceObjectId, e );
-                                    return Futures.failedFuture(e);
-                                }
-                                log.debug("{}: Reconciled length post restore for Storage Metadata segment.", this.traceObjectId);
-                                return CompletableFuture.completedFuture(null);
+                        val storageMetadataSegmentInfo = MetadataStore.SegmentInfo.deserialize(storageMetadataSegmentBytes);
+                        val toBeSerializedSM = constructStorageMetadataSegmentInfoWithLength(storageMetadataSegmentInfo, storageSegment.getLength());
+                        val serializedStorageSegment = MetadataStore.SegmentInfo.serialize(toBeSerializedSM);
+                        val unversionedEntry = TableEntry.unversioned(new ByteArraySegment(NameUtils.getStorageMetadataSegmentName(this.getId()).getBytes(Charsets.UTF_8)), serializedStorageSegment);
+                        try {
+                            extension.put(NameUtils.getMetadataSegmentName(this.getId()), Collections.singletonList(unversionedEntry), this.config.getMetadataStoreInitTimeout()).get(this.config.getMetadataStoreInitTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                        } catch (Exception e) {
+                            log.error("{}: Could not save storage metadata info in container metadata. Failed with exception {}", this.traceObjectId, e );
+                            return Futures.failedFuture(e);
+                        }
+                        return CompletableFuture.completedFuture(null);
                     }, this.executor);
         } catch (Exception ex) {
             log.error("{}: Error adjusting storage metadata segment length in container metadata. Failing with exception {}", this.traceObjectId, ex);
