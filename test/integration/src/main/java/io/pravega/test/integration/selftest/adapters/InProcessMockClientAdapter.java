@@ -114,8 +114,10 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         this.autoScaleMonitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
         IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(executor, store);
         this.listener = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store,
-                getTableStore(), autoScaleMonitor.getStatsRecorder(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
-                null, null, false, NoOpScheduledExecutor.get(), SecurityConfigDefaults.TLS_PROTOCOL_VERSION, indexAppendProcessor);
+                                                      getTableStore(), autoScaleMonitor.getStatsRecorder(),
+                                                      TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
+                                                      null, null, false, NoOpScheduledExecutor.get(),
+                                                      SecurityConfigDefaults.TLS_PROTOCOL_VERSION, indexAppendProcessor);
         this.listener.startListening();
 
         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);

@@ -103,11 +103,17 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final long requestId = Flow.create().asLong();
 
     @VisibleForTesting
-    SegmentOutputStreamImpl(String segmentName, boolean useConnectionPooling, Controller controller, ConnectionPool connectionPool, UUID writerId, Consumer<Segment> resendToSuccessorsCallback, RetryWithBackoff retrySchedule, DelegationTokenProvider tokenProvider) {
-        this(segmentName, useConnectionPooling, controller, connectionPool, writerId, resendToSuccessorsCallback, retrySchedule, tokenProvider, ClientConfig.builder().build());
+    SegmentOutputStreamImpl(String segmentName, boolean useConnectionPooling, Controller controller,
+                            ConnectionPool connectionPool, UUID writerId, Consumer<Segment> resendToSuccessorsCallback,
+                            RetryWithBackoff retrySchedule, DelegationTokenProvider tokenProvider) {
+        this(segmentName, useConnectionPooling, controller, connectionPool, writerId, resendToSuccessorsCallback,
+             retrySchedule, tokenProvider, ClientConfig.builder().build());
     }
 
-    SegmentOutputStreamImpl(String segmentName, boolean useConnectionPooling, Controller controller, ConnectionPool connectionPool, UUID writerId, Consumer<Segment> resendToSuccessorsCallback, RetryWithBackoff retrySchedule, DelegationTokenProvider tokenProvider, ClientConfig clientConfig) {
+    SegmentOutputStreamImpl(String segmentName, boolean useConnectionPooling, Controller controller,
+                            ConnectionPool connectionPool, UUID writerId, Consumer<Segment> resendToSuccessorsCallback,
+                            RetryWithBackoff retrySchedule, DelegationTokenProvider tokenProvider,
+                            ClientConfig clientConfig) {
         this.segmentName = segmentName;
         this.useConnectionPooling = useConnectionPooling;
         this.controller = controller;

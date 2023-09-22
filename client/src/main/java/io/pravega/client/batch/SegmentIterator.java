@@ -27,6 +27,11 @@ import java.util.Iterator;
  *
  * While buffering is used to avoid it, it is possible for {@link #next()} to block on fetching the
  * data.
+ *
+ * While iterating over SegmentIterator using {@link #next()} it can throw {@link io.pravega.client.stream.TruncatedDataException}
+ * if SegmentIterator is pointing to an offset which is already truncated.
+ * If this exception occurs, SegmentIterator will automatically update headOffset to next available offset.
+ * Next call to {@link #next()} will point correctly to valid offset and reader will continue.
  * 
  * At any time {@link #getOffset()} can be called to get the byte offset in the segment the iterator
  * is currently pointing to.

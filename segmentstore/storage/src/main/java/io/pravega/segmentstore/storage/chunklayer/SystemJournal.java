@@ -585,7 +585,10 @@ public class SystemJournal {
                                         return readSnapshotInfoFromFile()
                                                 .thenComposeAsync( existingSnapshot -> {
                                                     if (existingSnapshot.getEpoch() > epoch) {
-                                                        return CompletableFuture.failedFuture(new StorageNotPrimaryException(String.format("SystemJournal[{}] Unexpected snapshot. Expected = {} actual = {}", info, existingSnapshot)));
+                                                        return CompletableFuture.failedFuture(
+                                                            new StorageNotPrimaryException(String.format(
+                                                                "SystemJournal[{}] Unexpected snapshot. Expected = {} actual = {}",
+                                                                info, existingSnapshot)));
                                                     } else {
                                                         return chunkStorage.delete(ChunkHandle.writeHandle(snapshotInfoFileName));
                                                     }
@@ -604,7 +607,9 @@ public class SystemJournal {
                                     }, executor)
                                 .thenApplyAsync( readBackInfo -> {
                                     if (readBackInfo.getEpoch() > epoch) {
-                                        throw new CompletionException(new StorageNotPrimaryException(String.format("SystemJournal[{}] Unexpected snapshot. Expected = {} actual = {}", info, readBackInfo)));
+                                        throw new CompletionException(new StorageNotPrimaryException(String.format(
+                                            "SystemJournal[{}] Unexpected snapshot. Expected = {} actual = {}",
+                                            info, readBackInfo)));
                                     }
                                     if (!info.equals(readBackInfo)) {
                                         throw new CompletionException(
@@ -682,7 +687,8 @@ public class SystemJournal {
                                 } else {
                                     if (snapshotInfoFromStore != null) {
                                         if (!snapshotInfoFromStore.equals(snapshotInfoFromFile)) {
-                                            log.warn("SystemJournal[{}] Snapshot info from store should match one from file. File = {}, Store = {}", containerId, snapshotInfoFromFile, snapshotInfoFromStore);
+                                            log.warn("SystemJournal[{}] Snapshot info from store should match one from file. File = {}, Store = {}",
+                                                     containerId, snapshotInfoFromFile, snapshotInfoFromStore);
                                         } else {
                                             log.debug("SystemJournal[{}] readSnapshotInfo. File = {}, Store = {}", containerId, snapshotInfoFromFile, snapshotInfoFromStore);
                                         }
@@ -1929,7 +1935,9 @@ public class SystemJournal {
             private static final SegmentMetadata.StorageMetadataSerializer SEGMENT_METADATA_SERIALIZER = new SegmentMetadata.StorageMetadataSerializer();
             private static final ChunkMetadata.StorageMetadataSerializer CHUNK_METADATA_SERIALIZER = new ChunkMetadata.StorageMetadataSerializer();
             private static final RevisionDataOutput.ElementSerializer<ChunkMetadata> ELEMENT_SERIALIZER = CHUNK_METADATA_SERIALIZER::serialize;
-            private static final RevisionDataInput.ElementDeserializer<ChunkMetadata> ELEMENT_DESERIALIZER = dataInput -> (ChunkMetadata) CHUNK_METADATA_SERIALIZER.deserialize(dataInput.getBaseStream());
+            private static final RevisionDataInput.ElementDeserializer<ChunkMetadata> ELEMENT_DESERIALIZER = dataInput -> {
+                return (ChunkMetadata) CHUNK_METADATA_SERIALIZER.deserialize(dataInput.getBaseStream());
+            };
 
             @Override
             protected SegmentSnapshotRecord.SegmentSnapshotRecordBuilder newBuilder() {

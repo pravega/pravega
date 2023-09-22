@@ -101,7 +101,8 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
 
         PravegaTablesStoreHelper storeHelperSpy = spy(new PravegaTablesStoreHelper(segmentHelperMockForTables, GrpcAuthHelper.getDisabledAuthHelper(), executor));
         WireCommandFailedException wcfe = new WireCommandFailedException(WireCommandType.READ_TABLE_KEYS, WireCommandFailedException.Reason.TableKeyDoesNotExist);
-        when(storeHelperSpy.getKeysPaginated(anyString(), any(), anyInt(), anyLong())).thenReturn(CompletableFuture.failedFuture(new CompletionException(StoreException.create(StoreException.Type.DATA_NOT_FOUND, wcfe, "kvTablesInScope not found."))));
+        when(storeHelperSpy.getKeysPaginated(anyString(), any(), anyInt(), anyLong()))
+            .thenReturn(CompletableFuture.failedFuture(new CompletionException(StoreException.create(StoreException.Type.DATA_NOT_FOUND, wcfe, "kvTablesInScope not found."))));
         StreamMetadataStore testStreamStore = TestStreamStoreFactory.createPravegaTablesStreamStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, storeHelperSpy);
         KVTableMetadataStore testKVStore = TestStreamStoreFactory.createPravegaTablesKVStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, storeHelperSpy);
 
