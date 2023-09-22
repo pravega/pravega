@@ -47,7 +47,7 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private static final int REQUEST_TIMEOUT_SECONDS = 60 * 30;
     private static final String ALL_CONTAINERS = "all";
-    private boolean useAdminPort = true;
+    private boolean useFixedAdminPort = true;
 
     /**
      * Creates new instance of the FlushToStorageCommand.
@@ -95,7 +95,7 @@ public class FlushToStorageCommand extends ContainerCommand {
     }
 
     private int getAdminPortForHost(int configuredAdminPort, String ssHost) {
-        if ( InetAddresses.isInetAddress(ssHost) || useAdminPort) {
+        if ( InetAddresses.isInetAddress(ssHost) || useFixedAdminPort) {
             return configuredAdminPort;
         }
         String[] ssHostParts = ssHost.split("-");
@@ -155,7 +155,7 @@ public class FlushToStorageCommand extends ContainerCommand {
             }
         }
         if (ports.size() > 1) {
-            useAdminPort = false;
+            useFixedAdminPort = false;
         }
         return containerHostMap;
     }
