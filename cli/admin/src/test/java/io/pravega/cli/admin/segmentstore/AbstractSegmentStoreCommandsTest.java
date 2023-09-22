@@ -42,7 +42,6 @@ import org.junit.After;
 import org.junit.rules.Timeout;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -258,7 +257,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
         clientConfig = clientConfigBuilder.build();
-        TestUtils.createMultipleDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234,"127.0.0.2.0", 1235);
+        TestUtils.createMultipleDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234, "127.0.0.2.0", 1235);
         AssertExtensions.assertThrows("Unexpected host-name retrieved", () -> TestUtils.executeCommand("container flush-to-storage 0 3", STATE.get()),
                 ex -> ex instanceof IllegalStateException);
     }
@@ -633,7 +632,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
         AssertExtensions.assertThrows("End container id must be greater than or equal to start container id.", () -> TestUtils.executeCommand("container flush-to-storage 1 0", STATE.get()),
                 ex -> ex instanceof IllegalArgumentException);
     }
-    
+
     @After
     public void tearDown() throws Exception {
         SETUP_UTILS.stopAllServices();
