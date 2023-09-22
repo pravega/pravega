@@ -403,7 +403,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                         val serializedStorageSegment = MetadataStore.SegmentInfo.serialize(toBeSerializedSM);
                         val unversionedEntry = TableEntry.unversioned(new ByteArraySegment(NameUtils.getStorageMetadataSegmentName(this.getId()).getBytes(Charsets.UTF_8)), serializedStorageSegment);
                         try {
-                            extension.put(NameUtils.getMetadataSegmentName(this.getId()), Collections.singletonList(unversionedEntry), this.config.getMetadataStoreInitTimeout()).get(this.config.getMetadataStoreInitTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                            extension.put(NameUtils.getMetadataSegmentName(this.getId()), Collections.singletonList(unversionedEntry), this.config.getMetadataStoreInitTimeout())
+                                     .get(this.config.getMetadataStoreInitTimeout().toMillis(), TimeUnit.MILLISECONDS);
                         } catch (Exception e) {
                             log.error("{}: Could not save storage metadata info in container metadata. Failed with exception {}", this.traceObjectId, e );
                             return Futures.failedFuture(e);
