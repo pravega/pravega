@@ -73,7 +73,8 @@ public class BookkeeperDeleteLedgersCommand  extends BookKeeperCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(BookKeeperCommand.COMPONENT, "delete-ledgers",
-                "Deletes all the ledgers for a bookkeeper log starting with and including given ledger-id as the starting index. Note that this is a destructive operation that should be used only to remove missing or corrupted ledgers that prevent a container from recovering.",
+                "Deletes all the ledgers for a bookkeeper log starting with and including given ledger-id as the starting index. "
+              + "Note that this is a destructive operation that should be used only to remove missing or corrupted ledgers that prevent a container from recovering.",
                 new ArgDescriptor("log-id", "Id of the log to delete ledgers from."),
                 new ArgDescriptor("ledger-id", "Id of the starting ledger to be deleted."));
     }

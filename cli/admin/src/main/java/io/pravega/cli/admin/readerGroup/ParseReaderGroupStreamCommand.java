@@ -124,7 +124,9 @@ public class ParseReaderGroupStreamCommand extends AdminCommand {
         long length = streamSegmentInfo.getWriteOffset();
 
         // Create a temp file and write contents of the segment into it.
-        readAndWriteSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, startOffset, length, tmpfilename, getServiceConfig().getAdminGatewayPort(), authHelper.retrieveMasterToken());
+        readAndWriteSegmentToFile(
+            segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, startOffset, length, tmpfilename,
+            getServiceConfig().getAdminGatewayPort(), authHelper.retrieveMasterToken());
 
         // Read contents from the temp file and serialize it to store the reader group state information at various offsets into the output file.
         parseRGStateFromFile(tmpfilename, writer, startOffset);

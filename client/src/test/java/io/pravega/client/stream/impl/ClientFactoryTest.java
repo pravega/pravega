@@ -84,7 +84,9 @@ public class ClientFactoryTest {
         String stream = "stream1";
         // setup mocks
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controllerClient,  new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory), inFactory, outFactory, condFactory, metaFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controllerClient,
+                                                                new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory),
+                                                                inFactory, outFactory, condFactory, metaFactory);
         NavigableMap<Double, SegmentWithRange> segments = new TreeMap<>();
         Segment segment = new Segment(scope, stream, 0L);
         segments.put(1.0, new SegmentWithRange(segment, 0.0, 1.0));

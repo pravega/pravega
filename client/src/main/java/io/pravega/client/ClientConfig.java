@@ -277,8 +277,9 @@ public class ClientConfig implements Serializable {
                     log.info("Scheme name is missing in the ControllerURI, therefore adding the default scheme {} to it", SCHEME_DIRECT);
                 } else {
                     log.warn("ControllerURI is having unsupported scheme {}.", scheme);
-                    throw new IllegalArgumentException(
-                            "Expected Schemes:  [" + SCHEME_DIRECT + ", " + SCHEME_DIRECT_SSL + ", " + SCHEME_DIRECT_TLS + ", " + SCHEME_DISCOVER + ", " + SCHEME_DISCOVER_TLS + "] but was: " + scheme);
+                    throw new IllegalArgumentException("Expected Schemes:  [" + SCHEME_DIRECT + ", " + SCHEME_DIRECT_SSL
+                            + ", " + SCHEME_DIRECT_TLS + ", " + SCHEME_DISCOVER + ", " + SCHEME_DISCOVER_TLS
+                            + "] but was: " + scheme);
                 }
             }
             extractCredentials();
