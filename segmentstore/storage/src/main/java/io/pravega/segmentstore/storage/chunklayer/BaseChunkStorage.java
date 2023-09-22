@@ -42,7 +42,8 @@ import java.util.concurrent.Executor;
  * This is indicated by {@link ChunkStorage#supportsAppend()}. For example S3 compatible Chunk Storage this would return false. </li>
  * <li> Does {@link ChunkStorage}  support for concatenating chunks? This is indicated by {@link ChunkStorage#supportsConcat()}.
  * If this is true then concat operation concat will be invoked otherwise append functionality is invoked.</li>
- * <li>In addition {@link ChunkStorage} may provide ability to truncate chunks at given offsets (either at front end or at tail end). This is indicated by {@link ChunkStorage#supportsTruncation()}. </li>
+ * <li>In addition {@link ChunkStorage} may provide ability to truncate chunks at given offsets (either at front end or at tail end).
+ * This is indicated by {@link ChunkStorage#supportsTruncation()}. </li>
  * </ul>
  * There are some obvious constraints - If ChunkStorage supports concat but not natively then it must support append .
  *

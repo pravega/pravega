@@ -1425,7 +1425,10 @@ public class DurableLogTests extends OperationLogTestBase {
 
                     if (i < originalOperations.size() - 1) {
                         Operation firstOp = reader.poll();
-                        OperationComparer.DEFAULT.assertEquals(String.format("Unexpected first operation after truncating SeqNo %d.", currentOperation.getSequenceNumber()), originalOperations.get(i + 1), firstOp);
+                        OperationComparer.DEFAULT.assertEquals(
+                            String.format("Unexpected first operation after truncating SeqNo %d.",
+                                          currentOperation.getSequenceNumber()),
+                                          originalOperations.get(i + 1), firstOp);
                     }
                 }
             }

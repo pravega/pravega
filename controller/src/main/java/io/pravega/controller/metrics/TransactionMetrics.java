@@ -45,6 +45,7 @@ import static io.pravega.shared.MetricsTags.streamTags;
  */
 public final class TransactionMetrics extends AbstractControllerMetrics {
 
+    @SuppressWarnings("MatchXpath")
     private static final AtomicReference<TransactionMetrics> INSTANCE = new AtomicReference<>();
 
     private final OpStatsLogger createTransactionLatency;

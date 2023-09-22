@@ -189,7 +189,16 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             String serviceId = getServiceID();
             EndpointSpec endpointSpec = Exceptions.handleInterruptedCall(() -> dockerClient.inspectService(serviceId).spec().endpointSpec());
             Service service = Exceptions.handleInterruptedCall(() -> dockerClient.inspectService(serviceId));
-            Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), ServiceSpec.builder().endpointSpec(endpointSpec).mode(ServiceMode.withReplicas(instanceCount)).taskTemplate(taskSpec).name(serviceName).networks(service.spec().networks()).build()));
+            Exceptions.handleInterrupted(
+                () -> dockerClient.updateService(
+                    serviceId, service.version().index(),
+                    ServiceSpec.builder()
+                               .endpointSpec(endpointSpec)
+                               .mode(ServiceMode.withReplicas(instanceCount))
+                               .taskTemplate(taskSpec)
+                               .name(serviceName)
+                               .networks(service.spec().networks())
+                               .build()));
             return Exceptions.handleInterruptedCall(() -> waitUntilServiceRunning());
         } catch (DockerException e) {
             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Test failure: Unable to scale service to given instances=" + instanceCount, e);
@@ -230,7 +239,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
     // Default Health Check which uses netstat command to ensure the service is  up and running.
     List<String> defaultHealthCheck(int port) {
-        return  customHealthCheck("netstat -ltn 2> /dev/null | grep " + port + " || ss -ltn 2> /dev/null | grep " +  port + "  || echo ruok | nc 127.0.0.1 " + port  + " 2> /dev/null | grep imok || exit 1");
+        return customHealthCheck("netstat -ltn 2> /dev/null | grep " + port + " || ss -ltn 2> /dev/null | grep " + port
+                               + "  || echo ruok | nc 127.0.0.1 " + port + " 2> /dev/null | grep imok || exit 1");
     }
 
     //Custom Health check with the command provided by the service.
