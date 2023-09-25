@@ -248,6 +248,13 @@ public abstract class AbstractSegmentStoreCommandsTest {
     }
 
     @Test
+    public void testFlushToStorageCommandNotInetAddress() {
+        TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.0.1", 1234);
+        AssertExtensions.assertThrows("Flush with incorrect inet ip", () -> TestUtils.executeCommand("container flush-to-storage all", STATE.get()),
+                ex -> ex instanceof WireCommandFailedException);
+    }
+
+    @Test
     public void testFlushToStorageCommandRangeCase() throws Exception {
         TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "127.0.0.1", 1234);
         String commandResult = TestUtils.executeCommand("container flush-to-storage 0 " + (CONTAINER_COUNT - 1), STATE.get());
