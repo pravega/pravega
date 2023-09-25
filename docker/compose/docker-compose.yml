@@ -67,3 +67,52 @@ services:
       links:
         - zookeeper
 
+  controller:
+    image: pravega/pravega
+    ports:
+      - "9090:9090"
+      - "10080:10080"
+    command: controller
+    environment:
+      WAIT_FOR: zookeeper:2181
+      ZK_URL: zookeeper:2181
+      REST_SERVER_PORT: 10080
+      JAVA_OPTS: |
+        -Dcontroller.service.rpc.listener.port=9090
+        -Xmx512m
+        -XX:OnError="kill -9 p%"
+        -XX:+ExitOnOutOfMemoryError
+        -XX:+CrashOnOutOfMemoryError
+        -XX:+HeapDumpOnOutOfMemoryError
+      SERVICE_HOST_IP: segmentstore
+    links:
+      - zookeeper
+
+  segmentstore:
+    image: pravega/pravega
+    ports:
+      - "12345:12345"
+    command: segmentstore
+    environment:
+      WAIT_FOR: bookie1:3181,bookie2:3182,bookie3:3183,hdfs:8020
+      TIER2_STORAGE: "HDFS"
+      HDFS_REPLICATION: 1
+      HDFS_URL: ${HOST_IP}:8020
+      ZK_URL: zookeeper:2181
+      CONTROLLER_URL: tcp://${HOST_IP}:9090
+      JAVA_OPTS: |
+        -Dpravegaservice.service.published.host.nameOrIp=${HOST_IP}
+        -Dbookkeeper.ensemble.size=2
+        -Dbookkeeper.ack.quorum.size=2
+        -Dbookkeeper.write.quorum.size=2
+        -Xmx900m
+        -XX:OnError="kill -9 p%"
+        -XX:+ExitOnOutOfMemoryError
+        -XX:+CrashOnOutOfMemoryError
+        -XX:+HeapDumpOnOutOfMemoryError
+    links:
+      - zookeeper
+      - hdfs
+      - bookie1
+      - bookie2
+      - bookie3
