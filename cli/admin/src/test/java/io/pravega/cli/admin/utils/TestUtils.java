@@ -61,7 +61,6 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -219,10 +218,10 @@ public final class TestUtils {
         curatorFramework.start();
         ZKHostStore zkHostStore = new ZKHostStore(curatorFramework, 4);
         Map<Host, Set<Integer>> dummyHostContainerAssignment = new HashMap<>();
-        int containerId =0;
-        for(Map.Entry<String, Integer> entry : hostPortMap.entrySet()) {
-            dummyHostContainerAssignment.put(new Host(entry.getKey(), entry.getValue(), ""), new HashSet<>(Arrays.asList(containerId, containerId+1)));
-            containerId += 2;
+        int containerId = 0;
+        for (Map.Entry<String, Integer> entry : hostPortMap.entrySet()) {
+            dummyHostContainerAssignment.put(new Host(entry.getKey(), entry.getValue(), ""), new HashSet<>(Arrays.asList(containerId, containerId + 1)));
+            containerId = containerId + 2;
         }
         zkHostStore.updateHostContainersMap(dummyHostContainerAssignment);
     }
