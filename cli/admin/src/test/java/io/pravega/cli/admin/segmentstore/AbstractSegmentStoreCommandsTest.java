@@ -242,7 +242,7 @@ public abstract class AbstractSegmentStoreCommandsTest {
     @Test
     public void testFlushToStorageCommandWithUnexpectedHostName() throws Exception {
         TestUtils.createDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), "localhost-0", 1235);
-        AssertExtensions.assertThrows("Unexpected host-name retrieved", () -> TestUtils.executeCommand("container flush-to-storage 0", STATE.get()),
+        AssertExtensions.assertThrows("Unexpected host-name retrieved", () -> TestUtils.executeCommand("container flush-to-storage all", STATE.get()),
                 ex -> ex instanceof IllegalStateException);
     }
 
