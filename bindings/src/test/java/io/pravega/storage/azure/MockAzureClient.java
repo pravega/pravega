@@ -219,7 +219,7 @@ public class MockAzureClient implements AzureClient {
     @NotThreadSafe
     static class InMemoryBlobData {
         final List<InMemoryBlock> blockList = new ArrayList<>();
-        volatile long blobLength = 0;
+        long blobLength = 0;
     }
 
 

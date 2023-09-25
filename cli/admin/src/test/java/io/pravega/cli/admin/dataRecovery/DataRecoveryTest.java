@@ -52,7 +52,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.tables.EntrySerializer;
 import io.pravega.segmentstore.storage.DebugDurableDataLogWrapper;
 import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
@@ -70,7 +69,6 @@ import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.junit.After;
 import org.junit.Assert;
@@ -596,7 +594,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .doReturn(true).doReturn(true).doReturn(false).doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doReturn(1L).doReturn(1L).doReturn(2L).doReturn(1L).doReturn(2L).doReturn(123L)
-                .doReturn(2L).doReturn(2L).doReturn(3L).doReturn(1L).doReturn(10L).doReturn(timestamp)
+                .doReturn(2L).doReturn(2L).doReturn(2L).doReturn(3L).doReturn(1L).doReturn(10L).doReturn(timestamp)
                 .doReturn(3L).doReturn(3L)
                 .doReturn(4L).doReturn(4L).doReturn(3L).doReturn(1L).doReturn(2L)
                 .when(command).getLongUserInput(Mockito.any());
@@ -890,13 +888,15 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Assert.assertEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)),
                 new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
         // Equality of payload operations are checked by type and sequence number, which are the common attributes of Operation class.
-        DurableDataLogRepairCommand.LogEditOperation deleteOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(2));
+        DurableDataLogRepairCommand.LogEditOperation deleteOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                                                                                                 1, 2, new DeleteSegmentOperation(2));
         Assert.assertEquals(deleteOp, new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
         deleteOp.getNewOperation().resetSequenceNumber(123);
         Assert.assertNotEquals(deleteOp, new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
 
         // Test the cases for the same object reference and for null comparison.
-        DurableDataLogRepairCommand.LogEditOperation sameOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1));
+        DurableDataLogRepairCommand.LogEditOperation sameOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                                                                                               1, 2, new DeleteSegmentOperation(1));
         Assert.assertEquals(sameOp, sameOp);
         Assert.assertNotEquals(sameOp, null);
 
@@ -1241,14 +1241,14 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
-        Map<Long, Long> origOperationsCountMap = getOperationsCountMapByAttributes(originalOperations);
+        Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
         Mockito.doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doReturn(1L).when(command).getLongUserInput(Mockito.any());
-        Mockito.doReturn("Attributes").doReturn("value").doReturn("no")
+        Mockito.doReturn("SequenceNumber").doReturn("value").doReturn("no")
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
-        Map<Long, Long> savedOpCountMap = getOperationsCountMapByAttributes(getSavedResult(testDataFile.getAbsolutePath()));
+        Map<Long, Long> savedOpCountMap = getOperationsCountMapBySequenceNumber(getSavedResult(testDataFile.getAbsolutePath()));
         Assert.assertEquals(origOperationsCountMap.get(1L), savedOpCountMap.get(1L));
 
         this.factory.close();
@@ -1318,8 +1318,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .doReturn(true).doReturn(false).doReturn(false)
                 .doReturn(true).doReturn(false).doReturn(false)
                 .when(command).confirmContinue();
-        Mockito.doReturn(1L).doReturn(1000L)
-                .doReturn(1L).doReturn(1000L)
+        Mockito.doReturn(1L).doReturn(2000L)
+                .doReturn(1L).doReturn(2000L)
                 .doReturn(1L).doReturn(10000L)
                 .when(command).getLongUserInput(Mockito.any());
         Mockito.doReturn("SequenceNumber").doReturn("range").doReturn(">").doReturn("and")
@@ -1641,87 +1641,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.execute();
 
         this.factory.close();
-    }
-
-    /**
-     * Tests LTS recovery command.
-     *
-     * @throws Exception In case of any exception thrown while execution.
-     */
-    @Test
-    public void testLTSRecoveryCommand() throws Exception {
-        int instanceId = 0;
-        int bookieCount = 3;
-        int containerCount = 1;
-
-        LocalServiceStarter.PravegaRunner pravegaRunner = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
-        pravegaRunner.startBookKeeperRunner(instanceId++);
-
-        FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
-                .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
-                .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
-                .build();
-        // 100KB rollover size so that there are multiple chunks created. Helps with unit test coverage.
-        ChunkedSegmentStorageConfig storageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().storageMetadataRollingPolicy(new SegmentRollingPolicy(100L * 1000L)).build();
-        this.storageFactory = new FileSystemSimpleStorageFactory(storageConfig, adapterConfig, executorService());
-
-        pravegaRunner.startControllerAndSegmentStore(this.storageFactory, null);
-        String streamName = "testLTSRecoveryCommand";
-
-        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
-        try (val clientRunner = new TestUtils.ClientRunner(pravegaRunner.getControllerRunner(), SCOPE)) {
-            // Write events to the streams.
-            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
-        }
-        TestUtils.deleteScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName);
-        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
-        pravegaRunner.shutDownControllerRunner(); // Shut down the controller
-
-        // Flush all Tier 1 to LTS
-        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.getSegmentStoreRunner().getServiceBuilder());
-
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
-        }
-
-        pravegaRunner.shutDownSegmentStoreRunner(); // Shutdown SegmentStore
-        pravegaRunner.shutDownBookKeeperRunner(); // Shutdown BookKeeper & ZooKeeper
-
-        // Start a new BookKeeper and ZooKeeper.
-        pravegaRunner.close();
-        LocalServiceStarter.PravegaRunner pravegaRunner2 = new LocalServiceStarter.PravegaRunner(bookieCount, containerCount);
-        pravegaRunner2.startBookKeeperRunner(instanceId++);
-
-        // Set pravega properties for the test
-        STATE.set(new AdminCommandState());
-        Properties pravegaProperties = new Properties();
-        pravegaProperties.setProperty("pravegaservice.container.count", "1");
-        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
-        pravegaProperties.setProperty("pravegaservice.storage.layout", "CHUNKED_STORAGE");
-        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
-        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner2.getBookKeeperRunner().getBkPort());
-        pravegaProperties.setProperty("bookkeeper.zk.connect.uri", "localhost:" + pravegaRunner2.getBookKeeperRunner().getBkPort());
-        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner2.getBookKeeperRunner().getLedgerPath());
-        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner2.getBookKeeperRunner().getLogMetaNamespace());
-        pravegaProperties.setProperty("pravegaservice.clusterName", pravegaRunner2.getBookKeeperRunner().getBaseNamespace());
-        pravegaProperties.setProperty("writer.flush.attributes.threshold", "1");
-        STATE.get().getConfigBuilder().include(pravegaProperties);
-
-        // Copy Metadata and Storage Metadata chunks to separate directory
-        File metadataChunksDir = Files.createTempDirectory("TestLTSRecovery").toFile().getAbsoluteFile();
-        List<Path> filtered = null;
-        try (Stream<Path> pathStream = Files.list(Path.of(this.baseDir.getAbsolutePath() + "/_system/containers"))) {
-            filtered = pathStream.filter(path -> path.toFile().getName().startsWith("metadata_") || path.toFile().getName().startsWith("storage_metadata_"))
-                    .collect(Collectors.toList());
-        }
-        // Copy to metadataChunksDir
-        for ( Path path : filtered ) {
-            FileUtils.moveFileToDirectory(path.toFile(), metadataChunksDir, false);
-        }
-        // Command under test
-        TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + " all", STATE.get());
-        AssertExtensions.assertThrows("Container out of range ", () -> TestUtils.executeCommand("data-recovery recover-from-storage " + metadataChunksDir.getAbsolutePath() + "81", STATE.get()), ex -> ex instanceof IllegalArgumentException);
-        Assert.assertNotNull(RecoverFromStorageCommand.descriptor());
     }
 
     @Test

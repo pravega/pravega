@@ -254,7 +254,8 @@ public final class Ledgers {
                 handle = openFence(ledgerMetadata.getLedgerId(), bookKeeper, config);
             } catch (DurableDataLogException ex) {
                 val c = ex.getCause();
-                if (ledgerMetadata.getStatus() == LedgerMetadata.Status.Empty && (c instanceof BKException.BKNoSuchLedgerExistsOnMetadataServerException || c instanceof BKException.BKNoSuchLedgerExistsException)) {
+                if (ledgerMetadata.getStatus() == LedgerMetadata.Status.Empty && 
+                        (c instanceof BKException.BKNoSuchLedgerExistsOnMetadataServerException || c instanceof BKException.BKNoSuchLedgerExistsException)) {
                     log.warn("{}: Unable to open-fence EMPTY ledger {}. Skipping.", traceObjectId, ledgerMetadata, ex);
                     continue;
                 }

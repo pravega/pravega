@@ -63,7 +63,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 16;
+    public static final int WIRE_VERSION = 17;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -1424,6 +1424,64 @@ public final class WireCommands {
             String delegationToken = in.readUTF();
 
             return new CreateTransientSegment(requestId, writerId, parentSegment, delegationToken);
+        }
+    }
+    
+    @Data
+    public static final class LocateOffset implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.LOCATE_OFFSET;
+        final long requestId;
+        final String segment;
+        final long targetOffset;
+        @ToString.Exclude
+        final String delegationToken;
+        
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.locateOffset(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeLong(targetOffset);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            long targetOffset = in.readLong();
+            String delegationToken = in.readUTF();
+            return new LocateOffset(requestId, segment, targetOffset, delegationToken);
+        }
+    }
+    
+    @Data
+    public static final class OffsetLocated implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.OFFSET_LOCATED;
+        final long requestId;
+        final String segment;
+        final long offset;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.offsetLocated(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeLong(offset);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            long offset = in.readLong();
+            return new OffsetLocated(requestId, segment, offset);
         }
     }
 

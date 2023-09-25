@@ -1201,6 +1201,7 @@ public class ReaderGroupState implements Revisioned {
 
         }
 
+
         private static class ClearCheckpointsBeforeSerializer
                 extends VersionedSerializer.WithBuilder<ClearCheckpointsBefore, ClearCheckpointsBeforeBuilder> {
             @Override
@@ -1224,6 +1225,50 @@ public class ReaderGroupState implements Revisioned {
 
             private void write00(ClearCheckpointsBefore object, RevisionDataOutput out) throws IOException {
                 out.writeUTF(object.clearUpToCheckpoint);
+            }
+        }
+    }
+
+    @Builder
+    @Data
+    @EqualsAndHashCode(callSuper = false)
+    static class RemoveOutstandingCheckpoints extends ReaderGroupStateUpdate {
+
+        /**
+         * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
+         */
+        @Override
+        void update(ReaderGroupState state) {
+            state.checkpointState.removeOutstandingCheckpoints();
+        }
+
+        private static class RemoveOutstandingCheckpointsBuilder implements ObjectBuilder<RemoveOutstandingCheckpoints> {
+
+        }
+
+
+        private static class RemoveOutstandingCheckpointsSerializer
+                extends VersionedSerializer.WithBuilder<RemoveOutstandingCheckpoints, RemoveOutstandingCheckpointsBuilder> {
+            @Override
+            protected RemoveOutstandingCheckpointsBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+           private void read00(RevisionDataInput in, RemoveOutstandingCheckpointsBuilder builder) throws IOException {
+               builder.build();
+            }
+
+            private void write00(RemoveOutstandingCheckpoints object, RevisionDataOutput out) throws IOException {
             }
         }
     }
@@ -1344,7 +1389,8 @@ public class ReaderGroupState implements Revisioned {
              .serializer(CreateCheckpoint.class, 9, new CreateCheckpoint.CreateCheckpointSerializer())
              .serializer(ClearCheckpointsBefore.class, 10, new ClearCheckpointsBefore.ClearCheckpointsBeforeSerializer())
              .serializer(UpdateCheckpointPublished.class, 11, new UpdateCheckpointPublished.UpdateCheckpointPublishedSerializer())
-             .serializer(UpdatingConfig.class, 12, new UpdatingConfig.UpdatingConfigSerializer());
+             .serializer(UpdatingConfig.class, 12, new UpdatingConfig.UpdatingConfigSerializer())
+             .serializer(RemoveOutstandingCheckpoints.class, 13, new RemoveOutstandingCheckpoints.RemoveOutstandingCheckpointsSerializer());
         }
     }
     

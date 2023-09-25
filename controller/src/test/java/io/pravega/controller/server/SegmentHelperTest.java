@@ -292,7 +292,10 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         CompletableFuture<List<Long>> result = helper.mergeTxnSegments(scope, stream, targetSegmentId, sourceSegmentId,
                 txnIdList, delegationToken, System.nanoTime());
         requestId = ((MockConnection) (factory.connection)).getRequestId();
-        factory.rp.process(new WireCommands.SegmentsBatchMerged(requestId, getQualifiedStreamSegmentName(scope, stream, targetSegmentId), List.of(getQualifiedStreamSegmentName(scope, stream, sourceSegmentId)), List.of(10L)));
+        factory.rp.process(new WireCommands.SegmentsBatchMerged(requestId,
+                                                                getQualifiedStreamSegmentName(scope, stream, targetSegmentId),
+                                                                List.of(getQualifiedStreamSegmentName(scope, stream, sourceSegmentId)),
+                                                                List.of(10L)));
         result.join();
 
         CompletableFuture<List<Long>> resultException =  helper.mergeTxnSegments(scope, stream, targetSegmentId, sourceSegmentId,

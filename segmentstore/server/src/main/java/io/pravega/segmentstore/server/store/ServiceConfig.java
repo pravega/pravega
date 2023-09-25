@@ -22,16 +22,16 @@ import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import io.pravega.segmentstore.server.CachePolicy;
-import java.net.Inet4Address;
-import java.net.UnknownHostException;
-import java.time.Duration;
-import java.util.Arrays;
-
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import lombok.Getter;
 import lombok.SneakyThrows;
+
+import java.net.Inet4Address;
+import java.net.UnknownHostException;
+import java.time.Duration;
+import java.util.Arrays;
 
 /**
  * General Service Configuration.
@@ -73,8 +73,10 @@ public class ServiceConfig {
     public static final Property<StorageLayoutType> STORAGE_LAYOUT = Property.named("storage.layout", StorageLayoutType.CHUNKED_STORAGE);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnly.enable", false, "readOnlySegmentStore");
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cache.size.max", 4L * 1024 * 1024 * 1024, "cacheMaxSize");
-    public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cache.utilization.percent.target", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION), "cacheTargetUtilizationPercent");
-    public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cache.utilization.percent.max", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION), "cacheMaxUtilizationPercent");
+    public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named(
+        "cache.utilization.percent.target", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION), "cacheTargetUtilizationPercent");
+    public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named(
+        "cache.utilization.percent.max", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION), "cacheMaxUtilizationPercent");
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cache.time.seconds.max", 30 * 60, "cacheMaxTimeSeconds");
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cache.generation.duration.seconds", 1, "cacheGenerationTimeSeconds");
     public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("request.replyWithStackTraceOnError.enable", false, "replyWithStackTraceOnError");
@@ -91,6 +93,13 @@ public class ServiceConfig {
     // Admin Gateway-related parameters
     public static final Property<Boolean> ENABLE_ADMIN_GATEWAY = Property.named("admin.gateway.enable", false);
     public static final Property<Integer> ADMIN_GATEWAY_PORT = Property.named("admin.gateway.port", 9999);
+
+    //Connection Tracker related parameters
+    public static final Property<Integer> DEFAULT_ALL_CONNECTIONS_MAX_OUTSTANDING_BYTES = Property.named("default.all.connections.max.outstanding.bytes",
+            512 * 1024 * 1024);
+    public static final Property<Integer> DEFAULT_SINGLE_CONNECTION_MAX_OUTSTANDING_BYTES = Property.named("default.all.connections.max.outstanding.bytes",
+            128 * 1024 * 1024);
+
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
@@ -347,6 +356,12 @@ public class ServiceConfig {
 
     @Getter
     private final Duration healthCheckInterval;
+
+    @Getter
+    private final int defaultAllConnectionsMaxOutstandingBytes;
+
+    @Getter
+    private final int defaultSingleConnectionsMaxOutstandingBytes;
     //endregion
 
     //region Constructor
@@ -426,6 +441,8 @@ public class ServiceConfig {
         this.healthCheckInterval = Duration.ofSeconds(properties.getInt(HEALTH_CHECK_INTERVAL_SECONDS));
         this.enableAdminGateway = properties.getBoolean(ENABLE_ADMIN_GATEWAY);
         this.adminGatewayPort = properties.getInt(ADMIN_GATEWAY_PORT);
+        this.defaultAllConnectionsMaxOutstandingBytes = properties.getInt(DEFAULT_ALL_CONNECTIONS_MAX_OUTSTANDING_BYTES);
+        this.defaultSingleConnectionsMaxOutstandingBytes = properties.getInt(DEFAULT_SINGLE_CONNECTION_MAX_OUTSTANDING_BYTES);
     }
 
     /**

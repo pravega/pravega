@@ -94,30 +94,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                             .thenComposeAsync( vvv -> {
                                                 txn.update(segmentMetadata);
 
-                                                // Check invariants.
-                                                segmentMetadata.checkInvariants();
-                                                Preconditions.checkState(segmentMetadata.getLength() == oldLength,
-                                                        "truncate should not change segment length. oldLength=%s Segment=%s", oldLength, segmentMetadata);
-                                                Preconditions.checkState(oldChunkCount - chunksToDelete.size()  + (isFirstChunkRelocated ? 1 : 0) == segmentMetadata.getChunkCount(),
-                                                        "Number of chunks do not match. old value (%s) - number of chunks deleted (%s) + number of chunks added (%s) must match current chunk count(%s)",
-                                                        oldChunkCount, chunksToDelete.size(), segmentMetadata.getChunkCount());
-                                                if ( isFirstChunkRelocated) {
-                                                    Preconditions.checkState(segmentMetadata.getFirstChunkStartOffset() == segmentMetadata.getStartOffset(),
-                                                            "After relocation of first chunk FirstChunkStartOffset (%) must match StartOffset (%s)",
-                                                            segmentMetadata.getFirstChunkStartOffset(), segmentMetadata.getStartOffset());
-                                                }
-                                                if (null != currentMetadata && null != segmentMetadata.getFirstChunk()) {
-                                                    Preconditions.checkState(segmentMetadata.getFirstChunk().equals(currentMetadata.getName()),
-                                                            "First chunk name must match current metadata. Expected = %s Actual = %s", segmentMetadata.getFirstChunk(), currentMetadata.getName());
-                                                    Preconditions.checkState(segmentMetadata.getStartOffset() <= segmentMetadata.getFirstChunkStartOffset() + currentMetadata.getLength(),
-                                                            "segment start offset (%s) must be less than or equal to first chunk start offset (%s)+ first chunk length (%s)",
-                                                            segmentMetadata.getStartOffset(), segmentMetadata.getFirstChunkStartOffset(), currentMetadata.getLength());
-                                                    if (segmentMetadata.getChunkCount() == 1) {
-                                                        Preconditions.checkState(segmentMetadata.getLength() - segmentMetadata.getFirstChunkStartOffset() == currentMetadata.getLength(),
-                                                                "Length of first chunk (%s) must match segment length (%s) - first chunk start offset (%s) when there is only one chunk",
-                                                                currentMetadata.getLength(), segmentMetadata.getLength(), segmentMetadata.getFirstChunkStartOffset());
-                                                    }
-                                                }
+                                                checkInvariants(oldChunkCount);
 
                                                 // Remove read index block entries.
                                                 // To avoid possibility of unintentional deadlock, skip this step for storage system segments.
@@ -137,6 +114,32 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                     chunkedSegmentStorage.getExecutor());
                         }, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor());
+    }
+
+    private void checkInvariants(final int oldChunkCount) {
+        segmentMetadata.checkInvariants();
+        Preconditions.checkState(segmentMetadata.getLength() == oldLength,
+                "truncate should not change segment length. oldLength=%s Segment=%s", oldLength, segmentMetadata);
+        Preconditions.checkState(oldChunkCount - chunksToDelete.size()  + (isFirstChunkRelocated ? 1 : 0) == segmentMetadata.getChunkCount(),
+                "Number of chunks do not match. old value (%s) - number of chunks deleted (%s) + number of chunks added (%s) must match current chunk count(%s)",
+                oldChunkCount, chunksToDelete.size(), segmentMetadata.getChunkCount());
+        if ( isFirstChunkRelocated) {
+            Preconditions.checkState(segmentMetadata.getFirstChunkStartOffset() == segmentMetadata.getStartOffset(),
+                    "After relocation of first chunk FirstChunkStartOffset (%) must match StartOffset (%s)",
+                    segmentMetadata.getFirstChunkStartOffset(), segmentMetadata.getStartOffset());
+        }
+        if (null != currentMetadata && null != segmentMetadata.getFirstChunk()) {
+            Preconditions.checkState(segmentMetadata.getFirstChunk().equals(currentMetadata.getName()),
+                    "First chunk name must match current metadata. Expected = %s Actual = %s", segmentMetadata.getFirstChunk(), currentMetadata.getName());
+            Preconditions.checkState(segmentMetadata.getStartOffset() <= segmentMetadata.getFirstChunkStartOffset() + currentMetadata.getLength(),
+                    "segment start offset (%s) must be less than or equal to first chunk start offset (%s)+ first chunk length (%s)",
+                    segmentMetadata.getStartOffset(), segmentMetadata.getFirstChunkStartOffset(), currentMetadata.getLength());
+            if (segmentMetadata.getChunkCount() == 1) {
+                Preconditions.checkState(segmentMetadata.getLength() - segmentMetadata.getFirstChunkStartOffset() == currentMetadata.getLength(),
+                        "Length of first chunk (%s) must match segment length (%s) - first chunk start offset (%s) when there is only one chunk",
+                        currentMetadata.getLength(), segmentMetadata.getLength(), segmentMetadata.getFirstChunkStartOffset());
+            }
+        }
     }
 
     private CompletableFuture<Void> relocateFirstChunkIfRequired(MetadataTransaction txn) {

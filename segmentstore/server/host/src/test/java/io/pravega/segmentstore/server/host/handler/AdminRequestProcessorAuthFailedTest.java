@@ -22,6 +22,8 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.AdminRequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.InlineExecutor;
+import java.util.concurrent.ScheduledExecutorService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -34,29 +36,32 @@ public class AdminRequestProcessorAuthFailedTest {
 
     private AdminRequestProcessor processor;
     private ServerConnection connection;
+    private ScheduledExecutorService executor;
 
     @Before
     public void setUp() throws Exception {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         connection = mock(ServerConnection.class);
+        executor = new InlineExecutor();
         processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), new TrackedConnection(connection),
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
                 (resource, token, expectedLevel) -> {
                     throw new InvalidTokenException("Token verification failed.");
-                }, false);
+                }, false, new IndexAppendProcessor(executor, store));
     }
 
     @After
     public void tearDown() throws Exception {
+        executor.shutdown();
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void flushToStorage() {
         processor.flushToStorage(new WireCommands.FlushToStorage(0, "", 1));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void listStorageChunks() {
         processor.listStorageChunks(new WireCommands.ListStorageChunks("dummy", "", 1));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(1, "", TOKEN_CHECK_FAILED));

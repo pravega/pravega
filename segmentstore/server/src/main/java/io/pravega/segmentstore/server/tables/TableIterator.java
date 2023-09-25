@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -203,12 +202,13 @@ class TableIterator<T> implements AsyncIterator<T> {
      * @param <T> Type of elements returned at each iteration.
      * @return A new instance of the {@link TableIterator.Builder} class.
      */
+    @SuppressWarnings("ImportControl")
     static <T> TableIterator<T> empty() {
         return new TableIterator<>(
                 () -> CompletableFuture.completedFuture(null),
                 ignored -> CompletableFuture.completedFuture(null),
                 new ArrayDeque<>(),
-                ForkJoinPool.commonPool());
+                java.util.concurrent.ForkJoinPool.commonPool());
     }
 
     /**
