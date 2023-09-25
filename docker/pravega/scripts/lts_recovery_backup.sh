@@ -80,11 +80,10 @@ do
   retry=$((retry + 1))
 done
 
-sleep 120s
-
 if [ $container_flushed -eq 1 ]
 then
   echo "Container flushed successfully."
+  sleep 120s
   exit 0
 else
   echo "Failed to flush container."
