@@ -205,28 +205,6 @@ public final class TestUtils {
     }
 
     /**
-     * This method creates a dummy Host-Container mapping, given that it is not created in Pravega standalone.
-     *
-     * @param zkConnectString   Connection endpoint for Zookeeper.
-     * @param hostPortMap       Mapping of host to port .
-     */
-    public static void createMultipleDummyHostContainerAssignment(String zkConnectString, Map<String, Integer> hostPortMap) {
-        @Cleanup
-        CuratorFramework curatorFramework = CuratorFrameworkFactory.builder().namespace("pravega/pravega-cluster")
-                .connectString(zkConnectString)
-                .retryPolicy(new RetryOneTime(5000)).build();
-        curatorFramework.start();
-        ZKHostStore zkHostStore = new ZKHostStore(curatorFramework, 4);
-        Map<Host, Set<Integer>> dummyHostContainerAssignment = new HashMap<>();
-        int containerId = 0;
-        for (Map.Entry<String, Integer> entry : hostPortMap.entrySet()) {
-            dummyHostContainerAssignment.put(new Host(entry.getKey(), entry.getValue(), ""), new HashSet<>(Arrays.asList(containerId, containerId + 1)));
-            containerId = containerId + 2;
-        }
-        zkHostStore.updateHostContainersMap(dummyHostContainerAssignment);
-    }
-
-    /**
      * Creates the given scope and stream using the given controller instance.
      *
      * @param controller    Controller instance to use to create the Scope and Stream.

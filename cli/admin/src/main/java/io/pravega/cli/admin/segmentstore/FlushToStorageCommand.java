@@ -47,7 +47,7 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private static final int REQUEST_TIMEOUT_SECONDS = 60 * 30;
     private static final String ALL_CONTAINERS = "all";
-    private boolean useFixedAdminPort = false;
+    private Set<Integer> ports = new HashSet<>();
 
     /**
      * Creates new instance of the FlushToStorageCommand.
@@ -95,7 +95,7 @@ public class FlushToStorageCommand extends ContainerCommand {
     }
 
     private int getAdminPortForHost(int configuredAdminPort, String ssHost) {
-        if ( InetAddresses.isInetAddress(ssHost) || useFixedAdminPort) {
+        if ( InetAddresses.isInetAddress(ssHost) || (ports.size() == 1)) {
             return configuredAdminPort;
         }
         String[] ssHostParts = ssHost.split("-");
@@ -135,7 +135,6 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private Map<Integer, String> getHosts() {
         Map<Host, Set<Integer>> hostMap;
-        Set<Integer> ports = new HashSet<>();
         try {
             @Cleanup
             ZKHelper zkStoreHelper = ZKHelper.create(getServiceConfig().getZkURL(), getServiceConfig().getClusterName());
@@ -156,9 +155,6 @@ public class FlushToStorageCommand extends ContainerCommand {
             for (Integer containerId : containerIds) {
                 containerHostMap.put(containerId, ipAddr);
             }
-        }
-        if (ports.size() == 1) {
-            useFixedAdminPort = true;
         }
         return containerHostMap;
     }
