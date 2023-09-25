@@ -47,7 +47,7 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private static final int REQUEST_TIMEOUT_SECONDS = 60 * 30;
     private static final String ALL_CONTAINERS = "all";
-    private boolean useFixedAdminPort = true;
+    private boolean useFixedAdminPort = false;
 
     /**
      * Creates new instance of the FlushToStorageCommand.
@@ -157,8 +157,8 @@ public class FlushToStorageCommand extends ContainerCommand {
                 containerHostMap.put(containerId, ipAddr);
             }
         }
-        if (ports.size() > 1) {
-            useFixedAdminPort = false;
+        if (ports.size() == 1) {
+            useFixedAdminPort = true;
         }
         return containerHostMap;
     }
