@@ -61,6 +61,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -201,6 +202,28 @@ public final class TestUtils {
         ZKHostStore zkHostStore = new ZKHostStore(curatorFramework, 4);
         Map<Host, Set<Integer>> dummyHostContainerAssignment = new HashMap<>();
         dummyHostContainerAssignment.put(new Host(hostIp, hostPort, ""), new HashSet<>(Arrays.asList(0, 1, 2, 3)));
+        zkHostStore.updateHostContainersMap(dummyHostContainerAssignment);
+    }
+
+    /**
+     * This method creates a dummy Host-Container mapping, given that it is not created in Pravega standalone.
+     *
+     * @param zkConnectString   Connection endpoint for Zookeeper.
+     * @param hostPortMap       Mapping of host to port .
+     */
+    public static void createMultipleDummyHostContainerAssignment(String zkConnectString, Map<String, Integer> hostPortMap) {
+        @Cleanup
+        CuratorFramework curatorFramework = CuratorFrameworkFactory.builder().namespace("pravega/pravega-cluster")
+                .connectString(zkConnectString)
+                .retryPolicy(new RetryOneTime(5000)).build();
+        curatorFramework.start();
+        ZKHostStore zkHostStore = new ZKHostStore(curatorFramework, 4);
+        Map<Host, Set<Integer>> dummyHostContainerAssignment = new HashMap<>();
+        int containerId =0;
+        for(Map.Entry<String, Integer> entry : hostPortMap.entrySet()) {
+            dummyHostContainerAssignment.put(new Host(entry.getKey(), entry.getValue(), ""), new HashSet<>(Arrays.asList(containerId, containerId+1)));
+            containerId += 2;
+        }
         zkHostStore.updateHostContainersMap(dummyHostContainerAssignment);
     }
 

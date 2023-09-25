@@ -47,6 +47,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -237,6 +239,32 @@ public abstract class AbstractSegmentStoreCommandsTest {
             Assert.assertTrue(commandResult.contains("Flushed the Segment Container with containerId " + id + " to Storage."));
         }
         Assert.assertNotNull(FlushToStorageCommand.descriptor());
+    }
+
+    @Test
+    public void testFlushToStorageCommandWithUnexpectedHostName() throws Exception {
+        ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder().controllerURI(SETUP_UTILS.getControllerUri());
+
+        STATE.set(new AdminCommandState());
+        SETUP_UTILS.startAllServices(false, false);
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("cli.controller.rest.uri", SETUP_UTILS.getControllerRestUri().toString());
+        pravegaProperties.setProperty("cli.controller.grpc.uri", SETUP_UTILS.getControllerUri().toString());
+        pravegaProperties.setProperty("cli.controller.connect.grpc.uri", SETUP_UTILS.getControllerUri().getHost() + ":" + SETUP_UTILS.getControllerUri().getPort());
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", SETUP_UTILS.getZkTestServer().getConnectString());
+        pravegaProperties.setProperty("pravegaservice.container.count", String.valueOf(4));
+        pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(SETUP_UTILS.getAdminPort()));
+        pravegaProperties.setProperty("pravegaservice.clusterName", "pravega/pravega-cluster");
+
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        clientConfig = clientConfigBuilder.build();
+        Map<String, Integer> hostPort = new HashMap<>();
+        hostPort.put("127.0.0.1", 1234);
+        hostPort.put("127.0.0.2.0", 1235);
+        TestUtils.createMultipleDummyHostContainerAssignment(SETUP_UTILS.getZkTestServer().getConnectString(), hostPort);
+        AssertExtensions.assertThrows("Unexpected host-name retrieved", () -> TestUtils.executeCommand("container flush-to-storage all", STATE.get()),
+                ex -> ex instanceof IllegalStateException);
     }
 
     @Test
