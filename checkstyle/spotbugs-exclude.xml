@@ -35,6 +35,14 @@
     <Match> <!-- Returning a java.lang.Boolean is common with Streams/Lambdas -->
         <Bug pattern="NP_BOOLEAN_RETURN_NULL" />
     </Match>
+    <Match> <!-- fromBytes was not reporting this warning in earlier version of checkstyle -->
+        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE" />
+        <Method name="serialize" />
+    </Match>
+    <Match> <!-- fromBytes was not reporting this warning in earlier version of checkstyle -->
+        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE" />
+        <Method name="deserialize" />
+    </Match>
     <Match> <!-- This is intended in these and only these classes -->
         <Or>
             <Class name="io.pravega.common.util.ByteArraySegment" />
