@@ -380,12 +380,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     /**
-     * Adjusting storage metadata segment length in container metadata.
-     * @return a CompletableFuture which when completed indicates successful updation
-     * of storage metadata length in container metadata.
-     */
-    /**
-     * Adjusting storage metadata segment length in container metadata.
+     * Adjusting lengths for the passed segment in container metadata taking
+     * storage metadata as truth.
      * @return a CompletableFuture which when completed indicates successful updation
      * of storage metadata length in container metadata.
      */
@@ -418,6 +414,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         }
     }
 
+    /**
+     * Adjust lengths for segments that might have possible mismatch or a difference
+     * in their lengths in the container and storage metadata after the container
+     * boots up in recover-from-storage mode.
+     * @return a CompletableFuture that indicates completion.
+     */
     private CompletableFuture<Void> adjustLengthsPostRecovery() {
         return shouldRecoverFromStorage().
                 thenComposeAsync( shouldRecover -> {
