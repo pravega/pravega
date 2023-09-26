@@ -427,12 +427,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 thenComposeAsync( shouldRecover -> {
                     if (shouldRecover) {
                         return this.adjustLengthsForSegment(NameUtils.getStorageMetadataSegmentName(this.getId()))
-                                .thenComposeAsync(v -> this.adjustLengthsForSegment(NameUtils.getEventProcessorSegmentName(this.getId(), String.format("GC.queue.%d", this.getId()))));
+                                .thenComposeAsync(v -> this.adjustLengthsForSegment(NameUtils.getEventProcessorSegmentName(this.getId(), String.format("GC.queue.%d", this.getId()))), this.executor);
                     } else {
                         log.info("{}: Not recovering from storage. No need to adjust lengths", this.traceObjectId);
                         return CompletableFuture.completedFuture(null);
                     }
-                });
+                }, this.executor);
     }
 
     /**
