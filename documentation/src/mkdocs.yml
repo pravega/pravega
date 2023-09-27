@@ -127,7 +127,7 @@ nav:
     - 'Pravega Roadmap': 'roadmap.md'
     - 'Join the Community': 'join-community.md'
   - FAQ:
-    - 'Pravega FAQ': 'faq.md'
+    - 'Frequently Asked Questions': 'faq.md'
 extra:
     version: 0.1
 
