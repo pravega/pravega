@@ -204,7 +204,7 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
     public ByteBuffer serialize(Object value) {
         val serializer = BYTE_CONVERTERS.get(metadataType);
         if ( serializer == null ) {
-            throw new IllegalArgumentException("No Serializer found");
+            throw new IllegalStateException("No Serializer found");
         }
         return ByteBuffer.wrap(serializer.getValue().apply(value));
     }
@@ -213,7 +213,7 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
     public Object deserialize(ByteBuffer serializedValue) {
         val serializer = BYTE_CONVERTERS.get(metadataType);
         if ( serializer == null ) {
-            throw new IllegalArgumentException("No Serializer found");
+            throw new IllegalStateException("No Serializer found");
         }
         return serializer.getKey().apply(new ByteArraySegment(serializedValue).getCopy());
     }

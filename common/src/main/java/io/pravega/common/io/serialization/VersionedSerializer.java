@@ -698,7 +698,7 @@ public abstract class VersionedSerializer<T> {
             }
 
             val si = this.serializersById.get(type);
-            if( si == null) {
+            if ( si == null ) {
                 throw new SerializationException(String.format("No serializer found for %s.", type));
             }
             return (BaseType) si.serializer.deserializeContents(stream);

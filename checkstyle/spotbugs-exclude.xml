@@ -35,23 +35,6 @@
     <Match> <!-- Returning a java.lang.Boolean is common with Streams/Lambdas -->
         <Bug pattern="NP_BOOLEAN_RETURN_NULL" />
     </Match>
-    <Match>
-        <Or>
-            <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE">
-                <!-- For given ServiceType enum getBucketCount return count from the existing Map,There will not be
-                a single case where it will get null from Map, false positive  -->
-                <Method name="getBucketCount"/>
-                <!-- For given ServiceType this method will try to fetch the bucket count from the existing Map,
-                There will not be a single case where it will get null from Map, false positive -->
-                <Method name="addStreamToBucketStore"/>
-                <!-- For given ServiceType this method will try to fetch the bucket count from the existing Map,
-                There will not be a single case where it will get null from Map, false positive -->
-                <Method name="removeStreamFromBucketStore"/>
-                <Method name="execute"/>
-            </Bug>
-        </Or>
-    </Match>
-
     <Match> <!-- This is intended in these and only these classes -->
         <Or>
             <Class name="io.pravega.common.util.ByteArraySegment" />
