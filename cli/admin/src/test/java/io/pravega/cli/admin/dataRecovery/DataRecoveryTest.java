@@ -888,13 +888,15 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Assert.assertEquals(new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)),
                 new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
         // Equality of payload operations are checked by type and sequence number, which are the common attributes of Operation class.
-        DurableDataLogRepairCommand.LogEditOperation deleteOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(2));
+        DurableDataLogRepairCommand.LogEditOperation deleteOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                                                                                                 1, 2, new DeleteSegmentOperation(2));
         Assert.assertEquals(deleteOp, new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
         deleteOp.getNewOperation().resetSequenceNumber(123);
         Assert.assertNotEquals(deleteOp, new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1)));
 
         // Test the cases for the same object reference and for null comparison.
-        DurableDataLogRepairCommand.LogEditOperation sameOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION, 1, 2, new DeleteSegmentOperation(1));
+        DurableDataLogRepairCommand.LogEditOperation sameOp = new DurableDataLogRepairCommand.LogEditOperation(DurableDataLogRepairCommand.LogEditType.ADD_OPERATION,
+                                                                                                               1, 2, new DeleteSegmentOperation(1));
         Assert.assertEquals(sameOp, sameOp);
         Assert.assertNotEquals(sameOp, null);
 

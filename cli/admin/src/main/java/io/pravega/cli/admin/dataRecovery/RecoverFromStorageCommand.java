@@ -154,7 +154,15 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      */
     private DebugStreamSegmentContainer createDebugSegmentContainer(Context context, int containerId, DurableDataLogFactory dataLogFactory) throws Exception {
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, dataLogFactory, executorService);
-        DebugStreamSegmentContainer debugStreamSegmentContainer = new DebugStreamSegmentContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory, context.getReadIndexFactory(), context.getAttributeIndexFactory(), context.getWriterFactory(), this.storageFactory, context.getDefaultExtensions(), executorService);
+        DebugStreamSegmentContainer debugStreamSegmentContainer = new DebugStreamSegmentContainer(containerId,
+                                                                                                  CONTAINER_CONFIG,
+                                                                                                  localDurableLogFactory,
+                                                                                                  context.getReadIndexFactory(),
+                                                                                                  context.getAttributeIndexFactory(),
+                                                                                                  context.getWriterFactory(),
+                                                                                                  this.storageFactory,
+                                                                                                  context.getDefaultExtensions(),
+                                                                                                  executorService);
         Services.startAsync(debugStreamSegmentContainer, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         return debugStreamSegmentContainer;
     }
@@ -186,7 +194,13 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
         Context context = createContext(executorService);
         @Cleanup
         val zkClient = createZKClient();
-        val bkConfig = getCommandArgs().getState().getConfigBuilder().include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, getServiceConfig().getZkURL())).build().getConfig(BookKeeperConfig::builder);
+        val bkConfig = getCommandArgs().getState()
+                                       .getConfigBuilder()
+                                       .include(BookKeeperConfig.builder()
+                                                                .with(BookKeeperConfig.ZK_ADDRESS,
+                                                                      getServiceConfig().getZkURL()))
+                                       .build()
+                                       .getConfig(BookKeeperConfig::builder);
         @Cleanup
         val dataLogFactory = new BookKeeperLogFactory(bkConfig, zkClient, executorService);
         output("Container Count = %d", this.containerCount);
@@ -348,12 +362,15 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
      * @throws Exception
      */
     private void reconcileStorageSegment(DebugStreamSegmentContainer container) throws Exception {
-        Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), executorService, true, TIMEOUT );
+        Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(
+            Map.of(container.getId(), container), executorService, true, TIMEOUT);
         Set<String> segments = segmentsByContainer.get(container.getId());
         ContainerTableExtension extension = container.getExtension(ContainerTableExtension.class);
 
         for (String segment : segments) {
-            List<TableEntry> entries = extension.get(NameUtils.getStorageMetadataSegmentName(container.getId()), Collections.singletonList(BufferView.wrap(segment.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
+            List<TableEntry> entries = extension.get(
+                NameUtils.getStorageMetadataSegmentName(container.getId()),
+                Collections.singletonList(BufferView.wrap(segment.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
             TableEntry entry = entries.get(0);
             if (entry == null) {
                 // skip entries having null values
@@ -364,7 +381,9 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 SegmentMetadata storageSegment = (SegmentMetadata) storageMetadata;
                 List<TableEntry> segmentEntry = null;
                 try {
-                    segmentEntry = extension.get(NameUtils.getMetadataSegmentName(container.getId()), Collections.singletonList(BufferView.wrap(segment.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
+                    segmentEntry = extension.get(
+                        NameUtils.getMetadataSegmentName(container.getId()),
+                        Collections.singletonList(BufferView.wrap(segment.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
                     if (segmentEntry.get(0) == null) {
                         continue;
                     }
@@ -548,10 +567,15 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "recover-from-storage", "Recover the state of a container from what is present on tier-2.",
-                new ArgDescriptor("start-container-id", "The start container Id of the Segment Container that needs to be recovered, " +
-                        "if given as \"all\" all the containers will be recovered. If given as container id then that container will be recovered."), new ArgDescriptor("end-container-id", "The end container Id of the Segment Container that needs to be recovered, " +
-                "This is an optional parameter. If given, then all container from start container id to end container id will be recovered else only start container id will be recovered."));
+        return new CommandDescriptor(COMPONENT, "recover-from-storage",
+                                     "Recover the state of a container from what is present on tier-2.",
+                                     new ArgDescriptor("start-container-id",
+                                                       "The start container Id of the Segment Container that needs to be recovered, "
+                                                     + "if given as \"all\" all the containers will be recovered. If given as container id then that container will be recovered."),
+                                     new ArgDescriptor("end-container-id",
+                                                       "The end container Id of the Segment Container that needs to be recovered, "
+                                                     + "This is an optional parameter. If given, then all container from start container id to end container id "
+                                                     + "will be recovered else only start container id will be recovered."));
     }
 
     // Creates the environment for debug segment container
@@ -579,7 +603,8 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
 
         @Override
         public boolean validate() throws Exception {
-            Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(Map.of(container.getId(), container), RecoverFromStorageCommand.this.executorService, true, TIMEOUT);
+            Map<Integer, Set<String>> segmentsByContainer = ContainerRecoveryUtils.getExistingSegments(
+                Map.of(container.getId(), container), RecoverFromStorageCommand.this.executorService, true, TIMEOUT);
             for (Set<String> segs : segmentsByContainer.values()) {
                 for (String seg: segs) {
                     try {
@@ -609,7 +634,9 @@ public class RecoverFromStorageCommand extends DataRecoveryCommand {
                 if (deletedSegments.contains(segment)) {
                     return true;
                 }
-                List<TableEntry> entries = extension.get(NameUtils.getStorageMetadataSegmentName(this.container.getId()), Collections.singletonList(BufferView.wrap(segment.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
+                List<TableEntry> entries = extension.get(
+                    NameUtils.getStorageMetadataSegmentName(this.container.getId()),
+                    Collections.singletonList(BufferView.wrap(segment.getBytes(StandardCharsets.UTF_8))), TIMEOUT).get();
                 TableEntry entry = entries.get(0);
                 if (entry == null) {
                     return true;

@@ -398,17 +398,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             log.debug("{}: Storage Metadata segment details retrieved: {}", this.traceObjectId, storageSegment);
             return this.metadataStore.getSegmentInfoInternal(NameUtils.getStorageMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout())
                     .thenComposeAsync( storageMetadataSegmentBytes -> {
-                                val storageMetadataSegmentInfo = MetadataStore.SegmentInfo.deserialize(storageMetadataSegmentBytes);
-                                val toBeSerializedSM = constructStorageMetadataSegmentInfoWithLength(storageMetadataSegmentInfo, storageSegment.getLength());
-                                val serializedStorageSegment = MetadataStore.SegmentInfo.serialize(toBeSerializedSM);
-                                val unversionedEntry = TableEntry.unversioned(new ByteArraySegment(NameUtils.getStorageMetadataSegmentName(this.getId()).getBytes(Charsets.UTF_8)), serializedStorageSegment);
-                                try {
-                                    extension.put(NameUtils.getMetadataSegmentName(this.getId()), Collections.singletonList(unversionedEntry), this.config.getMetadataStoreInitTimeout()).get(this.config.getMetadataStoreInitTimeout().toMillis(), TimeUnit.MILLISECONDS);
-                                } catch (Exception e) {
-                                    log.error("{}: Could not save storage metadata info in container metadata. Failed with exception {}", this.traceObjectId, e );
-                                    return Futures.failedFuture(e);
-                                }
-                                return CompletableFuture.completedFuture(null);
+                        val storageMetadataSegmentInfo = MetadataStore.SegmentInfo.deserialize(storageMetadataSegmentBytes);
+                        val toBeSerializedSM = constructStorageMetadataSegmentInfoWithLength(storageMetadataSegmentInfo, storageSegment.getLength());
+                        val serializedStorageSegment = MetadataStore.SegmentInfo.serialize(toBeSerializedSM);
+                        val unversionedEntry = TableEntry.unversioned(new ByteArraySegment(NameUtils.getStorageMetadataSegmentName(this.getId()).getBytes(Charsets.UTF_8)), serializedStorageSegment);
+                        try {
+                            extension.put(NameUtils.getMetadataSegmentName(this.getId()), Collections.singletonList(unversionedEntry), this.config.getMetadataStoreInitTimeout())
+                                     .get(this.config.getMetadataStoreInitTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                        } catch (Exception e) {
+                            log.error("{}: Could not save storage metadata info in container metadata. Failed with exception {}", this.traceObjectId, e );
+                            return Futures.failedFuture(e);
+                        }
+                        return CompletableFuture.completedFuture(null);
                     }, this.executor);
         } catch (Exception ex) {
             log.error("{}: Error adjusting storage metadata segment length in container metadata. Failing with exception {}", this.traceObjectId, ex);
@@ -425,6 +426,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private MetadataStore.SegmentInfo constructStorageMetadataSegmentInfoWithLength(MetadataStore.SegmentInfo storageMetadataSegmentInfo, long length) {
         Map<AttributeId, Long> attribs = new HashMap<>(storageMetadataSegmentInfo.getProperties().getAttributes());
         attribs.put(TableAttributes.INDEX_OFFSET, length);
+        // On LTS restore, reset the PERSIST_SEQ_NO as a new BK log is created with operation seq no's resetting or starting afresh.
+        attribs.put(TableAttributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, Operation.NO_SEQUENCE_NUMBER);
         StreamSegmentInformation newStorageMetadata = StreamSegmentInformation.from(storageMetadataSegmentInfo.getProperties()).length(length)
                 .attributes(attribs)
                 .build();
@@ -443,7 +446,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                       //recover metadata store.
                                       log.info("{}: Recovering Metadata Store.", this.traceObjectId);
                                      return this.storage.getStreamSegmentInfo(NameUtils.getMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout())
-                                              .thenComposeAsync( info -> this.metadataStore.recover(info, this.config.getMetadataStoreInitTimeout()));
+                                              .thenComposeAsync( info -> this.metadataStore.recover(info, this.config.getMetadataStoreInitTimeout()), this.executor);
                                   } else {
                                       log.info("{}: Initializing Metadata Store.", this.traceObjectId);
                                       return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
@@ -877,7 +880,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                             .thenComposeAsync(savedEpoch -> {
                                                 if (savedEpoch.getEpoch() > epochInfo.getEpoch()) {
                                                     return CompletableFuture.failedFuture(
-                                                            new IllegalContainerStateException(String.format("Unexpected epoch. Expected = {} actual = {}", epochInfo.getEpoch(), savedEpoch.getEpoch())));
+                                                        new IllegalContainerStateException(String.format(
+                                                            "Unexpected epoch. Expected = {} actual = {}",
+                                                            epochInfo.getEpoch(), savedEpoch.getEpoch())));
                                                 } else {
                                                     return chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunk));
                                                 }
