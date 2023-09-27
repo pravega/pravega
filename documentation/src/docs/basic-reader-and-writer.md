@@ -331,3 +331,21 @@ while (events.hasNext())
 }
 
 ```
+getNextStreamCut API:  For a streaming application like Spark, which uses micro-batch reader connectors to read Pravega Streams in parallel batches, needs a streamCut till what the batch can read.
+This api provides a streamCut that is in a location that has not yet been read but is at a bounded distance from the reader's current location. This api takes a starting streamCut and an approximate distance in bytes and return a new stream cut. No segments from the starting streamCut is skipped over. So the cut is either present inside the segments of the starting streamCut or at the boundry of the segments and it may advance to the successor segments if it is at the tail.
+```Java
+StreamCut startingStreamCut = streamManager.fetchStreamInfo(streamScope, streamName).join().getHeadStreamCut();
+long approxDistanceToNextOffset = 350L;
+StreamCut nextStreamCut = client.getNextStreamCut(startingStreamCut, approxDistanceToNextOffset);
+```
+- Depending on the approximate distance per number of segments in the current streamcut, next offset for each segment is requested. (For example - If the startingStreamCut is containing two segments 1 and 2 and the approxDistanceToNextOffset is sent as 100, then the next offset in segment 1 and segment 2 is searched with a value of 50 bytes each).
+- `No skipping of End of Segment`: If length of segment 1 is 100 and after that it has scaled to segment 2 and segment 3. If the current offset for segment 1 is 60 and approxDistanceToNextOffset is sent as 100, it will return the end of segment that is 100 in this case and will not advance to successor segments.
+- `In case of ScaleUp`: If length of segment 1 is 100 and after that it has scaled to segment 2 and segment 3. If the current offset for segment 1 is 100 and approxDistanceToNextOffset is sent as 100, since the current offset is already at the tail of segment 1, here it will advance to successor segments and return segment 2 and segment 3.
+- `In case of ScaleDown`:  If offsets of all the segments participating in the scale down are at the tail then only call to get the next offset of their successor is made.
+
+   - `All Segment are not at the tail`: Consider two segments, segment 1 and segment 2 having length 100 each and both have scaled down to segment 3.
+  If the current offset for segment 1 is 50 and for segment 2 is 100 and approxDistanceToNextOffset is sent as 100. Though segment 2 is at the tail but since segment 1 is not at the tail, it will not advance to successor segment 3 in this case, and will return segment 1 and segment 2 only.
+  
+   - `All Segment are at the tail`: Consider two segments, segment 1 and segment 2 having length 100 each and both have scaled down to segment 3.
+  If the current offset for segment 1 is 100 and for segment 2 is 100 and approxDistanceToNextOffset is sent as 100. Since both segment 1 and segment 2 are at the tail, it will advance to successor segment 3 in this case, and will return segment 3 only.
+- `Segment neither Scaled nor sealed`: If the current segment offset is at the tail of it but the segment is not scaled or sealed, the same offset of the tail is returned.
