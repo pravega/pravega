@@ -426,6 +426,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private MetadataStore.SegmentInfo constructStorageMetadataSegmentInfoWithLength(MetadataStore.SegmentInfo storageMetadataSegmentInfo, long length) {
         Map<AttributeId, Long> attribs = new HashMap<>(storageMetadataSegmentInfo.getProperties().getAttributes());
         attribs.put(TableAttributes.INDEX_OFFSET, length);
+        // On LTS restore, reset the PERSIST_SEQ_NO as a new BK log is created with operation seq no's resetting or starting afresh.
+        attribs.put(TableAttributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, Operation.NO_SEQUENCE_NUMBER);
         StreamSegmentInformation newStorageMetadata = StreamSegmentInformation.from(storageMetadataSegmentInfo.getProperties()).length(length)
                 .attributes(attribs)
                 .build();
