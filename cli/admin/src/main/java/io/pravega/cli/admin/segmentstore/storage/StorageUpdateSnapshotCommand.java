@@ -106,6 +106,9 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
                 collect(Collectors.toList());
         byte[] journalBytesRead = Files.readAllBytes(journalFile.toPath());
         val journalRecords = deserializer.deserialize(journalBytesRead);
+        if( journalRecords == null ) {
+            throw new IllegalArgumentException("No journal found");
+        }
         SystemSnapshotRecord systemSnapshot = null;
         // There could be other type of records like ChunkAddedRecord when using a JournalFileDeserializer;
         // Make sure we are picking the SystemSnapShotRecord in it.

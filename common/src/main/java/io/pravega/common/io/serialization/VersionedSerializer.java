@@ -664,7 +664,9 @@ public abstract class VersionedSerializer<T> {
             // the output stream.
             Class c = o.getClass();
             val si = this.serializersByType.get(c);
-            ensureCondition(si != null, "No serializer found for %s.", c.getName());
+            if ( si == null ) {
+               throw new SerializationException(String.format("No serializer found for %s.", c.getName()));
+            }
             si.serializer.beforeSerialization(o);
 
             // Encode the Serialization Format Version.
@@ -696,9 +698,9 @@ public abstract class VersionedSerializer<T> {
             }
 
             val si = this.serializersById.get(type);
-            ensureCondition(si != null, "No serializer found for object type %s.", type);
-
-            // Deserialize contents.
+            if( si == null) {
+                throw new SerializationException(String.format("No serializer found for %s.", type));
+            }
             return (BaseType) si.serializer.deserializeContents(stream);
         }
 
