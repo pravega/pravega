@@ -35,9 +35,9 @@ enables applications to read data from all segments (irrespective of time) in pa
 perform batch processing over historical data. For example, say a stream starts with one segment S_1, and at time T_1 it scales up and splits the one segment into two new segments S_2 and S_3. When the stream is sealed, the S_2 and S_3 are the last segments. A batch read of this stream consists of reading S_1, S_2, and S_3 in parallel.
 
 The Batch Client allows:
-- listing the segments in a Stream between fromStreamCut and toStreamCut. In order to use the current start of the stream or the current end of the stream, StreamCut.UNBOUNDED or null values can be passed respectively.
-- creating an iterator on any give segment to read the contents of the segment from the beginning till the current end of the segment.
-- generating a streamCut that is in a location that has not yet been read but is at a bounded distance from the current streamCut in order to provide ability to batch process the data efficiently.
+- listing the segments in a Stream between two StreamCuts.
+- creating an iterator to read the contents of a segment.
+- generating a streamCut that is a bounded distance from another streamCut.
 
 ## Byte Client
 _[Byte Client](https://github.com/pravega/pravega/wiki/PDP-30-ByteStream-API)_ is a byte-oriented API providing a way 
