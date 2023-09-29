@@ -124,7 +124,7 @@ public class VersionedSerializerTests {
         OutputStream o = Mockito.mock(OutputStream.class);
         Mockito.doReturn(null).when(sc).getClass();
         // Validating the Serialization Exception.
-        Assert.assertThrows(SerializationException.class, () -> serializer.serialize(o ,sc));
+        Assert.assertThrows(SerializationException.class, () -> serializer.serialize(o, sc));
     }
 
     /**
