@@ -54,6 +54,7 @@ import java.util.ConcurrentModificationException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -65,10 +66,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
-import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CREATE_COUNT;
-import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CREATE_LATENCY;
-import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_COUNT;
-import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_LATENCY;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.*;
 import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_BYTES;
 import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_PERCENTAGE;
 import static io.pravega.shared.MetricsNames.STORAGE_METADATA_NUM_CHUNKS;
@@ -536,7 +534,91 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     }
 
     /**
-     * Defragments the list of chunks for a given segment.
+     * De-fragment given segment.
+     *
+     * @param handle        A read-write SegmentHandle that points to the segment to be de-fragmented.
+     * @param timeout       Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
+     * it will contain the cause of the failure. Notable exceptions:
+     * <ul>
+     * <li> BadOffsetException: When the given offset does not match the actual length of the target segment in storage.
+     * <li> StreamSegmentNotExistsException: When the Segment does not exist in Storage.
+     * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for the target Segment (it was fenced out).
+     * <li> IllegalStateException: When the Source Segment is not Sealed.
+     * </ul>
+     * @throws IllegalArgumentException If handle is read-only.
+     */
+    public CompletableFuture<Void> defrag(SegmentHandle handle, Duration timeout) {
+        checkInitialized();
+        if (null == handle) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
+        }
+
+        if (isStorageFull() && !isSegmentInSystemScope(handle)) {
+            return CompletableFuture.failedFuture(new StorageFullException(handle.getSegmentName()));
+        }
+
+        return executeSerialized(() -> {
+            val traceId = LoggerHelpers.traceEnter(log, "defrag", handle);
+            log.debug("{} defrag - started segment={}.", logPrefix, handle.getSegmentName());
+            val timer = new Timer();
+            val streamSegmentName = handle.getSegmentName();
+            return tryWith(metadataStore.beginTransaction(false, streamSegmentName), txn -> txn.get(streamSegmentName)
+                    .thenComposeAsync(storageMetadata -> {
+                        val segmentMetadata = (SegmentMetadata) storageMetadata;
+                        // Check preconditions
+                        checkSegmentExists(streamSegmentName, segmentMetadata);
+                        Preconditions.checkArgument(!segmentMetadata.isStorageSystemSegment(), "System Segment can not be defragmented. Segment {}", segmentMetadata.getName());
+                        checkOwnership(streamSegmentName, segmentMetadata);
+                        CompletableFuture<Void> f;
+                        val newReadIndexEntriesAfterDefrag = new Vector<ChunkNameOffsetPair>();
+                        val chunksToDelete = new Vector<String>();
+
+                        if (shouldDefrag(segmentMetadata) && null != segmentMetadata.getDefragStartChunk()) {
+                            f = defrag(txn,
+                                            segmentMetadata,
+                                            segmentMetadata.getDefragStartChunk(),
+                                            null,
+                                            chunksToDelete,
+                                            newReadIndexEntriesAfterDefrag,
+                                            segmentMetadata.getDefragStartOffset())
+                                    .thenAcceptAsync(vvv -> {
+                                        if (newReadIndexEntriesAfterDefrag.size() > 0 ) {
+                                            readIndexCache.truncateReadIndex(handle.getSegmentName(), newReadIndexEntriesAfterDefrag.get(0).getOffset(), true);
+                                            readIndexCache.addIndexEntries(handle.getSegmentName(), newReadIndexEntriesAfterDefrag);
+                                        }
+                                    }, executor);
+                        } else {
+                            f = CompletableFuture.completedFuture(null);
+                        }
+
+                        // Collect garbage
+                        return f.thenComposeAsync( v ->
+                                garbageCollector.addChunksToGarbage(txn.getVersion(), chunksToDelete)
+                                    .thenComposeAsync(vv -> {
+                                        // Commit metadata.
+                                        return txn.commit()
+                                                .thenRunAsync(() -> {
+                                                    val elapsed = timer.getElapsed();
+                                                    SLTS_DEFRAGMENT_LATENCY.reportSuccessEvent(elapsed);
+                                                    SLTS_DELETE_COUNT.inc();
+                                                    log.debug("{} defrag - finished segment={}, latency={}.",
+                                                            logPrefix, handle.getSegmentName(), elapsed.toMillis());
+                                                    LoggerHelpers.traceLeave(log, "delete", traceId, handle);
+                                                }, executor);
+                                    }, executor),
+                                executor);
+                    }, executor), executor)
+                    .exceptionally( ex -> {
+                        log.warn("{} defrag - exception segment={}, latency={}.", logPrefix, handle.getSegmentName(), timer.getElapsedMillis(), ex);
+                        handleException(streamSegmentName, ex);
+                        return null;
+                    });
+        }, handle.getSegmentName());
+    }
+
+    /**
+     * De-fragments the list of chunks for a given segment.
      * It finds eligible consecutive chunks that can be merged together.
      * The sublist such eligible chunks is replaced with single new chunk record corresponding to new large chunk.
      * Conceptually this is like deleting nodes from middle of the list of chunks.
@@ -832,6 +914,18 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         } catch (Exception e) {
             log.error("{} Error while closing {}", logPrefix, message, e);
         }
+    }
+
+    boolean shouldDefrag(SegmentMetadata segmentMetadata) {
+        return (shouldAppend() || chunkStorage.supportsConcat())
+                && config.isInlineDefragEnabled()
+                && isFragmented(segmentMetadata)
+                && !segmentMetadata.isStorageSystemSegment();
+    }
+
+    private boolean isFragmented(SegmentMetadata segmentMetadata) {
+        return segmentMetadata.getDefragPendingChunkCount() > config.getMaxFragmentedChunkCount()
+                || (segmentMetadata.getLength() - segmentMetadata.getDefragStartOffset() > config.getMaxFragmentedDataSize());
     }
 
     /**

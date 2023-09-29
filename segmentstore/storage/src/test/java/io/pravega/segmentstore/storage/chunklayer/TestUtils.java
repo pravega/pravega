@@ -402,6 +402,38 @@ public class TestUtils {
                                                  ChunkMetadataStore metadataStore,
                                                  ChunkedSegmentStorage chunkedSegmentStorage,
                                                  int statusFlags) {
+        return insertMetadata(testSegmentName, maxRollingLength, ownerEpoch,
+                chunkLengthsInMetadata, chunkLengthsInStorage, 0,
+                addIndex, addIndexMetadata,
+                metadataStore,
+                chunkedSegmentStorage,
+                statusFlags);
+    }
+
+    /**
+     * Insert Metadata as given.
+     *
+     * @param testSegmentName        Name of the segment
+     * @param maxRollingLength       Max rolling length.
+     * @param ownerEpoch             Owner epoch.
+     * @param chunkLengthsInMetadata Chunk lengths to set in metadata.
+     * @param chunkLengthsInStorage  Chunk lengths to set in storage.
+     * @param fragmentationStart     Offset where fragmentation starts.
+     * @param addIndex               Whether to add index.
+     * @param addIndexMetadata       Whether to add index metadata.
+     * @param metadataStore          Instance of {@link ChunkMetadataStore}
+     * @param chunkedSegmentStorage  Instance of {@link ChunkedSegmentStorage}.
+     * @param statusFlags            Status flags to set.
+     * @return {@link SegmentMetadata} representing segment.
+     */
+    public static SegmentMetadata insertMetadata(String testSegmentName, long maxRollingLength, int ownerEpoch,
+                                                 long[] chunkLengthsInMetadata,
+                                                 long[] chunkLengthsInStorage,
+                                                 int fragmentationStart,
+                                                 boolean addIndex, boolean addIndexMetadata,
+                                                 ChunkMetadataStore metadataStore,
+                                                 ChunkedSegmentStorage chunkedSegmentStorage,
+                                                 int statusFlags) {
         Preconditions.checkArgument(maxRollingLength > 0, "maxRollingLength");
         Preconditions.checkArgument(ownerEpoch > 0, "ownerEpoch");
         try (val txn = metadataStore.beginTransaction(false, new String[]{testSegmentName})) {
@@ -413,6 +445,11 @@ public class TestUtils {
             long startOfLast = 0;
             long startOffset = 0;
             int chunkCount = 0;
+
+            String fragmetedStart = null;
+            long fragmetedStartOffset = 0;
+            int chunksSinceDefrag = 0;
+
             for (int i = 0; i < chunkLengthsInMetadata.length; i++) {
                 String chunkName = testSegmentName + "_chunk_" + Integer.toString(i);
                 ChunkMetadata chunkMetadata = ChunkMetadata.builder()
@@ -425,6 +462,15 @@ public class TestUtils {
                     chunkedSegmentStorage.getReadIndexCache().addIndexEntry(testSegmentName, chunkName, startOffset);
                 }
                 index.put(startOffset, chunkName);
+
+                if (i == fragmentationStart) {
+                    fragmetedStart = chunkName;
+                    fragmetedStartOffset = startOffset;
+                }
+                if (i >= fragmentationStart) {
+                    chunksSinceDefrag++;
+                }
+
                 startOffset += chunkLengthsInMetadata[i];
                 length += chunkLengthsInMetadata[i];
                 txn.create(chunkMetadata);
@@ -450,6 +496,10 @@ public class TestUtils {
                     .length(length)
                     .status(statusFlags)
                     .lastChunkStartOffset(startOfLast)
+                    .defragStartChunk(fragmetedStart)
+                    .defragStartOffset(fragmetedStartOffset)
+                    .chunkCount(chunkCount)
+                    .defragPendingChunkCount(chunksSinceDefrag)
                     .build();
             segmentMetadata.setActive(true);
             segmentMetadata.setChunkCount(chunkCount);

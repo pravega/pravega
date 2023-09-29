@@ -436,24 +436,26 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
     @Test
     public void testStorageFullDuringConcat() throws Exception {
         String testSegmentName = "test";
-
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .maxFragmentedChunkCount(3)
+                .build();
         @Cleanup
-        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(config, executorService()));
         @Cleanup
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
         @Cleanup
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(),
-                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore,
+                executorService(), config);
         chunkedSegmentStorage.initialize(1);
         chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
         // Step 1: Create segment and write some data.
         val h1 = chunkedSegmentStorage.create(testSegmentName, null).get();
-        val h2 = chunkedSegmentStorage.create("source", null).get();
+        val h2 = chunkedSegmentStorage.create("source", new SegmentRollingPolicy(4), null).get();
         Assert.assertEquals(h1.getSegmentName(), testSegmentName);
         Assert.assertFalse(h1.isReadOnly());
         chunkedSegmentStorage.write(h1, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
-        chunkedSegmentStorage.write(h2, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
+        chunkedSegmentStorage.write(h2, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();  // Creates 3 Chunks
         chunkedSegmentStorage.seal(h2, null).get();
         // Step 2: Inject fault.
         Exception exceptionToThrow = new ChunkStorageFullException("Test");

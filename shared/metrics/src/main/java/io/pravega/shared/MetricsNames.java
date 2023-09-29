@@ -129,6 +129,7 @@ public final class MetricsNames {
     public static final String SLTS_SYSTEM_WRITE_LATENCY = PREFIX + "segmentstore.storage.slts.system_write_latency_ms";    // Histogram
     public static final String SLTS_CREATE_LATENCY = PREFIX + "segmentstore.storage.slts.create_latency_ms";        // Histogram
     public static final String SLTS_DELETE_LATENCY = PREFIX + "segmentstore.storage.slts.delete_latency_ms";        // Histogram
+    public static final String SLTS_DEFRAGMENT_LATENCY = PREFIX + "segmentstore.storage.slts.defragment_latency_ms";        // Histogram
     public static final String SLTS_CONCAT_LATENCY = PREFIX + "segmentstore.storage.slts.concat_latency_ms";        // Histogram
     public static final String SLTS_TRUNCATE_LATENCY = PREFIX + "segmentstore.storage.slts.truncate_latency_ms";    // Histogram
 

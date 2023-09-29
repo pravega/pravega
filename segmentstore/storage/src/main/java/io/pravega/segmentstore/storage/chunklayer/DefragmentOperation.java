@@ -153,6 +153,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
         useAppend.set(true);
         targetChunkName = startChunkName;
 
+        Preconditions.checkArgument(!segmentMetadata.isStorageSystemSegment(), "System Segment can not be defragmented. Segment {}", segmentMetadata.getName());
         val oldChunkCount = segmentMetadata.getChunkCount();
 
         // Iterate through chunk list
@@ -209,6 +210,11 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                     Preconditions.checkState(oldChunkCount - chunksToDelete.size() == segmentMetadata.getChunkCount(),
                             "Number of chunks do not match. old value (%s) - number of chunks deleted (%s) must match current chunk count(%s)",
                             oldChunkCount, chunksToDelete.size(), segmentMetadata.getChunkCount());
+                    segmentMetadata.setDefragPendingChunkCount(0);
+                    if (lastChunkName == null) {
+                        segmentMetadata.setDefragStartChunk(null);
+                        segmentMetadata.setDefragStartOffset(0);
+                    }
                     segmentMetadata.checkInvariants();
                     return updateReadIndex();
                 }, chunkedSegmentStorage.getExecutor());

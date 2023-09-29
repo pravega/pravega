@@ -175,6 +175,11 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                             segmentMetadata.setLastChunkStartOffset(segmentMetadata.getStartOffset());
                         }
 
+                        if (segmentMetadata.getDefragStartOffset() < segmentMetadata.getStartOffset()) {
+                            segmentMetadata.setDefragStartOffset(segmentMetadata.getStartOffset());
+                            segmentMetadata.setDefragStartChunk(segmentMetadata.getFirstChunk());
+                        }
+
                         // Mark old first chunk for deletion.
                         chunksToDelete.add(oldChunkName);
                         currentMetadata.setActive(false);
@@ -241,7 +246,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
     private void postCommit() {
         // Update the read index by removing all entries below truncate offset.
-        chunkedSegmentStorage.getReadIndexCache().truncateReadIndex(handle.getSegmentName(), segmentMetadata.getStartOffset());
+        chunkedSegmentStorage.getReadIndexCache().truncateReadIndex(handle.getSegmentName(), segmentMetadata.getStartOffset(), false);
         if (isFirstChunkRelocated ) {
             chunkedSegmentStorage.getReadIndexCache().addIndexEntry(handle.getSegmentName(), segmentMetadata.getFirstChunk(), segmentMetadata.getFirstChunkStartOffset());
         }
@@ -336,7 +341,17 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
             }
             segmentMetadata.setStartOffset(offset);
             segmentMetadata.setFirstChunkStartOffset(startOffset.get());
-
+            if (null != segmentMetadata.getDefragStartChunk() && segmentMetadata.getDefragStartOffset() < offset) {
+                if (currentChunkName == null) {
+                    segmentMetadata.setDefragStartChunk(null);
+                    segmentMetadata.setDefragStartOffset(0);
+                    segmentMetadata.setDefragPendingChunkCount(0);
+                } else {
+                    segmentMetadata.setDefragStartChunk(currentChunkName);
+                    segmentMetadata.setDefragStartOffset(startOffset.get());
+                    segmentMetadata.setDefragPendingChunkCount(segmentMetadata.getDefragPendingChunkCount() - chunksToDelete.size());
+                }
+            }
         }, chunkedSegmentStorage.getExecutor());
     }
 

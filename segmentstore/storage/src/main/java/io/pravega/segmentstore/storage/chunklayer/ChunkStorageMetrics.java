@@ -41,6 +41,7 @@ public class ChunkStorageMetrics {
     static final OpStatsLogger SLTS_SYSTEM_WRITE_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_SYSTEM_WRITE_LATENCY);
     static final OpStatsLogger SLTS_CREATE_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_CREATE_LATENCY);
     static final OpStatsLogger SLTS_DELETE_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_DELETE_LATENCY);
+    static final OpStatsLogger SLTS_DEFRAGMENT_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_DEFRAGMENT_LATENCY);
     static final OpStatsLogger SLTS_CONCAT_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_CONCAT_LATENCY);
     static final OpStatsLogger SLTS_TRUNCATE_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_TRUNCATE_LATENCY);
     static final OpStatsLogger SLTS_READ_INDEX_SCAN_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_READ_INDEX_SCAN_LATENCY);

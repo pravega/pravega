@@ -44,6 +44,8 @@ public class ChunkedSegmentStorageConfig {
 
     public static final Property<Boolean> APPENDS_ENABLED = Property.named("appends.enable", true);
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
+    public static final Property<Integer> FRAGMENTED_COUNT_MAX = Property.named("defrag.fragmented.chunks.count.max", 0);
+    public static final Property<Long> FRAGMENTED_SIZE_MAX = Property.named("defrag.fragmented.size.bytes.max", Long.MAX_VALUE);
 
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", 128 * 1024 * 1024L);
 
@@ -91,6 +93,8 @@ public class ChunkedSegmentStorageConfig {
             .maxIndexedChunks(16 * 1024)
             .appendEnabled(true)
             .inlineDefragEnabled(true)
+            .maxFragmentedChunkCount(100)
+            .maxFragmentedDataSize(Long.MAX_VALUE)
             .lateWarningThresholdInMillis(100)
             .garbageCollectionDelay(Duration.ofSeconds(60))
             .garbageCollectionMaxConcurrency(10)
@@ -180,6 +184,18 @@ public class ChunkedSegmentStorageConfig {
      */
     @Getter
     final private boolean inlineDefragEnabled;
+
+    /**
+     * Maximum size of fragmented bytes allowed.
+     */
+    @Getter
+    final private long maxFragmentedDataSize;
+
+    /**
+     * Maximum size of fragmented chunks allowed.
+     */
+    @Getter
+    final private int maxFragmentedChunkCount;
 
     /**
      * Whether the relocation on truncate functionality is enabled or disabled.
@@ -334,6 +350,8 @@ public class ChunkedSegmentStorageConfig {
     ChunkedSegmentStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.appendEnabled = properties.getBoolean(APPENDS_ENABLED);
         this.inlineDefragEnabled = properties.getBoolean(INLINE_DEFRAG_ENABLED);
+        this.maxFragmentedDataSize = properties.getLong(FRAGMENTED_SIZE_MAX);
+        this.maxFragmentedChunkCount = properties.getInt(FRAGMENTED_COUNT_MAX);
         this.maxBufferSizeForChunkDataTransfer = properties.getPositiveInt(MAX_BUFFER_SIZE_FOR_APPENDS);
         // Don't use appends for concat when appends are disabled.
         this.minSizeLimitForConcat = this.appendEnabled ? properties.getLong(MIN_SIZE_LIMIT_FOR_CONCAT) : 0;
