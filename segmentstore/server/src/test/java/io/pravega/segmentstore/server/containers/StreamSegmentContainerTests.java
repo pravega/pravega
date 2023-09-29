@@ -3061,7 +3061,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             container1.metadata.setContainerEpochAfterRecovery(5);
             container1.flushToStorage(TIMEOUT).join();
             container1.metadata.setContainerEpochAfterRecovery(3);
-            AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
+            AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalStateException );
             //Test 2 ends
             container1.stopAsync().awaitTerminated();
         }
