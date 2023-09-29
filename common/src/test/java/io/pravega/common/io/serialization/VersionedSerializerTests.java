@@ -17,6 +17,7 @@ package io.pravega.common.io.serialization;
 
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.ByteBufferOutputStream;
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;
@@ -39,6 +40,7 @@ import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 /**
  * Unit tests for the VersionedSerializer Class.
@@ -112,6 +114,17 @@ public class VersionedSerializerTests {
             s.serialize(os, tc);
             return new ByteArraySegment(os.toByteArray());
         });
+    }
+
+    @Test
+    public void testThrowingSerializationException() {
+        val serializer = new BaseClassSerializer();
+        // Setting Mocks
+        SubClass1 sc = Mockito.spy(SubClass1.builder1().id(1).field1(100).build());
+        OutputStream o = Mockito.mock(OutputStream.class);
+        Mockito.doReturn(null).when(sc).getClass();
+        // Validating the Serialization Exception.
+        Assert.assertThrows(SerializationException.class, () -> serializer.serialize(o ,sc));
     }
 
     /**
