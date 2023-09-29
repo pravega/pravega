@@ -17,6 +17,7 @@ package io.pravega.controller.server.health;
 
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Service;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.common.cluster.Host;
@@ -125,6 +126,7 @@ public class EventProcessorHealthContributorTest extends ThreadPooledTestSuite {
             }
 
             @Override
+
             public EventStreamWriter<ControllerEvent> getWriter() {
                 return null;
             }
@@ -135,6 +137,7 @@ public class EventProcessorHealthContributorTest extends ThreadPooledTestSuite {
             }
 
             @Override
+            @SuppressFBWarnings("NP_NONNULL_RETURN_VIOLATION")
             public Service startAsync() {
                 return null;
             }
@@ -145,11 +148,13 @@ public class EventProcessorHealthContributorTest extends ThreadPooledTestSuite {
             }
 
             @Override
+            @SuppressFBWarnings("NP_NONNULL_RETURN_VIOLATION")
             public State state() {
                 return null;
             }
 
             @Override
+            @SuppressFBWarnings("NP_NONNULL_RETURN_VIOLATION")
             public Service stopAsync() {
                 return null;
             }
@@ -175,6 +180,7 @@ public class EventProcessorHealthContributorTest extends ThreadPooledTestSuite {
             }
 
             @Override
+            @SuppressFBWarnings("NP_NONNULL_RETURN_VIOLATION")
             public Throwable failureCause() {
                 return null;
             }

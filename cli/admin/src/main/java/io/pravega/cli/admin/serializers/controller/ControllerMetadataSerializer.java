@@ -42,7 +42,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
+import lombok.val;
 import static io.pravega.shared.NameUtils.COMMITTING_TRANSACTIONS_RECORD_KEY;
 import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
 import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
@@ -202,12 +202,20 @@ public class ControllerMetadataSerializer implements Serializer<Object> {
 
     @Override
     public ByteBuffer serialize(Object value) {
-        return ByteBuffer.wrap(BYTE_CONVERTERS.get(metadataType).getValue().apply(value));
+        val serializer = BYTE_CONVERTERS.get(metadataType);
+        if ( serializer == null ) {
+            throw new IllegalStateException("No Serializer found");
+        }
+        return ByteBuffer.wrap(serializer.getValue().apply(value));
     }
 
     @Override
     public Object deserialize(ByteBuffer serializedValue) {
-        return BYTE_CONVERTERS.get(metadataType).getKey().apply(new ByteArraySegment(serializedValue).getCopy());
+        val serializer = BYTE_CONVERTERS.get(metadataType);
+        if ( serializer == null ) {
+            throw new IllegalStateException("No Serializer found");
+        }
+        return serializer.getKey().apply(new ByteArraySegment(serializedValue).getCopy());
     }
 
     /**
