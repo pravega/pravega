@@ -31,6 +31,7 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,6 +47,7 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private static final int REQUEST_TIMEOUT_SECONDS = 60 * 30;
     private static final String ALL_CONTAINERS = "all";
+    private Set<Integer> ports = new HashSet<>();
 
     /**
      * Creates new instance of the FlushToStorageCommand.
@@ -84,8 +86,9 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private CompletableFuture<WireCommands.StorageFlushed> flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId) throws Exception {
         String ssHost = this.getHostByContainer(containerId);
+        int adminPort = getAdminPortForHost(getServiceConfig().getAdminGatewayPort(), ssHost);
         CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(containerId,
-                new PravegaNodeUri( ssHost, getAdminPortForHost(getServiceConfig().getAdminGatewayPort(), ssHost)), super.authHelper.retrieveMasterToken());
+                new PravegaNodeUri( ssHost, adminPort), super.authHelper.retrieveMasterToken());
         return reply.thenApply(result -> {
             output("Flushed the Segment Container with containerId %d to Storage.", containerId);
             return result;
@@ -93,7 +96,7 @@ public class FlushToStorageCommand extends ContainerCommand {
     }
 
     private int getAdminPortForHost(int configuredAdminPort, String ssHost) {
-        if (InetAddresses.isInetAddress(ssHost)) {
+        if ( InetAddresses.isInetAddress(ssHost) || (ports.size() == 1)) {
             return configuredAdminPort;
         }
         String[] ssHostParts = ssHost.split("-");
@@ -148,6 +151,7 @@ public class FlushToStorageCommand extends ContainerCommand {
         Map<Integer, String> containerHostMap = new HashMap<>();
         for (Map.Entry<Host, Set<Integer>> entry: hostMap.entrySet()) {
             String ipAddr = entry.getKey().getIpAddr();
+            ports.add(entry.getKey().getPort());
             Set<Integer> containerIds = entry.getValue();
             for (Integer containerId : containerIds) {
                 containerHostMap.put(containerId, ipAddr);
