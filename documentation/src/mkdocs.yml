@@ -49,8 +49,8 @@ markdown_extensions:
 
 nav:
   - Overview: 'index.md'
-  - Quick Start: 'getting-started/quick-start.md'
   - Getting Started:
+    - 'Quick Start': 'getting-started/quick-start.md'
     - 'Running a Sample Application': 'getting-started.md'
     - 'Deploying Pravega on Kubernetes': 'getting-started/pravega-on-kubernetes-101.md'
   - Understanding Pravega:
@@ -76,6 +76,7 @@ nav:
     - 'Controller REST API': 'rest/restapis.md'
     - 'Working with Metrics': 'metrics.md'
   - Ecosystem:
+    - 'Schema Registry': 'https://github.com/pravega/schema-registry/blob/master/README.md'
     - 'Connectors':
       - 'Overview': 'connectors.md'
       - 'Flink Connector': 'https://github.com/pravega/flink-connectors/blob/master/README.md'
@@ -91,7 +92,6 @@ nav:
       - 'Kafka Adapter': 'https://github.com/pravega/kafka-adapter/blob/master/README.md'
       - 'Pravega Flink Tools': 'https://github.com/pravega/flink-tools/blob/master/README.md'
       - 'Keycloak Plugin': 'https://github.com/pravega/pravega-keycloak/blob/master/README.md'
-    - 'Schema Registry': 'https://github.com/pravega/schema-registry/blob/master/README.md'
 
   - 'Deployment':
     - 'Overview': 'deployment/deployment.md'
@@ -126,8 +126,7 @@ nav:
     - 'Coding guildelines': 'contributing.md'
     - 'Pravega Roadmap': 'roadmap.md'
     - 'Join the Community': 'join-community.md'
-  - FAQ:
-    - 'Frequently Asked Questions': 'faq.md'
+  - FAQ: 'faq.md'
 extra:
     version: 0.1
 
