@@ -15,7 +15,6 @@
  */
 package io.pravega.segmentstore.server.host;
 
-import io.jsonwebtoken.lang.Assert;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -38,6 +37,7 @@ import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
 import lombok.Cleanup;
 import lombok.val;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.concurrent.ScheduledExecutorService;
@@ -105,7 +105,7 @@ public class StorageLoaderTest {
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
-        Assert.isNull(getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.ROLLING_STORAGE));
+        Assert.assertNull(getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.ROLLING_STORAGE));
     }
 
     @Test
@@ -129,7 +129,7 @@ public class StorageLoaderTest {
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, HDFSStorageConfig.builder().build());
-        Assert.isNull(getStorageFactory(configSetup, storageType, "HDFS", StorageLayoutType.ROLLING_STORAGE));
+        Assert.assertNull(getStorageFactory(configSetup, storageType, "HDFS", StorageLayoutType.ROLLING_STORAGE));
     }
 
     @Test
@@ -159,7 +159,7 @@ public class StorageLoaderTest {
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, config);
 
-        Assert.isNull(getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.ROLLING_STORAGE));
+        Assert.assertNull(getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.ROLLING_STORAGE));
     }
 
     @Test

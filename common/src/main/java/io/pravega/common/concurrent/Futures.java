@@ -213,7 +213,8 @@ public final class Futures {
      * @throws E3 If exception E3 occurs.
      * @throws TimeoutException If future doesn't complete in provided time duration.
      */
-    public static <ResultT, E1 extends Exception, E2 extends Exception, E3 extends Exception> ResultT getThrowingExceptionWithTimeout(Future<ResultT> future, long timeoutMillis) throws E1, E2, E3, TimeoutException {
+    public static <ResultT, E1 extends Exception, E2 extends Exception, E3 extends Exception>
+                  ResultT getThrowingExceptionWithTimeout(Future<ResultT> future, long timeoutMillis) throws E1, E2, E3, TimeoutException {
         Preconditions.checkNotNull(future);
         try {
             return future.get(timeoutMillis, TimeUnit.MILLISECONDS);

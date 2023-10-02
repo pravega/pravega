@@ -89,7 +89,9 @@ class DataFrameTestHelpers {
     /**
      * Checks that the given collection of DataFrames contain the given collection of records.
      */
-    static <T> void checkReadRecords(Collection<DataFrame.DataFrameEntryIterator> dataFrames, List<T> records, Collection<Integer> knownBadRecordIndices, Function<T, ByteArraySegment> recordConverter) throws Exception {
+    static <T> void checkReadRecords(Collection<DataFrame.DataFrameEntryIterator> dataFrames, List<T> records,
+                                     Collection<Integer> knownBadRecordIndices,
+                                     Function<T, ByteArraySegment> recordConverter) throws Exception {
         ReadState state = new ReadState(records.size(), knownBadRecordIndices);
 
         for (val reader : dataFrames) {
@@ -130,7 +132,10 @@ class DataFrameTestHelpers {
                     for (byte[] data : state.getCurrentRecordEntries()) {
                         for (int i = 0; i < data.length; i++) {
                             if (currentRecord.get(recordOffset) != data[i]) {
-                                Assert.fail(String.format("Unexpected entry contents. FrameIndex = %d, RecordIndex = %d, EntryNumberInRecord = %d.", state.getFrameIndex(), state.getNextGoodRecordIndex(), i));
+                                Assert.fail(
+                                    String.format(
+                                        "Unexpected entry contents. FrameIndex = %d, RecordIndex = %d, EntryNumberInRecord = %d.",
+                                        state.getFrameIndex(), state.getNextGoodRecordIndex(), i));
                             }
 
                             recordOffset++;
