@@ -331,3 +331,13 @@ while (events.hasNext())
 }
 
 ```
+#### getNextStreamCut API:  
+For a streaming application like Spark, which uses micro-batch reader connectors, needs a streamCut to read Pravega Streams in batches.
+```Java
+StreamCut startingStreamCut = streamManager.fetchStreamInfo(streamScope, streamName).join().getHeadStreamCut();
+long approxDistanceToNextOffset = 50 * 1024 * 1024; // 50MB in bytes
+StreamCut nextStreamCut = client.getNextStreamCut(startingStreamCut, approxDistanceToNextOffset);
+```
+This api provides a streamCut that is a bounded distance from another streamcut. It takes a starting streamCut and an approximate distance in bytes as parameters and return a new stream cut. 
+No segments from the starting streamCut is skipped over. The position for each segment in the new StreamCut is either present inside the segment or at the tail of it. 
+The successors for the respective segments are called only if its position in the startingStreamCut is at the tail.
