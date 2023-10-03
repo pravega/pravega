@@ -1241,7 +1241,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         command.readDurableDataLogWithCustomCallback((op, entry) -> originalOperations.add(DurableLogInspectCommand.getActualOperation(op)),
                 0, wrapper.asReadOnly());
 
-        Map<Long, Long> origOperationsCountMap = getOperationsCountMapBySequenceNumber(originalOperations);
+        Map<Long, Long> origOperationsCountMap = getOperationsCountMapByAttributes(originalOperations);
         Mockito.doReturn(false)
                 .when(command).confirmContinue();
         Mockito.doReturn(0L).when(command).getLongUserInput(Mockito.any());
@@ -1249,7 +1249,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
                 .when(command).getStringUserInput(Mockito.any());
         command.execute();
-        Map<Long, Long> savedOpCountMap = getOperationsCountMapBySequenceNumber(getSavedResult(testDataFile.getAbsolutePath()));
+        Map<Long, Long> savedOpCountMap = getOperationsCountMapByAttributes(getSavedResult(testDataFile.getAbsolutePath()));
         Assert.assertEquals(origOperationsCountMap.get(1L), savedOpCountMap.get(1L));
 
         this.factory.close();
