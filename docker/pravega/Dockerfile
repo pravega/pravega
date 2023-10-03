@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-FROM adoptopenjdk/openjdk11:jre-11.0.11_9-alpine
+FROM adoptopenjdk/openjdk11:jre-11.0.13_8-alpine
 
 RUN apk --update --no-cache add \
     #used in readiness and liveness probes
