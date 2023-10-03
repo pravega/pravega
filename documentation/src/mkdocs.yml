@@ -61,7 +61,6 @@ nav:
     - 'Reader Groups': 'reader-group-design.md'
     - 'Watermarking': 'watermarking.md'
     - 'StateSynchronizer': 'state-synchronizer-design.md'
-    - 'Wire Protocol': 'wire-protocol.md'
     - 'Controller Service': 'controller-service.md'
     - 'Segment Store Service': 'segment-store-service.md'
     - 'Segment Containers': 'segment-containers.md' 
@@ -125,6 +124,7 @@ nav:
     - 'Admin CLI': 'https://github.com/pravega/pravega/blob/master/cli/admin/README.md'
   - Contributing:
     - 'Coding guildelines': 'contributing.md'
+    - 'Wire Protocol': 'wire-protocol.md'
     - 'Pravega Release notes': 'releasenotes.md'
     - 'Future work': 'roadmap.md'
     - 'Join the Community': 'join-community.md'
