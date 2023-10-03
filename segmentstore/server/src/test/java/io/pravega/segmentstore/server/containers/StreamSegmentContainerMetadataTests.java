@@ -278,7 +278,9 @@ public class StreamSegmentContainerMetadataTests {
             }
 
             truncationMarker = m.getClosestTruncationMarker(input);
-            Assert.assertEquals("Unexpected truncation marker value for Op Sequence Number " + input + " after removing marker at Sequence Number " + seqNo, expectedTruncationMarker, truncationMarker);
+            Assert.assertEquals(
+                "Unexpected truncation marker value for Op Sequence Number " + input + " after removing marker at Sequence Number " + seqNo,
+                expectedTruncationMarker, truncationMarker);
         }
     }
 

@@ -425,7 +425,9 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                                  long offsetToWriteAt,
                                                  int bytesCount,
                                                  byte[] expectedContent) {
-        Preconditions.checkState( bytesCount > 0, "bytesCount must be positive. Segment=%s Chunk=%s offsetToWriteAt=%s bytesCount=%s", segmentMetadata, chunkWrittenMetadata, offsetToWriteAt, bytesCount);
+        Preconditions.checkState(
+            bytesCount > 0, "bytesCount must be positive. Segment=%s Chunk=%s offsetToWriteAt=%s bytesCount=%s",
+            segmentMetadata, chunkWrittenMetadata, offsetToWriteAt, bytesCount);
         // Finally write the data.
         val bis = new BoundedInputStream(data, bytesCount);
         CompletableFuture<Integer> retValue;

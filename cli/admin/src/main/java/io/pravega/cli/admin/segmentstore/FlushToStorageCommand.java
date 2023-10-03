@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.segmentstore;
 
 import com.google.common.base.Preconditions;
+import com.google.common.net.InetAddresses;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.AdminSegmentHelper;
 import io.pravega.cli.admin.utils.ZKHelper;
@@ -24,11 +25,13 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.math.NumberUtils;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,6 +47,7 @@ public class FlushToStorageCommand extends ContainerCommand {
 
     private static final int REQUEST_TIMEOUT_SECONDS = 60 * 30;
     private static final String ALL_CONTAINERS = "all";
+    private Set<Integer> ports = new HashSet<>();
 
     /**
      * Creates new instance of the FlushToStorageCommand.
@@ -81,19 +85,34 @@ public class FlushToStorageCommand extends ContainerCommand {
     }
 
     private CompletableFuture<WireCommands.StorageFlushed> flushContainerToStorage(AdminSegmentHelper adminSegmentHelper, int containerId) throws Exception {
+        String ssHost = this.getHostByContainer(containerId);
+        int adminPort = getAdminPortForHost(getServiceConfig().getAdminGatewayPort(), ssHost);
         CompletableFuture<WireCommands.StorageFlushed> reply = adminSegmentHelper.flushToStorage(containerId,
-                new PravegaNodeUri(this.getHostByContainer(containerId), getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
+                new PravegaNodeUri( ssHost, adminPort), super.authHelper.retrieveMasterToken());
         return reply.thenApply(result -> {
             output("Flushed the Segment Container with containerId %d to Storage.", containerId);
             return result;
         });
     }
 
+    private int getAdminPortForHost(int configuredAdminPort, String ssHost) {
+        if ( InetAddresses.isInetAddress(ssHost) || (ports.size() == 1)) {
+            return configuredAdminPort;
+        }
+        String[] ssHostParts = ssHost.split("-");
+        String ssHostIndex = ssHostParts[ssHostParts.length-1];
+        Preconditions.checkState(ssHostParts.length > 1 && !ssHostIndex.isEmpty() && StringUtils.isNumeric(ssHostIndex), "Unexpected host-name retrieved");
+        return  configuredAdminPort + Integer.parseInt(ssHostIndex);
+    }
+
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "flush-to-storage", "Persist the given Segment Container into Storage.",
-                new ArgDescriptor("start-container-id", "The start container Id of the Segment Container that needs to be persisted, " +
-                        "if given as \"all\" all the containers will be persisted. If given as container id without "), new ArgDescriptor("end-container-id", "The end container Id of the Segment Container that needs to be persisted, " +
-                "This is an optional parameter. If not given then only start container id will be flushed"));
+                                     new ArgDescriptor("start-container-id",
+                                                       "The start container Id of the Segment Container that needs to be persisted, "
+                                                     + "if given as \"all\" all the containers will be persisted. If given as container id without "),
+                                     new ArgDescriptor("end-container-id",
+                                                       "The end container Id of the Segment Container that needs to be persisted, "
+                                                     + "This is an optional parameter. If not given then only start container id will be flushed"));
     }
 
     private String getHostByContainer(int containerId) {
@@ -101,7 +120,18 @@ public class FlushToStorageCommand extends ContainerCommand {
         if (host == null || host.isEmpty()) {
             throw new RuntimeException("No host found for given container: " + containerId);
         }
-        return host;
+        return extractHostName(host);
+    }
+
+    static String extractHostName(String host) {
+        // Quick Fix : Needs proper parsing and fixing
+        if (InetAddresses.isInetAddress(host)) {
+            return host;
+        } else {
+            String[] parts = host.split("\\.");
+            Preconditions.checkState(parts.length >= 1);
+            return parts[0];
+        }
     }
 
     private Map<Integer, String> getHosts() {
@@ -121,6 +151,7 @@ public class FlushToStorageCommand extends ContainerCommand {
         Map<Integer, String> containerHostMap = new HashMap<>();
         for (Map.Entry<Host, Set<Integer>> entry: hostMap.entrySet()) {
             String ipAddr = entry.getKey().getIpAddr();
+            ports.add(entry.getKey().getPort());
             Set<Integer> containerIds = entry.getValue();
             for (Integer containerId : containerIds) {
                 containerHostMap.put(containerId, ipAddr);

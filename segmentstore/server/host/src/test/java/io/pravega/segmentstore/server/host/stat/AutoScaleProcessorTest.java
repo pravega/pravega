@@ -362,7 +362,8 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
     private static class TestAutoScaleProcessor extends AutoScaleProcessor {
         private AtomicLong timeMillis = new AtomicLong();
 
-        TestAutoScaleProcessor(@NonNull EventStreamWriter<AutoScaleEvent> writer, @NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor) {
+        TestAutoScaleProcessor(@NonNull EventStreamWriter<AutoScaleEvent> writer,
+                               @NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor) {
             super(writer, configuration, executor);
         }
 
@@ -370,7 +371,9 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
             super(configuration, clientFactory, executor);
         }
 
-        TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory, @NonNull ScheduledExecutorService executor, SimpleCache<String, Pair<Long, Long>> testSimpleCache) {
+        TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory,
+                               @NonNull ScheduledExecutorService executor,
+                               SimpleCache<String, Pair<Long, Long>> testSimpleCache) {
             super(configuration, clientFactory, executor, testSimpleCache);
         }
 

@@ -19,6 +19,7 @@ import io.pravega.segmentstore.contracts.ExtendedChunkInfo;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
+import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.shared.protocol.netty.AdminRequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.SerializedClassRunner;
@@ -49,14 +50,19 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
-        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         processor.flushToStorage(new WireCommands.FlushToStorage(0, "", 1));
         order.verify(connection).send(new WireCommands.StorageFlushed(1));
     }
 
     @Test(timeout = 60000)
-    public void testListStorageChunks() {
+    public void testListStorageChunks() throws DurableDataLogException {
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+
         String segmentName = "dummy";
         ExtendedChunkInfo chunk = ExtendedChunkInfo.builder()
                 .lengthInMetadata(10)
@@ -72,7 +78,8 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
 
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
-        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
+        AdminRequestProcessor processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection,
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
 
         processor.listStorageChunks(new WireCommands.ListStorageChunks("dummy", "", 1));
         order.verify(connection).send(new WireCommands.StorageChunksListed(1, List.of(chunkInfo)));

@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.utils;
 
 import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.segmentstore.server.store.ServiceConfig;
 
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -44,6 +45,7 @@ public class ConfigUtils {
             pravegaProperties.clear();
         }
 
+        String clusterName = state.getConfigBuilder().build().getConfig(ServiceConfig::builder).getClusterName();
         // Second, load properties from command line if any.
         for (String propertyName: System.getProperties().stringPropertyNames()) {
             if (propertyName.startsWith(PRAVEGA_SERVICE_PROPERTY_NAME)
@@ -52,6 +54,7 @@ public class ConfigUtils {
                 pravegaProperties.setProperty(propertyName, getIfEnv(System.getProperties().getProperty(propertyName)));
             }
         }
+        pravegaProperties.setProperty("pravegaservice.clusterName", clusterName);
         state.getConfigBuilder().include(pravegaProperties);
     }
 

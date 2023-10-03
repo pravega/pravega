@@ -16,6 +16,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -58,6 +59,7 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     @Override
+    @SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
     public int getBucketCount(ServiceType serviceType) {
         return bucketCountMap.get(serviceType);
     }
@@ -84,6 +86,7 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     @Override
+    @SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
     public CompletableFuture<Void> addStreamToBucketStore(final ServiceType serviceType, final String scope, final String stream,
                                                           final Executor executor) {
         int bucketCount = bucketCountMap.get(serviceType);
@@ -102,6 +105,7 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     @Override
+    @SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
     public CompletableFuture<Void> removeStreamFromBucketStore(final ServiceType serviceType, final String scope, 
                                                                final String stream, final Executor executor) {
         int bucketCount = bucketCountMap.get(serviceType);
