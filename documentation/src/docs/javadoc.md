@@ -23,26 +23,26 @@ the need to deploy one storage service per use-case. At the moment, the Pravega 
 following abstractions:
 
 ## Event Stream Client
-_[Event Stream Client](https://github.com/pravega/pravega/tree/master/client/src/main/java/io/pravega/client/stream)_
+_[Event Stream Client](pravega-concepts.md/#Streams)_
 provides a Java library that implements a convenient API for Writer and Reader streaming applications to use. The 
 client library encapsulates the [Wire Protocol](wire-protocol.md) that is used to convey requests and responses 
 between Pravega clients and the Pravega service. Note that the Event Stream Client can manage events directly on Streams
 or via [Transactions](pravega-concepts.md/#transactions) to achieve exactly-once semantics.
 
 ## Batch Client
-_[Batch Client](https://github.com/pravega/pravega/pull/1998)_, instead of processing a stream as data comes in, 
+_[Batch Client](clients-and-streams.md/#Batch client API overview)_, instead of processing a stream as data comes in, 
 enables applications to read data from all segments (irrespective of time) in parallel, in order to more efficiently
 perform batch processing over historical data. The Batch Client allows listing the segments in a Stream and creating 
 an iterator on any give segment to read the contents of the segment.
 
 ## Byte Client
-_[Byte Client](https://github.com/pravega/pravega/wiki/PDP-30-ByteStream-API)_ is a byte-oriented API providing a way 
+_[Byte Client](https://github.com/pravega/pravega/wiki/PDP-30-(ByteStream-API))_ is a byte-oriented API providing a way 
 to write data to Pravega without writing events. It presents an interface of a InputStream and an OutputStream. Data 
 written in this way is not framed or interpreted by Pravega. So there are no length headers or event boundaries. As 
 such byte offsets into the stream are meaningful and directly exposed.
 
 ## KV Tables Client
-_[KV Tables Client](https://github.com/pravega/pravega/wiki/PDP-39-Key-Value-Tables)_: Real-world analytical 
+_[KV Tables Client](https://github.com/pravega/pravega/wiki/PDP-39-(Key-Value-Tables-Beta-1))_: Real-world analytical 
 pipelines are seldom made up of just Stream Processing. Many applications 
 require storing and retrieving state, and some applications even need to store results in some sort of database 
 (whether structured or not). Such applications require complex deployments involving multiple different types of 
@@ -56,7 +56,7 @@ maintain disparate storage systems - both KVTs and Streams share the same underl
 Pravega Segments.
 
 ## State Synchronizer Client
-_[State Synchronizer Client](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/state/StateSynchronizer.java)_:
+_[State Synchronizer Client](state-synchronizer.md)_:
 In many situations, a distributed application may need to share information across multiple processes that may
 update it (e.g., configuration file). In this scenario, keep the data consistent under concurrent updates is key.
 The State Synchronizer Client just solves this problem: it provides a means to have state that is synchronized between 

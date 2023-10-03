@@ -227,7 +227,7 @@ state. Once a Checkpoint has been completed, the application can use the
 Checkpoint to reset all the Readers in the Reader Group to the known consistent
 state represented by the Checkpoint.
 
-For more details on working with Reader Groups, Please see [Reader Group Basics](basic-reader-and-writer.md#readergroup-basics).
+For more details on working with Reader Groups, Please see [Reader Group Basics](basic-reader-and-writer.md#reader-group-basics).
 
 
 ## Transactions

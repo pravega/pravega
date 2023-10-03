@@ -89,7 +89,7 @@ more than one instance of Controller service per cluster.
 
 Each Controller instance is capable of working independently and uses a
 shared persistent store as the source of truth for all state-owned and
-managed by Controller service. We use [Pravega KeyValue Tables](https://github.com/pravega/pravega/wiki/PDP-39-Key-Value-Tables) as the
+managed by Controller service. We use [Pravega KeyValue Tables](https://github.com/pravega/pravega/wiki/PDP-39-(Key-Value-Tables-Beta-1)) as the
 store for persisting all metadata consistently. Controller stores metadata about Streams in Stream specific tables that it creates. Each Controller instance comprises
 various subsystems responsible for performing specific
 operations on different categories of metadata. These subsystems include
@@ -145,7 +145,7 @@ Transaction management can be found later in the [Transactions](#transaction-man
 
 ## Key-Value-Tables Management
 
-Apart from Stream abstraction Controller is also the source of truth for the other storage primitive offered by Pravega - [Key Value Tables](https://github.com/pravega/pravega/wiki/PDP-39-Key-Value-Tables-(Beta-1)). Just like a Stream, a Key Value Table (KVT) is also distributed and paritioned using a Table Segment. A Table Segment has same properties as a Stream Segment, but with the data is formatted as keys and values and indexed on the keys. It provides APIs to perform CRUD operations on keys. Controller uses Table Segments to create a higher level abstraction which creates a distributed Key Value Table. Each Table is partitioned and the user data is distributed across different partitions using a hashing scheme. It also introduces a concept of _key family_ which is used to ensure that all keys from the same key family are always mapped to the same partition.  
+Apart from Stream abstraction Controller is also the source of truth for the other storage primitive offered by Pravega - [Key Value Tables](https://github.com/pravega/pravega/wiki/PDP-39-(Key-Value-Tables-Beta-1)). Just like a Stream, a Key Value Table (KVT) is also distributed and paritioned using a Table Segment. A Table Segment has same properties as a Stream Segment, but with the data is formatted as keys and values and indexed on the keys. It provides APIs to perform CRUD operations on keys. Controller uses Table Segments to create a higher level abstraction which creates a distributed Key Value Table. Each Table is partitioned and the user data is distributed across different partitions using a hashing scheme. It also introduces a concept of _key family_ which is used to ensure that all keys from the same key family are always mapped to the same partition.  
 Controller maintains the metadata about the key value tables and is responsible for its lifecycle. Presently key value tables do not support any user defined policies like scaling or retention. So Controller's role is limited to provisioning Table Segments for the Table and managing its lifecycle which includes operations like create seal and delete tables.   
 
 ## Cluster Management
@@ -160,7 +160,7 @@ befalls a single Controller instance that is chosen via a leader
 election using Zookeeper. This leader Controller monitors lifecycle of
 Segment Store nodes as they are added to/removed from the cluster and
 performs redistribution of Segment Containers across available Segment
-Store nodes. This distribution mapping is stored in a dedicated Znode called [SegmentContainerMapper] (https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/segment/SegmentToContainerMapper.java).
+Store nodes. This distribution mapping is stored in a dedicated Znode called [**SegmentContainerMapper**](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/segment/SegmentToContainerMapper.java).
 Each Segment Store watches this Znode to receive change notifications and
 if changes to its own assignments are found, it shuts down and relinquishes containers it no
 longer owns and attempts to acquire ownership of containers that are
@@ -378,7 +378,7 @@ The following are the Transaction Related metadata records:
 
 #### Retention Set
 
- Controller periodically generates the tail [_StreamCut_] (https://pravega.io/docs/nightly/terminology/) on the Stream and stores them as a chronological time series in the Stream metadata called retention set. This retention set is stored in the metadata table. These StreamCuts are used to identify truncation points for application of retention policy for the Stream. 
+ Controller periodically generates the tail [_StreamCut_](https://pravega.io/docs/nightly/terminology/) on the Stream and stores them as a chronological time series in the Stream metadata called retention set. This retention set is stored in the metadata table. These StreamCuts are used to identify truncation points for application of retention policy for the Stream. 
 
 #### Writer Marks
  Writers report their positions and times in the form of writer marks to Controller service which are then stored in the metadata table. One of the Controller instances then looks at these marks and consolidates them to produce watermarks. 
