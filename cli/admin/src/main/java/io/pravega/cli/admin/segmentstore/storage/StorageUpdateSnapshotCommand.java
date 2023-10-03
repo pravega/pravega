@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.segmentstore.storage;
 
 import com.google.common.base.Preconditions;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.segmentstore.storage.chunklayer.SystemJournal.SegmentSnapshotRecord;
 import io.pravega.segmentstore.storage.chunklayer.SystemJournal.SystemJournalRecord;
@@ -115,17 +116,21 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
                 break;
             }
         }
-        Preconditions.checkNotNull(systemSnapshot, "No SystemSnapshots found");
+        if ( systemSnapshot == null ) {
+            throw new IllegalStateException("No SystemSnapshots found");
+        }
         updateSystemSnapShotRecord(systemSnapshot, sortedSegmentChunkFiles);
         Files.write(Paths.get(outputJournalPath + latestSnapshotFile.getName()), SYSTEM_SNAPSHOT_SERIALIZER.serialize(systemSnapshot).array());
         output("SystemSnapshot Journal file has been created successfully at " + outputJournalPath);
     }
 
     private interface JournalDeserializer {
+        @NonNull
         Collection<SystemJournalRecord> deserialize(byte[] bytes) throws Exception;
     }
 
     private static class JournalSnapshotDeserializer implements JournalDeserializer {
+        @NonNull
         public Collection<SystemJournalRecord> deserialize(byte[] bytes) throws IOException {
             val systemSnapshotRecord = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(bytes);
             return Collections.singletonList(systemSnapshotRecord);
@@ -135,6 +140,7 @@ public class StorageUpdateSnapshotCommand extends StorageCommand {
     private static class JournalFileDeserializer implements JournalDeserializer {
         private static final SystemJournalRecordBatch.SystemJournalRecordBatchSerializer SYSTEM_JOURNAL_BATCH_SERIALIZER = new SystemJournalRecordBatch.SystemJournalRecordBatchSerializer();
 
+        @NonNull
         public Collection<SystemJournalRecord> deserialize(byte[] bytes) throws IOException {
             val journalRecordBatch = SYSTEM_JOURNAL_BATCH_SERIALIZER.deserialize(bytes);
             return journalRecordBatch.getSystemJournalRecords();
