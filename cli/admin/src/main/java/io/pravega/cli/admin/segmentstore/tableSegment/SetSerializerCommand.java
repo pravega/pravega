@@ -47,11 +47,12 @@ public class SetSerializerCommand extends TableSegmentCommand {
         ensureArgCount(1);
 
         String identifier = getArg(0).toLowerCase();
-        if (!SERIALIZERS.containsKey(identifier)) {
+        ImmutablePair<AbstractSerializer, AbstractSerializer> serializer = SERIALIZERS.get(identifier);
+        if ( serializer == null ) {
             output("Serializers named %s do not exist.", identifier);
         } else {
-            getCommandArgs().getState().setKeySerializer(SERIALIZERS.get(identifier).getLeft());
-            getCommandArgs().getState().setValueSerializer(SERIALIZERS.get(identifier).getRight());
+            getCommandArgs().getState().setKeySerializer(serializer.getLeft());
+            getCommandArgs().getState().setValueSerializer(serializer.getRight());
             output("Serializers changed to %s successfully.", identifier);
         }
     }
