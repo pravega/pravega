@@ -33,6 +33,7 @@ import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.StorageUnavailableException;
 import io.pravega.segmentstore.storage.StorageWrapper;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
@@ -62,18 +63,15 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CREATE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CREATE_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_LATENCY;
-import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_BYTES;
-import static io.pravega.shared.MetricsNames.SLTS_STORAGE_USED_PERCENTAGE;
 import static io.pravega.shared.MetricsNames.STORAGE_METADATA_NUM_CHUNKS;
 import static io.pravega.shared.MetricsNames.STORAGE_METADATA_SIZE;
-import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_PREFIX;
+import static io.pravega.shared.NameUtils.isSegmentInSystemScope;
 
 /**
  * Implements storage for segments using {@link ChunkStorage} and {@link ChunkMetadataStore}.
@@ -109,7 +107,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * Storage executor object.
      */
     @Getter
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
 
     /**
      * Tracks whether this instance is closed or not.
@@ -161,11 +159,15 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     private final ScheduledFuture<?> reporter;
     private ScheduledFuture<?> storageChecker;
+    private ScheduledFuture<?> storageHealthChecker;
 
     private AbstractTaskQueueManager<GarbageCollector.TaskInfo> taskQueue;
 
-    private final AtomicBoolean isStorageFull = new AtomicBoolean(false);
-    private final AtomicLong storageUsed = new AtomicLong(0);
+    /**
+     * {@link StorageHealthTracker} instance used to track health of this instance.
+     */
+    @Getter
+    private final StorageHealthTracker healthTracker;
 
     /**
      * Creates a new instance of the ChunkedSegmentStorage class.
@@ -207,6 +209,16 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                     config.getSafeStorageSizeCheckFrequencyInSeconds(),
                     TimeUnit.SECONDS);
         }
+        this.healthTracker = new StorageHealthTracker(containerId,
+                config,
+                System::currentTimeMillis,
+                duration -> Futures.delayedFuture(duration, executor));
+        if (config.isHealthCheckEnabled()) {
+            this.storageHealthChecker = executor.scheduleAtFixedRate(this::calculateHealthStats,
+                    config.getHealthCheckFrequencyInSeconds(),
+                    config.getHealthCheckFrequencyInSeconds(),
+                    TimeUnit.SECONDS);
+        }
     }
 
     /**
@@ -225,7 +237,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * Concludes and finalizes the boostrap.
      *
      * @param taskQueue  Task queue to use for garbage collection.
-     * @return
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
+     * it will contain the cause of the failure.
      */
     public CompletableFuture<Void> finishBootstrap(AbstractTaskQueueManager<GarbageCollector.TaskInfo> taskQueue) {
         this.taskQueue = taskQueue;
@@ -307,6 +320,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * @param segmentMetadata {@link SegmentMetadata} for the segment to change ownership for.
      *                        throws ChunkStorageException    In case of any chunk storage related errors.
      *                        throws StorageMetadataException In case of any chunk metadata store related errors.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
+     * it will contain the cause of the failure.
      */
     private CompletableFuture<Void> claimOwnership(MetadataTransaction txn, SegmentMetadata segmentMetadata) {
         Preconditions.checkState(!segmentMetadata.isStorageSystemSegment(), "claimOwnership called on system segment %s", segmentMetadata);
@@ -449,18 +464,31 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         if (ex instanceof ChunkStorageFullException) {
             throw new CompletionException(new StorageFullException(streamSegmentName, ex));
         }
+        if (ex instanceof ChunkStorageUnavailableException) {
+            healthTracker.reportUnavailable();
+            throw new CompletionException(new StorageUnavailableException(streamSegmentName, ex));
+        }
         throw new CompletionException(ex);
     }
 
     @Override
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
         checkInitialized();
+        Exception ex = null;
         if (null == handle) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
+            ex = new IllegalArgumentException("handle must not be null");
+        } else if (healthTracker.isStorageFull() && !isSegmentInSystemScope(handle.getSegmentName())) {
+            ex = new StorageFullException(handle.getSegmentName());
+        } else if (healthTracker.isStorageUnavailable()) {
+            ex = new StorageUnavailableException(handle.getSegmentName());
+        } else if (healthTracker.isStorageDegraded() && !isSegmentInSystemScope(handle.getSegmentName())) {
+            ex = new StorageUnavailableException(handle.getSegmentName());
         }
-        if (isStorageFull() && !isSegmentInSystemScope(handle)) {
-            return CompletableFuture.failedFuture(new StorageFullException(handle.getSegmentName()));
+
+        if (null != ex) {
+            return CompletableFuture.failedFuture(ex);
         }
+
         return executeSerialized(new WriteOperation(this, handle, offset, data, length), handle.getSegmentName());
     }
 
@@ -479,7 +507,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "seal", handle);
-            Timer timer = new Timer();
+            val timer = new Timer();
             log.debug("{} seal - started segment={}.", logPrefix, handle.getSegmentName());
             Preconditions.checkNotNull(handle, "handle");
             String streamSegmentName = handle.getSegmentName();
@@ -518,14 +546,22 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     @Override
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
         checkInitialized();
+
+        Exception ex = null;
         if (null == targetHandle) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
+             ex = new IllegalArgumentException("handle must not be null");
+        } else if (null == sourceSegment) {
+            ex = new IllegalArgumentException("sourceSegment must not be null");
+        } else if (healthTracker.isStorageFull() && !isSegmentInSystemScope(targetHandle.getSegmentName())) {
+            ex = new StorageFullException(targetHandle.getSegmentName());
+        } else if (healthTracker.isStorageUnavailable()) {
+            ex = new StorageUnavailableException(targetHandle.getSegmentName());
+        } else if (healthTracker.isStorageDegraded() && !isSegmentInSystemScope(targetHandle.getSegmentName())) {
+            ex = new StorageUnavailableException(targetHandle.getSegmentName());
         }
-        if (null == sourceSegment) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("sourceSegment must not be null"));
-        }
-        if (isStorageFull() && !isSegmentInSystemScope(targetHandle)) {
-            return CompletableFuture.failedFuture(new StorageFullException(targetHandle.getSegmentName()));
+
+        if (null != ex) {
+            return CompletableFuture.failedFuture(ex);
         }
 
         return executeSerialized(new ConcatOperation(this, targetHandle, offset, sourceSegment), targetHandle.getSegmentName(), sourceSegment);
@@ -551,6 +587,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * @param defragOffset    Offest where defrag begins. It is start offset of the startChunk.
      *                        throws ChunkStorageException    In case of any chunk storage related errors.
      *                        throws StorageMetadataException In case of any chunk metadata store related errors.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
+     * it will contain the cause of the failure.
      */
     public CompletableFuture<Void> defrag(MetadataTransaction txn, SegmentMetadata segmentMetadata,
                                            String startChunkName,
@@ -611,6 +649,12 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         checkInitialized();
         if (null == handle) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
+        }
+        if (healthTracker.isStorageUnavailable()) {
+            return CompletableFuture.failedFuture(new StorageUnavailableException(handle.getSegmentName()));
+        }
+        if (healthTracker.isStorageDegraded() && !isSegmentInSystemScope(handle.getSegmentName())) {
+            return CompletableFuture.failedFuture(new StorageUnavailableException(handle.getSegmentName()));
         }
 
         return executeSerialized(new TruncateOperation(this, handle, offset), handle.getSegmentName());
@@ -763,9 +807,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         metadataStore.report();
         chunkStorage.report();
         readIndexCache.report();
-        // Report storage size.
-        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_STORAGE_USED_BYTES, storageUsed.get());
-        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_STORAGE_USED_PERCENTAGE, 100.0 * storageUsed.get() / config.getMaxSafeStorageSize());
+        healthTracker.report();
     }
 
     /**
@@ -776,19 +818,19 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     CompletableFuture<Void> updateStorageStats() {
         return chunkStorage.getUsedSpace()
                 .thenAcceptAsync(used -> {
-                    storageUsed.set(used);
+                    healthTracker.setStorageUsed(used);
                     boolean isFull = used >= config.getMaxSafeStorageSize();
                     if (isFull) {
-                        if (!isStorageFull.get()) {
+                        if (!healthTracker.isStorageFull()) {
                             log.warn("{} STORAGE FULL. ENTERING READ ONLY MODE. Any non-critical writes will be rejected.", logPrefix);
                         }
                         log.warn("{} STORAGE FULL - used={} total={}.", logPrefix, used, config.getMaxSafeStorageSize());
                     } else {
-                        if (isStorageFull.get()) {
+                        if (healthTracker.isStorageFull()) {
                             log.info("{} STORAGE AVAILABLE. LEAVING READ ONLY MODE. Restoring normal writes", logPrefix);
                         }
                     }
-                    isStorageFull.set(isFull);
+                    healthTracker.setStorageFull(isFull);
                 }, executor)
                 .exceptionally( ex ->     {
                     log.warn("{} updateStorageStats.", logPrefix, ex);
@@ -797,11 +839,13 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     }
 
     /**
-     * Whether this instance is running under the safe mode or not.
-     * @return True if safe mode, False otherwise.
+     * Updates storage stats.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
+     *      it will contain the cause of the failure.
      */
-    boolean isSafeMode() {
-        return isStorageFull.get();
+    CompletableFuture<Void> calculateHealthStats() {
+        healthTracker.calculateHealthStats();
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
@@ -818,7 +862,9 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         if (null != this.storageChecker) {
             this.storageChecker.cancel(true);
         }
-
+        if (null != this.storageHealthChecker) {
+            this.storageHealthChecker.cancel(true);
+        }
         this.closed.set(true);
     }
 
@@ -832,6 +878,17 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         } catch (Exception e) {
             log.error("{} Error while closing {}", logPrefix, message, e);
         }
+    }
+
+    /**
+     * Process a batch of tasks for Garbage Collector.
+     *
+     * @param batch List of {@link GarbageCollector.TaskInfo} to process.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
+     * If the operation failed, it will contain the cause of the failure.
+     */
+    public CompletableFuture<Void> processGarbageCollectionBatch(List<GarbageCollector.TaskInfo> batch) {
+        return healthTracker.throttleGarbageCollectionBatch().thenComposeAsync(v -> garbageCollector.processBatch(batch));
     }
 
     /**
@@ -915,8 +972,9 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         val shouldRelease = new AtomicBoolean(false);
         acquire(segmentNames);
         shouldRelease.set(true);
-        return CompletableFuture.completedFuture(null).thenComposeAsync(v -> {
+        return healthTracker.throttleExclusiveOperation().thenComposeAsync(v -> {
             Exceptions.checkNotClosed(this.closed.get(), this);
+            healthTracker.reportStarted();
             try {
                 return operation.call();
             } catch (CompletionException e) {
@@ -929,6 +987,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
             if (shouldRelease.get()) {
                 release(segmentNames);
             }
+            healthTracker.reportCompleted();
         }, this.executor);
     }
 
@@ -978,7 +1037,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * If the operation failed, it will contain the cause of the failure.
      * */
     <R> CompletableFuture<R> executeParallel(Callable<CompletableFuture<R>> operation, String... segmentNames) {
-        return CompletableFuture.completedFuture(null).thenComposeAsync(v -> {
+        return healthTracker.throttleParallelOperation(segmentNames).thenComposeAsync(v -> {
             Exceptions.checkNotClosed(this.closed.get(), this);
             try {
                 return operation.call();
@@ -1019,14 +1078,6 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         }
     }
 
-    boolean isStorageFull() {
-        return config.isSafeStorageSizeCheckEnabled() && isStorageFull.get();
-    }
-
-    boolean isSegmentInSystemScope(SegmentHandle handle) {
-        return handle.getSegmentName().startsWith(INTERNAL_SCOPE_PREFIX);
-    }
-
     private void checkInitialized() {
         Preconditions.checkState(0 != this.epoch, "epoch must not be zero");
         Preconditions.checkState(!closed.get(), "ChunkedSegmentStorage instance must not be closed");
@@ -1034,5 +1085,9 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     String getNewChunkName(String segmentName, long offset) {
         return NameUtils.getSegmentChunkName(segmentName, getEpoch(), offset);
+    }
+
+    public void recordLateRequest(long latency) {
+        this.getHealthTracker().reportLate(latency);
     }
 }

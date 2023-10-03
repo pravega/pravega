@@ -78,6 +78,13 @@ public class ChunkedSegmentStorageConfig {
 
     public static final Property<Integer> MIN_TRUNCATE_RELOCATION_PERCENT = Property.named("truncate.relocate.percent.min", 80);
 
+    public static final Property<Boolean> ENABLE_HEALTH_CHECK = Property.named("health.check.enable", true);
+    public static final Property<Integer> HEALTH_CHECK_FREQUENCY = Property.named("health.check.frequency.seconds", 60);
+    public static final Property<Integer> MAX_LATE_REQUEST_THROTTLE_PERCENT = Property.named("health.throttle.late.percent.max", 75);
+    public static final Property<Integer> MIN_LATE_REQUEST_THROTTLE_PERCENT = Property.named("health.throttle.late.percent.min", 25);
+    public static final Property<Integer> MAX_LATE_REQUEST_THROTTLE_DURATION = Property.named("health.throttle.late.max.ms", 1000);
+    public static final Property<Integer> MIN_LATE_REQUEST_THROTTLE_DURATION = Property.named("health.throttle.late.min.ms", 100);
+
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
      */
@@ -115,6 +122,12 @@ public class ChunkedSegmentStorageConfig {
             .minSizeForTruncateRelocationInbytes(64 * 1024 * 1024L)
             .maxSizeForTruncateRelocationInbytes(1 * 1024 * 1024 * 1024L)
             .minPercentForTruncateRelocation(80)
+            .healthCheckEnabled(true)
+            .healthCheckFrequencyInSeconds(60)
+            .minLateThrottleDurationInMillis(100)
+            .maxLateThrottleDurationInMillis(1000)
+            .minLateThrottlePercentage(25)
+            .maxLateThrottlePercentage(75)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -327,6 +340,42 @@ public class ChunkedSegmentStorageConfig {
     final private int safeStorageSizeCheckFrequencyInSeconds;
 
     /**
+     * When enabled, SLTS will periodically check health.
+     */
+    @Getter
+    final private boolean healthCheckEnabled;
+
+    /**
+     * Frequency in seconds of how often health checks is performed.
+     */
+    @Getter
+    final private int healthCheckFrequencyInSeconds;
+
+    /**
+     *  Maximum percentage of late requests per iteration beyond which all requests are rejected with {@link io.pravega.segmentstore.storage.StorageUnavailableException}
+     */
+    @Getter
+    final private int maxLateThrottlePercentage;
+
+    /**
+     *  Minimum percentage of late requests per iteration bellow which no requests are throttled.
+     */
+    @Getter
+    final private int minLateThrottlePercentage;
+
+    /**
+     *  Minimum throttle for lateness in millis.
+     */
+    @Getter
+    final private int maxLateThrottleDurationInMillis;
+
+    /**
+     *  Maximum throttle for lateness in millis.
+     */
+    @Getter
+    final private int minLateThrottleDurationInMillis;
+
+    /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
@@ -338,17 +387,27 @@ public class ChunkedSegmentStorageConfig {
         // Don't use appends for concat when appends are disabled.
         this.minSizeLimitForConcat = this.appendEnabled ? properties.getLong(MIN_SIZE_LIMIT_FOR_CONCAT) : 0;
         this.maxSizeLimitForConcat = properties.getPositiveLong(MAX_SIZE_LIMIT_FOR_CONCAT);
+
+        // Read index related properties
         this.maxIndexedSegments = properties.getNonNegativeInt(MAX_INDEXED_SEGMENTS);
         this.maxIndexedChunksPerSegment = properties.getPositiveInt(MAX_INDEXED_CHUNKS_PER_SEGMENTS);
         this.maxIndexedChunks = properties.getPositiveInt(MAX_INDEXED_CHUNKS);
+        this.indexBlockSize = properties.getPositiveLong(READ_INDEX_BLOCK_SIZE);
+
+        // Metadata related properties
         this.storageMetadataRollingPolicy = new SegmentRollingPolicy(properties.getLong(DEFAULT_ROLLOVER_SIZE));
-        this.lateWarningThresholdInMillis = properties.getPositiveInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
+        this.maxEntriesInTxnBuffer = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_BUFFER);
+        this.maxEntriesInCache = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_CACHE);
+
+        // Garbage collector related properties
         this.garbageCollectionDelay = Duration.ofSeconds(properties.getPositiveInt(GARBAGE_COLLECTION_DELAY));
         this.garbageCollectionMaxConcurrency = properties.getPositiveInt(GARBAGE_COLLECTION_MAX_CONCURRENCY);
         this.garbageCollectionMaxQueueSize = properties.getPositiveInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
         this.garbageCollectionSleep = Duration.ofMillis(properties.getPositiveInt(GARBAGE_COLLECTION_SLEEP));
         this.garbageCollectionMaxAttempts = properties.getPositiveInt(GARBAGE_COLLECTION_MAX_ATTEMPTS);
         this.garbageCollectionTransactionBatchSize = properties.getPositiveInt(GARBAGE_COLLECTION_MAX_TXN_BATCH_SIZE);
+
+        // System Journals related properties
         this.journalSnapshotInfoUpdateFrequency = Duration.ofMinutes(properties.getPositiveInt(JOURNAL_SNAPSHOT_UPDATE_FREQUENCY));
         this.maxJournalUpdatesPerSnapshot =  properties.getPositiveInt(MAX_PER_SNAPSHOT_UPDATE_COUNT);
         this.maxJournalReadAttempts = properties.getPositiveInt(MAX_JOURNAL_READ_ATTEMPTS);
@@ -357,16 +416,26 @@ public class ChunkedSegmentStorageConfig {
         this.selfCheckForDataEnabled = properties.getBoolean(SELF_CHECK_DATA_INTEGRITY);
         this.selfCheckForMetadataEnabled = properties.getBoolean(SELF_CHECK_METADATA_INTEGRITY);
         this.selfCheckForSnapshotEnabled = properties.getBoolean(SELF_CHECK_SNAPSHOT_INTEGRITY);
-        this.indexBlockSize = properties.getPositiveLong(READ_INDEX_BLOCK_SIZE);
-        this.maxEntriesInTxnBuffer = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_BUFFER);
-        this.maxEntriesInCache = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_CACHE);
         this.maxSafeStorageSize = properties.getPositiveLong(MAX_SAFE_SIZE);
         this.safeStorageSizeCheckEnabled = properties.getBoolean(ENABLE_SAFE_SIZE_CHECK);
         this.safeStorageSizeCheckFrequencyInSeconds = properties.getPositiveInt(SAFE_SIZE_CHECK_FREQUENCY);
+
+        // Truncation related properties
         this.relocateOnTruncateEnabled = properties.getBoolean(RELOCATE_ON_TRUNCATE_ENABLED);
         this.minSizeForTruncateRelocationInbytes = properties.getPositiveLong(MIN_TRUNCATE_RELOCATION_SIZE_BYTES);
         this.maxSizeForTruncateRelocationInbytes = properties.getPositiveLong(MAX_TRUNCATE_RELOCATION_SIZE_BYTES);
         this.minPercentForTruncateRelocation = properties.getPositiveInt(MIN_TRUNCATE_RELOCATION_PERCENT);
+
+        // Self check
+        this.lateWarningThresholdInMillis = properties.getPositiveInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
+
+        // Health check
+        this.healthCheckEnabled = properties.getBoolean(ENABLE_HEALTH_CHECK);
+        this.healthCheckFrequencyInSeconds = properties.getPositiveInt(HEALTH_CHECK_FREQUENCY);
+        this.minLateThrottlePercentage = properties.getPositiveInt(MIN_LATE_REQUEST_THROTTLE_PERCENT);
+        this.maxLateThrottlePercentage = properties.getPositiveInt(MAX_LATE_REQUEST_THROTTLE_PERCENT);
+        this.minLateThrottleDurationInMillis = properties.getPositiveInt(MIN_LATE_REQUEST_THROTTLE_DURATION);
+        this.maxLateThrottleDurationInMillis = properties.getPositiveInt(MAX_LATE_REQUEST_THROTTLE_DURATION);
     }
 
     /**

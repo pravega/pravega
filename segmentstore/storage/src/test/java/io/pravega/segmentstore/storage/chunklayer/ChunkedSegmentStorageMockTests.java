@@ -19,6 +19,7 @@ package io.pravega.segmentstore.storage.chunklayer;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.StorageUnavailableException;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataException;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataVersionMismatchException;
@@ -464,6 +465,108 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
                 "write succeeded when exception was expected.",
                 chunkedSegmentStorage.concat(h1, 10, "source", null),
                 ex -> clazz.equals(ex.getClass()));
+    }
+
+    @Test
+    public void testStorageUnavailableException() throws Exception {
+        String testSegmentName = "test";
+
+        @Cleanup
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
+        ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(),
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                        .relocateOnTruncateEnabled(true)
+                        .minPercentForTruncateRelocation(5)
+                        .minSizeForTruncateRelocationInbytes(1)
+                        .build());
+        chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
+        // Step 1: Create segment and write some data.
+        val h1 = chunkedSegmentStorage.create(testSegmentName, null).get();
+        val h2 = chunkedSegmentStorage.create("source", null).get();
+
+        Assert.assertEquals(h1.getSegmentName(), testSegmentName);
+        Assert.assertFalse(h1.isReadOnly());
+        chunkedSegmentStorage.write(h1, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
+        chunkedSegmentStorage.write(h2, 0, new ByteArrayInputStream(new byte[10]), 10, null).get();
+        chunkedSegmentStorage.seal(h2, null).join();
+        // Step 2: Inject fault.
+        Exception exceptionToThrow = new ChunkStorageUnavailableException("Test", new IntentionalException());
+        val clazz = StorageUnavailableException.class;
+        doThrow(exceptionToThrow).when(spyChunkStorage).doWrite(any(), anyLong(), anyInt(), any());
+        doThrow(exceptionToThrow).when(spyChunkStorage).checkExists(anyString());
+        doThrow(exceptionToThrow).when(spyChunkStorage).doCreate(anyString());
+        doThrow(exceptionToThrow).when(spyChunkStorage).doCreateWithContent(anyString(), anyInt(), any());
+        doThrow(exceptionToThrow).when(spyChunkStorage).doGetInfo(anyString());
+        chunkedSegmentStorage.initialize(2);
+        int iteration = 1;
+        // Write
+        Assert.assertFalse(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
+        AssertExtensions.assertFutureThrows(
+                "write succeeded when exception was expected.",
+                chunkedSegmentStorage.write(h1, 10, new ByteArrayInputStream(new byte[10]), 10, null),
+                ex -> clazz.equals(ex.getClass()));
+        Assert.assertTrue(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
+        TestUtils.addRequestStats(chunkedSegmentStorage.getHealthTracker(), 0, 1, 0, 0);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
+        // Remove unavailable
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
+
+        // Read
+        doThrow(exceptionToThrow).when(spyChunkStorage).doRead(any(), anyLong(), anyInt(), any(), anyInt());
+
+        Assert.assertFalse(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
+        AssertExtensions.assertFutureThrows(
+                "read succeeded when exception was expected.",
+                chunkedSegmentStorage.read(h1, 0, new byte[10], 0, 10, null),
+                ex -> clazz.equals(ex.getClass()));
+        Assert.assertTrue(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
+        TestUtils.addRequestStats(chunkedSegmentStorage.getHealthTracker(), 0, 1, 0, 0);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
+        // Remove unavailable
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
+
+        // Truncate
+        Assert.assertFalse(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
+        AssertExtensions.assertFutureThrows(
+                "truncate succeeded when exception was expected.",
+                chunkedSegmentStorage.truncate(h1, 1, null),
+                ex -> clazz.equals(ex.getClass()));
+        Assert.assertTrue(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
+        TestUtils.addRequestStats(chunkedSegmentStorage.getHealthTracker(), 0, 1, 0, 0);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
+        // Remove unavailable
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
+
+        // Concat
+        Assert.assertFalse(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
+        AssertExtensions.assertFutureThrows(
+                "concat succeeded when exception was expected.",
+                chunkedSegmentStorage.concat(h1, 10, "source", null),
+                ex -> clazz.equals(ex.getClass()));
+        Assert.assertTrue(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
+        TestUtils.addRequestStats(chunkedSegmentStorage.getHealthTracker(), 0, 1, 0, 0);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
+        // Remove unavailable
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
+
+        /*
+        // openWrite
+        Assert.assertFalse(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
+        AssertExtensions.assertFutureThrows(
+                "openRead succeeded when exception was expected.",
+                chunkedSegmentStorage.openRead(h1.getSegmentName()),
+                ex -> clazz.equals(ex.getClass()));
+        Assert.assertTrue(chunkedSegmentStorage.getHealthTracker().isStorageUnavailable());
+        TestUtils.addRequestStats(chunkedSegmentStorage.getHealthTracker(), 0, 1, 0, 0);
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
+        // Remove unavailable
+        chunkedSegmentStorage.getHealthTracker().calculateHealthStats();
+         */
     }
 
     @Test

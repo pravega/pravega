@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -24,6 +25,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.StorageUnavailableException;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
@@ -51,7 +53,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final List<String> chunksToDelete = new Vector<>();
     private final List<ChunkNameOffsetPair> newReadIndexEntries = new Vector<>();
-    private final Timer timer;
+    private final AbstractTimer timer;
 
     private volatile SegmentMetadata targetSegmentMetadata;
     private volatile SegmentMetadata sourceSegmentMetadata;
@@ -129,6 +131,10 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         if (ex instanceof ChunkStorageFullException) {
             throw new CompletionException(new StorageFullException(targetHandle.getSegmentName(), ex));
         }
+        if (ex instanceof ChunkStorageUnavailableException) {
+            chunkedSegmentStorage.getHealthTracker().reportUnavailable();
+            throw new CompletionException(new StorageUnavailableException(targetHandle.getSegmentName(), ex));
+        }
         throw new CompletionException(ex);
     }
 
@@ -145,7 +151,8 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         SLTS_CONCAT_LATENCY.reportSuccessEvent(elapsed);
         SLTS_CONCAT_COUNT.inc();
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
-            log.warn("{} concat - late op={}, target={}, source={}, offset={}, latency={}.",
+            chunkedSegmentStorage.recordLateRequest(elapsed.toMillis());
+            log.warn("{} concat - finished late op={}, target={}, source={}, offset={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), targetHandle.getSegmentName(), sourceSegment, offset, elapsed.toMillis());
         } else {
             log.debug("{} concat - finished op={}, target={}, source={}, offset={}, latency={}.",

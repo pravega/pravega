@@ -483,4 +483,28 @@ public class TestUtils {
     public static void addChunk(ChunkStorage chunkStorage, String chunkName, long length) {
         ((AbstractInMemoryChunkStorage) chunkStorage).addChunk(chunkName, length);
     }
+
+    /**
+     * Adds given {@link StorageHealthTracker} request stats for testing.
+     * @param storageHealthTracker Instance of {@link StorageHealthTracker} to use.
+     * @param pending Number of pending requests.
+     * @param normal Number of normally completed requests.
+     * @param late Number of late requests.
+     * @param unavailable Number of unavailable requests.
+     */
+    public static void addRequestStats(StorageHealthTracker storageHealthTracker, int pending, int normal, int late, int unavailable) {
+        val total = pending + normal + late + unavailable;
+        for (int i = 0; i < total; i++) {
+            storageHealthTracker.reportStarted();
+        }
+        for (int i = 0; i < total - pending; i++) {
+            storageHealthTracker.reportCompleted();
+        }
+        for (int i = 0; i < late; i++) {
+            storageHealthTracker.reportLate(100);
+        }
+        for (int i = 0; i < unavailable; i++) {
+            storageHealthTracker.reportUnavailable();
+        }
+    }
 }

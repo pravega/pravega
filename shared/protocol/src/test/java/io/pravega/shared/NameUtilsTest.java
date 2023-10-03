@@ -200,6 +200,15 @@ public class NameUtilsTest {
     }
 
     @Test
+    public void testIsSegmentInSystemScope() {
+        Assert.assertTrue(NameUtils.isSegmentInSystemScope("_system/containers/storage_metadata_1"));
+        Assert.assertTrue(NameUtils.isSegmentInSystemScope("_system/foo"));
+        Assert.assertFalse(NameUtils.isSegmentInSystemScope("user"));
+        Assert.assertFalse(NameUtils.isSegmentInSystemScope("user/_system"));
+        Assert.assertFalse(NameUtils.isSegmentInSystemScope(""));
+    }
+
+    @Test
     public void testGetEventProcessorSegmentName() {
         Assert.assertEquals(NameUtils.getEventProcessorSegmentName(0, "test"), "_system/containers/event_processor_test_0");
     }

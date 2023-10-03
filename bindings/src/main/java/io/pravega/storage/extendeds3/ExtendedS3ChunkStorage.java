@@ -36,6 +36,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageUnavailableException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
 import lombok.SneakyThrows;
@@ -337,6 +338,11 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
                     || errorCode.equals("MethodNotAllowed")
                     || s3Exception.getHttpCode() == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
                 throw new IllegalArgumentException(chunkName, e);
+            }
+
+            if (s3Exception.getHttpCode() == HttpStatus.SC_GATEWAY_TIMEOUT
+                    || s3Exception.getHttpCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
+                retValue = new ChunkStorageUnavailableException(chunkName, e);
             }
 
             if (errorCode.equals("AccessDenied")) {
