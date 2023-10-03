@@ -366,12 +366,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                         // Successful start.
                         log.info("{}: Started.", this.traceObjectId);
                         notifyStarted();
-                    } else if (Services.isTerminating(state())) {
-                        // If the delayed start fails, immediately shut down the Segment Container with the appropriate
-                        // exception. However if we are already shut down (or in the process of), it is sufficient to
-                        // log the secondary service exception and move on.
-                        log.warn("{}: Ignoring delayed start error due to Segment Container shutting down.", this.traceObjectId, ex);
-                        notifyFailed(ex);
                     } else {
                         doStop(ex);
                     }
