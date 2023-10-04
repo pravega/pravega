@@ -85,7 +85,8 @@ import static io.pravega.shared.MetricsNames.STORAGE_METADATA_CACHE_SIZE;
  * Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload of{@link MetadataTransaction#commit()}.
  * Transaction is aborted automatically unless committed or when {@link MetadataTransaction#abort()} is called.
  * Transactions are atomic - either all changes in the transaction are committed or none at all.
- * In addition, Transactions provide snapshot isolation which means that transaction fails if any of the metadata records read during the transactions are changed outside the transaction after they were read.
+ * In addition, Transactions provide snapshot isolation which means that transaction fails 
+ * if any of the metadata records read during the transactions are changed outside the transaction after they were read.
  *
  * Within a transaction you can perform following actions on per record basis.
  * <ul>
@@ -387,7 +388,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Performs commit.
      */
-    private CompletableFuture<Void> performCommit(MetadataTransaction txn, boolean lazyWrite, Map<String, TransactionData> txnData, ArrayList<String> modifiedKeys, ArrayList<TransactionData> modifiedValues) {
+    private CompletableFuture<Void> performCommit(MetadataTransaction txn, boolean lazyWrite,
+                                                  Map<String, TransactionData> txnData, ArrayList<String> modifiedKeys,
+                                                  ArrayList<TransactionData> modifiedValues) {
         return CompletableFuture.runAsync(() -> {
                     // Step 2 : Check whether transaction is safe to commit.
                     validateCommit(txn, txnData, modifiedKeys, modifiedValues);

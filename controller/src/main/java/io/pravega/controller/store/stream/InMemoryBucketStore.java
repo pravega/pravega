@@ -17,6 +17,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.pravega.controller.store.client.StoreType;
 
 import java.util.Collections;
@@ -56,6 +57,7 @@ public class InMemoryBucketStore implements BucketStore {
     }
 
     @Override
+    @SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
     public int getBucketCount(ServiceType serviceType) {
         return bucketCountMap.get(serviceType);
     }
@@ -71,6 +73,7 @@ public class InMemoryBucketStore implements BucketStore {
     }
 
     @Override
+    @SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
     public CompletableFuture<Void> addStreamToBucketStore(ServiceType serviceType, String scope, String stream, Executor executor) {
         int bucketCount = bucketCountMap.get(serviceType);
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
@@ -94,6 +97,7 @@ public class InMemoryBucketStore implements BucketStore {
     }
 
     @Override
+    @SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
     public CompletableFuture<Void> removeStreamFromBucketStore(ServiceType serviceType, String scope, String stream, Executor executor) {
         int bucketCount = bucketCountMap.get(serviceType);
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);

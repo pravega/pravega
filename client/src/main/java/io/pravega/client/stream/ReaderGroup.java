@@ -48,6 +48,12 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
     String getScope();
 
     /**
+     * Cancels the outStanding checkpoints.
+     */
+
+    void cancelOutstandingCheckpoints();
+
+    /**
      * Returns the name of the group.
      *
      * @return Reader group name
@@ -117,13 +123,15 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * If they continue to read events they will eventually encounter an {@link ReinitializationRequiredException}.
      *
      * @param config The new configuration for the ReaderGroup.
-     * To use a different checkpoint, set the `startingStreamCuts` on the `ReaderGroupConfig` from a streamcut obtained from a {@link Checkpoint} or {@link ReaderGroup#initiateCheckpoint(String, ScheduledExecutorService)}.
+     * To use a different checkpoint, set the `startingStreamCuts` on the `ReaderGroupConfig` from a streamcut 
+     * obtained from a {@link Checkpoint} or {@link ReaderGroup#initiateCheckpoint(String, ScheduledExecutorService)}.
      */
     void resetReaderGroup(ReaderGroupConfig config);
 
     /**
      * Reset a reader group to successfully completed last checkpoint.
-     * Successfully completed last checkpoint can be the last checkpoint created when automatic checkpointing is enabled as a part of {@link ReaderGroupConfig} or manually created by calling {@link ReaderGroup#initiateCheckpoint(String, ScheduledExecutorService)}
+     * Successfully completed last checkpoint can be the last checkpoint created when automatic checkpointing is 
+     * enabled as a part of {@link ReaderGroupConfig} or manually created by calling {@link ReaderGroup#initiateCheckpoint(String, ScheduledExecutorService)}
      * If there is no successfully completed Last checkpoint present then this call reset the reader group to the original streamcut from `ReaderGroupConfig`.
      */
     void resetReaderGroup();

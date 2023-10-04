@@ -28,6 +28,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.CacheManager.CacheManagerHealthContributor;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
 import io.pravega.shared.health.bindings.resources.HealthImpl;
@@ -88,6 +89,7 @@ public final class ServiceStarter {
     private CuratorFramework zkClient;
     private RESTServer restServer;
     private boolean closed;
+    private IndexAppendProcessor indexAppendProcessor;
 
     //endregion
 
@@ -150,6 +152,7 @@ public final class ServiceStarter {
         // Log the configuration
         log.info(serviceConfig.toString());
         log.info(autoScalerConfig.toString());
+        this.indexAppendProcessor = new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), service);
 
         this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.isEnableTlsReload(),
                                                       this.serviceConfig.getListeningIPAddress(),
@@ -157,7 +160,7 @@ public final class ServiceStarter {
                                                       autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
                                                       this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getLowPriorityExecutor(),
-                                                      this.serviceConfig.getTlsProtocolVersion(), healthServiceManager);
+                                                      this.serviceConfig.getTlsProtocolVersion(), healthServiceManager, indexAppendProcessor);
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
@@ -166,7 +169,7 @@ public final class ServiceStarter {
             this.adminListener = new AdminConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.isEnableTlsReload(),
                     this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getAdminGatewayPort(), service, tableStoreService,
                     tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(), this.serviceConfig.getTlsProtocolVersion(),
-                    healthServiceManager);
+                    healthServiceManager, indexAppendProcessor);
             this.adminListener.startListening();
             log.info("AdminConnectionListener started successfully.");
         }
@@ -203,6 +206,11 @@ public final class ServiceStarter {
                 this.restServer.stopAsync();
                 this.restServer.awaitTerminated();
                 log.info("RESTServer closed.");
+            }
+            
+            if (this.indexAppendProcessor != null) {
+                this.indexAppendProcessor.close();
+                log.info("IndexAppendProcessor closed.");
             }
 
             if (this.listener != null) {

@@ -54,7 +54,9 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient, pool);
         output("Downloading %d bytes from offset %d into %s.", length, offset, fileName);
-        readAndWriteSegmentToFile(segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, offset, length, fileName, getServiceConfig().getAdminGatewayPort(), super.authHelper.retrieveMasterToken());
+        readAndWriteSegmentToFile(
+            segmentHelper, segmentStoreHost, fullyQualifiedSegmentName, offset, length, fileName,
+            getServiceConfig().getAdminGatewayPort(), super.authHelper.retrieveMasterToken());
         output("\nThe segment data has been successfully written into %s", fileName);
     }
 

@@ -78,6 +78,9 @@ public enum WireCommandType {
     SEGMENT_TRUNCATED(39, WireCommands.SegmentTruncated::readFrom),
 
     CREATE_TRANSIENT_SEGMENT(40, WireCommands.CreateTransientSegment::readFrom),
+    
+    LOCATE_OFFSET(41, WireCommands.LocateOffset::readFrom),
+    OFFSET_LOCATED(42, WireCommands.OffsetLocated::readFrom),
 
     WRONG_HOST(50, WireCommands.WrongHost::readFrom),
     SEGMENT_IS_SEALED(51, WireCommands.SegmentIsSealed::readFrom),

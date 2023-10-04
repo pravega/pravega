@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -173,6 +172,7 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
      * @param <T> Type of elements returned at each iteration.
      * @return A new instance of the {@link TableIterator.Builder} class.
      */
+    @SuppressWarnings("ImportControl")
     static <T> TableEntryDeltaIterator<T> empty() {
         return new TableEntryDeltaIterator<>(
                 null,
@@ -182,7 +182,7 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
                 Duration.ofMillis(0),
                 new EntrySerializer(),
                 ignored -> CompletableFuture.completedFuture(null),
-                ForkJoinPool.commonPool(),
+                java.util.concurrent.ForkJoinPool.commonPool(),
                 null,
                 0L);
     }

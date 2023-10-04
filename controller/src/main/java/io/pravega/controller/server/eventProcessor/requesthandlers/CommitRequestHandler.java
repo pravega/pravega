@@ -264,7 +264,10 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                 }, executor);
     }
 
-    private CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> rollTransactions(CommitTxnContext commitContext, VersionedMetadata<CommittingTransactionsRecord> txnRecord, EpochRecord txnEpoch, EpochRecord activeEpoch) {
+    private CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> rollTransactions(CommitTxnContext commitContext,
+                                                                                                VersionedMetadata<CommittingTransactionsRecord> txnRecord,
+                                                                                                EpochRecord txnEpoch,
+                                                                                                EpochRecord activeEpoch) {
         CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> future = CompletableFuture.completedFuture(txnRecord);
         if (!txnRecord.getObject().isRollingTxnRecord()) {
             future = future.thenCompose(record -> streamMetadataStore.startRollingTxn(commitContext.scope, commitContext.stream, activeEpoch.getEpoch(),

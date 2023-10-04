@@ -189,6 +189,44 @@ public final class Futures {
             throw Exceptions.sneakyThrow(Exceptions.unwrap(e));
         }
     }
+
+    /**
+     * Gets a future returning its result, or the exception that caused it to fail. (Unlike a normal
+     * future the cause does not need to be extracted.) Because some of these exceptions are
+     * checked, and the future does not allow expressing this, the compile time information is lost.
+     * To get around this method is generically typed with up to 3 exception types, that can be
+     * used to re-introduce the exception types that could cause the future to fail into to the
+     * compiler so they can be tracked. Note that nothing restricts or ensures that the exceptions
+     * thrown from the future are of this type. The exception will always be throw as it was set on
+     * the future, these types are purely for the benefit of the compiler. It is up to the caller to
+     * ensure that this type matches the exception type that can fail the future.
+     *
+     * @param <ResultT>     The result type of the provided future
+     * @param <E1>          A type of exception that may cause the future to fail.
+     * @param <E2>          A type of exception that may cause the future to fail.
+     * @param <E3>          A type of exception that may cause the future to fail.
+     * @param future        The future to call get() on.
+     * @param timeoutMillis This is the maximum time to get the result.
+     * @return The result of the provided future.
+     * @throws E1 If exception E1 occurs.
+     * @throws E2 If exception E2 occurs.
+     * @throws E3 If exception E3 occurs.
+     * @throws TimeoutException If future doesn't complete in provided time duration.
+     */
+    public static <ResultT, E1 extends Exception, E2 extends Exception, E3 extends Exception>
+                  ResultT getThrowingExceptionWithTimeout(Future<ResultT> future, long timeoutMillis) throws E1, E2, E3, TimeoutException {
+        Preconditions.checkNotNull(future);
+        try {
+            return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw Exceptions.sneakyThrow(e);
+        } catch (TimeoutException  e) {
+            throw Exceptions.sneakyThrow(e);
+        } catch (Exception e) {
+            throw Exceptions.sneakyThrow(Exceptions.unwrap(e));
+        }
+    }
     
     /**
      * Similar to {@link CompletableFuture#join()} but with a timeout parameter.

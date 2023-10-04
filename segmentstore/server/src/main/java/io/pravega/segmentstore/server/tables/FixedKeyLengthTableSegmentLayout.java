@@ -106,7 +106,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
 
     @Override
     public void close() {
-        this.compactionService.close();
+        this.compactionService.shutdown();
         log.info("{}: Closed.", this.traceObjectId);
     }
 

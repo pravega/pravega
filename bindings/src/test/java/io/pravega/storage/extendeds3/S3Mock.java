@@ -339,8 +339,8 @@ public class S3Mock {
     @NotThreadSafe
     @AllArgsConstructor
     private static class ObjectData {
-        volatile BufferView content;
-        volatile AccessControlList acl;
+        BufferView content;
+        AccessControlList acl;
     }
 
     //endregion

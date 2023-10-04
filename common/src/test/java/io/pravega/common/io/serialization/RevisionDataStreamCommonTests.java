@@ -361,7 +361,9 @@ public class RevisionDataStreamCommonTests {
         Assert.assertEquals(expectedRemaining, rdis.getRemaining());
     }
 
-    private <T> void testGetCompactLength(Map<T, Integer> expectedValues, BiFunction<RevisionDataOutputStream, T, Integer> getLength, BiConsumerWithException<RevisionDataOutputStream, T> writeNumber) throws Exception {
+    private <T> void testGetCompactLength(Map<T, Integer> expectedValues,
+                                          BiFunction<RevisionDataOutputStream, T, Integer> getLength,
+                                          BiConsumerWithException<RevisionDataOutputStream, T> writeNumber) throws Exception {
         @Cleanup
         val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
         for (val e : expectedValues.entrySet()) {

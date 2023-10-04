@@ -465,7 +465,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Check and record the merger (optimistically).
         log.debug("{}: BeginMerge (Offset = {}, Length = {}).", this.traceObjectId, offset, newEntry.getLength());
         synchronized (this.lock) {
-            Exceptions.checkArgument(!this.pendingMergers.containsKey(sourceMetadata.getId()), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged or in the process of being merged into this one.");
+            Exceptions.checkArgument(
+                !this.pendingMergers.containsKey(sourceMetadata.getId()), "sourceStreamSegmentIndex",
+                "Given StreamSegmentReadIndex is already merged or in the process of being merged into this one.");
             this.pendingMergers.put(sourceMetadata.getId(), new PendingMerge(newEntry.key()));
             try {
                 ReadIndexEntry oldEntry = addToIndex(newEntry);
@@ -1096,12 +1098,13 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         long redirectOffset = streamSegmentOffset - entry.getStreamSegmentOffset();
         long entryLength = entry.getLength(); // This is the source segment length - immutable since the segment must be sealed.
         assert redirectOffset >= 0 && redirectOffset < entryLength :
-                String.format("Redirected offset would be outside of the range of the Redirected StreamSegment. StreamSegmentOffset = %d, MaxLength = %d, Entry.StartOffset = %d, Entry.Length = %d, RedirectOffset = %d.",
-                        streamSegmentOffset,
-                        maxLength,
-                        entry.getStreamSegmentOffset(),
-                        entryLength,
-                        redirectOffset);
+                String.format("Redirected offset would be outside of the range of the Redirected StreamSegment. StreamSegmentOffset = %d, "
+                            + "MaxLength = %d, Entry.StartOffset = %d, Entry.Length = %d, RedirectOffset = %d.",
+                              streamSegmentOffset,
+                              maxLength,
+                              entry.getStreamSegmentOffset(),
+                              entryLength,
+                              redirectOffset);
 
         if (entryLength < maxLength) {
             maxLength = (int) entryLength;
@@ -1213,7 +1216,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         int entryOffset = (int) (streamSegmentOffset - entry.getStreamSegmentOffset());
 
         int length = (int) Math.min(maxLength, entry.getLength() - entryOffset);
-        assert length > 0 : String.format("length{%d} <= 0. streamSegmentOffset = %d, maxLength = %d, entry.offset = %d, entry.length = %d", length, streamSegmentOffset, maxLength, entry.getStreamSegmentOffset(), entry.getLength());
+        assert length > 0 : String.format(
+            "length{%d} <= 0. streamSegmentOffset = %d, maxLength = %d, entry.offset = %d, entry.length = %d", length,
+            streamSegmentOffset, maxLength, entry.getStreamSegmentOffset(), entry.getLength());
         BufferView data = this.cacheStorage.get(entry.getCacheAddress());
         assert data != null : String.format("No Cache Entry could be retrieved for entry %s", entry);
 
