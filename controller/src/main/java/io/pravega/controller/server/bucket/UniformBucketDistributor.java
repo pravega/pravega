@@ -31,7 +31,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import javax.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -49,7 +48,7 @@ import lombok.extern.slf4j.Slf4j;
 public class UniformBucketDistributor implements BucketDistributor {
     @Override
     public Map<String, Set<Integer>> distribute(Map<String, Set<Integer>> previousBucketControllerMapping,
-                                                @NotNull Set<String> currentControllers, int bucketCount) {
+                                                 Set<String> currentControllers, int bucketCount) {
         Preconditions.checkNotNull(previousBucketControllerMapping, "previousBucketControllerMapping");
         Preconditions.checkNotNull(currentControllers, "currentControllers");
         if (previousBucketControllerMapping.keySet().equals(currentControllers)) {
@@ -58,7 +57,7 @@ public class UniformBucketDistributor implements BucketDistributor {
             return new HashMap<>(previousBucketControllerMapping);
         }
 
-        if (previousBucketControllerMapping.size() == 0 || currentControllers.size() == 1) {
+        if (previousBucketControllerMapping.isEmpty() || currentControllers.size() == 1) {
             log.info("Creating new balanced map for controllers {}", currentControllers);
             return initializeMap(currentControllers, bucketCount);
         }
