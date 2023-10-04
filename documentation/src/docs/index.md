@@ -39,28 +39,17 @@ Read [Pravega Concepts](pravega-concepts.md) for more details.
 
 -   **Security and pluggable role-based access control:** Pravega can be deployed by the administrators securely by enabling TLS for communications and can deploy their own implementation of role-based access control plugin.   
 
-## Releases
-
-The latest Pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
-
 ## Quick Start
 
 Read [Getting Started](getting-started.md) page for more information, and also visit [Pravega samples](https://github.com/pravega/pravega-samples) repository for more applications.
-
-## Frequently Asked Questions
-
-You can find a list of frequently asked questions [here](faq.md).
 
 ## Running Pravega
 
 Pravega can be installed locally or in a distributed environment. The installation and deployment of Pravega is covered in the [Running Pravega](deployment/deployment.md) guide.
 
-## Pravega Security, Role-based access control and TLS
+## Releases
 
- Pravega supports encryption of all communication channels and pluggable role-based access control. For more information please refer to the following:
-
-1. [TLS](security/pravega-security-encryption.md)
-2. [Authorization, Authentication and RBAC](security/pravega-security-authorization-authentication.md)
+The latest Pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
 
 ## Support
 
