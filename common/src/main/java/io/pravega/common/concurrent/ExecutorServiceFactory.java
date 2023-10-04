@@ -42,6 +42,8 @@ final class ExecutorServiceFactory {
     private final ThreadLeakDetectionLevel detectionLevel;
     private final CreateScheduledExecutor createScheduledExecutor;
     private final CreateShrinkingExecutor createShrinkingExecutor;
+
+    private final CreateShrinkingExecutorService createShrinkingExecutorService;
     private final Runnable onLeakDetected;
 
     //endregion
@@ -75,6 +77,7 @@ final class ExecutorServiceFactory {
             this.createShrinkingExecutor = (maxThreadCount, threadTimeout, factory) ->
                     new ThreadPoolExecutor(0, maxThreadCount, threadTimeout, TimeUnit.MILLISECONDS,
                             new LinkedBlockingQueue<>(), factory, new CallerRuns(factory.toString()));
+            this.createShrinkingExecutorService = (corePoolSize, maxPoolSize, keepAliveTime, factory) -> new ThreadPoolScheduledExecutorService(corePoolSize, maxPoolSize, keepAliveTime, factory);
         } else {
             // Light and Aggressive need a special executor that overrides the finalize() method.
             this.createScheduledExecutor = (size, factory) -> {
@@ -85,6 +88,10 @@ final class ExecutorServiceFactory {
                 logNewThreadPoolCreated(factory.toString());
                 return new LeakDetectorThreadPoolExecutor(0, maxThreadCount, threadTimeout, TimeUnit.MILLISECONDS,
                         new LinkedBlockingQueue<>(), factory, new CallerRuns(factory.toString()));
+            };
+            this.createShrinkingExecutorService = (corePoolSize, maxPoolSize, keepAliveTime, factory) -> {
+                logNewThreadPoolCreated(factory.toString());
+                return new ThreadPoolScheduledExecutorService(corePoolSize, maxPoolSize, keepAliveTime, factory);
             };
         }
     }
@@ -174,6 +181,11 @@ final class ExecutorServiceFactory {
     ThreadPoolExecutor newShrinkingExecutor(int maxThreadCount, int threadTimeout, String poolName) {
         ThreadFactory factory = getThreadFactory(poolName);
         return this.createShrinkingExecutor.apply(maxThreadCount, threadTimeout, factory);
+    }
+
+    ScheduledExecutorService newShrinkingExecutorService(int corePoolSize, int maxPoolSize, int keepAliveTime, String poolName, int threadPriority) {
+        ThreadFactory factory = getThreadFactory(poolName, threadPriority);
+        return this.createShrinkingExecutorService.apply(corePoolSize, maxPoolSize, keepAliveTime, factory);
     }
 
     //endregion
@@ -292,6 +304,11 @@ final class ExecutorServiceFactory {
     @FunctionalInterface
     private interface CreateShrinkingExecutor {
         ThreadPoolExecutor apply(int maxThreadCount, int threadTimeout, ThreadFactory factory);
+    }
+
+    @FunctionalInterface
+    private interface CreateShrinkingExecutorService {
+        ThreadPoolScheduledExecutorService apply(int corePoolSize, int maxPoolSize, int keepAliveTime, ThreadFactory factory);
     }
 
     //endregion

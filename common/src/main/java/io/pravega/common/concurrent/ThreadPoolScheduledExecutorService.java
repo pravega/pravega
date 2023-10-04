@@ -93,6 +93,22 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
         runner.prestartAllCoreThreads();
     }
 
+    public ThreadPoolScheduledExecutorService(int corePoolSize, int maxPoolSize, int keepAliveTime, ThreadFactory threadFactory) {
+        this.queue = new ScheduledQueue<ScheduledRunnable<?>>();
+        // While this cast looks invalid, it is ok because runner is private and will only
+        // be given ScheduledRunnable which by definition implement runnable.
+        @SuppressWarnings("unchecked")
+        BlockingQueue<Runnable> queue = (BlockingQueue) this.queue;
+        runner = new ThreadPoolExecutor(corePoolSize,
+                maxPoolSize,
+                keepAliveTime,
+                MILLISECONDS,
+                queue,
+                threadFactory,
+                new AbortPolicy());
+        runner.prestartAllCoreThreads();
+    }
+
     @RequiredArgsConstructor
     @EqualsAndHashCode
     private final class CancelableFuture<R> implements ScheduledFuture<R> {
