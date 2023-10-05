@@ -25,7 +25,7 @@ First, we need to create the Kubernetes cluster to deploy Pravega. We assume as 
 you have an account with at least one of the cloud providers mentioned above. If you already have an account 
 for Google Cloud and/or AWS, then it is time to create a Kubernetes cluster for Pravega.
 
-###GKE
+## GKE
 Creating a Kubernetes cluster in GKE is straightforward. The defaults in general are enough for running a 
 demo Pravega cluster, but we suggest just a couple of setting changes to deploy Pravega:
 
@@ -51,7 +51,7 @@ permissions first by executing:
 kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
 ```
 
-###EKS
+## EKS
 
 In the case of AWS, we are going to use the EKS CLI, which automates and simplifies different aspects of the 
 cluster creation and configuration (e.g., VPC, subnets, etc.). You will need to [install and configure the 
@@ -82,7 +82,7 @@ Also, take into account that the region for the EKS cluster should match the con
 
 Now, we are ready to prepare our Kubernetes cluster for the installation of Pravega.
 
-###Install Helm
+## Install Helm
 
 To simplify the deployment of Pravega, we use [Helm charts](https://helm.sh/). You will need to [install a 
 Helm 3](https://helm.sh/docs/intro/install/) client to proceed with the installation instructions in this blog post.
@@ -94,7 +94,7 @@ helm repo add pravega https://charts.pravega.io
 helm repo update
 ```
 
-###Webhook conversion and Cert-Manager
+## Webhook conversion and Cert-Manager
 
 The most recent versions of Pravega Operator resort to the
 [Webhook Conversion feature](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#webhook-conversion). For this reason, Cert-Manager or some other certificate management solution must be
@@ -110,7 +110,7 @@ Bookkeeper (journal), and Pravega (as well as their respective Operators). Also,
 "cold" data to what we call long-term storage (a.k.a Tier 2), we need to instantiate a storage backend 
 for such purpose.
 
-###Apache Zookeeper
+## Apache Zookeeper
 
 [Apache Zookeeper](https://zookeeper.apache.org/) is a distributed system that provides reliable coordination 
 services, such as consensus and group management. Pravega uses Zookeeper to store specific pieces of metadata as 
@@ -146,7 +146,7 @@ zookeeper-2                           1/1     Running   0          2m25s
 zookeeper-operator-6b9759bbcb-9j25s   1/1     Running   0          4m
 ```
 
-###Apache Bookkeeper
+## Apache Bookkeeper
 [Apache Bookkeeper](https://bookkeeper.apache.org/) is a distributed and reliable storage system that provides 
 a distributed log abstraction. Bookkeeper excels on achieving low latency, append-only writes. This 
 is the reason why Pravega uses Bookkeeper for journaling: Pravega writes data to Bookkeeper, which provides low latency, 
@@ -183,7 +183,7 @@ zookeeper-2                            1/1     Running   0          7m38s
 zookeeper-operator-6b9759bbcb-9j25s    1/1     Running   0          9m13s
 ```
 
-###Long-Term Storage
+## Long-Term Storage
 We mentioned before that Pravega automatically [moves data to Long-Term Storage](http://pravega.io/docs/latest/segment-store-service/#synchronization-with-tier-2-storage-writer) 
 (or Tier 2). This feature is very interesting, because it positions Pravega in a "sweet spot" in the latency vs 
 throughput trade-off: Pravega achieves low latency writes by using Bookkeeper for appends. At the same time, 
@@ -228,7 +228,7 @@ to use actual storage services like FileStore in GKE and EFS in AWS. There are i
 production long-term storage options](https://github.com/pravega/pravega-operator/blob/master/doc/longtermstorage.md)
 in the documentation of Pravega Operator.
 
-###Pravega
+## Pravega
 We are almost there! The last step is to deploy Pravega Operator and Pravega, pretty much as what we have 
 already done for Zookeeper and Bookkeeper. As usual, we first need to deploy the Pravega Operator 
 (and its required certificate) as follows:

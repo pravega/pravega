@@ -89,7 +89,7 @@ more than one instance of Controller service per cluster.
 
 Each Controller instance is capable of working independently and uses a
 shared persistent store as the source of truth for all state-owned and
-managed by Controller service. We use [Pravega KeyValue Tables](https://github.com/pravega/pravega/wiki/PDP-39-(Key-Value-Tables-Beta-1)) as the
+managed by Controller service. We use [Pravega KeyValue Tables](https://github.com/pravega/pravega/wiki/PDP-48-(Key-Value-Tables-Beta-2)) as the
 store for persisting all metadata consistently. Controller stores metadata about Streams in Stream specific tables that it creates. Each Controller instance comprises
 various subsystems responsible for performing specific
 operations on different categories of metadata. These subsystems include
@@ -145,7 +145,7 @@ Transaction management can be found later in the [Transactions](#transaction-man
 
 ## Key-Value-Tables Management
 
-Apart from Stream abstraction Controller is also the source of truth for the other storage primitive offered by Pravega - [Key Value Tables](https://github.com/pravega/pravega/wiki/PDP-39-(Key-Value-Tables-Beta-1)). Just like a Stream, a Key Value Table (KVT) is also distributed and paritioned using a Table Segment. A Table Segment has same properties as a Stream Segment, but with the data is formatted as keys and values and indexed on the keys. It provides APIs to perform CRUD operations on keys. Controller uses Table Segments to create a higher level abstraction which creates a distributed Key Value Table. Each Table is partitioned and the user data is distributed across different partitions using a hashing scheme. It also introduces a concept of _key family_ which is used to ensure that all keys from the same key family are always mapped to the same partition.  
+Apart from Stream abstraction Controller is also the source of truth for the other storage primitive offered by Pravega - [Key Value Tables](https://github.com/pravega/pravega/wiki/PDP-48-(Key-Value-Tables-Beta-2)). Just like a Stream, a Key Value Table (KVT) is also distributed and paritioned using a Table Segment. A Table Segment has same properties as a Stream Segment, but with the data is formatted as keys and values and indexed on the keys. It provides APIs to perform CRUD operations on keys. Controller uses Table Segments to create a higher level abstraction which creates a distributed Key Value Table. Each Table is partitioned and the user data is distributed across different partitions using a hashing scheme.  
 Controller maintains the metadata about the key value tables and is responsible for its lifecycle. Presently key value tables do not support any user defined policies like scaling or retention. So Controller's role is limited to provisioning Table Segments for the Table and managing its lifecycle which includes operations like create seal and delete tables.   
 
 ## Cluster Management
