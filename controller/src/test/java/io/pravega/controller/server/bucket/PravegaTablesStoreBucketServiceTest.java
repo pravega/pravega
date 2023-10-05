@@ -282,7 +282,7 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     }
 
     @Test(timeout = 30000)
-    public void testSplitBrainScenrio() throws Exception {
+    public void testSplitBrainScenario() throws Exception {
         addEntryToZkCluster(controller);
 
         Host controller1 = new Host(UUID.randomUUID().toString(), 9090, null);
@@ -303,8 +303,18 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
 
         //Check buckets are evenly distributed
         assertEventuallyEquals(1, () -> bucketManager1.getBucketServices().size(), 10000);
-        assertEquals(1, bucketManager2.getBucketServices().size());
-        assertEquals(1, watermarkingService.getBucketServices().size());
+
+        Set<Integer> bucketsForBucketManager1 = bucketManager1.getBucketServices().keySet();
+        Set<Integer> bucketsForBucketManager2 = bucketManager2.getBucketServices().keySet();
+        Set<Integer> bucketsForBucketManager3 = watermarkingService.getBucketServices().keySet();
+
+        assertEquals(1, bucketsForBucketManager2.size());
+        assertEquals(1, bucketsForBucketManager3.size());
+
+        //Check all the bucket manager have identical buckets.
+        assertFalse(bucketsForBucketManager1.stream().anyMatch(bucketsForBucketManager2::contains));
+        assertFalse(bucketsForBucketManager1.stream().anyMatch(bucketsForBucketManager3::contains));
+        assertFalse(bucketsForBucketManager3.stream().anyMatch(bucketsForBucketManager2::contains));
 
         //Stop bucket manager
         bucketManager1.stopAsync().awaitTerminated();
