@@ -123,7 +123,7 @@ public abstract class BucketManager extends AbstractService {
                                                                      .thenCompose(v -> startBucketService(x)))
                                                              .collect(Collectors.toList()))
                                             .thenAccept(v -> {
-                                                if (removableBuckets.size() > 0) {
+                                                if (!removableBuckets.isEmpty()) {
                                                     stopBucketServices(removableBuckets, false);
                                                 }
                                             });
@@ -204,7 +204,7 @@ public abstract class BucketManager extends AbstractService {
      * @param notify    if true will notify that abstract service stopped successfully or not.
      */
     public void stopBucketServices(Set<Integer> bucketIds, boolean notify) {
-        Futures.allOf(bucketIds.stream().map(bucketId -> stopBucketService(bucketId))
+        Futures.allOf(bucketIds.stream().map(this::stopBucketService)
                                .collect(Collectors.toList()))
                .whenComplete((r, e) -> {
                    if (e != null) {
