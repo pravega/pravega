@@ -133,9 +133,9 @@ public class ServiceBuilder implements AutoCloseable {
 
         // Setup Thread Pools.
         String instancePrefix = getInstanceIdPrefix(serviceConfig);
-        this.coreExecutor = executorBuilder.apply(30, serviceConfig.getCoreThreadPoolSize(), 60*5, instancePrefix + "core", Thread.NORM_PRIORITY);
-        this.storageExecutor = executorBuilder.apply(30, serviceConfig.getStorageThreadPoolSize(), 60*5, instancePrefix + "storage-io", Thread.NORM_PRIORITY);
-        this.lowPriorityExecutor = executorBuilder.apply(0, serviceConfig.getLowPriorityThreadPoolSize(), 60*5,
+        this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), serviceConfig.getCoreThreadPoolSize(), 100, instancePrefix + "core", Thread.NORM_PRIORITY);
+        this.storageExecutor = executorBuilder.apply(50, serviceConfig.getStorageThreadPoolSize(), 60*5, instancePrefix + "storage-io", Thread.NORM_PRIORITY);
+        this.lowPriorityExecutor = executorBuilder.apply(serviceConfig.getLowPriorityThreadPoolSize(), serviceConfig.getLowPriorityThreadPoolSize(), 100,
                 instancePrefix + "low-priority-cleanup", Thread.MIN_PRIORITY);
         this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor, this.storageExecutor);
 
@@ -366,7 +366,7 @@ public class ServiceBuilder implements AutoCloseable {
      */
     public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig builderConfig) {
         //return newInMemoryBuilder(builderConfig, ExecutorServiceHelpers::newScheduledThreadPool);
-        return newInMemoryBuilder(builderConfig, (int corePoolSize, int maxPoolSize, int keepAliveTime, String poolName, int threadPriority) -> ExecutorServiceHelpers.getShrinkingExecutorService(corePoolSize, maxPoolSize, keepAliveTime, poolName, threadPriority));
+        return newInMemoryBuilder(builderConfig, ExecutorServiceHelpers::getShrinkingExecutorService);
     }
 
     /**
