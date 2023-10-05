@@ -17,6 +17,7 @@ package io.pravega.test.integration.demo;
 
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -35,9 +36,10 @@ public class StartLocalService {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store);
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.SERVICE_PORT,
-                store, tableStore, serviceBuilder.getLowPriorityExecutor());
+                store, tableStore, serviceBuilder.getLowPriorityExecutor(), indexAppendProcessor);
         server.startListening();
         
         @Cleanup

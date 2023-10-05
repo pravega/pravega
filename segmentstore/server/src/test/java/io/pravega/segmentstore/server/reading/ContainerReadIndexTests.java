@@ -2610,12 +2610,16 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 AssertExtensions.assertGreaterThan(testId + ": getRequestedReadLength should be a positive integer for segment " + segmentId, 0, readEntry.getRequestedReadLength());
                 Assert.assertEquals(testId + ": Unexpected value from getStreamSegmentOffset for segment " + segmentId, expectedCurrentOffset, readEntry.getStreamSegmentOffset());
 
-                // Since this is a non-sealed segment, we only expect Cache or Storage read result entries.
-                Assert.assertTrue(testId + ": Unexpected type of ReadResultEntry for non-sealed segment " + segmentId, readEntry.getType() == ReadResultEntryType.Cache || readEntry.getType() == ReadResultEntryType.Storage);
+                // Since this is a non-sealed segment, we only expect Cache or Storage read result
+                // entries.
+                Assert.assertTrue(testId + ": Unexpected type of ReadResultEntry for non-sealed segment " + segmentId,
+                                  readEntry.getType() == ReadResultEntryType.Cache || readEntry.getType() == ReadResultEntryType.Storage);
                 if (readEntry.getType() == ReadResultEntryType.Cache) {
-                    Assert.assertTrue(testId + ": getContent() did not return a completed future (ReadResultEntryType.Cache) for segment" + segmentId, readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
+                    Assert.assertTrue(testId + ": getContent() did not return a completed future (ReadResultEntryType.Cache) for segment" + segmentId,
+                                      readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
                 } else if (readEntry.getType() == ReadResultEntryType.Storage) {
-                    Assert.assertFalse(testId + ": getContent() did not return a non-completed future (ReadResultEntryType.Storage) for segment" + segmentId, readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
+                    Assert.assertFalse(testId + ": getContent() did not return a non-completed future (ReadResultEntryType.Storage) for segment" + segmentId,
+                                       readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
                 }
 
                 // Request content, in case it wasn't returned yet.
@@ -2624,7 +2628,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 AssertExtensions.assertGreaterThan(testId + ": getContent() returned an empty result entry for segment " + segmentId, 0, readEntryContents.getLength());
 
                 byte[] actualData = readEntryContents.getCopy();
-                AssertExtensions.assertArrayEquals(testId + ": Unexpected data read from segment " + segmentId + " at offset " + expectedCurrentOffset, expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
+                AssertExtensions.assertArrayEquals(
+                    testId + ": Unexpected data read from segment " + segmentId + " at offset " + expectedCurrentOffset,
+                    expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
 
                 expectedCurrentOffset += readEntryContents.getLength();
                 if (readEntry.getType() == ReadResultEntryType.Storage) {

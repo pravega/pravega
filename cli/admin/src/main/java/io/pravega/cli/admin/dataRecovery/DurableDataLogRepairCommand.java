@@ -116,7 +116,8 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         val originalDataLog = dataLogFactory.createDebugLogWrapper(containerId);
 
         // Check if the Original Log is disabled.
-        if (originalDataLog.fetchMetadata().isEnabled()) {
+        var origMetadata = originalDataLog.fetchMetadata();
+        if (origMetadata.isEnabled()) {
             output("Original DurableLog is enabled. Repairs can only be done on disabled logs, exiting.");
             return;
         }
@@ -200,7 +201,9 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
         try (val editedLogWrapper = dataLogFactory.createDebugLogWrapper(dataLogFactory.getRepairLogId())) {
             output("Original DurableLog Metadata: " + originalDataLog.fetchMetadata());
             output("Edited DurableLog Metadata: " + editedLogWrapper.fetchMetadata());
+            long origEpoch = origMetadata.getEpoch();
             originalDataLog.forceMetadataOverWrite(editedLogWrapper.fetchMetadata());
+            originalDataLog.overrideEpochInMetadata(origEpoch);
             output("New Original DurableLog Metadata (after replacement): " + originalDataLog.fetchMetadata());
         }
 
@@ -436,7 +439,9 @@ public class DurableDataLogRepairCommand extends DataRecoveryCommand {
                 result = new StreamSegmentAppendOperation(segmentId, offset, createOperationContents(), createAttributeUpdateCollection());
                 break;
             case "StreamSegmentMapOperation":
+                segmentId = getLongUserInput("Input Segment Id of the Segment: ");
                 result = new StreamSegmentMapOperation(createSegmentProperties());
+                ((StreamSegmentMapOperation) result).setStreamSegmentId(segmentId);
                 break;
             case "StreamSegmentSealOperation":
                 segmentId = getLongUserInput("Input Segment Id for StreamSegmentSealOperation:");

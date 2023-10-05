@@ -146,12 +146,18 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         val s1 = getName(0);
         AssertExtensions.assertSuppliedFutureThrows(
                 "ATTRIBUTE_ID_LENGTH was accepted as negative.",
-                () -> context.getMetadataStore().createSegment(s1, SegmentType.STREAM_SEGMENT, AttributeUpdateCollection.from(new AttributeUpdate(Attributes.ATTRIBUTE_ID_LENGTH, AttributeUpdateType.None, -1L)), TIMEOUT),
+            () -> context.getMetadataStore()
+                         .createSegment(s1, SegmentType.STREAM_SEGMENT,
+                                        AttributeUpdateCollection.from(new AttributeUpdate(Attributes.ATTRIBUTE_ID_LENGTH, AttributeUpdateType.None, -1L)),
+                                        TIMEOUT),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertSuppliedFutureThrows(
                 "ATTRIBUTE_ID_LENGTH was accepted with too high value.",
-                () -> context.getMetadataStore().createSegment(s1, SegmentType.STREAM_SEGMENT, AttributeUpdateCollection.from(new AttributeUpdate(Attributes.ATTRIBUTE_ID_LENGTH, AttributeUpdateType.None, AttributeId.MAX_LENGTH + 1)), TIMEOUT),
+                () -> context.getMetadataStore()
+                             .createSegment(s1, SegmentType.STREAM_SEGMENT, 
+                                            AttributeUpdateCollection.from(new AttributeUpdate(Attributes.ATTRIBUTE_ID_LENGTH, AttributeUpdateType.None, AttributeId.MAX_LENGTH + 1)), 
+                                            TIMEOUT),
                 ex -> ex instanceof IllegalArgumentException);
 
         // Create a segment with valid values.

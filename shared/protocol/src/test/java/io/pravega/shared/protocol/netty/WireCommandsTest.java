@@ -855,6 +855,18 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testLocateOffset() throws IOException {
+        WireCommands.LocateOffset cmd = new WireCommands.LocateOffset(l, testString1, 10, "");
+        testCommand(cmd);
+    }
+
+    @Test
+    public void testOffsetLocated() throws IOException {
+        WireCommands.OffsetLocated cmd = new WireCommands.OffsetLocated(l, testString1, 10);
+        testCommand(cmd);
+    }
+
+    @Test
     public void testReadTable() throws IOException {
         testCommand(new WireCommands.ReadTable(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buf, 1L),
                 new WireCommands.TableKey(buf, 2L))));

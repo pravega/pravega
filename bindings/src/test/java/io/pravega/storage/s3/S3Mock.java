@@ -143,11 +143,11 @@ public class S3Mock {
                 throw getException(S3ChunkStorage.NO_SUCH_KEY, S3ChunkStorage.NO_SUCH_KEY, HttpStatus.SC_NOT_FOUND);
             }
             result = od;
+            var objectData = result;
+            return HeadObjectResponse.builder()
+                    .contentLength((long) objectData.content.getLength())
+                    .build();
         }
-        var objectData = result;
-        return HeadObjectResponse.builder()
-                .contentLength((long) objectData.content.getLength())
-                .build();
     }
 
     ResponseBytes<GetObjectResponse> readObjectStream(GetObjectRequest getObjectRequest) {
@@ -267,8 +267,8 @@ public class S3Mock {
     @NotThreadSafe
     @AllArgsConstructor
     static class ObjectData {
-        volatile BufferView content;
-        volatile ObjectCannedACL acl;
+        BufferView content;
+        ObjectCannedACL acl;
     }
 
     //endregion

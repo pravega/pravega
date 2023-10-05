@@ -19,7 +19,8 @@ plugins.withId('checkstyle') {
 
         configFile = new File(rootDir, "checkstyle/checkstyle.xml")
         configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml",
-                            suppressionsFile: "$rootDir/checkstyle/suppressions.xml"]
+                            suppressionsFile: "$rootDir/checkstyle/suppressions.xml",
+                            grandfatheredFile: "$rootDir/checkstyle/grandfathered.xml",]
     }
 
     plugins.withId('java') {
