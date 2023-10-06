@@ -42,7 +42,7 @@ The Batch Client allows:
 - generating a streamCut that is a bounded distance from another streamCut.
 
 ## Byte Client
-_[Byte Client](https://www.pravega.io/docs/latest/javadoc/clients/io/pravega/client/ByteStreamClientFactory.htmll)_ is a byte-oriented API providing a way 
+_[Byte Client](https://www.pravega.io/docs/latest/javadoc/clients/io/pravega/client/ByteStreamClientFactory.html)_ is a byte-oriented API providing a way 
 to write data to Pravega without writing events. It presents an interface of a InputStream and an OutputStream. Data 
 written in this way is not framed or interpreted by Pravega. So there are no length headers or event boundaries. As 
 such byte offsets into the stream are meaningful and directly exposed.
@@ -69,4 +69,4 @@ The State Synchronizer Client just solves this problem: it provides a means to h
 many processes.
 
 ## Javadoc
-For full details on the available APIs, please check out the [Pravega Client Javadoc](clients/index.html).
+For full details on the available APIs, please check out the [Pravega Client Javadoc](https://www.pravega.io/docs/latest/javadoc/clients/).
