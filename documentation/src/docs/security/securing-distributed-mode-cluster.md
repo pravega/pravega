@@ -26,7 +26,7 @@ limitations under the License.
 
 ## Introduction
 
-In the [distributed mode](../deployment/deployment.md#pravega-modes) of running a Pravega cluster, each service runs
+In the [distributed mode](../deployment/deployment.md#Pravega Modes) of running a Pravega cluster, each service runs
 separately on one or more processes, usually spread across multiple machines. The deployment options of this mode
 include:
 
@@ -79,7 +79,7 @@ You can configure the following services for TLS and Auth:
 For information about enabling TLS for Zookeeper and Bookeeper, refer to
 their documentation here:
 * [ZooKeeper SSL Guide](https://cwiki.apache.org/confluence/display/ZOOKEEPER/ZooKeeper+SSL+User+Guide)
-* [BookKeeper - Encryption and Authentication using TLS](https://bookkeeper.apache.org/docs/latest/security/tls/)
+* [BookKeeper - Encryption and Authentication using TLS](https://bookkeeper.apache.org/docs/security/tls/)
 
 **Controller**
 
