@@ -133,14 +133,17 @@ public final class SegmentStoreMetrics {
             if (s != null) {
                 this.queueSize.reportSuccessValue(s.getQueueSize());
                 this.activeThreads.reportSuccessValue(s.getActiveThreadCount());
+                log.info("SLTSTest executor Queue size {}", ss.getQueueSize());
+                log.info("SLTSTest executor Pool size {}", ss.getPoolSize());
+                log.info("SLTSTest executor Active thread size {}", ss.getActiveThreadCount());
             }
             ExecutorServiceHelpers.Snapshot ss = ExecutorServiceHelpers.getSnapshot(this.storageExecutor);
             if (ss != null) {
                 this.storageQueueSize.reportSuccessValue(ss.getQueueSize());
                 this.storageActiveThreads.reportSuccessValue(ss.getActiveThreadCount());
-                log.info("SLTSTest Queue size {}", ss.getQueueSize());
-                log.info("SLTSTest Pool size {}", ss.getPoolSize());
-                log.info("SLTSTest Active thread size {}", ss.getActiveThreadCount());
+                log.info("SLTSTest storageExecutor Queue size {}", ss.getQueueSize());
+                log.info("SLTSTest storageExecutor Pool size {}", ss.getPoolSize());
+                log.info("SLTSTest storageExecutor Active thread size {}", ss.getActiveThreadCount());
             }
         }
     }
