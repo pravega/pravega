@@ -34,7 +34,7 @@ These applications uses the following systems to ingest and store data: [Apache 
 
 Pravega focuses on both ingesting and storing Stream data. Pravega approaches streaming applications from a storage perspective. It enables applications to ingest Stream data continuously and stores it permanently. Such Stream data can be accessed with low latency (order of milliseconds) and also analyzes historical data.
 
-The design of Pravega incorporates lessons learned from using the [**Lambda Architecture**](http://lambda-architecture.net/)
+The design of Pravega incorporates lessons learned from using the [**Lambda Architecture**](https://en.wikipedia.org/wiki/Lambda_architecture)
 to build streaming applications and the challenges to deploy streaming applications
 at scale that consistently deliver accurate results in a fault tolerant manner.
 The Pravega Architecture provides strong durability and consistency guarantees,
