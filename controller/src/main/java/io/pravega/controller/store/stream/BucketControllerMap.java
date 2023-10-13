@@ -16,6 +16,7 @@
 
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.common.ObjectBuilder;
@@ -42,10 +43,12 @@ public class BucketControllerMap {
 
     @Builder
     public BucketControllerMap(Map<ProcessId, BucketSet> map) {
+        Preconditions.checkNotNull(map);
         this.bucketControllerMap = ImmutableMap.copyOf(map);
     }
 
     public static BucketControllerMap createBucketControllerMap(Map<String, Set<Integer>> map) {
+        Preconditions.checkNotNull(map);
         return new BucketControllerMap(map.entrySet().stream().collect(Collectors
                 .toMap(y -> new ProcessId(y.getKey()), x -> new BucketSet(ImmutableSet.copyOf(x.getValue())))));
     }

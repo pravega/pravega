@@ -311,7 +311,7 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         assertEquals(1, bucketsForBucketManager2.size());
         assertEquals(1, bucketsForBucketManager3.size());
 
-        //Check all the bucket manager have identical buckets.
+        //Check all the bucket managers have unique buckets.
         assertFalse(bucketsForBucketManager1.stream().anyMatch(bucketsForBucketManager2::contains));
         assertFalse(bucketsForBucketManager1.stream().anyMatch(bucketsForBucketManager3::contains));
         assertFalse(bucketsForBucketManager3.stream().anyMatch(bucketsForBucketManager2::contains));
