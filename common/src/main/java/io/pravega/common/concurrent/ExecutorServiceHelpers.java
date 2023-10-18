@@ -101,6 +101,8 @@ public final class ExecutorServiceHelpers {
             return new Snapshot(fjp.getQueuedSubmissionCount(), fjp.getActiveThreadCount(), fjp.getPoolSize());
         } else if (service instanceof ThreadPoolScheduledExecutorService) {
             val tpse = (ThreadPoolScheduledExecutorService) service;
+            log.info("SLTSTest storageExecutor/executor Max pool size {}", tpse.getRunner().getMaximumPoolSize());
+            log.info("SLTSTest storageExecutor/executor Largest pool size {}", tpse.getRunner().getLargestPoolSize());
             return new Snapshot(tpse.getRunner().getQueue().size(), tpse.getRunner().getActiveCount(), tpse.getRunner().getPoolSize());
         } else {
             return null;
