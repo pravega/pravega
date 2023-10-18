@@ -144,7 +144,7 @@ final class ExecutorServiceFactory {
                 Thread thread = new Thread(r, groupName + "-" + threadCount.incrementAndGet());
                 thread.setUncaughtExceptionHandler(new LogUncaughtExceptions());
                 thread.setDaemon(true);
-                thread.setPriority(priority);
+                //thread.setPriority(priority);
                 return thread;
             }
         };
