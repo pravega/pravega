@@ -104,7 +104,7 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
                 keepAliveTime,
                 MILLISECONDS,
                 queue,
-                threadFactory,
+                Executors.defaultThreadFactory(),
                 new AbortPolicy());
         runner.prestartAllCoreThreads();
     }
