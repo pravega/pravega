@@ -19,6 +19,7 @@ package io.pravega.controller.server.bucket;
 import com.google.common.base.Preconditions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
+import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.controller.store.stream.BucketStore;
@@ -182,8 +183,7 @@ public class BucketManagerLeader implements LeaderSelectorListener {
      */
     private void triggerDistribution(final Cluster pravegaServiceCluster) throws ExecutionException, InterruptedException {
         //Get current controller instances.
-        Set<String> currentControllers = pravegaServiceCluster.getClusterMembers().stream().map(controller ->
-                    controller.getHostId()).collect(Collectors.toSet());
+        Set<String> currentControllers = pravegaServiceCluster.getClusterMembers().stream().map(Host::getHostId).collect(Collectors.toSet());
 
         //Read the current mapping from the bucket store and write back the update after distribution.
         bucketStore.getBucketControllerMap(serviceType)

@@ -34,6 +34,7 @@ import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.shared.protocol.netty.BucketType;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
 
@@ -546,6 +547,14 @@ public interface Controller extends AutoCloseable {
      * @return Current KeyValueTable segments.
      */
     CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(final String scope, final String kvtName);
+
+    /**
+     * API to get controller to bucket mapping.
+     *
+     * @param bucketType   Bucket type.
+     * @return A map having controller as key and list of bucket assigned to controller as value.
+     */
+    CompletableFuture<Map<String, List<Integer>>> getControllerToBucketMapping(final BucketType bucketType);
 
     /**
      * API to force cache refresh in case data is stale.

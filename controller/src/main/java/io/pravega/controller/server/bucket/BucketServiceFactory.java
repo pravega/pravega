@@ -57,7 +57,7 @@ public class BucketServiceFactory {
                                 maxConcurrentExecutions, executionDuration, work);
 
                 return new InMemoryBucketManager(hostId, (InMemoryBucketStore) bucketStore, BucketStore.ServiceType.RetentionService, 
-                        executorService, inMemorySupplier, getBucketManagerLeader(BucketStore.ServiceType.RetentionService, executorService));
+                        executorService, inMemorySupplier, new UniformBucketDistributor());
             default:
                 throw new IllegalArgumentException(String.format("store type %s not supported", bucketStore.getStoreType().name()));
         }
@@ -80,7 +80,7 @@ public class BucketServiceFactory {
                                 maxConcurrentExecutions, executionDuration, work);
 
                 return new InMemoryBucketManager(hostId, (InMemoryBucketStore) bucketStore, BucketStore.ServiceType.WatermarkingService, 
-                        executorService, inMemorySupplier, getBucketManagerLeader(BucketStore.ServiceType.WatermarkingService, executorService));
+                        executorService, inMemorySupplier, new UniformBucketDistributor());
             default:
                 throw new IllegalArgumentException(String.format("store type %s not supported", bucketStore.getStoreType().name()));
         }

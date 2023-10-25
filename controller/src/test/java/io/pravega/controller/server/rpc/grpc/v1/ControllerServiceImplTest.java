@@ -33,6 +33,7 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.controller.server.bucket.BucketManager;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -122,6 +123,8 @@ public abstract class ControllerServiceImplTest {
     private ControllerService controllerSpied;
     
     abstract ControllerService getControllerService() throws Exception;
+
+    abstract BucketManager getBucketManager();
 
     @Before
     public void setUp() throws Exception {
@@ -1308,6 +1311,16 @@ public abstract class ControllerServiceImplTest {
         shutdownResultObserver = new ResultObserver<>();
         this.controllerService.removeWriter(writerShutdownRequest, shutdownResultObserver);
         assertEquals(shutdownResultObserver.get().getResult(), Controller.RemoveWriterResponse.Status.UNKNOWN_WRITER);
+    }
+    @Test(timeout = 30000L)
+    public  void testGetControllerToBucketMapping() throws InterruptedException {
+        getBucketManager().startAsync().awaitRunning();
+        Thread.sleep(2000);
+        ResultObserver<Controller.ControllerToBucketMappingResponse> mapping = new ResultObserver<>();
+        this.controllerService.getControllerToBucketMapping(Controller.ControllerToBucketMappingRequest.newBuilder().
+                setServiceType(Controller.ControllerToBucketMappingRequest.BucketType.RetentionService).build(), mapping);
+        assertEquals(1,  mapping.get().getMappingMap().values().size());
+        getBucketManager().stopAsync().awaitTerminated();
     }
 
     protected void createScopeAndStream(String scope, String stream, ScalingPolicy scalingPolicy) {

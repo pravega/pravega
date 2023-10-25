@@ -29,15 +29,15 @@ import lombok.extern.slf4j.Slf4j;
 public class InMemoryBucketManager extends BucketManager {
     private final BucketStore bucketStore;
     private final String processId;
-    private final BucketManagerLeader bucketManagerLeader;
+    private final BucketDistributor bucketDistributor;
     
     InMemoryBucketManager(String processId, InMemoryBucketStore bucketStore, BucketStore.ServiceType serviceType, 
                           ScheduledExecutorService executor, Function<Integer, BucketService> bucketServiceSupplier,
-                          BucketManagerLeader bucketManagerLeader) {
+                          BucketDistributor bucketDistributor) {
         super(processId, serviceType, executor, bucketServiceSupplier, bucketStore);
         this.bucketStore = bucketStore;
         this.processId = processId;
-        this.bucketManagerLeader = bucketManagerLeader;
+        this.bucketDistributor = bucketDistributor;
     }
 
     @Override
@@ -59,7 +59,7 @@ public class InMemoryBucketManager extends BucketManager {
     public void startLeaderElection() {
         //As there is no use of zookeeper in Inmemory, so directly start distributing the buckets to controller.
         bucketStore.getBucketControllerMap(getServiceType())
-                   .thenApply(x -> bucketManagerLeader.getBucketDistributor().distribute(x, Set.of(processId), getBucketCount()))
+                   .thenApply(x -> bucketDistributor.distribute(x, Set.of(processId), getBucketCount()))
                    .thenAccept(newMap -> bucketStore.updateBucketControllerMap(newMap, getServiceType()))
                    .thenAccept(v -> startLeader())
                    .whenComplete((r, e) -> {
