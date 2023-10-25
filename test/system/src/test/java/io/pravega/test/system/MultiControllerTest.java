@@ -50,7 +50,6 @@ import java.util.stream.Collectors;
 
 import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
