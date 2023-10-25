@@ -103,12 +103,12 @@ public final class ExecutorServiceHelpers {
             val tpse = (ThreadPoolScheduledExecutorService) service;
             log.info("SLTSTest storageExecutor/executor active count {}", tpse.getRunner().getActiveCount());
             log.info("SLTSTest storageExecutor/executor completed task count {}", tpse.getRunner().getCompletedTaskCount());
-            log.info("SLTSTest storageExecutor/executor Largest pool size {}", tpse.getRunner().getCorePoolSize());
-            log.info("SLTSTest storageExecutor/executor Largest pool size {}", tpse.getRunner().getKeepAliveTime(TimeUnit.MILLISECONDS));
+            log.info("SLTSTest storageExecutor/executor core pool size {}", tpse.getRunner().getCorePoolSize());
+            log.info("SLTSTest storageExecutor/executor keep alive time {}", tpse.getRunner().getKeepAliveTime(TimeUnit.MILLISECONDS));
             log.info("SLTSTest storageExecutor/executor Largest pool size {}", tpse.getRunner().getLargestPoolSize());
-            log.info("SLTSTest storageExecutor/executor Largest pool size {}", tpse.getRunner().getMaximumPoolSize());
-            log.info("SLTSTest storageExecutor/executor Largest pool size {}", tpse.getRunner().getPoolSize());
-            log.info("SLTSTest storageExecutor/executor Largest pool size {}", tpse.getRunner().getTaskCount());
+            log.info("SLTSTest storageExecutor/executor Maximum pool size {}", tpse.getRunner().getMaximumPoolSize());
+            log.info("SLTSTest storageExecutor/executor pool size {}", tpse.getRunner().getPoolSize());
+            log.info("SLTSTest storageExecutor/executor Task count {}", tpse.getRunner().getTaskCount());
             return new Snapshot(tpse.getRunner().getQueue().size(), tpse.getRunner().getActiveCount(), tpse.getRunner().getPoolSize());
         } else {
             return null;
