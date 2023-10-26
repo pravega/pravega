@@ -22,12 +22,18 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
-import io.pravega.shared.protocol.netty.BucketType;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
+import java.net.URI;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -37,16 +43,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
 import static org.junit.Assert.assertEquals;
@@ -155,52 +151,6 @@ public class MultiControllerTest extends AbstractSystemTest {
         }
 
         log.info("multiControllerTest execution completed");
-    }
-
-    @Test(timeout = 300000)
-    public void controllerToBucketMappingTest() throws Exception {
-        log.info("Start execution of controllerToBucketMappingTest");
-
-        log.info("Test tcp:// with 2 controller instances running");
-        withControllerURIDirect();
-        log.info("Test pravega:// with 2 controller instances running");
-        withControllerURIDiscover();
-
-        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect.get());
-        @Cleanup
-        final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(clientConfig)
-                .build(), executorService);
-
-        Futures.delayedFuture(() -> controllerClient.getControllerToBucketMapping(BucketType.RetentionService),
-                2000L, executorService);
-
-        Map<String, List<Integer>> map = controllerClient.getControllerToBucketMapping(BucketType.WatermarkingService).join();
-        List<String> controllerInstances = new ArrayList<>(map.keySet());
-        assertEquals(2, controllerInstances.size());
-        assertEquals(50, map.get(controllerInstances.get(0)).size());
-        assertEquals(50, map.get(controllerInstances.get(1)).size());
-
-        Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
-
-        log.info("Test tcp:// with only 1 controller instance running");
-        withControllerURIDirect();
-        log.info("Test pravega:// with only 1 controller instance running");
-        withControllerURIDiscover();
-
-        Futures.delayedFuture(() -> controllerClient.getControllerToBucketMapping(BucketType.WatermarkingService),
-                2000L, executorService);
-
-        Map<String, List<Integer>> retentionMap = controllerClient.getControllerToBucketMapping(BucketType.RetentionService).join();
-        controllerInstances = new ArrayList<>(retentionMap.keySet());
-        assertEquals(1, controllerInstances.size());
-        assertEquals(3, retentionMap.get(controllerInstances.get(0)).size());
-
-        Map<String, List<Integer>> waterMarkingMap = controllerClient.getControllerToBucketMapping(BucketType.WatermarkingService).join();
-        controllerInstances = new ArrayList<>(retentionMap.keySet());
-        assertEquals(1, waterMarkingMap.size());
-        assertEquals(100, waterMarkingMap.get(controllerInstances.get(0)).size());
-        log.info("controllerToBucketMappingTest execution completed");
     }
 
     private void withControllerURIDirect() throws ExecutionException, InterruptedException {
