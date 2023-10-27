@@ -41,7 +41,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -108,15 +107,16 @@ public class BucketDistributionTest extends AbstractSystemTest {
 
         //Here using delayed future as minDurationForBucketDistribution is set to 2 sec.
         Futures.delayedFuture(Duration.ofSeconds(2), executorService).join();
-        Map<String, List<Integer>> retentionMap = getBucketControllerMapping(BucketType.RetentionService).join();
+        @Cleanup
+        Controller controller = getController();
+        Map<String, List<Integer>> retentionMap = controller.getControllerToBucketMapping(BucketType.RetentionService).join();
         log.info("Controller to bucket mapping for {} is {}.", BucketType.RetentionService, retentionMap);
         List<String> controllerInstances;
         controllerInstances = new ArrayList<>(retentionMap.keySet());
         assertEquals(1, controllerInstances.size());
         assertEquals(1, retentionMap.get(controllerInstances.get(0)).size());
 
-        Futures.delayedFuture(Duration.ofSeconds(2), executorService).join();
-        Map<String, List<Integer>> waterMarkingMap = getBucketControllerMapping(BucketType.WatermarkingService).join();
+        Map<String, List<Integer>> waterMarkingMap = controller.getControllerToBucketMapping(BucketType.WatermarkingService).join();
         log.info("Controller to bucket mapping for {} is {}.", BucketType.WatermarkingService, waterMarkingMap);
         controllerInstances = new ArrayList<>(retentionMap.keySet());
         assertEquals(1, waterMarkingMap.size());
@@ -132,7 +132,8 @@ public class BucketDistributionTest extends AbstractSystemTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         log.info("Test tcp:// with only 2 controller instance running");
         Futures.delayedFuture(Duration.ofSeconds(2), executorService).join();
-        Map<String, List<Integer>> map = getBucketControllerMapping(BucketType.WatermarkingService).join();
+        controller = getController();
+        Map<String, List<Integer>> map = controller.getControllerToBucketMapping(BucketType.WatermarkingService).join();
         log.info("Controller to bucket mapping for {} is {}.", BucketType.WatermarkingService, map);
         controllerInstances = new ArrayList<>(map.keySet());
         assertEquals(2, controllerInstances.size());
@@ -144,15 +145,13 @@ public class BucketDistributionTest extends AbstractSystemTest {
         log.info("controllerToBucketMappingTest execution completed");
     }
 
-    private CompletableFuture<Map<String, List<Integer>>> getBucketControllerMapping(BucketType bucketType) {
+    private ControllerImpl getController() {
         ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
         // Connect with first controller instance.
-        @Cleanup
-        final Controller controllerClient = new ControllerImpl(
+         return new ControllerImpl(
                 ControllerImplConfig.builder()
                         .clientConfig(clientConfig)
                         .build(), executorService);
-        return controllerClient.getControllerToBucketMapping(bucketType);
     }
 
 }
