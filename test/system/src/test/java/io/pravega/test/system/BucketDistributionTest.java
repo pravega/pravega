@@ -19,6 +19,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.BucketType;
@@ -141,7 +142,7 @@ public class BucketDistributionTest extends AbstractSystemTest {
         log.info("controllerToBucketMappingTest execution completed");
     }
 
-    private CompletableFuture<Map<String, List<Integer>>> getBucketControllerMapping(BucketType bucketType) throws InterruptedException {
+    private CompletableFuture<Map<String, List<Integer>>> getBucketControllerMapping(BucketType bucketType) {
         ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
         // Connect with first controller instance.
         @Cleanup
@@ -150,8 +151,8 @@ public class BucketDistributionTest extends AbstractSystemTest {
                         .clientConfig(clientConfig)
                         .build(), executorService);
         //Here using delayed future as minDurationForBucketDistribution is set to 2 sec.
-        return Futures.delayedFuture(Duration.ofSeconds(2), executorService).thenCompose(v ->
-                controllerClient.getControllerToBucketMapping(bucketType));
+        Exceptions.handleInterrupted(() -> Thread.sleep(2000));
+        return controllerClient.getControllerToBucketMapping(bucketType);
     }
 
 }
