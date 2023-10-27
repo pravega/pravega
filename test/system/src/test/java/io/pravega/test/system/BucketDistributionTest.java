@@ -16,6 +16,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -33,6 +34,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.junit.rules.Timeout;
+import org.junit.Rule;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +43,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -49,28 +51,21 @@ import static org.junit.Assert.assertEquals;
 @RunWith(SystemTestRunner.class)
 public class BucketDistributionTest extends AbstractSystemTest {
 
-    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(3 * 60);
+
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
     private Service controllerService = null;
     private Service segmentStoreService = null;
-    private final AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
-    private final AtomicReference<URI> controllerURIDiscover = new AtomicReference<>();
+    private URI controllerURIDirect = null;
 
     @Environment
     public static void initialize() throws MarathonException, ExecutionException {
-        URI zkUris = startZookeeperInstance();
-        startBookkeeperInstances(zkUris);
-        URI controllerUri = ensureControllerRunning(zkUris);
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri, 1);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
         log.info("Controller is currently running at {}", controllerUri);
-        Service controllerService = Utils.createPravegaControllerService(zkUris);
-
-        // With Kvs we need segment stores to be running.
-        ensureSegmentStoreRunning(zkUris, controllerUri);
-
-        // scale to two controller instances.
-        Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);
-
-        List<URI> conUris = controllerService.getServiceDetails();
-        log.debug("Pravega Controller service  details: {}", conUris);
     }
 
     @Before
@@ -81,47 +76,38 @@ public class BucketDistributionTest extends AbstractSystemTest {
         log.info("zookeeper service details: {}", zkUris);
 
         controllerService = Utils.createPravegaControllerService(zkUris.get(0));
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
+        }
 
-        List<URI> conUris = controllerService.getServiceDetails();
-        log.debug("Pravega Controller service  details: {}", conUris);
+        List<URI> controllerUris = controllerService.getServiceDetails();
+        log.info("Controller uris: {} {}", controllerUris.get(0), controllerUris.get(1));
+        log.debug("Pravega Controller service  details: {}", controllerUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-        assertEquals("2 controller instances should be running", 2, uris.size());
+        final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
-        // use the last two uris
-        controllerURIDirect.set(URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris)));
+        controllerURIDirect = URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
-        controllerURIDiscover.set(URI.create("pravega://" + String.join(",", uris)));
-        log.info("Controller Service discovery URI: {}", controllerURIDiscover);
 
-        segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerService.getServiceDetails().get(0));
+        segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerUris.get(0));
     }
 
     @After
     public void tearDown() {
-        ExecutorServiceHelpers.shutdown(executorService);
-        // The test scales down the controller instances to 0.
-        // Scale down the segment store instances to 0 to ensure the next tests start with a clean slate.
+        // This test scales the controller instances to 0.
+        // Scale down the segment store instances to 0 to ensure the next tests starts with a clean slate.
         segmentStoreService.scaleService(0);
+        ExecutorServiceHelpers.shutdown(executorService);
     }
 
     @Test(timeout = 300000)
     public void controllerToBucketMappingTest() throws Exception {
         log.info("Start execution of controllerToBucketMappingTest");
-        log.info("Test tcp:// with 2 controller instances running");
-
-        Map<String, List<Integer>> map = getBucketControllerMapping(BucketType.WatermarkingService).join();
-        log.info("Controller to bucket mapping for {} is {}.", BucketType.WatermarkingService, map);
-        List<String> controllerInstances = new ArrayList<>(map.keySet());
-        assertEquals(2, controllerInstances.size());
-        assertEquals(50, map.get(controllerInstances.get(0)).size());
-        assertEquals(50, map.get(controllerInstances.get(1)).size());
-
-        Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
-        log.info("Test tcp:// with only 1 controller instance running");
+        log.info("Test tcp:// with 1 controller instances running");
 
         Map<String, List<Integer>> retentionMap = getBucketControllerMapping(BucketType.RetentionService).join();
         log.info("Controller to bucket mapping for {} is {}.", BucketType.RetentionService, retentionMap);
+        List<String> controllerInstances;
         controllerInstances = new ArrayList<>(retentionMap.keySet());
         assertEquals(1, controllerInstances.size());
         assertEquals(3, retentionMap.get(controllerInstances.get(0)).size());
@@ -132,17 +118,36 @@ public class BucketDistributionTest extends AbstractSystemTest {
         assertEquals(1, waterMarkingMap.size());
         assertEquals(100, waterMarkingMap.get(controllerInstances.get(0)).size());
 
+        Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);
+        List<URI> controllerUris = controllerService.getServiceDetails();
+        // Fetch all the RPC endpoints and construct the client URIs.
+        final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority)
+                .collect(Collectors.toList());
+
+        controllerURIDirect = URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURIDirect);
+        log.info("Test tcp:// with only 2 controller instance running");
+
+        Map<String, List<Integer>> map = getBucketControllerMapping(BucketType.WatermarkingService).join();
+        log.info("Controller to bucket mapping for {} is {}.", BucketType.WatermarkingService, map);
+        controllerInstances = new ArrayList<>(map.keySet());
+        assertEquals(2, controllerInstances.size());
+        assertEquals(50, map.get(controllerInstances.get(0)).size());
+        assertEquals(50, map.get(controllerInstances.get(1)).size());
+
         Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
         log.info("No controller instance is running.");
         log.info("controllerToBucketMappingTest execution completed");
     }
 
     private CompletableFuture<Map<String, List<Integer>>> getBucketControllerMapping(BucketType bucketType) {
-        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect.get());
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
+        // Connect with first controller instance.
         @Cleanup
-        final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(clientConfig)
-                .build(), executorService);
+        final Controller controllerClient = new ControllerImpl(
+                ControllerImplConfig.builder()
+                        .clientConfig(clientConfig)
+                        .build(), executorService);
         //Here using delayed future as minDurationForBucketDistribution is set to 2 sec.
         return Futures.delayedFuture(() -> controllerClient.getControllerToBucketMapping(bucketType),
                 2000L, executorService);
