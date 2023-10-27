@@ -1262,6 +1262,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                 Controller.BucketIds.newBuilder().addAllId(new ArrayList<>(v)).build()));
                         return controllerToBucketMappingResponse.build();
                     } else {
+                        log.warn("getControllerToBucketMapping call failed due to ", ex);
                         throw new CompletionException(ex);
                     }
                 }), responseObserver, requestTag);

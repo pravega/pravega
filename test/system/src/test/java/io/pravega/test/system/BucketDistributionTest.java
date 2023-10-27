@@ -140,17 +140,16 @@ public class BucketDistributionTest extends AbstractSystemTest {
         log.info("controllerToBucketMappingTest execution completed");
     }
 
-    private CompletableFuture<Map<String, List<Integer>>> getBucketControllerMapping(BucketType bucketType) {
+    private CompletableFuture<Map<String, List<Integer>>> getBucketControllerMapping(BucketType bucketType) throws InterruptedException {
         ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
         // Connect with first controller instance.
-        @Cleanup
         final Controller controllerClient = new ControllerImpl(
                 ControllerImplConfig.builder()
                         .clientConfig(clientConfig)
                         .build(), executorService);
+        Thread.sleep(2000);
         //Here using delayed future as minDurationForBucketDistribution is set to 2 sec.
-        return Futures.delayedFuture(() -> controllerClient.getControllerToBucketMapping(bucketType),
-                2000L, executorService);
+        return  controllerClient.getControllerToBucketMapping(bucketType);
     }
 
 }
