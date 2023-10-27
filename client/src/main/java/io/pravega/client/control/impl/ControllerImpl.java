@@ -1933,22 +1933,25 @@ public class ControllerImpl implements Controller {
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "getControllerToBucketMapping", bucketType, requestId);
 
-        final CompletableFuture<Map<String, List<Integer>>> result = this.retryConfig.runAsync(() -> {
+        final CompletableFuture<ControllerToBucketMappingResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<ControllerToBucketMappingResponse> callback = new RPCAsyncCallback<>(requestId,
                     "getControllerToBucketMapping", bucketType);
 
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, GET_CONTROLLER_TO_BUCKET_MAPPING,
-                            bucketType.toString()).getControllerToBucketMapping( ControllerToBucketMappingRequest.newBuilder()
-                    .setServiceType(ControllerToBucketMappingRequest.BucketType.valueOf(bucketType.toString())).build(), callback);
-            return callback.getFuture().thenApply(response -> response.getMappingMap().entrySet().stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getIdList())));
+                    bucketType.toString()).getControllerToBucketMapping(ControllerToBucketMappingRequest.newBuilder()
+                    .setServiceType(ControllerToBucketMappingRequest.BucketType.valueOf(bucketType.toString())).build(),
+                    callback);
+            return callback.getFuture();
         }, this.executor);
-        return result.whenCompleteAsync((x, e) -> {
-            if (e != null) {
-                log.warn(requestId, "getControllerToBucketMapping request for bucket type {} failed: ", bucketType, e);
-            }
-            LoggerHelpers.traceLeave(log, "getControllerToBucketMapping", traceId, bucketType, requestId);
-        }, this.executor);
+        return result.thenApplyAsync(response -> response.getMappingMap().entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getIdList())), this.executor)
+                .whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn(requestId, "getControllerToBucketMapping request for bucket type {} failed: ",
+                                bucketType, e);
+                    }
+                    LoggerHelpers.traceLeave(log, "getControllerToBucketMapping", traceId, bucketType, requestId);
+                });
     }
     //endregion
 
