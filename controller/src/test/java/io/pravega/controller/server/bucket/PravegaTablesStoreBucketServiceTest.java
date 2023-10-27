@@ -303,13 +303,12 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
 
         //Check buckets are evenly distributed
         assertEventuallyEquals(1, () -> bucketManager1.getBucketServices().size(), 10000);
+        assertEventuallyEquals(1, () -> bucketManager1.getBucketServices().size(), 10000);
+        assertEventuallyEquals(1, () -> watermarkingService.getBucketServices().size(), 10000);
 
         Set<Integer> bucketsForBucketManager1 = bucketManager1.getBucketServices().keySet();
         Set<Integer> bucketsForBucketManager2 = bucketManager2.getBucketServices().keySet();
         Set<Integer> bucketsForBucketManager3 = watermarkingService.getBucketServices().keySet();
-
-        assertEquals(1, bucketsForBucketManager2.size());
-        assertEquals(1, bucketsForBucketManager3.size());
 
         //Check all the bucket managers have unique buckets.
         assertFalse(bucketsForBucketManager1.stream().anyMatch(bucketsForBucketManager2::contains));
