@@ -108,7 +108,7 @@ public class BucketDistributionTest extends AbstractSystemTest {
 
         //Here using delayed future as minDurationForBucketDistribution is set to 2 sec.
         Map<String, List<Integer>> retentionMap = Futures.delayedFuture(Duration.ofSeconds(2), executorService)
-                .thenCompose(v -> getBucketControllerMapping(BucketType.RetentionService)).get();
+                .thenCompose(v -> getBucketControllerMapping(BucketType.RetentionService)).join();
         log.info("Controller to bucket mapping for {} is {}.", BucketType.RetentionService, retentionMap);
         List<String> controllerInstances;
         controllerInstances = new ArrayList<>(retentionMap.keySet());
@@ -116,7 +116,7 @@ public class BucketDistributionTest extends AbstractSystemTest {
         assertEquals(1, retentionMap.get(controllerInstances.get(0)).size());
 
         Map<String, List<Integer>> waterMarkingMap = Futures.delayedFuture(Duration.ofSeconds(2), executorService)
-                .thenCompose(v -> getBucketControllerMapping(BucketType.WatermarkingService)).get();
+                .thenCompose(v -> getBucketControllerMapping(BucketType.WatermarkingService)).join();
         log.info("Controller to bucket mapping for {} is {}.", BucketType.WatermarkingService, waterMarkingMap);
         controllerInstances = new ArrayList<>(retentionMap.keySet());
         assertEquals(1, waterMarkingMap.size());
@@ -133,7 +133,7 @@ public class BucketDistributionTest extends AbstractSystemTest {
         log.info("Test tcp:// with only 2 controller instance running");
 
         Map<String, List<Integer>> map = Futures.delayedFuture(Duration.ofSeconds(2), executorService)
-                .thenCompose(v -> getBucketControllerMapping(BucketType.WatermarkingService)).get();
+                .thenCompose(v -> getBucketControllerMapping(BucketType.WatermarkingService)).join();
         log.info("Controller to bucket mapping for {} is {}.", BucketType.WatermarkingService, map);
         controllerInstances = new ArrayList<>(map.keySet());
         assertEquals(2, controllerInstances.size());
