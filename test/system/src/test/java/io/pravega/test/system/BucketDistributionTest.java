@@ -148,10 +148,7 @@ public class BucketDistributionTest extends AbstractSystemTest {
     private ControllerImpl getController() {
         ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
         // Connect with first controller instance.
-         return new ControllerImpl(
-                ControllerImplConfig.builder()
-                        .clientConfig(clientConfig)
-                        .build(), executorService);
+        return new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(), executorService);
     }
 
 }
