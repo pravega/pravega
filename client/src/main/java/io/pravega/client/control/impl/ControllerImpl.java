@@ -1935,9 +1935,9 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<Map<String, List<Integer>>> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<ControllerToBucketMappingResponse> callback = new RPCAsyncCallback<>(requestId,
-                    GET_CONTROLLER_TO_BUCKET_MAPPING, bucketType);
+                    "getControllerToBucketMapping", bucketType);
 
-            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getControllerToBucketMapping",
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, GET_CONTROLLER_TO_BUCKET_MAPPING,
                             bucketType.toString()).getControllerToBucketMapping( ControllerToBucketMappingRequest.newBuilder()
                     .setServiceType(ControllerToBucketMappingRequest.BucketType.valueOf(bucketType.toString())).build(), callback);
             return callback.getFuture().thenApply(response -> response.getMappingMap().entrySet().stream()

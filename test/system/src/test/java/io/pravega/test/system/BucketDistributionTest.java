@@ -153,6 +153,8 @@ public class BucketDistributionTest extends AbstractSystemTest {
                 ControllerImplConfig.builder()
                         .clientConfig(clientConfig)
                         .build(), executorService);
+        //test line
+        log.info("Scope created {}", controllerClient.createScope("test").join());
         return controllerClient.getControllerToBucketMapping(bucketType);
     }
 
