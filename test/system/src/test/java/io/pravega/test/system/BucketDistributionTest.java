@@ -111,7 +111,7 @@ public class BucketDistributionTest extends AbstractSystemTest {
         List<String> controllerInstances;
         controllerInstances = new ArrayList<>(retentionMap.keySet());
         assertEquals(1, controllerInstances.size());
-        assertEquals(3, retentionMap.get(controllerInstances.get(0)).size());
+        assertEquals(1, retentionMap.get(controllerInstances.get(0)).size());
 
         Map<String, List<Integer>> waterMarkingMap = getBucketControllerMapping(BucketType.WatermarkingService).get();
         log.info("Controller to bucket mapping for {} is {}.", BucketType.WatermarkingService, waterMarkingMap);
