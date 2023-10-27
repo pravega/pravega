@@ -108,10 +108,10 @@ public class BucketDistributionTest extends AbstractSystemTest {
     @Test(timeout = 300000)
     public void controllerToBucketMappingTest() throws Exception {
         log.info("Start execution of controllerToBucketMappingTest");
-
         log.info("Test tcp:// with 2 controller instances running");
 
         Map<String, List<Integer>> map = getBucketControllerMapping(BucketType.WatermarkingService).join();
+        log.info("Controller to bucket mapping for {} is {}.", BucketType.WatermarkingService, map);
         List<String> controllerInstances = new ArrayList<>(map.keySet());
         assertEquals(2, controllerInstances.size());
         assertEquals(50, map.get(controllerInstances.get(0)).size());
@@ -121,11 +121,13 @@ public class BucketDistributionTest extends AbstractSystemTest {
         log.info("Test tcp:// with only 1 controller instance running");
 
         Map<String, List<Integer>> retentionMap = getBucketControllerMapping(BucketType.RetentionService).join();
+        log.info("Controller to bucket mapping for {} is {}.", BucketType.RetentionService, retentionMap);
         controllerInstances = new ArrayList<>(retentionMap.keySet());
         assertEquals(1, controllerInstances.size());
         assertEquals(3, retentionMap.get(controllerInstances.get(0)).size());
 
         Map<String, List<Integer>> waterMarkingMap = getBucketControllerMapping(BucketType.WatermarkingService).join();
+        log.info("Controller to bucket mapping for {} is {}.", BucketType.WatermarkingService, waterMarkingMap);
         controllerInstances = new ArrayList<>(retentionMap.keySet());
         assertEquals(1, waterMarkingMap.size());
         assertEquals(100, waterMarkingMap.get(controllerInstances.get(0)).size());
