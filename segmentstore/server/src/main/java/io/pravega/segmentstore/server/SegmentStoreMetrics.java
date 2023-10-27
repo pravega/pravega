@@ -140,6 +140,7 @@ public final class SegmentStoreMetrics {
                 this.storageQueueSize.reportSuccessValue(ss.getQueueSize());
                 this.storageActiveThreads.reportSuccessValue(ss.getActiveThreadCount());
                 log.info("====================================== storageExecutor =============================");
+                log.info("SLTSTest storageExecutor active count {}", ss.getActiveThreadCount());
 
             }
         }
