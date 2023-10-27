@@ -19,7 +19,6 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.BucketType;
@@ -107,14 +106,17 @@ public class BucketDistributionTest extends AbstractSystemTest {
         log.info("Start execution of controllerToBucketMappingTest");
         log.info("Test tcp:// with 1 controller instances running");
 
-        Map<String, List<Integer>> retentionMap = getBucketControllerMapping(BucketType.RetentionService).get();
+        //Here using delayed future as minDurationForBucketDistribution is set to 2 sec.
+        Map<String, List<Integer>> retentionMap = Futures.delayedFuture(Duration.ofSeconds(2), executorService)
+                .thenCompose(v -> getBucketControllerMapping(BucketType.RetentionService)).get();
         log.info("Controller to bucket mapping for {} is {}.", BucketType.RetentionService, retentionMap);
         List<String> controllerInstances;
         controllerInstances = new ArrayList<>(retentionMap.keySet());
         assertEquals(1, controllerInstances.size());
         assertEquals(1, retentionMap.get(controllerInstances.get(0)).size());
 
-        Map<String, List<Integer>> waterMarkingMap = getBucketControllerMapping(BucketType.WatermarkingService).get();
+        Map<String, List<Integer>> waterMarkingMap = Futures.delayedFuture(Duration.ofSeconds(2), executorService)
+                .thenCompose(v -> getBucketControllerMapping(BucketType.WatermarkingService)).get();
         log.info("Controller to bucket mapping for {} is {}.", BucketType.WatermarkingService, waterMarkingMap);
         controllerInstances = new ArrayList<>(retentionMap.keySet());
         assertEquals(1, waterMarkingMap.size());
@@ -130,7 +132,8 @@ public class BucketDistributionTest extends AbstractSystemTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         log.info("Test tcp:// with only 2 controller instance running");
 
-        Map<String, List<Integer>> map = getBucketControllerMapping(BucketType.WatermarkingService).get();
+        Map<String, List<Integer>> map = Futures.delayedFuture(Duration.ofSeconds(2), executorService)
+                .thenCompose(v -> getBucketControllerMapping(BucketType.WatermarkingService)).get();
         log.info("Controller to bucket mapping for {} is {}.", BucketType.WatermarkingService, map);
         controllerInstances = new ArrayList<>(map.keySet());
         assertEquals(2, controllerInstances.size());
@@ -150,8 +153,6 @@ public class BucketDistributionTest extends AbstractSystemTest {
                 ControllerImplConfig.builder()
                         .clientConfig(clientConfig)
                         .build(), executorService);
-        //Here using delayed future as minDurationForBucketDistribution is set to 2 sec.
-        Exceptions.handleInterrupted(() -> Thread.sleep(2000));
         return controllerClient.getControllerToBucketMapping(bucketType);
     }
 
