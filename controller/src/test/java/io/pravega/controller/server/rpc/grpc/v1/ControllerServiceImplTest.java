@@ -34,7 +34,6 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.server.bucket.BucketManager;
-import io.pravega.controller.server.bucket.ZooKeeperBucketManager;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StoreException;
