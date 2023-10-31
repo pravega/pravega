@@ -17,6 +17,15 @@
 package io.pravega.common.concurrent;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import lombok.AccessLevel;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
@@ -37,19 +46,11 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.Data;
-import lombok.Getter;
-import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
-import lombok.ToString;
-import lombok.extern.slf4j.Slf4j;
-import lombok.AccessLevel;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
- * An implementation of {@link ScheduledExecutorService} which uses a thread pool. 
+ * An implementation of {@link ScheduledExecutorService} which uses a thread pool.
  * 
  * This class is similar to ScheduledThreadPoolExecutor but differs in the following ways:
  * 
@@ -62,7 +63,7 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
  */
 @Slf4j
 @ToString(of = "runner")
-public class ThreadPoolScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService  {
+public class ThreadPoolScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService {
 
     private static final AtomicLong COUNTER = new AtomicLong(0);
     @Getter(AccessLevel.PACKAGE)
@@ -89,22 +90,6 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
                 config.getTimeUnit(),
                 queue,
                 threadFactory,
-                new AbortPolicy());
-        runner.prestartAllCoreThreads();
-    }
-
-    public ThreadPoolScheduledExecutorService(int corePoolSize, int maxPoolSize, int keepAliveTime, ThreadFactory threadFactory) {
-        this.queue = new ScheduledQueue<ScheduledRunnable<?>>();
-        // While this cast looks invalid, it is ok because runner is private and will only
-        // be given ScheduledRunnable which by definition implement runnable.
-        @SuppressWarnings("unchecked")
-        BlockingQueue<Runnable> queue = (BlockingQueue) this.queue;
-        runner = new ThreadPoolExecutor(corePoolSize,
-                maxPoolSize,
-                keepAliveTime,
-                MILLISECONDS,
-                queue,
-                Executors.defaultThreadFactory(),
                 new AbortPolicy());
         runner.prestartAllCoreThreads();
     }

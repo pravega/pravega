@@ -130,10 +130,6 @@ public final class ExecutorServiceHelpers {
         return FACTORY.newShrinkingExecutor(maxThreadCount, threadTimeout, poolName);
     }
 
-    public static ScheduledExecutorService getShrinkingExecutorService(int corePoolSize, int maxPoolSize, int keepAliveTime, String poolName, int threadPriority) {
-        return FACTORY.newShrinkingExecutorService(corePoolSize, maxPoolSize, keepAliveTime, poolName, threadPriority);
-    }
-
     /**
      * Executes the given task on the given Executor.
      *
