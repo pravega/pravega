@@ -40,7 +40,7 @@ import static org.junit.Assert.assertTrue;
 public class ThreadPoolScheduledExecutorServiceTest {
 
     private static ThreadPoolScheduledExecutorService createPool(int threads) {
-        return new ThreadPoolScheduledExecutorService(threads,
+        return new ThreadPoolScheduledExecutorService(new ThreadPoolExecutorConfig(threads, threads),
                 ExecutorServiceHelpers.getThreadFactory("ThreadPoolScheduledExecutorServiceTest"));
     }   
     

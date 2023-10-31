@@ -74,22 +74,22 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
     /**
      * Creates a fixed size thread pool (Similar to ScheduledThreadPoolExecutor).
      * 
-     * @param corePoolSize The number of threads in the pool
+     * @param config The number of threads in the pool
      * @param threadFactory The factory used to create the threads.
      */
-    public ThreadPoolScheduledExecutorService(int corePoolSize, ThreadFactory threadFactory) {
+    public ThreadPoolScheduledExecutorService(ThreadPoolExecutorConfig config, ThreadFactory threadFactory) {
         this.queue = new ScheduledQueue<ScheduledRunnable<?>>();
         // While this cast looks invalid, it is ok because runner is private and will only
         // be given ScheduledRunnable which by definition implement runnable.
         @SuppressWarnings("unchecked")
         BlockingQueue<Runnable> queue = (BlockingQueue) this.queue;
-        runner = new ThreadPoolExecutor(corePoolSize,
-                                        corePoolSize,
-                                        100,
-                                        MILLISECONDS,
-                                        queue,
-                                        threadFactory,
-                                        new AbortPolicy());
+        runner = new ThreadPoolExecutor(config.getCorePoolSize(),
+                config.getMaxPoolSize(),
+                config.getKeepAliveTime(),
+                config.getTimeUnit(),
+                queue,
+                threadFactory,
+                new AbortPolicy());
         runner.prestartAllCoreThreads();
     }
 

@@ -82,7 +82,11 @@ public final class ExecutorServiceHelpers {
      * @return A new executor service.
      */
     public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName, int threadPriority) {
-        return FACTORY.newScheduledThreadPool(size, poolName, threadPriority);
+        return FACTORY.newScheduledThreadPool(new ThreadPoolExecutorConfig(size, size), poolName, threadPriority);
+    }
+
+    public static ScheduledExecutorService newScheduledThreadPool(ThreadPoolExecutorConfig config, String poolName, int threadPriority) {
+        return FACTORY.newScheduledThreadPool(config, poolName, threadPriority);
     }
 
     /**
