@@ -95,6 +95,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     private TableMetadataTasks kvtMetadataTasks;
     private TableRequestHandler tableRequestHandler;
     private BucketManager retentionService;
+    private BucketStore bucketStore;
 
     @Override
     public ControllerService getControllerService() {
@@ -102,7 +103,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     
         taskMetadataStore = TaskStoreFactoryForTests.createInMemoryStore(executorService);
         streamStore = StreamStoreFactory.createInMemoryStore();
-        BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
@@ -150,6 +151,11 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     @Override
     BucketManager getBucketManager() {
         return retentionService;
+    }
+
+    @Override
+    protected BucketStore getBucketStore() {
+        return bucketStore;
     }
 
     @After

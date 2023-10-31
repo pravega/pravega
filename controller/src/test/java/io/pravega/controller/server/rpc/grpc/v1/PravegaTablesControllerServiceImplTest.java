@@ -110,6 +110,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
     private TableMetadataTasks kvtMetadataTasks;
     private TableRequestHandler tableRequestHandler;
     private BucketManager retentionService;
+    private BucketStore bucketStore;
 
     @Override
     public ControllerService getControllerService() throws Exception {
@@ -131,7 +132,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), this.kvtStore, executorService);
-        BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService);
+        bucketStore = StreamStoreFactory.createZKBucketStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock);
@@ -174,6 +175,11 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
     @Override
     BucketManager getBucketManager() {
         return retentionService;
+    }
+
+    @Override
+    protected BucketStore getBucketStore() {
+        return bucketStore;
     }
 
     @After

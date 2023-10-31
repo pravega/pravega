@@ -107,6 +107,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private TableMetadataTasks kvtMetadataTasks;
     private TableRequestHandler tableRequestHandler;
     private BucketManager retentionService;
+    private BucketStore bucketStore;
 
     @Override
     public ControllerService getControllerService() throws Exception {
@@ -135,7 +136,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), this.kvtStore, executorService);
-        BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
+        bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock);
@@ -235,7 +236,12 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         AssertExtensions.assertThrows("", list::get, 
                 e -> Exceptions.unwrap(e) instanceof StatusRuntimeException);
     }
-    
+
+    @Override
+    protected BucketStore getBucketStore() {
+        return bucketStore;
+    }
+
     private Controller.TxnStatus closeTransaction(final String scope,
                                                   final String stream,
                                                   final Controller.TxnId txnId,
