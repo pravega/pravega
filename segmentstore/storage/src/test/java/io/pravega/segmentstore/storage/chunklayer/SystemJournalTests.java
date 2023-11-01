@@ -202,6 +202,29 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testSaveEpoch() throws Exception {
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStore = getMetadataStore();
+        int containerId = 42;
+        int maxLength = 8;
+        long epoch = 1;
+        @Cleanup
+        val garbageCollector = new GarbageCollector(containerId,
+                chunkStorage,
+                metadataStore,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                executorService());
+        garbageCollector.initialize(new InMemoryTaskQueueManager()).join();
+        val policy = new SegmentRollingPolicy(maxLength);
+        val config = getDefaultConfigBuilder(policy).build();
+        val journal = new SystemJournal(containerId, chunkStorage, metadataStore, garbageCollector, config, executorService());
+        Assert.assertNotNull(journal.saveEpochInfo(containerId, epoch));
+        Assert.assertNotNull(journal.saveEpochInfo(containerId, epoch + 1));
+    }
+
+    @Test
     public void testIsSystemSegment() throws Exception {
         @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();

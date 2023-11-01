@@ -45,8 +45,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
+import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
@@ -85,18 +85,20 @@ import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
-import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import io.pravega.segmentstore.storage.chunklayer.EpochInfo;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SnapshotInfoStore;
 import io.pravega.segmentstore.storage.chunklayer.UtilsWrapper;
 import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import javax.annotation.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -108,19 +110,11 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID;
@@ -134,7 +128,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region Members
     // Default buffer size of 1 MB.
     private static final int BUFFER_SIZE = 1048576;
-    private static final int MAX_FLUSH_ATTEMPTS = 10;
     private static final EpochInfo.Serializer EPOCH_INFO_SERIALIZER = new EpochInfo.Serializer();
     private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
             .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
@@ -874,95 +867,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         val containerId = this.metadata.getContainerId();
         log.info("{}: Starting flush to storage for container ID: {}", this.traceObjectId, containerId);
         val flusher = new LogFlusher(containerId, this.durableLog, this.writer, this.metadataCleaner, this.executor);
-        return flusher.flushToStorage(timeout)
-                .thenComposeAsync( v -> saveEpochInfo(containerId, this.metadata.getContainerEpoch(), timeout), this.executor)
-                .thenAcceptAsync(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
-    }
-
-    private CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, Duration timeout) {
-        if (!(storage instanceof ChunkedSegmentStorage)) {
-            return CompletableFuture.completedFuture(null);
+        CompletableFuture<Void> flushed = flusher.flushToStorage(timeout);
+        if (!(this.storage instanceof ChunkedSegmentStorage)) {
+            return flushed.thenAcceptAsync( v -> log.debug("{}: Completed flush to storage for container {}", this.traceObjectId, containerId), this.executor);
         }
         val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
-        val chunk = NameUtils.getContainerEpochFileName(containerId);
-        val epochInfo = new EpochInfo(containerEpoch);
-        val isDone = new AtomicBoolean(false);
-        val attempts = new AtomicInteger();
-        try {
-            val epochBytes = EPOCH_INFO_SERIALIZER.serialize(epochInfo);
-            return Futures.loop(
-                    () -> !isDone.get(),
-                    () -> chunkedSegmentStorage.getChunkStorage().exists(chunk)
-                            .thenComposeAsync( exists -> {
-                                if (exists) {
-                                    return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength())
-                                            .thenComposeAsync(savedEpoch -> {
-                                                if (savedEpoch.getEpoch() > epochInfo.getEpoch()) {
-                                                    return CompletableFuture.failedFuture(
-                                                        new IllegalContainerStateException(String.format(
-                                                            "Unexpected epoch. Expected = {} actual = {}",
-                                                            epochInfo.getEpoch(), savedEpoch.getEpoch())));
-                                                } else {
-                                                    return chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunk));
-                                                }
-                                            }, executor);
-                                } else {
-                                    return CompletableFuture.completedFuture(null);
-                                }
-                            }, this.executor)
-                            .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(),
-                                    new ByteArrayInputStream(epochBytes.array(), 0, epochBytes.getLength())), executor)
-                            .thenComposeAsync( v -> {
-                                log.debug("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo);
-                                return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength()); }, executor)
-                            .thenApplyAsync( readBackInfo -> {
-                                if (readBackInfo.getEpoch() > epochInfo.getEpoch()) {
-                                    throw new CompletionException(
-                                            new IllegalContainerStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo.getEpoch(), readBackInfo.getEpoch())));
-                                }
-                                if (!epochInfo.equals(readBackInfo)) {
-                                    throw new CompletionException(
-                                            new IllegalStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo.getEpoch(), readBackInfo.getEpoch())));
-                                }
-                                return null;
-                            }, executor)
-                            .handleAsync((v, e) -> {
-                                if (null != e) {
-                                    val ex = Exceptions.unwrap(e);
-                                    if (ex instanceof IllegalContainerStateException) {
-                                        log.warn("{}: Error while saving epoch info to file {}. info = {}", this.traceObjectId, chunk, epochInfo, e);
-                                        throw new CompletionException(e);
-                                    }
-                                    if (attempts.incrementAndGet() > MAX_FLUSH_ATTEMPTS) {
-                                        log.warn("{}: All attempts exhausted while saving epoch to File = {}. info = {}", this.traceObjectId, chunk, epochInfo, e);
-                                        throw new CompletionException(e);
-                                    }
-                                    log.warn("{}: Error while saving epoch info to LTS. File = {}. info = {}", this.traceObjectId, chunk, epochInfo, e);
-                                } else {
-                                    // No exception we are done
-                                    log.info("{}: Epoch info saved successfully. info = {}", this.traceObjectId, chunk);
-                                    isDone.set(true);
-                                }
-                                return null;
-                            }, executor),
-                    this.executor);
-        } catch (IOException e) {
-            return CompletableFuture.failedFuture(new ChunkStorageException(chunk, "Unable to serialize", e));
-        }
-    }
-
-    private CompletableFuture<EpochInfo> readEpochInfo(String chunk, ChunkedSegmentStorage chunkedSegmentStorage, int readLength) {
-        val readAtOffset = new AtomicLong(0);
-        val readBuffer = new byte[readLength];
-        return chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(chunk), readAtOffset.get(), readLength, readBuffer, 0)
-                .thenApplyAsync( v -> {
-                    try {
-                        return EPOCH_INFO_SERIALIZER.deserialize(readBuffer);
-                    } catch (IOException e) {
-                        throw new CompletionException(e);
-                    }
-                }, this.executor);
-
+        return flushed.thenComposeAsync( v -> chunkedSegmentStorage.getSystemJournal().saveEpochInfo(containerId, this.metadata.getContainerEpoch()), this.executor)
+                .thenAcceptAsync(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId), this.executor);
     }
 
     /**

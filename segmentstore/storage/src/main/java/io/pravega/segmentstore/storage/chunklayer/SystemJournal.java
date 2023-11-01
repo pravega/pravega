@@ -104,6 +104,12 @@ public class SystemJournal {
      */
     private static final SnapshotInfo.Serializer SNAPSHOT_INFO_SERIALIZER = new SnapshotInfo.Serializer();
 
+    /**
+     * Serializer for {@link EpochInfo}.
+     */
+    private static final EpochInfo.Serializer EPOCH_INFO_SERIALIZER = new EpochInfo.Serializer();
+
+    private static final int MAX_FLUSH_ATTEMPTS = 10;
     @Getter
     private final ChunkStorage chunkStorage;
 
@@ -1577,6 +1583,85 @@ public class SystemJournal {
                 throw new CompletionException(e);
             }
         }, this.executor);
+    }
+
+    public CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch) {
+        val chunk = NameUtils.getContainerEpochFileName(containerId);
+        val epochInfo = new EpochInfo(containerEpoch);
+        val isDone = new AtomicBoolean(false);
+        val attempts = new AtomicInteger();
+        try {
+            val epochBytes = EPOCH_INFO_SERIALIZER.serialize(epochInfo);
+            return Futures.loop(
+                    () -> !isDone.get(),
+                    () -> this.getChunkStorage().exists(chunk)
+                            .thenComposeAsync( exists -> {
+                                if (exists) {
+                                    return readEpochInfo(chunk, epochBytes.getLength())
+                                            .thenComposeAsync(savedEpoch -> {
+                                                if (savedEpoch.getEpoch() > epochInfo.getEpoch()) {
+                                                    return CompletableFuture.failedFuture(
+                                                            new IllegalStateException(String.format("Unexpected epoch. Expected = {} actual = {}", epochInfo, savedEpoch)));
+                                                } else {
+                                                    return this.getChunkStorage().delete(ChunkHandle.writeHandle(chunk));
+                                                }
+                                            }, executor);
+                                } else {
+                                    return CompletableFuture.completedFuture(null);
+                                }
+                            }, this.executor)
+                            .thenComposeAsync(v -> this.getChunkStorage().createWithContent(chunk, epochBytes.getLength(),
+                                    new ByteArrayInputStream(epochBytes.array(), 0, epochBytes.getLength())), executor)
+                            .thenAcceptAsync( v -> log.debug("{}: Epoch info saved to epochInfoFile. File {}. info = {}", containerId, chunk, epochInfo))
+                            .thenComposeAsync( v -> readEpochInfo(chunk, epochBytes.getLength()), executor)
+                            .thenApplyAsync( readBackInfo -> {
+                                if (readBackInfo.getEpoch() > epochInfo.getEpoch()) {
+                                    throw new CompletionException(
+                                            new IllegalStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
+                                }
+                                if (!epochInfo.equals(readBackInfo)) {
+                                    throw new CompletionException(
+                                            new IllegalStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
+                                }
+                                return null;
+                            }, executor)
+                            .handleAsync((v, e) -> {
+                                if (null != e) {
+                                    val ex = Exceptions.unwrap(e);
+                                    if (ex instanceof IllegalStateException) {
+                                        log.warn("{}: Error while saving epoch info to file {}. info = {}", containerId, chunk, epochInfo, e);
+                                        throw new CompletionException(e);
+                                    }
+                                    if (attempts.incrementAndGet() > MAX_FLUSH_ATTEMPTS) {
+                                        log.warn("{}: All attempts exhausted while saving epoch to File = {}. info = {}", containerId, chunk, epochInfo, e);
+                                        throw new CompletionException(e);
+                                    }
+                                    log.warn("{}: Error while saving epoch info to LTS. File = {}. info = {}", containerId, chunk, epochInfo, e);
+                                } else {
+                                    // No exception we are done
+                                    log.info("{}: Epoch info saved successfully. info = {}", containerId, chunk);
+                                    isDone.set(true);
+                                }
+                                return null;
+                            }, executor),
+                    this.executor);
+        } catch (IOException e) {
+            return CompletableFuture.failedFuture(new ChunkStorageException(chunk, "Unable to serialize", e));
+        }
+    }
+
+    private CompletableFuture<EpochInfo> readEpochInfo(String chunk, int readLength) {
+        val readAtOffset = new AtomicLong(0);
+        val readBuffer = new byte[readLength];
+        return this.getChunkStorage().read(ChunkHandle.readHandle(chunk), readAtOffset.get(), readLength, readBuffer, 0)
+                .thenApplyAsync( v -> {
+                    try {
+                        return EPOCH_INFO_SERIALIZER.deserialize(readBuffer);
+                    } catch (IOException e) {
+                        throw new CompletionException(e);
+                    }
+                }, this.executor);
+
     }
 
     /**
