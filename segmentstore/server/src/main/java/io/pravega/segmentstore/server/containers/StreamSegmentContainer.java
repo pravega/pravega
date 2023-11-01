@@ -330,25 +330,24 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Void> startWhenDurableLogOnline() {
-        CompletableFuture<Void> isReady;
         CompletableFuture<Void> delayedStart;
-        if (this.durableLog.isOffline()) {
+        boolean delayStart = this.durableLog.isOffline();
+        if (delayStart) {
             // Attach a listener to the DurableLog's awaitOnline() Future and initiate the services' startup when that
             // completes successfully.
             log.info("{}: DurableLog is OFFLINE. Not starting secondary services yet.", this.traceObjectId);
-            isReady = CompletableFuture.completedFuture(null);
+            notifyStarted();
             delayedStart = this.durableLog.awaitOnline()
                     .thenComposeAsync(v -> initializeSecondaryServices(), this.executor);
         } else {
             // DurableLog is already online. Immediately initialize secondary services. In this particular case, it needs
             // to be done synchronously since we need to initialize Storage before notifying that we are fully started.
-            isReady = initializeSecondaryServices();
-            delayedStart = isReady;
+            delayedStart = initializeSecondaryServices();
         }
 
         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
         // are not required for accepting new operations and can still start in the background.
-        delayedStart.thenComposeAsync( v -> this.adjustLengthsPostRecovery(), this.executor)
+        return delayedStart.thenComposeAsync( v -> this.adjustLengthsPostRecovery(), this.executor)
                 .thenComposeAsync(v -> {
                     val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
                     if (null != chunkedSegmentStorage) {
@@ -365,13 +364,19 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     if (ex == null) {
                         // Successful start.
                         log.info("{}: Started.", this.traceObjectId);
-                        notifyStarted();
+                        if (!delayStart) {
+                            notifyStarted();
+                        }
+                    } else if (Services.isTerminating(state())) {
+                        // If the delayed start fails, immediately shut down the Segment Container with the appropriate
+                        // exception. However if we are already shut down (or in the process of), it is sufficient to
+                        // log the secondary service exception and move on.
+                        log.warn("{}: Ignoring delayed start error due to Segment Container shutting down.", this.traceObjectId, ex);
+                        notifyFailed(ex);
                     } else {
                         doStop(ex);
                     }
                 });
-
-        return isReady;
     }
 
     /**

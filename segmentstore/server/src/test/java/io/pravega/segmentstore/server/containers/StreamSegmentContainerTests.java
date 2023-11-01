@@ -2161,7 +2161,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     () -> container.read("foo", 0, 1, TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
 
-            container.stopAsync().awaitTerminated();
+            try {
+                container.stopAsync().awaitTerminated();
+            } catch (IllegalStateException e) {
+                //Permitted.
+            }
         }
 
         // Start in "Offline" mode and verify we can resume a normal startup.
