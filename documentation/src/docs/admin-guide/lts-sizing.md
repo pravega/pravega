@@ -51,7 +51,7 @@ if you need to meet some hardware limitation with the underlying Storage impleme
 Valid values: Positive number.
  
 We can enforce two types of auto-retention policies on our Streams: _size-based_ and _time-based_. There is also
-a new [consumption-based retention model](https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Consumption-Based-Retention), 
+a new [consumption-based retention model](https://github.com/pravega/pravega/wiki/PDP-47-%28Pravega-Consumption-Based-Retention%29), 
 but it can be combined with the previous policies as well. Also, in this section we assume that all the Streams in the 
 system are configured with some type of auto-retention.
 
