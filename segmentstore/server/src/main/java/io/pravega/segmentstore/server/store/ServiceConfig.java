@@ -43,8 +43,8 @@ public class ServiceConfig {
     public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("container.parallelStarts", 2);
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPool.core.size", 30, "threadPoolSize");
     public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("threadPool.storage.size", 50, "storageThreadPoolSize");
-    public static final Property<Integer> STORAGE_THREAD_MAX_POOL_SIZE = Property.named("threadPool.storage.max.size", 60 * 1000, "storageThreadMaxPoolSize");
-    public static final Property<Integer> KEEP_ALIVE_TIME = Property.named("threadPool.storage.keepAliveTime", 100, "storageThreadKeepAliveTime");
+    public static final Property<Integer> STORAGE_THREAD_MAX_POOL_SIZE = Property.named("threadPool.storage.max.size", 100, "storageThreadMaxPoolSize");
+    public static final Property<Integer> KEEP_ALIVE_TIME = Property.named("threadPool.storage.keepAliveTime", 60 * 1000, "storageThreadKeepAliveTime");
     public static final Property<Integer> LOW_PRIORITY_THREAD_POOL_SIZE = Property.named("threadPool.lowPriorityTasks.size", 10, "lowPriorityThreadPoolSize");
     public static final Property<Integer> LISTENING_PORT = Property.named("service.listener.port", 12345, "listeningPort");
     public static final Property<Integer> PUBLISHED_PORT = Property.named("service.published.port", null, "publishedPort");
