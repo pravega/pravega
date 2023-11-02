@@ -42,7 +42,9 @@ public class ServiceConfig {
     public static final Property<Integer> CONTAINER_COUNT = Property.named("container.count", null, "containerCount");
     public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("container.parallelStarts", 2);
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPool.core.size", 30, "threadPoolSize");
-    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("threadPool.storage.size", 200, "storageThreadPoolSize");
+    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("threadPool.storage.size", 50, "storageThreadPoolSize");
+    public static final Property<Integer> STORAGE_THREAD_MAX_POOL_SIZE = Property.named("threadPool.storage.max.size", 60 * 1000, "storageThreadMaxPoolSize");
+    public static final Property<Integer> KEEP_ALIVE_TIME = Property.named("threadPool.storage.keepAliveTime", 100, "storageThreadKeepAliveTime");
     public static final Property<Integer> LOW_PRIORITY_THREAD_POOL_SIZE = Property.named("threadPool.lowPriorityTasks.size", 10, "lowPriorityThreadPoolSize");
     public static final Property<Integer> LISTENING_PORT = Property.named("service.listener.port", 12345, "listeningPort");
     public static final Property<Integer> PUBLISHED_PORT = Property.named("service.published.port", null, "publishedPort");
@@ -168,6 +170,18 @@ public class ServiceConfig {
      */
     @Getter
     private final int storageThreadPoolSize;
+
+    /**
+     * The number of maximum threads in the Thread Pool used for accessing Storage.
+     */
+    @Getter
+    private final int storageMaxThreadPoolSize;
+
+    /**
+     * The time thread pool wait before shrinking to minimum thread.
+     */
+    @Getter
+    private final int keepAliveTime;
 
     /**
      * The TCP Port number to listen to.
@@ -375,6 +389,8 @@ public class ServiceConfig {
         this.containerCount = properties.getInt(CONTAINER_COUNT);
         this.coreThreadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.storageThreadPoolSize = properties.getInt(STORAGE_THREAD_POOL_SIZE);
+        this.storageMaxThreadPoolSize = properties.getInt(STORAGE_THREAD_MAX_POOL_SIZE);
+        this.keepAliveTime = properties.getInt(KEEP_ALIVE_TIME);
         this.lowPriorityThreadPoolSize = properties.getInt(LOW_PRIORITY_THREAD_POOL_SIZE);
         this.listeningPort = properties.getInt(LISTENING_PORT);
 

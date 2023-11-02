@@ -64,7 +64,7 @@ public class ExecutorServiceFactoryTests {
 
     @Test
     public void testScheduledThreadPoolLeak() {
-        testLeaks(factory -> (ThreadPoolScheduledExecutorService) factory.newScheduledThreadPool(1, "test", 1));
+        testLeaks(factory -> (ThreadPoolScheduledExecutorService) factory.newScheduledThreadPool(new ThreadPoolExecutorConfig(1, 1), "test", 1));
     }
 
     @Test
