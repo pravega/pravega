@@ -22,6 +22,9 @@ import lombok.Setter;
 
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Stores configurations for @{@link java.util.concurrent.ThreadPoolExecutor}.
+ */
 @Getter
 @Setter
 @RequiredArgsConstructor
