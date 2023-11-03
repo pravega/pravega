@@ -35,7 +35,6 @@ import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-
 import lombok.val;
 
 import static io.pravega.shared.MetricsNames.globalMetricName;
