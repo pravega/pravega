@@ -26,6 +26,8 @@ import io.pravega.shared.metrics.Meter;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
+import lombok.val;
+
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -36,14 +38,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.containerTag;
 import static io.pravega.shared.MetricsTags.eventProcessorTag;
-import static io.pravega.shared.MetricsTags.throttlerTag;
 import static io.pravega.shared.MetricsTags.segmentTagDirect;
+import static io.pravega.shared.MetricsTags.throttlerTag;
 
 /**
  * General Metrics for the SegmentStore.
