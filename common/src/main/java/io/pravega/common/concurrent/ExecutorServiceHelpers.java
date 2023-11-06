@@ -76,7 +76,7 @@ public final class ExecutorServiceHelpers {
     /**
      * Creates a new ScheduledExecutorService that will use daemon threads with specified priority and names.
      *
-     * @param size The number of threads in the threadpool
+     * @param size The number of threads in the thread pool
      * @param poolName The name of the pool (this will be printed in logs)
      * @param threadPriority The priority to be assigned to the threads
      * @return A new executor service.
@@ -88,7 +88,7 @@ public final class ExecutorServiceHelpers {
     /**
      * Creates a new ScheduledExecutorService that will use daemon threads with specified priority and names.
      *
-     * @param config The ThreadPoolExecutorConfig has the configuration for the thread pool
+     * @param config The configuration for the thread pool
      * @param poolName The name of the pool (this will be printed in logs)
      * @param threadPriority The priority to be assigned to the threads
      * @return A new executor service.

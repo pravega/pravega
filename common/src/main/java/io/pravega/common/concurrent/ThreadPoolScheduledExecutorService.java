@@ -72,9 +72,9 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
     private final ScheduledQueue<ScheduledRunnable<?>> queue;
 
     /**
-     * Creates a fixed and dynamic size thread pool (Similar to ScheduledThreadPoolExecutor) based on the config.
+     * Creates a fixed or dynamic size thread pool (Similar to ScheduledThreadPoolExecutor) based on the config.
      * 
-     * @param config The ThreadPoolExecutorConfig has the configuration for the thread pool
+     * @param config The configuration for the thread pool.
      * @param threadFactory The factory used to create the threads.
      */
     public ThreadPoolScheduledExecutorService(ThreadPoolExecutorConfig config, ThreadFactory threadFactory) {

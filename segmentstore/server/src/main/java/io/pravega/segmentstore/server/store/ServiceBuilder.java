@@ -137,8 +137,11 @@ public class ServiceBuilder implements AutoCloseable {
         String instancePrefix = getInstanceIdPrefix(serviceConfig);
         ThreadPoolExecutorConfig config = new ThreadPoolExecutorConfig(serviceConfig.getCoreThreadPoolSize(), serviceConfig.getCoreThreadPoolSize());
         this.coreExecutor = executorBuilder.apply(config, instancePrefix + "core", Thread.NORM_PRIORITY);
-        config = new ThreadPoolExecutorConfig(serviceConfig.getStorageThreadPoolSize(), serviceConfig.getStorageMaxThreadPoolSize(), serviceConfig.getKeepAliveTime(), TimeUnit.MILLISECONDS);
-        this.storageExecutor = executorBuilder.apply(config, instancePrefix + "storage-io", Thread.NORM_PRIORITY);
+        this.storageExecutor = executorBuilder.apply(ThreadPoolExecutorConfig.builder()
+                .corePoolSize(serviceConfig.getStorageThreadPoolSize())
+                .maxPoolSize(serviceConfig.getStorageMaxThreadPoolSize())
+                .keepAliveTime(serviceConfig.getKeepAliveTime())
+                .build(), instancePrefix + "storage-io", Thread.NORM_PRIORITY);
         this.lowPriorityExecutor = executorBuilder.apply(new ThreadPoolExecutorConfig(serviceConfig.getLowPriorityThreadPoolSize(), serviceConfig.getLowPriorityThreadPoolSize()),
                 instancePrefix + "low-priority-cleanup", Thread.MIN_PRIORITY);
         this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor, this.storageExecutor);

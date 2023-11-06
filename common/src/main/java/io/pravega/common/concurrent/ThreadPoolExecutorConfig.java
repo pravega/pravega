@@ -15,27 +15,37 @@
  */
 package io.pravega.common.concurrent;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.Builder;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 
 import java.util.concurrent.TimeUnit;
 
 /**
  * Stores configurations for @{@link java.util.concurrent.ThreadPoolExecutor}.
  */
-@Getter
-@Setter
+@Data
+@Builder
 @RequiredArgsConstructor
-@AllArgsConstructor
 public class ThreadPoolExecutorConfig {
 
+    /**
+     * The minimum number of thread in the pool.
+     */
     private final int corePoolSize;
 
+    /**
+     * The maximum number of thread in the pool.
+     */
     private final int maxPoolSize;
 
+    /**
+     * This is the time excess idle threads will wait before terminating.
+     */
     private int keepAliveTime = 100;
 
+    /**
+     * The unit of time.
+     */
     private TimeUnit timeUnit = TimeUnit.MILLISECONDS;
 }
