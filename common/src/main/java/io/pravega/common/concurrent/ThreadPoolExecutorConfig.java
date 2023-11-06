@@ -15,6 +15,7 @@
  */
 package io.pravega.common.concurrent;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 @Data
 @Builder
 @RequiredArgsConstructor
+@AllArgsConstructor
 public class ThreadPoolExecutorConfig {
 
     /**
@@ -42,10 +44,12 @@ public class ThreadPoolExecutorConfig {
     /**
      * This is the time excess idle threads will wait before terminating.
      */
+    @Builder.Default
     private int keepAliveTime = 100;
 
     /**
      * The unit of time.
      */
+    @Builder.Default
     private TimeUnit timeUnit = TimeUnit.MILLISECONDS;
 }
