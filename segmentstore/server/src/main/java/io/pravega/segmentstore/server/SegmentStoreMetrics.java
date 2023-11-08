@@ -35,6 +35,8 @@ import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static io.pravega.shared.MetricsNames.globalMetricName;
@@ -46,6 +48,7 @@ import static io.pravega.shared.MetricsTags.segmentTagDirect;
 /**
  * General Metrics for the SegmentStore.
  */
+@Slf4j
 public final class SegmentStoreMetrics {
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
@@ -135,6 +138,7 @@ public final class SegmentStoreMetrics {
             if (ss != null) {
                 this.storageQueueSize.reportSuccessValue(ss.getQueueSize());
                 this.storageActiveThreads.reportSuccessValue(ss.getActiveThreadCount());
+                log.info("SLTS active thread {}, pool size {}", ss.getActiveThreadCount(), ss.getPoolSize());
             }
         }
     }
