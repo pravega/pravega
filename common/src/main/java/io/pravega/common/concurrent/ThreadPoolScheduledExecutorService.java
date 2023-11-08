@@ -49,7 +49,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
- * An implementation of {@link ScheduledExecutorService} which uses a thread pool. 
+ * An implementation of {@link ScheduledExecutorService} which uses a thread pool.
  * 
  * This class is similar to ScheduledThreadPoolExecutor but differs in the following ways:
  * 
@@ -62,9 +62,10 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
  */
 @Slf4j
 @ToString(of = "runner")
-public class ThreadPoolScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService  {
+public class ThreadPoolScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService {
 
     private static final AtomicLong COUNTER = new AtomicLong(0);
+    @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final ThreadPoolExecutor runner;
     @VisibleForTesting
@@ -90,6 +91,7 @@ public class ThreadPoolScheduledExecutorService extends AbstractExecutorService 
                 queue,
                 threadFactory,
                 new AbortPolicy());
+        runner.allowCoreThreadTimeOut(config.allowsCoreThreadTimeOut());
         runner.prestartAllCoreThreads();
     }
 

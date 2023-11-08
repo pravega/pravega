@@ -15,9 +15,11 @@
  */
 package io.pravega.common.concurrent;
 
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import java.util.concurrent.TimeUnit;
@@ -52,4 +54,14 @@ public class ThreadPoolExecutorConfig {
      */
     @Builder.Default
     private TimeUnit timeUnit = TimeUnit.MILLISECONDS;
+
+    /**
+     * Whether idle core should live after keepAliveTime.
+     */
+    @Getter(AccessLevel.NONE)
+    private boolean allowCoreThreadTimeOut;
+
+    public boolean allowsCoreThreadTimeOut() {
+        return this.allowCoreThreadTimeOut;
+    }
 }
