@@ -34,18 +34,7 @@ import java.util.concurrent.CompletionException;
  * Once it exhausts the range, it refreshes the range by contacting zookeeper and repeating the steps described above. 
  */
 @Slf4j
-public class ZkInt96Counter {
-    /**
-     * This constant defines the size of the block of counter values that will be used by this controller instance.
-     * The controller will try to get current counter value from zookeeper. It then tries to update the value in store
-     * by incrementing it by COUNTER_RANGE. If it is able to update the new value successfully, then this controller
-     * can safely use the block `previous-value-in-store + 1` to `previous-value-in-store + COUNTER_RANGE` No other controller
-     * will use this range for transaction id generation as it will be unique assigned to current controller.
-     * If controller crashes, all unused values go to waste. In worst case we may lose COUNTER_RANGE worth of values everytime
-     * a controller crashes.
-     */
-    @VisibleForTesting
-    static final int COUNTER_RANGE = 10000;
+public class ZkInt96Counter implements Int96Counter {
     @VisibleForTesting
     static final String COUNTER_PATH = "/counter";
 
@@ -66,13 +55,14 @@ public class ZkInt96Counter {
         this.storeHelper = storeHelper;
     }
 
-    CompletableFuture<Int96> getNextCounter() {
+    @Override
+    public CompletableFuture<Int96> getNextCounter(OperationContext context) {
         CompletableFuture<Int96> future;
         synchronized (lock) {
             Int96 next = counter.incrementAndGet();
             if (next.compareTo(limit.get()) > 0) {
                 // ignore the counter value and after refreshing call getNextCounter
-                future = refreshRangeIfNeeded().thenCompose(x -> getNextCounter());
+                future = refreshRangeIfNeeded().thenCompose(x -> getNextCounter(context));
             } else {
                 future = CompletableFuture.completedFuture(next);
             }

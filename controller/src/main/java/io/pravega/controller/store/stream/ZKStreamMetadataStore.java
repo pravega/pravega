@@ -79,7 +79,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     private final ZkOrderedStore orderer;
 
     private final ZKGarbageCollector completedTxnGC;
-    private final ZkInt96Counter counter;
+    private final Int96Counter counter;
     private final Executor executor;
 
     @VisibleForTesting
@@ -127,8 +127,8 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     }
 
     @Override
-    CompletableFuture<Int96> getNextCounter() {
-        return counter.getNextCounter();
+    CompletableFuture<Int96> getNextCounter(final OperationContext context) {
+        return counter.getNextCounter(context);
     }
 
     @Override

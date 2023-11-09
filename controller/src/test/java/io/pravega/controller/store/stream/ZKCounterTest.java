@@ -18,6 +18,7 @@ package io.pravega.controller.store.stream;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
+import io.pravega.controller.store.TestOperationContext;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.test.common.TestingServerStarter;
@@ -71,13 +72,14 @@ public class ZKCounterTest {
 
     @Test(timeout = 30000)
     public void testCounter() throws Exception {
+        OperationContext context = new TestOperationContext();
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
         storeHelper.createZNodeIfNotExist("/store/scope").join();
 
         ZkInt96Counter zkStore = spy(new ZkInt96Counter(storeHelper));
 
         // first call should get the new range from store
-        Int96 counter = zkStore.getNextCounter().join();
+        Int96 counter = zkStore.getNextCounter(context).join();
 
         // verify that the generated counter is from new range
         assertEquals(0, counter.getMsb());
@@ -90,9 +92,9 @@ public class ZKCounterTest {
         zkStore.setCounterAndLimitForTesting(limit.getMsb(), limit.getLsb() - 1, limit.getMsb(), limit.getLsb());
         // now call three getNextCounters concurrently.. first one to execute should increment the counter to limit.
         // other two will result in refresh being called.
-        CompletableFuture<Int96> future1 = zkStore.getNextCounter();
-        CompletableFuture<Int96> future2 = zkStore.getNextCounter();
-        CompletableFuture<Int96> future3 = zkStore.getNextCounter();
+        CompletableFuture<Int96> future1 = zkStore.getNextCounter(context);
+        CompletableFuture<Int96> future2 = zkStore.getNextCounter(context);
+        CompletableFuture<Int96> future3 = zkStore.getNextCounter(context);
 
         List<Int96> values = Futures.allOfWithResults(Arrays.asList(future1, future2, future3)).join();
 
@@ -120,7 +122,7 @@ public class ZKCounterTest {
         // set local limit to {msb, Long.Max - 100}
         zkStore.setCounterAndLimitForTesting(0, Long.MAX_VALUE - 100, 0, Long.MAX_VALUE - 100);
         // now the call to getNextCounter should result in another refresh
-        zkStore.getNextCounter().join();
+        zkStore.getNextCounter(context).join();
         // verify that post refresh counter and limit have different msb
         Int96 newCounter2 = zkStore.getCounterForTesting();
         Int96 newLimit2 = zkStore.getLimitForTesting();
@@ -133,6 +135,7 @@ public class ZKCounterTest {
 
     @Test(timeout = 30000)
     public void testCounterConcurrentUpdates() {
+        OperationContext context = new TestOperationContext();
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
         storeHelper.createZNodeIfNotExist("/store/scope").join();
 
@@ -141,7 +144,7 @@ public class ZKCounterTest {
         ZkInt96Counter counter3 = spy(new ZkInt96Counter(storeHelper));
 
         // first call should get the new range from store
-        Int96 counter = counter1.getNextCounter().join();
+        Int96 counter = counter1.getNextCounter(context).join();
 
         // verify that the generated counter is from new range
         assertEquals(0, counter.getMsb());

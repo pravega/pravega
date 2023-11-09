@@ -70,7 +70,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaTablesStreamMetadataStore.class));
 
-    private final ZkInt96Counter counter;
+    private final Int96Counter counter;
     private final AtomicReference<ZKGarbageCollector> completedTxnGCRef;
     private final ZKGarbageCollector completedTxnGC;
     @VisibleForTesting
@@ -95,8 +95,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
         this.completedTxnGCRef = new AtomicReference<>(completedTxnGC);
-        this.counter = new ZkInt96Counter(zkStoreHelper);
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
+        this.counter = new PravegaTablesInt96Counter(storeHelper);
         this.executor = executor;
     }
 
@@ -208,8 +208,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
-    CompletableFuture<Int96> getNextCounter() {
-        return Futures.completeOn(counter.getNextCounter(), executor);
+    CompletableFuture<Int96> getNextCounter(final OperationContext context) {
+        return Futures.completeOn(counter.getNextCounter(context), executor);
     }
 
     @Override
