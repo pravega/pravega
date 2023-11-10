@@ -875,17 +875,17 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         log.info("{}: Starting flush to storage for container ID: {}", this.traceObjectId, containerId);
         val flusher = new LogFlusher(containerId, this.durableLog, this.writer, this.metadataCleaner, this.executor);
         return flusher.flushToStorage(timeout)
-                .thenComposeAsync( v -> saveEpochInfo(containerId, this.metadata.getContainerEpoch(), timeout), this.executor)
+                .thenComposeAsync( v -> saveEpochInfo(containerId, this.metadata.getContainerEpoch(), this.metadata.getOperationSequenceNumber(), timeout), this.executor)
                 .thenAcceptAsync(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
     }
 
-    private CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, Duration timeout) {
+    private CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, long operationSequenceNumber, Duration timeout) {
         if (!(storage instanceof ChunkedSegmentStorage)) {
             return CompletableFuture.completedFuture(null);
         }
         val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
         val chunk = NameUtils.getContainerEpochFileName(containerId);
-        val epochInfo = new EpochInfo(containerEpoch);
+        val epochInfo = new EpochInfo(containerEpoch, operationSequenceNumber);
         val isDone = new AtomicBoolean(false);
         val attempts = new AtomicInteger();
         try {
@@ -897,7 +897,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                 if (exists) {
                                     return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength())
                                             .thenComposeAsync(savedEpoch -> {
-                                                if (savedEpoch.getEpoch() > epochInfo.getEpoch()) {
+                                                if (savedEpoch.getEpoch() > epochInfo.getEpoch() || savedEpoch.getOperationSequenceNumber() > epochInfo.getOperationSequenceNumber()) {
                                                     return CompletableFuture.failedFuture(
                                                         new IllegalContainerStateException(String.format(
                                                             "Unexpected epoch. Expected = {} actual = {}",
@@ -916,13 +916,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                 log.debug("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo);
                                 return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength()); }, executor)
                             .thenApplyAsync( readBackInfo -> {
-                                if (readBackInfo.getEpoch() > epochInfo.getEpoch()) {
+                                if (readBackInfo.getEpoch() > epochInfo.getEpoch() || readBackInfo.getOperationSequenceNumber() > epochInfo.getOperationSequenceNumber()) {
                                     throw new CompletionException(
-                                            new IllegalContainerStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo.getEpoch(), readBackInfo.getEpoch())));
+                                            new IllegalContainerStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
                                 }
                                 if (!epochInfo.equals(readBackInfo)) {
                                     throw new CompletionException(
-                                            new IllegalStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo.getEpoch(), readBackInfo.getEpoch())));
+                                            new IllegalStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
                                 }
                                 return null;
                             }, executor)

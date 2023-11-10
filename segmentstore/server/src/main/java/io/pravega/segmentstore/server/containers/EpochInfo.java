@@ -36,6 +36,11 @@ public class EpochInfo {
     private final long epoch;
 
     /**
+     * Epoch.
+     */
+    private final long operationSequenceNumber;
+
+    /**
      * Builder that implements {@link ObjectBuilder}.
      */
     public static class EpochInfoBuilder implements ObjectBuilder<EpochInfo> {
@@ -62,10 +67,12 @@ public class EpochInfo {
 
         private void write00(EpochInfo object, RevisionDataOutput output) throws IOException {
             output.writeCompactLong(object.epoch);
+            output.writeCompactLong(object.operationSequenceNumber);
         }
 
         private void read00(RevisionDataInput input, EpochInfo.EpochInfoBuilder b) throws IOException {
             b.epoch(input.readCompactLong());
+            b.operationSequenceNumber(input.readCompactLong());
         }
     }
 }
