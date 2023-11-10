@@ -222,12 +222,22 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
 
     /**
-     * Setting container epoch. To be used in cases of Storage based container recovery.
+     * Setting container epoch. To be used in cases of restore phase of Pravega Backup-Restore process.
      * @param value epoch value to override.
      */
-    public void setContainerEpochAfterRecovery(long value) {
+    public void setContainerEpochAfterRestore(long value) {
         Preconditions.checkArgument(value > 0, "epoch must be a non-negative number");
         this.epoch.set(value);
+    }
+
+    /**
+     * Setting the restored operation sequence number.
+     * To be used in cases of restore phase of Pravega Backup-Restore process.
+     * @param value operation sequence number to override
+     */
+    public void setOperationSequenceNumberAfterRestore(long value) {
+        Preconditions.checkArgument(value > 0, "epoch must be a non-negative number");
+        this.sequenceNumber.set(value);
     }
 
     //endregion
