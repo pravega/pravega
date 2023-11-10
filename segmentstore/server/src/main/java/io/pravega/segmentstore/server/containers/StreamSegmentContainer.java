@@ -259,7 +259,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.durableLog.overrideEpoch(containerEpoch);
             this.metadata.setContainerEpochAfterRestore(containerEpoch);
             this.metadata.setOperationSequenceNumberAfterRestore(backedUpOperationSeq);
-            log.info("{}: Recovered container epoch {} has been set in the DurableDataLog", this.traceObjectId, containerEpoch);
+            log.info("{}: Recovered container epoch {} has been set in the DurableDataLog", this.traceObjectId, info);
         }
         log.info("{}: Initializing storage with epoch {}", this.traceObjectId, containerEpoch);
         this.storage.initialize(containerEpoch);
