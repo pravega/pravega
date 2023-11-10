@@ -29,8 +29,6 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.concurrent.GuardedBy;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-
-import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
 import static io.pravega.shared.NameUtils.TRANSACTION_ID_COUNTER_TABLE;
 
 /**
@@ -141,10 +139,10 @@ public class PravegaTablesInt96Counter implements Int96Counter {
     private CompletableFuture<VersionedMetadata<Int96>> getCounterFromTable(final OperationContext context) {
         return Futures.exceptionallyComposeExpecting(storeHelper.getEntry(TRANSACTION_ID_COUNTER_TABLE,
                         COUNTER_KEY, Int96::fromBytes, context.getRequestId()),
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException,
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException,
                 () -> storeHelper.createTable(TRANSACTION_ID_COUNTER_TABLE, context.getRequestId())
                         .thenAccept(v -> log.info(context.getRequestId(), "batches root table {} created", TRANSACTION_ID_COUNTER_TABLE))
-                        .thenCompose(v -> storeHelper.addNewEntryIfAbsent(COMPLETED_TRANSACTIONS_BATCHES_TABLE,
+                        .thenCompose(v -> storeHelper.addNewEntryIfAbsent(TRANSACTION_ID_COUNTER_TABLE,
                                 COUNTER_KEY, Int96.ZERO, Int96::toBytes, context.getRequestId()))
                         .thenCompose(v -> storeHelper.getEntry(TRANSACTION_ID_COUNTER_TABLE,
                                 COUNTER_KEY, Int96::fromBytes, context.getRequestId())));
