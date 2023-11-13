@@ -254,7 +254,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             // If we are recovering from storage, the durableLog will be
             // initialized with 0 epoch. So override the durableLog with backed up epoch.
             EpochInfo info = readContainerEpoch().get();
-            containerEpoch = info.getEpoch();
+            // Increment epoch for restore just like container restart.
+            containerEpoch = info.getEpoch() + 1;
             backedUpOperationSeq = info.getOperationSequenceNumber();
             this.durableLog.overrideEpoch(containerEpoch);
             this.metadata.setContainerEpochAfterRestore(containerEpoch);

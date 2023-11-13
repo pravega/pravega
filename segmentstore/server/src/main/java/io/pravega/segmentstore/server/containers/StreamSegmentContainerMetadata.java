@@ -236,7 +236,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
      * @param value operation sequence number to override
      */
     public void setOperationSequenceNumberAfterRestore(long value) {
-        Preconditions.checkArgument(value > 0, "epoch must be a non-negative number");
+        Preconditions.checkArgument(value > 0, "Operation sequence number must be a non-negative number");
         this.sequenceNumber.set(value);
     }
 
