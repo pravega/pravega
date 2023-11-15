@@ -93,7 +93,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         Preconditions.checkArgument(this.metadata.getContainerId() == dataSource.getId(), "SegmentMetadata.ContainerId is different from WriterDataSource.Id");
         this.traceObjectId = String.format("AttributeAggregator[%d-%d]", this.metadata.getContainerId(), this.metadata.getId());
-        this.state = new State(segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, Operation.NO_SEQUENCE_NUMBER));
+        this.state = new State(segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, Operation.NO_SEQUENCE_NUMBER), this.traceObjectId);
         this.closed = new AtomicBoolean();
         this.lastRootPointer = new AtomicReference<>();
     }
@@ -339,6 +339,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
         private final AtomicLong firstSequenceNumber;
         private final AtomicLong lastSequenceNumber;
         private final AtomicBoolean sealed;
+        private final String traceObjectId;
 
         /**
          * Creates a new instance of the {@link State} class.
@@ -347,12 +348,13 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
          *                                    successfully persisted by the owning AttributeAggregator.
          *                                    See {@link #getLastPersistedSequenceNumber()} for details.
          */
-        State(long lastPersistedSequenceNumber) {
+        State(long lastPersistedSequenceNumber, String traceObjectId) {
             this.attributes = Collections.synchronizedMap(new HashMap<>());
             this.firstSequenceNumber = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
             this.lastSequenceNumber = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
             this.lastPersistedSequenceNumber = new AtomicLong(lastPersistedSequenceNumber);
             this.sealed = new AtomicBoolean(false);
+            this.traceObjectId = traceObjectId;
         }
 
         /**
@@ -385,6 +387,8 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
             Preconditions.checkState(!this.sealed.get(), "Cannot accept more operations after sealing.");
             if (operation.getSequenceNumber() <= this.lastPersistedSequenceNumber.get()) {
                 // This operation has already been processed. This usually happens after a recovery.
+                log.debug("{}: Not including operation {} with Sequence number {}. Persisted Seq number is {}", this.traceObjectId,
+                        operation.getSequenceNumber(), this.lastPersistedSequenceNumber.get());
                 return false;
             }
 
