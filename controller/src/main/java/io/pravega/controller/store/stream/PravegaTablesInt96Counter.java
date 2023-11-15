@@ -117,8 +117,8 @@ public class PravegaTablesInt96Counter implements Int96Counter {
         return getCounterFromTable(context).thenCompose(data -> {
             Int96 previous = data.getObject();
             Int96 nextLimit = previous.add(COUNTER_RANGE);
-            return storeHelper.updateEntry(TRANSACTION_ID_COUNTER_TABLE, COUNTER_KEY, nextLimit.toBytes(),
-                            x -> x, data.getVersion(), context.getRequestId())
+            return storeHelper.updateEntry(TRANSACTION_ID_COUNTER_TABLE, COUNTER_KEY, nextLimit,
+                            Int96::toBytes, data.getVersion(), context.getRequestId())
                     .thenAccept(x -> {
                         // Received new range, we should reset the counter and limit under the lock
                         // and then reset refreshfutureref to null
