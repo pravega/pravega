@@ -317,6 +317,7 @@ class StorageHealthTracker implements  StatsReporter {
                 delay = getParallelThrottleDelay();
             }
             ChunkStorageMetrics.SLTS_HEALTH_PARALLEL_THROTTLE.reportSuccessValue(delay);
+            log.debug("StorageHealthTracker[{}]: Throttling parallel operation. Delay={}", containerId, delay);
             return delaySupplier.apply(Duration.ofMillis(delay));
         }
         return CompletableFuture.completedFuture(null);
@@ -338,6 +339,7 @@ class StorageHealthTracker implements  StatsReporter {
                 delay = getExclusiveThrottleDelay();
             }
             ChunkStorageMetrics.SLTS_HEALTH_EXCLUSIVE_THROTTLE.reportSuccessValue(delay);
+            log.debug("StorageHealthTracker[{}]: Throttling exclusive operation. Delay={}", containerId, delay);
             return delaySupplier.apply(Duration.ofMillis(delay));
         }
         return CompletableFuture.completedFuture(null);
@@ -358,6 +360,7 @@ class StorageHealthTracker implements  StatsReporter {
                 delay = getGarbageCollectionThrottleDelay();
             }
             ChunkStorageMetrics.SLTS_HEALTH_GC_THROTTLE.reportSuccessValue(delay);
+            log.debug("StorageHealthTracker[{}]: Throttling GC batch. Delay={}", containerId, delay);
             return delaySupplier.apply(Duration.ofMillis(delay));
         }
         return CompletableFuture.completedFuture(null);

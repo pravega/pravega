@@ -92,7 +92,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Metadata store containing all storage data.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore, AbstractTaskQueueManager)} ()}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore)}.
      */
     @Getter
     private final ChunkMetadataStore metadataStore;
@@ -123,7 +123,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Id of the current Container.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore, AbstractTaskQueueManager)}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore)} .
      */
     @Getter
     private final int containerId;
@@ -477,12 +477,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         Exception ex = null;
         if (null == handle) {
             ex = new IllegalArgumentException("handle must not be null");
-        } else if (healthTracker.isStorageFull() && !isSegmentInSystemScope(handle.getSegmentName())) {
-            ex = new StorageFullException(handle.getSegmentName());
-        } else if (healthTracker.isStorageUnavailable()) {
-            ex = new StorageUnavailableException(handle.getSegmentName());
-        } else if (healthTracker.isStorageDegraded() && !isSegmentInSystemScope(handle.getSegmentName())) {
-            ex = new StorageUnavailableException(handle.getSegmentName());
+        } else {
+            ex = checkStorageHealthForWrites(handle.getSegmentName());
         }
 
         if (null != ex) {
@@ -549,15 +545,11 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
         Exception ex = null;
         if (null == targetHandle) {
-             ex = new IllegalArgumentException("handle must not be null");
+            ex = new IllegalArgumentException("handle must not be null");
         } else if (null == sourceSegment) {
             ex = new IllegalArgumentException("sourceSegment must not be null");
-        } else if (healthTracker.isStorageFull() && !isSegmentInSystemScope(targetHandle.getSegmentName())) {
-            ex = new StorageFullException(targetHandle.getSegmentName());
-        } else if (healthTracker.isStorageUnavailable()) {
-            ex = new StorageUnavailableException(targetHandle.getSegmentName());
-        } else if (healthTracker.isStorageDegraded() && !isSegmentInSystemScope(targetHandle.getSegmentName())) {
-            ex = new StorageUnavailableException(targetHandle.getSegmentName());
+        } else {
+            ex = checkStorageHealthForWrites(targetHandle.getSegmentName());
         }
 
         if (null != ex) {
@@ -1081,6 +1073,18 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     private void checkInitialized() {
         Preconditions.checkState(0 != this.epoch, "epoch must not be zero");
         Preconditions.checkState(!closed.get(), "ChunkedSegmentStorage instance must not be closed");
+    }
+
+    private Exception checkStorageHealthForWrites(String segmentName) {
+        val isInSystemScope = isSegmentInSystemScope(segmentName);
+        if (healthTracker.isStorageFull() && !isInSystemScope) {
+            return new StorageFullException(segmentName);
+        } else if (healthTracker.isStorageUnavailable()) {
+            return new StorageUnavailableException(segmentName);
+        } else if (healthTracker.isStorageDegraded() && !isInSystemScope) {
+            return new StorageUnavailableException(segmentName);
+        }
+        return null;
     }
 
     String getNewChunkName(String segmentName, long offset) {
