@@ -15,10 +15,8 @@ limitations under the License.
 -->
 # Join the Pravega Community
 
-[Slack Channel](https://pravega-io.slack.com/)
+## Slack
+[Slack Channel](https://join.slack.com/t/pravega-io/shared_invite/zt-245sgpw47-vbLBLiLfBdW9TlKemXkUnw)
 
-### User Groups
-pravega-users@googlegroups.com
-
-### Developer Mailing List
-pravega-dev@googlegroups.com
+## Developer Mailing List
+[cncf-pravega-dev@lists.cncf.io](mailto:cncf-pravega-dev@lists.cncf.io)
