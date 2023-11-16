@@ -341,6 +341,15 @@ public final class NameUtils {
     }
 
     /**
+     * Checks if the given stream segment name is under system scope.
+     * @param segmentName  The name of the StreamSegment to check.
+     * @return true if stream segment name is under system scope, false otherwise.
+     */
+    public static  boolean isSegmentInSystemScope(String segmentName) {
+        return segmentName.startsWith(INTERNAL_SCOPE_PREFIX);
+    }
+
+    /**
      * Checks if the given stream segment name is formatted for a Transaction Segment or regular segment.
      *
      * @param streamSegmentName The name of the StreamSegment to check for transaction delimiter.

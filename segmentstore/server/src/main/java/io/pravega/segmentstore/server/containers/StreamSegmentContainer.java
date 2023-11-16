@@ -355,7 +355,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     if (null != chunkedSegmentStorage) {
                         StorageEventProcessor eventProcessor = new StorageEventProcessor(this.metadata.getContainerId(),
                                 this.containerEventProcessor,
-                                batch -> chunkedSegmentStorage.getGarbageCollector().processBatch(batch),
+                                batch -> chunkedSegmentStorage.processGarbageCollectionBatch(batch),
                                 chunkedSegmentStorage.getConfig().getGarbageCollectionMaxConcurrency());
                         return chunkedSegmentStorage.finishBootstrap(eventProcessor);
                     }

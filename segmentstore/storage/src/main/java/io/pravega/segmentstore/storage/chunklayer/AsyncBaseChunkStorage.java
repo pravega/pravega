@@ -20,7 +20,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.Timer;
+
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.Callable;
@@ -28,6 +28,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.pravega.common.Timer;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.val;

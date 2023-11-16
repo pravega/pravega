@@ -22,6 +22,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageUnavailableException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -367,6 +368,11 @@ public class S3ChunkStorage extends BaseChunkStorage {
                     || errorCode.equals(METHOD_NOT_ALLOWED)
                     || s3Exception.awsErrorDetails().sdkHttpResponse().statusCode() == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
                 throw new IllegalArgumentException(chunkName, e);
+            }
+
+            if (s3Exception.awsErrorDetails().sdkHttpResponse().statusCode() == HttpStatus.SC_GATEWAY_TIMEOUT
+               || s3Exception.awsErrorDetails().sdkHttpResponse().statusCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
+                retValue = new ChunkStorageUnavailableException(chunkName, e);
             }
 
             if (errorCode.equals(ACCESS_DENIED)) {

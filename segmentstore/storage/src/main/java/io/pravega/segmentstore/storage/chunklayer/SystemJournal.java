@@ -319,7 +319,7 @@ public class SystemJournal {
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
 
         log.info("SystemJournal[{}] BOOT started.", containerId);
-        Timer t = new Timer();
+        val t = new Timer();
 
         // Start a transaction
         val txn = metadataStore.beginTransaction(false, getSystemSegments());

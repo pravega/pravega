@@ -30,6 +30,7 @@ import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFullException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.StorageUnavailableException;
 import io.pravega.segmentstore.storage.StorageWrapper;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
@@ -3176,7 +3177,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 .maxSafeStorageSize(1000)
                 .build());
 
-        Assert.assertFalse(testContext.chunkedSegmentStorage.isSafeMode());
+        Assert.assertFalse(testContext.chunkedSegmentStorage.getHealthTracker().isSafeMode());
         val h = testContext.chunkedSegmentStorage.create("test", TIMEOUT).get();
         testContext.chunkedSegmentStorage.write(h, 0, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
 
@@ -3187,7 +3188,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setUsedSizeToReturn(1000);
         testContext.chunkedSegmentStorage.updateStorageStats().join();
 
-        Assert.assertTrue(testContext.chunkedSegmentStorage.isSafeMode());
+        Assert.assertTrue(testContext.chunkedSegmentStorage.getHealthTracker().isSafeMode());
 
         // These operations should pass
         Assert.assertEquals(10, testContext.chunkedSegmentStorage.getStreamSegmentInfo("test", TIMEOUT).get().getLength());
@@ -3211,7 +3212,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         // Remove storage full
         ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setUsedSizeToReturn(50);
         testContext.chunkedSegmentStorage.updateStorageStats().join();
-        Assert.assertFalse(testContext.chunkedSegmentStorage.isSafeMode());
+        Assert.assertFalse(testContext.chunkedSegmentStorage.getHealthTracker().isSafeMode());
 
         testContext.chunkedSegmentStorage.write(SegmentStorageHandle.writeHandle("test"), 10,
                 new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
@@ -3252,6 +3253,41 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         val wrapper2 = mock(StorageWrapper.class);
         doReturn(testContext.chunkedSegmentStorage).when(wrapper2).getInner();
         Assert.assertEquals(testContext.chunkedSegmentStorage, ChunkedSegmentStorage.getReference(wrapper2));
+    }
+
+    @Test
+    public void testUnavailableStorage() throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+
+        Assert.assertFalse(testContext.chunkedSegmentStorage.getHealthTracker().isSafeMode());
+        val h = testContext.chunkedSegmentStorage.create("test", TIMEOUT).get();
+        testContext.chunkedSegmentStorage.write(h, 0, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT).get();
+
+        testContext.chunkedSegmentStorage.create("segment", TIMEOUT).get();
+        testContext.chunkedSegmentStorage.create("_system/something", TIMEOUT).get();
+
+        // Simulate storage unavailable.
+        TestUtils.addRequestStats(testContext.chunkedSegmentStorage.getHealthTracker(), 0, 0, 0, 1);
+
+        // These operations should pass
+        Assert.assertEquals(10, testContext.chunkedSegmentStorage.getStreamSegmentInfo("test", TIMEOUT).get().getLength());
+        val h3 = testContext.chunkedSegmentStorage.create("A", TIMEOUT).get();
+        testContext.chunkedSegmentStorage.seal(h3, TIMEOUT).get();
+        testContext.chunkedSegmentStorage.delete(h3, TIMEOUT).get();
+
+        // These operations should fail
+        AssertExtensions.assertFutureThrows("write() should throw an exception",
+                testContext.chunkedSegmentStorage.write(h, 10, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT),
+                ex -> ex instanceof StorageUnavailableException);
+
+        AssertExtensions.assertFutureThrows("conact() should throw an exception",
+                testContext.chunkedSegmentStorage.concat(h, 10, "A", TIMEOUT),
+                ex -> ex instanceof StorageUnavailableException);
+
+        AssertExtensions.assertFutureThrows("conact() should throw an exception",
+                testContext.chunkedSegmentStorage.truncate(h, 0, TIMEOUT),
+                ex -> ex instanceof StorageUnavailableException);
     }
 
 
