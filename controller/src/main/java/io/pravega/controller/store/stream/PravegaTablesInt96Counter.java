@@ -16,19 +16,14 @@
 
 package io.pravega.controller.store.stream;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.VersionedMetadata;
 import org.slf4j.LoggerFactory;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import static io.pravega.shared.NameUtils.TRANSACTION_ID_COUNTER_TABLE;
 
 /**
@@ -40,79 +35,16 @@ import static io.pravega.shared.NameUtils.TRANSACTION_ID_COUNTER_TABLE;
  * Once it exhausts the range, it refreshes the range by contacting Pravega Tables and repeating the steps described above.
  */
 
-public class PravegaTablesInt96Counter implements Int96Counter {
+class PravegaTablesInt96Counter extends AbstractInt96Counter {
     static final String COUNTER_KEY = "counter";
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaTablesInt96Counter.class));
-    private final Object lock;
-    @GuardedBy("lock")
-    private final AtomicInt96 limit;
-    @GuardedBy("lock")
-    private final AtomicInt96 counter;
-    @GuardedBy("lock")
-    private CompletableFuture<Void> refreshFutureRef;
     private final PravegaTablesStoreHelper storeHelper;
 
     public PravegaTablesInt96Counter(final PravegaTablesStoreHelper storeHelper) {
-        this.lock = new Object();
-        this.counter = new AtomicInt96();
-        this.limit = new AtomicInt96();
-        this.refreshFutureRef = null;
         this.storeHelper = storeHelper;
     }
 
     @Override
-    public CompletableFuture<Int96> getNextCounter(final OperationContext context) {
-        CompletableFuture<Int96> future;
-        synchronized (lock) {
-            Int96 next = counter.incrementAndGet();
-            if (next.compareTo(limit.get()) > 0) {
-                // ignore the counter value and after refreshing call getNextCounter
-                future = refreshRangeIfNeeded(context).thenCompose(x -> getNextCounter(context));
-            } else {
-                future = CompletableFuture.completedFuture(next);
-            }
-        }
-        return future;
-    }
-
-    @VisibleForTesting
-    CompletableFuture<Void> refreshRangeIfNeeded(final OperationContext context) {
-        CompletableFuture<Void> refreshFuture;
-        synchronized (lock) {
-            // Ensure that only one background refresh is happening. For this we will reference the future in refreshFutureRef
-            // If reference future ref is not null, we will return the reference to that future.
-            // It is set to null when refresh completes.
-            refreshFuture = this.refreshFutureRef;
-            if (this.refreshFutureRef == null) {
-                // no ongoing refresh, check if refresh is still needed
-                if (counter.get().compareTo(limit.get()) >= 0) {
-                    log.info("Refreshing counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
-
-                    // Need to refresh counter and limit. Start a new refresh future. We are under lock so no other
-                    // concurrent thread can start the refresh future.
-                    refreshFutureRef = getRefreshFuture(context)
-                            .exceptionally(e -> {
-                                // if any exception is thrown here, we would want to reset refresh future so that it can be retried.
-                                synchronized (lock) {
-                                    refreshFutureRef = null;
-                                }
-                                log.warn("Exception thrown while trying to refresh transaction counter range", e);
-                                throw new CompletionException(e);
-                            });
-                    // Note: refreshFutureRef is reset to null under the lock, and since we have the lock in this thread
-                    // until we release it, refresh future ref cannot be reset to null. So we will always return a non-null
-                    // future from here.
-                    refreshFuture = refreshFutureRef;
-                } else {
-                    // nothing to do
-                    refreshFuture = CompletableFuture.completedFuture(null);
-                }
-            }
-        }
-        return refreshFuture;
-    }
-
-    @VisibleForTesting
     CompletableFuture<Void> getRefreshFuture(final OperationContext context) {
         return getCounterFromTable(context).thenCompose(data -> {
             Int96 previous = data.getObject();
@@ -148,26 +80,5 @@ public class PravegaTablesInt96Counter implements Int96Counter {
                                 COUNTER_KEY, Int96::fromBytes, context.getRequestId())));
     }
 
-    // region getters and setters for testing
-    @VisibleForTesting
-    void setCounterAndLimitForTesting(int counterMsb, long counterLsb, int limitMsb, long limitLsb) {
-        synchronized (lock) {
-            limit.set(limitMsb, limitLsb);
-            counter.set(counterMsb, counterLsb);
-        }
-    }
 
-    @VisibleForTesting
-    Int96 getLimitForTesting() {
-        synchronized (lock) {
-            return limit.get();
-        }
-    }
-
-    @VisibleForTesting
-    Int96 getCounterForTesting() {
-        synchronized (lock) {
-            return counter.get();
-        }
-    }
 }

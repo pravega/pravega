@@ -32,8 +32,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
 
 /**
  * PravegaTables based counter tests.
@@ -60,41 +58,11 @@ public class PravegaTablesInt96CounterTest extends Int96CounterTest {
     }
 
     @Override
-    Int96 getCounterForTesting(Int96Counter int96Counter) {
-        return ((PravegaTablesInt96Counter) int96Counter).getCounterForTesting();
-    }
-
-    @Override
-    Int96 getLimitForTesting(Int96Counter int96Counter) {
-        return ((PravegaTablesInt96Counter) int96Counter).getLimitForTesting();
-    }
-
-    @Override
-    CompletableFuture<Void> getRefreshFuture(Int96Counter int96Counter, OperationContext context) {
-        return ((PravegaTablesInt96Counter) int96Counter).getRefreshFuture(context);
-    }
-
-    @Override
-    void setCounterAndLimitForTesting(int counterMsb, long counterLsb, int limitMsb, long limitLsb, Int96Counter counter) {
-        ((PravegaTablesInt96Counter) counter).setCounterAndLimitForTesting(counterMsb, counterLsb, limitMsb, limitLsb);
-    }
-
-    @Override
     void mockCounterValue() {
         // set range in store to have lsb = Long.Max - 100
         VersionedMetadata<Int96> data = new VersionedMetadata<>(new Int96(0, Long.MAX_VALUE - 100),
                 new Version.LongVersion(2L));
         doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getEntry(eq(TRANSACTION_ID_COUNTER_TABLE),
                 eq(PravegaTablesInt96Counter.COUNTER_KEY), any(), anyLong());
-    }
-
-    @Override
-    void verifyRefreshRangeIfNeededCall(Int96Counter int96Counter, OperationContext context) {
-        verify((PravegaTablesInt96Counter) int96Counter, times(3)).refreshRangeIfNeeded(context);
-    }
-
-    @Override
-    void verifyGetRefreshFutureCall(Int96Counter int96Counter, OperationContext context) {
-        verify((PravegaTablesInt96Counter) int96Counter, times(2)).getRefreshFuture(context);
     }
 }

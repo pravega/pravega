@@ -30,8 +30,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
 
 /**
  * Zookeeper based counter tests.
@@ -65,39 +63,9 @@ public class ZKCounterTest extends Int96CounterTest {
     }
 
     @Override
-    Int96 getCounterForTesting(Int96Counter int96Counter) {
-        return ((ZkInt96Counter) int96Counter).getCounterForTesting();
-    }
-
-    @Override
-    Int96 getLimitForTesting(Int96Counter int96Counter) {
-        return ((ZkInt96Counter) int96Counter).getLimitForTesting();
-    }
-
-    @Override
-    CompletableFuture<Void> getRefreshFuture(Int96Counter int96Counter, OperationContext context) {
-        return ((ZkInt96Counter) int96Counter).getRefreshFuture();
-    }
-
-    @Override
-    void setCounterAndLimitForTesting(int counterMsb, long counterLsb, int limitMsb, long limitLsb, Int96Counter counter) {
-        ((ZkInt96Counter) counter).setCounterAndLimitForTesting(counterMsb, counterLsb, limitMsb, limitLsb);
-    }
-
-    @Override
     void mockCounterValue() {
         // set range in store to have lsb = Long.Max - 100
         VersionedMetadata<Int96> data = new VersionedMetadata<>(new Int96(0, Long.MAX_VALUE - 100), null);
         doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(eq(ZkInt96Counter.COUNTER_PATH), any());
-    }
-
-    @Override
-    void verifyRefreshRangeIfNeededCall(Int96Counter int96Counter, OperationContext context) {
-        verify((ZkInt96Counter) int96Counter, times(3)).refreshRangeIfNeeded();
-    }
-
-    @Override
-    void verifyGetRefreshFutureCall(Int96Counter int96Counter, OperationContext context) {
-        verify((ZkInt96Counter) int96Counter, times(2)).getRefreshFuture();
     }
 }

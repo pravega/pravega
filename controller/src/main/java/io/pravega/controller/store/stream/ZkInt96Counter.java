@@ -16,14 +16,11 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.ZKStoreHelper;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.annotation.concurrent.GuardedBy;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 
 /**
  * A zookeeper based int 96 counter. At bootstrap, and upon each refresh, it retrieves a unique starting counter from the 
@@ -34,81 +31,18 @@ import java.util.concurrent.CompletionException;
  * Once it exhausts the range, it refreshes the range by contacting zookeeper and repeating the steps described above. 
  */
 @Slf4j
-public class ZkInt96Counter implements Int96Counter {
+class ZkInt96Counter extends AbstractInt96Counter {
     @VisibleForTesting
     static final String COUNTER_PATH = "/counter";
-
-    private final Object lock;
-    @GuardedBy("lock")
-    private final AtomicInt96 limit;
-    @GuardedBy("lock")
-    private final AtomicInt96 counter;
-    @GuardedBy("lock")
-    private CompletableFuture<Void> refreshFutureRef;
-    private ZKStoreHelper storeHelper;
+    private final ZKStoreHelper storeHelper;
 
     public ZkInt96Counter(ZKStoreHelper storeHelper) {
-        this.lock = new Object();
-        this.counter = new AtomicInt96();
-        this.limit = new AtomicInt96();
-        this.refreshFutureRef = null;
         this.storeHelper = storeHelper;
     }
 
+
     @Override
-    public CompletableFuture<Int96> getNextCounter(final OperationContext context) {
-        CompletableFuture<Int96> future;
-        synchronized (lock) {
-            Int96 next = counter.incrementAndGet();
-            if (next.compareTo(limit.get()) > 0) {
-                // ignore the counter value and after refreshing call getNextCounter
-                future = refreshRangeIfNeeded().thenCompose(x -> getNextCounter(context));
-            } else {
-                future = CompletableFuture.completedFuture(next);
-            }
-        }
-        return future;
-    }
-
-    @VisibleForTesting
-    CompletableFuture<Void> refreshRangeIfNeeded() {
-        CompletableFuture<Void> refreshFuture;
-        synchronized (lock) {
-            // Ensure that only one background refresh is happening. For this we will reference the future in refreshFutureRef
-            // If reference future ref is not null, we will return the reference to that future.
-            // It is set to null when refresh completes.
-            refreshFuture = this.refreshFutureRef;
-            if (this.refreshFutureRef == null) {
-                // no ongoing refresh, check if refresh is still needed
-                if (counter.get().compareTo(limit.get()) >= 0) {
-                    log.info("Refreshing counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
-
-                    // Need to refresh counter and limit. Start a new refresh future. We are under lock so no other
-                    // concurrent thread can start the refresh future.
-                    refreshFutureRef = getRefreshFuture()
-                            .exceptionally(e -> {
-                                // if any exception is thrown here, we would want to reset refresh future so that it can be retried.
-                                synchronized (lock) {
-                                    refreshFutureRef = null;
-                                }
-                                log.warn("Exception thrown while trying to refresh transaction counter range", e);
-                                throw new CompletionException(e);
-                            });
-                    // Note: refreshFutureRef is reset to null under the lock, and since we have the lock in this thread
-                    // until we release it, refresh future ref cannot be reset to null. So we will always return a non-null
-                    // future from here.
-                    refreshFuture = refreshFutureRef;
-                } else {
-                    // nothing to do
-                    refreshFuture = CompletableFuture.completedFuture(null);
-                }
-            }
-        }
-        return refreshFuture;
-    }
-
-    @VisibleForTesting
-    CompletableFuture<Void> getRefreshFuture() {
+    CompletableFuture<Void> getRefreshFuture(final OperationContext context) {
         return storeHelper
                 .createZNodeIfNotExist(COUNTER_PATH, Int96.ZERO.toBytes())
                 .thenCompose(v -> storeHelper.getData(COUNTER_PATH, Int96::fromBytes)
@@ -133,26 +67,4 @@ public class ZkInt96Counter implements Int96Counter {
                            }));
     }
 
-    // region getters and setters for testing
-    @VisibleForTesting
-    void setCounterAndLimitForTesting(int counterMsb, long counterLsb, int limitMsb, long limitLsb) {
-        synchronized (lock) {
-            limit.set(limitMsb, limitLsb);
-            counter.set(counterMsb, counterLsb);
-        }
-    }
-
-    @VisibleForTesting
-    Int96 getLimitForTesting() {
-        synchronized (lock) {
-            return limit.get();
-        }
-    }
-
-    @VisibleForTesting
-    Int96 getCounterForTesting() {
-        synchronized (lock) {
-            return counter.get();
-        }
-    }
 }
