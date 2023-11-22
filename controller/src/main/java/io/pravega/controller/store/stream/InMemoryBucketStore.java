@@ -15,11 +15,13 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.pravega.controller.store.client.StoreType;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,10 +36,15 @@ public class InMemoryBucketStore implements BucketStore {
     
     private final ConcurrentMap<String, BucketChangeListener> listeners;
 
+    private final ConcurrentMap<String, Set<Integer>> retentionBucketMap;
+    private final ConcurrentMap<String, Set<Integer>> watermarkingBucketMap;
+
     InMemoryBucketStore(ImmutableMap<ServiceType, Integer> bucketCountMap) {
         this.bucketCountMap = bucketCountMap;
         bucketedStreams = new ConcurrentHashMap<>();
         listeners = new ConcurrentHashMap<>();
+        retentionBucketMap = new ConcurrentHashMap<>();
+        watermarkingBucketMap = new ConcurrentHashMap<>();
     }
     
     private String getBucketName(ServiceType serviceType, int bucket) {
@@ -108,6 +115,32 @@ public class InMemoryBucketStore implements BucketStore {
             return listener;
         });
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Set<Integer>>> getBucketControllerMap(ServiceType serviceType) {
+        return CompletableFuture.completedFuture(serviceType == ServiceType.RetentionService
+                                                                        ? retentionBucketMap : watermarkingBucketMap);
+    }
+
+    @Override
+    public CompletableFuture<Void> updateBucketControllerMap(Map<String, Set<Integer>> newMapping, ServiceType serviceType) {
+        Preconditions.checkNotNull(newMapping, "newMapping");
+        if (serviceType == ServiceType.RetentionService) {
+            retentionBucketMap.clear();
+            retentionBucketMap.putAll(newMapping);
+        } else {
+            watermarkingBucketMap.clear();
+            watermarkingBucketMap.putAll(newMapping);
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Set<Integer>> getBucketsForController(String processId, ServiceType serviceType) {
+        return CompletableFuture.completedFuture(serviceType == ServiceType.RetentionService ?
+                retentionBucketMap.get(processId) != null ? retentionBucketMap.get(processId) : Collections.emptySet()
+                : watermarkingBucketMap.get(processId) != null ? watermarkingBucketMap.get(processId) : Collections.emptySet());
     }
 
     public void registerBucketChangeListener(ServiceType serviceType, int bucketId, BucketChangeListener listener) {

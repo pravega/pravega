@@ -70,6 +70,7 @@ service ControllerService {
     rpc updateReaderGroup(ReaderGroupConfiguration) returns (UpdateReaderGroupResponse);
     rpc getStreamConfiguration(StreamInfo) returns (StreamConfig);
     rpc listStreamsInScopeForTag(StreamsInScopeWithTagRequest) returns (StreamsInScopeResponse);
+    rpc getControllerToBucketMapping(ControllerToBucketMappingRequest) returns (ControllerToBucketMappingResponse);
 }
 
 message ServerRequest {
@@ -615,4 +616,21 @@ message ScopesRequest {
 message ExistsResponse {
     bool exists = 1;
 }
+
+message ControllerToBucketMappingRequest {
+    enum BucketType {
+        RetentionService = 0;
+        WatermarkingService = 1;
+    }
+    BucketType serviceType = 1;
+}
+
+message ControllerToBucketMappingResponse {
+    map<string, BucketIds> mapping = 1;
+}
+
+message BucketIds {
+    repeated int32 id = 1;
+}
+
 

@@ -62,7 +62,6 @@ public class AzureTestContext {
                     + "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;")
                 .with(AzureStorageConfig.CONTAINER, "azureunittests" + System.currentTimeMillis())
                 .with(AzureStorageConfig.PREFIX, prefix)
-                .with(AzureStorageConfig.ACCESS_KEY, "access")
                 .with(AzureStorageConfig.CREATE_CONTAINER, false)
                 .build();
     }

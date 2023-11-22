@@ -42,11 +42,13 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ControllerToBucketMappingRequest.BucketType;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
@@ -61,6 +63,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import static io.pravega.test.common.AssertExtensions.assertMapEquals;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -106,6 +109,15 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         assertEquals(iterator.getNext().join(), "b");
         assertEquals(iterator.getNext().join(), "c");
         Assert.assertNull(iterator.getNext().join());
+    }
+
+    @Test(timeout = 10000)
+    public void testGetControllerToBucketMapping() {
+        Map<String, Set<Integer>> map = ImmutableMap.of("Controller1", Set.of(1, 2, 3));
+        when(this.mockControllerService.getControllerToBucketMapping(any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(map));
+        assertMapEquals("ControllerToBucketMapping", map,
+                mockControllerService.getControllerToBucketMapping(BucketType.RetentionService, 0L).join());
     }
     
     @Test(timeout = 10000)

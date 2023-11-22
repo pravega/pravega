@@ -53,8 +53,10 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ControllerToBucketMappingRequest;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.protocol.netty.BucketType;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
 import lombok.extern.slf4j.Slf4j;
@@ -742,6 +744,13 @@ public class LocalController implements Controller {
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
         return controller.getCurrentSegmentsKeyValueTable(scope, kvtName, requestIdGenerator.nextLong())
                 .thenApply(this::getKeyValueTableSegments);
+    }
+
+    @Override
+    public CompletableFuture<Map<String, List<Integer>>> getControllerToBucketMapping(BucketType bucketType) {
+        return this.controller.getControllerToBucketMapping(ControllerToBucketMappingRequest.BucketType.valueOf(bucketType.toString()),
+                requestIdGenerator.nextLong()).thenApply(x -> x.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, v -> new ArrayList<>(v.getValue()))));
     }
 
     @Override
