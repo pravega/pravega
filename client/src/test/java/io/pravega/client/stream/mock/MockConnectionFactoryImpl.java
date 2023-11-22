@@ -23,6 +23,7 @@ import io.pravega.client.connection.impl.Flow;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -54,6 +55,7 @@ public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionP
         Preconditions.checkState(connection != null, "Unexpected Endpoint");
         ReplyProcessor previous = processors.put(location, rp);
         assertNull("Mock connection factory does not support multiple concurrent connections to the same location", previous);
+        rp.process(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
         return CompletableFuture.completedFuture(new DelegateClientConnection(location, connection));
     }
 
