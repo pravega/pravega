@@ -106,6 +106,7 @@ public class Main {
                     .grpcServerConfig(Optional.of(grpcServerConfig))
                     .restServerConfig(Optional.of(restServerConfig))
                     .tlsEnabledForSegmentStore(Config.TLS_ENABLED_FOR_SEGMENT_STORE)
+                    .minBucketRedistributionIntervalInSeconds(Config.MIN_BUCKET_REDISTRIBUTION_INTERVAL_IN_SECONDS)
                     .build();
 
             setUncaughtExceptionHandler(Main::logUncaughtException);

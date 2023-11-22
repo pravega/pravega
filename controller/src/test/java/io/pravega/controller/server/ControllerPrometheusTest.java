@@ -129,6 +129,7 @@ public class ControllerPrometheusTest {
                         .port(restPort)
                         .host("localhost")
                         .build()))
+                .minBucketRedistributionIntervalInSeconds(10)
                 .build();
     }
 }

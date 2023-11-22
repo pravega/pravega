@@ -24,6 +24,12 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.Status;
+import io.pravega.test.common.TestingServerStarter;
+import java.util.Set;
+import lombok.SneakyThrows;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -34,6 +40,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -46,17 +54,24 @@ public class RetentionServiceHealthContributorTest {
     private BucketManager retentionService;
     private RetentionServiceHealthContributor contributor;
     private Health.HealthBuilder builder;
+    private TestingServer zkServer;
+    private CuratorFramework zkClient;
 
+    @SneakyThrows
     @Before
     public void setup() {
         BucketStore bucketStore = mock(ZookeeperBucketStore.class);
         doReturn(StoreType.Zookeeper).when(bucketStore).getStoreType();
+        doReturn(getClient()).when((ZookeeperBucketStore) bucketStore).getClient();
+        doReturn(CompletableFuture.completedFuture(Set.of())).when(bucketStore).getBucketsForController(anyString(), any());
         String hostId = UUID.randomUUID().toString();
-        BucketServiceFactory bucketStoreFactory = spy(new BucketServiceFactory(hostId, bucketStore, 2));
+        BucketServiceFactory bucketStoreFactory = spy(new BucketServiceFactory(hostId, bucketStore, 2, 10));
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         PeriodicRetention periodicRetention = mock(PeriodicRetention.class);
         retentionService = spy(bucketStoreFactory.createWatermarkingService(Duration.ofMillis(5), periodicRetention::retention, executor));
         doReturn(CompletableFuture.completedFuture(null)).when((ZooKeeperBucketManager) retentionService).initializeService();
+        doNothing().when((ZooKeeperBucketManager) retentionService).startBucketControllerMapListener();
+
         doNothing().when((ZooKeeperBucketManager) retentionService).startBucketOwnershipListener();
         doReturn(true).when(retentionService).isHealthy();
 
@@ -64,9 +79,12 @@ public class RetentionServiceHealthContributorTest {
         builder = Health.builder().name("retentionservice");
     }
 
+    @SneakyThrows
     @After
     public void tearDown() {
         contributor.close();
+        zkServer.close();
+        zkClient.close();
     }
 
     @Test
@@ -77,5 +95,17 @@ public class RetentionServiceHealthContributorTest {
         retentionService.stopAsync();
         status = contributor.doHealthCheck(builder);
         Assert.assertEquals(Status.DOWN, status);
+    }
+
+    private CuratorFramework getClient() throws Exception {
+        zkServer = new TestingServerStarter().start();
+        zkServer.start();
+
+        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 10000, 1000,
+                (r, e, s) -> false);
+
+        zkClient.start();
+
+        return zkClient;
     }
 }
