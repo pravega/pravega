@@ -20,6 +20,12 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.TestOperationContext;
+import io.pravega.controller.store.ZKStoreHelper;
+import io.pravega.test.common.TestingServerStarter;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -42,11 +48,26 @@ import static org.mockito.Mockito.times;
 
 public abstract class Int96CounterTest {
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
+    protected ZKStoreHelper zkStoreHelper;
+    private TestingServer zkServer;
+    private CuratorFramework cli;
+
+
+    @Before
+    public void setUp() throws Exception {
+        zkServer = new TestingServerStarter().start();
+        zkServer.start();
+        int sessionTimeout = 8000;
+        int connectionTimeout = 5000;
+        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
+        cli.start();
+        zkStoreHelper = spy(new ZKStoreHelper(cli, executor));
+    }
 
     @Test(timeout = 30000)
     public void testCounter() {
+        setupStore();
         OperationContext context = new TestOperationContext();
-
         Int96Counter int96Counter = spy(getInt96Counter());
 
         // first call should get the new range from store
@@ -103,6 +124,7 @@ public abstract class Int96CounterTest {
 
     @Test(timeout = 30000)
     public void testCounterConcurrentUpdates() {
+        setupStore();
         OperationContext context = new TestOperationContext();
 
         Int96Counter counter1 = spy(getInt96Counter());
@@ -136,18 +158,16 @@ public abstract class Int96CounterTest {
         assertEquals(Int96Counter.COUNTER_RANGE * 4, abstractCounter1.getLimitForTesting().getLsb());
     }
 
-    @Before
-    public abstract void setupStore() throws Exception;
-
-    @After
-    public abstract void cleanupStore() throws Exception;
+    public abstract void setupStore();
 
     abstract Int96Counter getInt96Counter();
 
     abstract void mockCounterValue();
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
+        cli.close();
+        zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 }

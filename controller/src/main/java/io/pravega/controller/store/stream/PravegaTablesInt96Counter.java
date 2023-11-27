@@ -21,9 +21,12 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.ZKStoreHelper;
 import org.slf4j.LoggerFactory;
 import java.util.concurrent.CompletableFuture;
+
 import static io.pravega.shared.NameUtils.TRANSACTION_ID_COUNTER_TABLE;
 
 /**
@@ -39,9 +42,11 @@ class PravegaTablesInt96Counter extends AbstractInt96Counter {
     static final String COUNTER_KEY = "counter";
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaTablesInt96Counter.class));
     private final PravegaTablesStoreHelper storeHelper;
+    private final ZKStoreHelper zkStoreHelper;
 
-    public PravegaTablesInt96Counter(final PravegaTablesStoreHelper storeHelper) {
+    public PravegaTablesInt96Counter(final PravegaTablesStoreHelper storeHelper, final ZKStoreHelper zkStoreHelper) {
         this.storeHelper = storeHelper;
+        this.zkStoreHelper = zkStoreHelper;
     }
 
     @Override
@@ -73,11 +78,22 @@ class PravegaTablesInt96Counter extends AbstractInt96Counter {
                         COUNTER_KEY, Int96::fromBytes, context.getRequestId()),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException,
                 () -> storeHelper.createTable(TRANSACTION_ID_COUNTER_TABLE, context.getRequestId())
-                        .thenAccept(v -> log.info(context.getRequestId(), "batches root table {} created", TRANSACTION_ID_COUNTER_TABLE))
-                        .thenCompose(v -> storeHelper.addNewEntryIfAbsent(TRANSACTION_ID_COUNTER_TABLE,
-                                COUNTER_KEY, Int96.ZERO, Int96::toBytes, context.getRequestId()))
+                        .thenCompose(v -> {
+                            log.info(context.getRequestId(), "batches root table {} created", TRANSACTION_ID_COUNTER_TABLE);
+                            return getCounterFromZK();
+                        }).thenCompose(v -> storeHelper.addNewEntryIfAbsent(TRANSACTION_ID_COUNTER_TABLE,
+                                COUNTER_KEY, v.getObject().compareTo(Int96.ZERO) == 0 ? Int96.ZERO : v.getObject(),
+                                Int96::toBytes, context.getRequestId()))
                         .thenCompose(v -> storeHelper.getEntry(TRANSACTION_ID_COUNTER_TABLE,
                                 COUNTER_KEY, Int96::fromBytes, context.getRequestId())));
+    }
+
+    private CompletableFuture<VersionedMetadata<Int96>> getCounterFromZK() {
+        return zkStoreHelper.getData(COUNTER_PATH, Int96::fromBytes)
+                .exceptionally(e -> {
+                   log.warn("Exception while reading the counter value from zookeeper store.", e);
+                   return new VersionedMetadata<>(Int96.ZERO, new Version.IntVersion(0));
+                });
     }
 
 

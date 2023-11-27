@@ -15,7 +15,6 @@
  */
 package io.pravega.controller.store.stream;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.ZKStoreHelper;
 import lombok.extern.slf4j.Slf4j;
@@ -32,8 +31,6 @@ import java.util.concurrent.CompletableFuture;
  */
 @Slf4j
 class ZkInt96Counter extends AbstractInt96Counter {
-    @VisibleForTesting
-    static final String COUNTER_PATH = "/counter";
     private final ZKStoreHelper storeHelper;
 
     public ZkInt96Counter(ZKStoreHelper storeHelper) {

@@ -17,12 +17,6 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.ZKStoreHelper;
-import io.pravega.test.common.TestingServerStarter;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -35,37 +29,21 @@ import static org.mockito.Mockito.spy;
  * Zookeeper based counter tests.
  */
 public class ZKCounterTest extends Int96CounterTest {
-    private TestingServer zkServer;
-    private CuratorFramework cli;
-    private ZKStoreHelper storeHelper;
 
     @Override
-    public void setupStore() throws Exception {
-        zkServer = new TestingServerStarter().start();
-        zkServer.start();
-        int sessionTimeout = 8000;
-        int connectionTimeout = 5000;
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
-        cli.start();
-        storeHelper = spy(new ZKStoreHelper(cli, executor));
-        storeHelper.createZNodeIfNotExist("/store/scope").join();
-    }
-
-    @Override
-    public void cleanupStore() throws Exception {
-        cli.close();
-        zkServer.close();
+    public void setupStore() {
+        zkStoreHelper.createZNodeIfNotExist("/store/scope").join();
     }
 
     @Override
     Int96Counter getInt96Counter() {
-        return spy(new ZkInt96Counter(storeHelper));
+        return spy(new ZkInt96Counter(zkStoreHelper));
     }
 
     @Override
     void mockCounterValue() {
         // set range in store to have lsb = Long.Max - 100
         VersionedMetadata<Int96> data = new VersionedMetadata<>(new Int96(0, Long.MAX_VALUE - 100), null);
-        doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(eq(ZkInt96Counter.COUNTER_PATH), any());
+        doReturn(CompletableFuture.completedFuture(data)).when(zkStoreHelper).getData(eq(ZkInt96Counter.COUNTER_PATH), any());
     }
 }

@@ -17,16 +17,19 @@
 package io.pravega.controller.store.stream;
 
 
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
+import io.pravega.controller.store.TestOperationContext;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
+import org.junit.Test;
+
 import java.util.concurrent.CompletableFuture;
 import static io.pravega.shared.NameUtils.TRANSACTION_ID_COUNTER_TABLE;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -41,20 +44,17 @@ public class PravegaTablesInt96CounterTest extends Int96CounterTest {
     private PravegaTablesStoreHelper storeHelper;
 
     @Override
-    public void setupStore() throws Exception {
+    public void setupStore() {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         GrpcAuthHelper authHelper = GrpcAuthHelper.getDisabledAuthHelper();
         storeHelper = spy(new PravegaTablesStoreHelper(segmentHelper, authHelper, executor));
     }
 
-    @Override
-    public void cleanupStore() throws Exception {
-        ExecutorServiceHelpers.shutdown(executor);
-    }
+
 
     @Override
     Int96Counter getInt96Counter() {
-        return spy(new PravegaTablesInt96Counter(storeHelper));
+        return spy(new PravegaTablesInt96Counter(storeHelper, zkStoreHelper));
     }
 
     @Override
@@ -65,4 +65,32 @@ public class PravegaTablesInt96CounterTest extends Int96CounterTest {
         doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getEntry(eq(TRANSACTION_ID_COUNTER_TABLE),
                 eq(PravegaTablesInt96Counter.COUNTER_KEY), any(), anyLong());
     }
+
+    @Test(timeout = 30000)
+    public void testUpgradeScenario() {
+        // Test to verify when we upgrade Pravega having txn counter into zookeeper. It should start Pravega tables store
+        // txn counter from same value.
+        setupStore();
+        OperationContext context = new TestOperationContext();
+        AbstractInt96Counter zkcounter1 = spy(new ZkInt96Counter(zkStoreHelper));
+        zkStoreHelper.createZNodeIfNotExist("/store/scope").join();
+        // first call should get the new range from store
+        Int96 counter = zkcounter1.getNextCounter(context).join();
+
+        // verify that the generated counter is from new range
+        assertEquals(0, counter.getMsb());
+        assertEquals(1L, counter.getLsb());
+        assertEquals(zkcounter1.getCounterForTesting(), counter);
+        Int96 limit = zkcounter1.getLimitForTesting();
+        assertEquals(Int96Counter.COUNTER_RANGE, limit.getLsb());
+
+        Int96Counter tableCounter = spy(getInt96Counter());
+        AbstractInt96Counter abstractCounter1 = (AbstractInt96Counter) tableCounter;
+        Int96 newCounter = tableCounter.getNextCounter(context).join();
+        Int96 tableLimit = abstractCounter1.getLimitForTesting();
+        assertEquals(0, newCounter.compareTo(limit.add(1)));
+        assertEquals(0, Int96.ZERO.add(2 * Int96Counter.COUNTER_RANGE).compareTo(tableLimit));
+
+    }
+
 }
