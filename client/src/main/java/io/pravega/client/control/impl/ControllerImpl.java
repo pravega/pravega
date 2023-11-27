@@ -94,6 +94,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ControllerToBucketMappingResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ControllerToBucketMappingRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
@@ -121,6 +123,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
+import io.pravega.shared.protocol.netty.BucketType;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.security.auth.Credentials;
@@ -201,6 +204,7 @@ import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_READER_
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_STREAM;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_TRUNCATION_STREAM_CUT;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_COMPLETED_TRANSACTIONS;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_CONTROLLER_TO_BUCKET_MAPPING;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -1921,6 +1925,34 @@ public class ControllerImpl implements Controller {
                 LoggerHelpers.traceLeave(log, "getCurrentSegmentsForKeyValueTable", traceId);
             });
         }
+
+    @Override
+    public CompletableFuture<Map<String, List<Integer>>> getControllerToBucketMapping(BucketType bucketType) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(bucketType, "bucketType");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "getControllerToBucketMapping", bucketType, requestId);
+
+        final CompletableFuture<ControllerToBucketMappingResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<ControllerToBucketMappingResponse> callback = new RPCAsyncCallback<>(requestId,
+                    "getControllerToBucketMapping", bucketType);
+
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, GET_CONTROLLER_TO_BUCKET_MAPPING,
+                    bucketType.toString()).getControllerToBucketMapping(ControllerToBucketMappingRequest.newBuilder()
+                    .setServiceType(ControllerToBucketMappingRequest.BucketType.valueOf(bucketType.toString())).build(),
+                    callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApplyAsync(response -> response.getMappingMap().entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getIdList())), this.executor)
+                .whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn(requestId, "getControllerToBucketMapping request for bucket type {} failed: ",
+                                bucketType, e);
+                    }
+                    LoggerHelpers.traceLeave(log, "getControllerToBucketMapping", traceId, bucketType, requestId);
+                });
+    }
     //endregion
 
     // region ReaderGroups
@@ -2370,6 +2402,11 @@ public class ControllerImpl implements Controller {
                 io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo request, 
                 RPCAsyncCallback<SegmentRanges> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getCurrentSegmentsKeyValueTable(request, callback);
+        }
+
+        public void getControllerToBucketMapping(ControllerToBucketMappingRequest request,
+                                                 RPCAsyncCallback<ControllerToBucketMappingResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getControllerToBucketMapping(request, callback);
         }
     }
 }

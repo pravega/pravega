@@ -20,7 +20,9 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -91,6 +93,29 @@ public abstract class BucketStoreTest {
         assertTrue(streams.contains(NameUtils.getScopedStreamName(scope, stream1)));
         assertTrue(streams.contains(NameUtils.getScopedStreamName(scope, stream3)));
         assertFalse(streams.contains(NameUtils.getScopedStreamName(scope, stream2)));
+
+        Map<String, Set<Integer>> bucketMap = bucketStore.getBucketControllerMap(serviceType).join();
+        assertEquals(0, bucketMap.size());
+        Map<String, Set<Integer>> newBucketMap = new HashMap<>();
+        //update empty bucket map
+        bucketStore.updateBucketControllerMap(newBucketMap, serviceType).join();
+        bucketMap = bucketStore.getBucketControllerMap(serviceType).join();
+        assertEquals(0, bucketMap.size());
+        //update new bucket map with values
+        newBucketMap.put("host1", Set.of(1, 2, 3));
+        newBucketMap.put("host2", Set.of(3, 4, 5));
+        bucketStore.updateBucketControllerMap(newBucketMap, serviceType).join();
+        bucketMap = bucketStore.getBucketControllerMap(serviceType).join();
+        assertEquals(2, bucketMap.size());
+        //get bucket service for particular host
+        Set<Integer> bucketServices = bucketStore.getBucketsForController("host1", serviceType).join();
+        assertEquals(3, bucketServices.size());
+        assertEquals(Set.of(1, 2, 3), bucketServices);
+        //remove host
+        newBucketMap.remove("host2");
+        bucketStore.updateBucketControllerMap(newBucketMap, serviceType).join();
+        bucketMap = bucketStore.getBucketControllerMap(serviceType).join();
+        assertEquals(1, bucketMap.size());
     }
 
     private List<String> getAllStreams(BucketStore.ServiceType serviceType) {
