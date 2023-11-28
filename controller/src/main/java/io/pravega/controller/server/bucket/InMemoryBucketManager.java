@@ -18,21 +18,26 @@ package io.pravega.controller.server.bucket;
 import com.google.common.base.Preconditions;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.InMemoryBucketStore;
-import lombok.extern.slf4j.Slf4j;
-
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class InMemoryBucketManager extends BucketManager {
     private final BucketStore bucketStore;
+    private final String processId;
+    private final BucketDistributor bucketDistributor;
     
     InMemoryBucketManager(String processId, InMemoryBucketStore bucketStore, BucketStore.ServiceType serviceType, 
-                          ScheduledExecutorService executor, Function<Integer, BucketService> bucketServiceSupplier) {
-        super(processId, serviceType, executor, bucketServiceSupplier);
+                          ScheduledExecutorService executor, Function<Integer, BucketService> bucketServiceSupplier,
+                          BucketDistributor bucketDistributor) {
+        super(processId, serviceType, executor, bucketServiceSupplier, bucketStore);
         this.bucketStore = bucketStore;
+        this.processId = processId;
+        this.bucketDistributor = bucketDistributor;
     }
 
     @Override
@@ -48,6 +53,31 @@ public class InMemoryBucketManager extends BucketManager {
     @Override
     public boolean isHealthy() {
         return true;
+    }
+
+    @Override
+    public void startLeaderElection() {
+        //As there is no use of zookeeper in Inmemory, so directly start distributing the buckets to controller.
+        bucketStore.getBucketControllerMap(getServiceType())
+                   .thenApply(x -> bucketDistributor.distribute(x, Set.of(processId), getBucketCount()))
+                   .thenAccept(newMap -> bucketStore.updateBucketControllerMap(newMap, getServiceType()))
+                   .thenAccept(v -> startLeader())
+                   .whenComplete((r, e) -> {
+                       if (e == null) {
+                           log.debug("{}: started in InMemory mode", getServiceType());
+                       } else {
+                           log.warn("{}: starting fails in InMemory mode", getServiceType());
+                       }
+                   });
+    }
+
+    @Override
+    public void startLeader() {
+    }
+
+    @Override
+    public void stopLeader() {
+
     }
 
     @Override
@@ -68,6 +98,22 @@ public class InMemoryBucketManager extends BucketManager {
     @Override
     CompletableFuture<Void> initializeBucket(int bucket) {
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    void startBucketControllerMapListener() {
+
+    }
+
+    @Override
+    void stopBucketControllerMapListener() {
+
+    }
+
+    @Override
+    CompletableFuture<Boolean> releaseBucketOwnership(int bucket, String processId) {
+        Preconditions.checkArgument(bucket < getBucketCount());
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
