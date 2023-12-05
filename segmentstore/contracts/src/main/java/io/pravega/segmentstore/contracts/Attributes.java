@@ -137,6 +137,11 @@ public class Attributes {
     public static final AttributeId EXPECTED_INDEX_SEGMENT_EVENT_SIZE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 16);
 
     /**
+     * Defines an attribute that is used to store index record size. This value is reserved to be used in rust repo.
+     */
+    public static final AttributeId INDEX_RECORD_SIZE_ATTRIBUTE_ID = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 17);
+
+    /**
      * Determines whether the given attribute cannot be modified once originally set on the Segment.
      *
      * @param attributeId The Attribute Id to check.
