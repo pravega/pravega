@@ -16,6 +16,7 @@
 
 package io.pravega.controller.store.stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
@@ -39,6 +40,7 @@ import static io.pravega.shared.NameUtils.TRANSACTION_ID_COUNTER_TABLE;
  */
 
 class PravegaTablesInt96Counter extends AbstractInt96Counter {
+    @VisibleForTesting
     static final String COUNTER_KEY = "counter";
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaTablesInt96Counter.class));
     private final PravegaTablesStoreHelper storeHelper;
@@ -69,8 +71,7 @@ class PravegaTablesInt96Counter extends AbstractInt96Counter {
                             log.info(context.getRequestId(), "batches root table {} created", TRANSACTION_ID_COUNTER_TABLE);
                             return getCounterFromZK();
                         }).thenCompose(v -> storeHelper.addNewEntryIfAbsent(TRANSACTION_ID_COUNTER_TABLE,
-                                COUNTER_KEY, v.getObject().compareTo(Int96.ZERO) == 0 ? Int96.ZERO : v.getObject(),
-                                Int96::toBytes, context.getRequestId()))
+                                COUNTER_KEY, v.getObject(), Int96::toBytes, context.getRequestId()))
                         .thenCompose(v -> storeHelper.getEntry(TRANSACTION_ID_COUNTER_TABLE,
                                 COUNTER_KEY, Int96::fromBytes, context.getRequestId())));
     }
