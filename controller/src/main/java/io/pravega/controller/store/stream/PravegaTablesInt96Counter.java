@@ -56,20 +56,7 @@ class PravegaTablesInt96Counter extends AbstractInt96Counter {
             Int96 nextLimit = previous.add(COUNTER_RANGE);
             return storeHelper.updateEntry(TRANSACTION_ID_COUNTER_TABLE, COUNTER_KEY, nextLimit,
                             Int96::toBytes, data.getVersion(), context.getRequestId())
-                    .thenAccept(x -> {
-                        // Received new range, we should reset the counter and limit under the lock
-                        // and then reset refreshfutureref to null
-                        synchronized (lock) {
-                            // Note: counter is set to previous range's highest value. Always get the
-                            // next counter by calling counter.incrementAndGet otherwise there will
-                            // be a collision with counter used by someone else.
-                            counter.set(previous.getMsb(), previous.getLsb());
-                            limit.set(nextLimit.getMsb(), nextLimit.getLsb());
-                            refreshFutureRef = null;
-                            log.info(context.getRequestId(), "Refreshed counter range. Current counter is {}. Current limit is {}",
-                                    counter.get(), limit.get());
-                        }
-                    });
+                    .thenAccept(x -> reset(previous, nextLimit, context));
         });
     }
 

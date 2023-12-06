@@ -31,13 +31,13 @@ import java.util.concurrent.CompletionException;
   */
 abstract class AbstractInt96Counter implements Int96Counter {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AbstractInt96Counter.class));
-    final Object lock;
+    private final Object lock;
     @GuardedBy("lock")
-    final AtomicInt96 limit;
+    private final AtomicInt96 limit;
     @GuardedBy("lock")
-    final AtomicInt96 counter;
+    private final AtomicInt96 counter;
     @GuardedBy("lock")
-    CompletableFuture<Void> refreshFutureRef;
+    private CompletableFuture<Void> refreshFutureRef;
 
     public AbstractInt96Counter() {
         this.lock = new Object();
@@ -59,6 +59,21 @@ abstract class AbstractInt96Counter implements Int96Counter {
             }
         }
         return future;
+    }
+
+    void reset(Int96 previous, Int96 nextLimit, final OperationContext context) {
+        // Received new range, we should reset the counter and limit under the lock
+        // and then reset refreshfutureref to null
+        synchronized (lock) {
+            // Note: counter is set to previous range's highest value. Always get the
+            // next counter by calling counter.incrementAndGet otherwise there will
+            // be a collision with counter used by someone else.
+            counter.set(previous.getMsb(), previous.getLsb());
+            limit.set(nextLimit.getMsb(), nextLimit.getLsb());
+            refreshFutureRef = null;
+            log.info(context.getRequestId(), "Refreshed counter range. Current counter is {}. Current limit is {}",
+                    counter.get(), limit.get());
+        }
     }
 
     @VisibleForTesting
