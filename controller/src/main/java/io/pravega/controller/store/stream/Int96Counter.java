@@ -23,7 +23,7 @@ import java.util.concurrent.CompletableFuture;
 public interface Int96Counter {
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
-     * The controller will try to get current counter value from zookeeper. It then tries to update the value in store
+     * The controller will try to get current counter value from zookeeper/PravegaTables. It then tries to update the value in store
      * by incrementing it by COUNTER_RANGE. If it is able to update the new value successfully, then this controller
      * can safely use the block `previous-value-in-store + 1` to `previous-value-in-store + COUNTER_RANGE` No other controller
      * will use this range for transaction id generation as it will be unique assigned to current controller.
