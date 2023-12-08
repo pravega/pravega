@@ -25,16 +25,18 @@ import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.TestOperationContext;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.util.Config;
 import org.junit.Test;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import static io.pravega.shared.NameUtils.TRANSACTION_ID_COUNTER_TABLE;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.times;
 
 /**
  * PravegaTables based counter tests.
@@ -42,19 +44,28 @@ import static org.mockito.Mockito.spy;
 
 public class PravegaTablesInt96CounterTest extends Int96CounterTest {
     private PravegaTablesStoreHelper storeHelper;
+    private PravegaTablesStreamMetadataStore store;
+
+    @Override
+    protected void verifyStoreCall() {
+        verify(storeHelper, times(3)).getEntry(eq(TRANSACTION_ID_COUNTER_TABLE), eq(store.COUNTER_KEY),
+                any(), anyLong());
+    }
 
     @Override
     public void setupStore() {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         GrpcAuthHelper authHelper = GrpcAuthHelper.getDisabledAuthHelper();
         storeHelper = spy(new PravegaTablesStoreHelper(segmentHelper, authHelper, executor));
+        store = new PravegaTablesStreamMetadataStore(cli, executor,
+                Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS), storeHelper);
     }
 
 
 
     @Override
     Int96Counter getInt96Counter() {
-        return spy(new PravegaTablesInt96Counter(storeHelper, zkStoreHelper));
+        return spy(store.getCounter());
     }
 
     @Override
@@ -63,7 +74,7 @@ public class PravegaTablesInt96CounterTest extends Int96CounterTest {
         VersionedMetadata<Int96> data = new VersionedMetadata<>(new Int96(0, Long.MAX_VALUE - 100),
                 new Version.LongVersion(2L));
         doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getEntry(eq(TRANSACTION_ID_COUNTER_TABLE),
-                eq(PravegaTablesInt96Counter.COUNTER_KEY), any(), anyLong());
+                eq(store.COUNTER_KEY), any(), anyLong());
     }
 
     @Test(timeout = 30000)
@@ -72,7 +83,9 @@ public class PravegaTablesInt96CounterTest extends Int96CounterTest {
         // txn counter from same value.
         setupStore();
         OperationContext context = new TestOperationContext();
-        AbstractInt96Counter zkcounter1 = spy(new ZkInt96Counter(zkStoreHelper));
+        ZKStreamMetadataStore zkStreamMetadataStore = new ZKStreamMetadataStore(cli, executor,
+                Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS), zkStoreHelper);
+        Int96CounterImpl zkcounter1 = spy((Int96CounterImpl) zkStreamMetadataStore.getCounter());
         zkStoreHelper.createZNodeIfNotExist("/store/scope").join();
         // first call should get the new range from store
         Int96 counter = zkcounter1.getNextCounter(context).join();
@@ -85,7 +98,7 @@ public class PravegaTablesInt96CounterTest extends Int96CounterTest {
         assertEquals(Int96Counter.COUNTER_RANGE, limit.getLsb());
 
         Int96Counter tableCounter = spy(getInt96Counter());
-        AbstractInt96Counter abstractCounter1 = (AbstractInt96Counter) tableCounter;
+        Int96CounterImpl abstractCounter1 = (Int96CounterImpl) tableCounter;
         Int96 newCounter = tableCounter.getNextCounter(context).join();
         Int96 tableLimit = abstractCounter1.getLimitForTesting();
         assertEquals(0, newCounter.compareTo(limit.add(1)));

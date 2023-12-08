@@ -17,33 +17,42 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.util.Config;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.times;
 
 /**
  * Zookeeper based counter tests.
  */
 public class ZKCounterTest extends Int96CounterTest {
+    private ZKStreamMetadataStore store;
+
+    @Override
+    protected void verifyStoreCall() {
+        verify(zkStoreHelper, times(2)).getData(eq(store.COUNTER_PATH), any());
+    }
 
     @Override
     public void setupStore() {
         zkStoreHelper.createZNodeIfNotExist("/store/scope").join();
+        store = new ZKStreamMetadataStore(cli, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS), zkStoreHelper);
     }
 
     @Override
     Int96Counter getInt96Counter() {
-        return spy(new ZkInt96Counter(zkStoreHelper));
+        return spy(store.getCounter());
     }
 
     @Override
     void mockCounterValue() {
         // set range in store to have lsb = Long.Max - 100
         VersionedMetadata<Int96> data = new VersionedMetadata<>(new Int96(0, Long.MAX_VALUE - 100), null);
-        doReturn(CompletableFuture.completedFuture(data)).when(zkStoreHelper).getData(eq(ZkInt96Counter.COUNTER_PATH), any());
+        doReturn(CompletableFuture.completedFuture(data)).when(zkStoreHelper).getData(eq(store.COUNTER_PATH), any());
     }
 }

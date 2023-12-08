@@ -49,9 +49,8 @@ import static org.mockito.Mockito.times;
 public abstract class Int96CounterTest {
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
     protected ZKStoreHelper zkStoreHelper;
+    protected CuratorFramework cli;
     private TestingServer zkServer;
-    private CuratorFramework cli;
-
 
     @Before
     public void setUp() throws Exception {
@@ -72,16 +71,16 @@ public abstract class Int96CounterTest {
 
         // first call should get the new range from store
         Int96 counter = int96Counter.getNextCounter(context).join();
-        AbstractInt96Counter abstractInt96Counter = (AbstractInt96Counter) int96Counter;
+        Int96CounterImpl int96CounterImpl = (Int96CounterImpl) int96Counter;
         // verify that the generated counter is from new range
         assertEquals(0, counter.getMsb());
         assertEquals(1L, counter.getLsb());
-        assertEquals(abstractInt96Counter.getCounterForTesting(), counter);
-        Int96 limit = abstractInt96Counter.getLimitForTesting();
+        assertEquals(int96CounterImpl.getCounterForTesting(), counter);
+        Int96 limit = int96CounterImpl.getLimitForTesting();
         assertEquals(Int96Counter.COUNTER_RANGE, limit.getLsb());
 
         // update the local counter to the end of the current range (limit - 1)
-        abstractInt96Counter.setCounterAndLimitForTesting(limit.getMsb(), limit.getLsb() - 1, limit.getMsb(), limit.getLsb());
+        int96CounterImpl.setCounterAndLimitForTesting(limit.getMsb(), limit.getLsb() - 1, limit.getMsb(), limit.getLsb());
         // now call three getNextCounters concurrently.. first one to execute should increment the counter to limit.
         // other two will result in refresh being called.
         CompletableFuture<Int96> future1 = int96Counter.getNextCounter(context);
@@ -92,15 +91,15 @@ public abstract class Int96CounterTest {
 
         // second and third should result in refresh being called. Verify method call count is 3, twice for now and
         // once for first time when counter is set
-        verify(abstractInt96Counter, times(3)).refreshRangeIfNeeded(context);
-        verify(abstractInt96Counter, times(2)).getRefreshFuture(context);
+        verify(int96CounterImpl, times(3)).refreshRangeIfNeeded(context);
+        verifyStoreCall();
         assertTrue(values.stream().anyMatch(x -> x.compareTo(new Int96(limit.getMsb(), limit.getLsb())) == 0));
         assertTrue(values.stream().anyMatch(x -> x.compareTo(new Int96(0, limit.getLsb() + 1)) == 0));
         assertTrue(values.stream().anyMatch(x -> x.compareTo(new Int96(0, limit.getLsb() + 2)) == 0));
 
         // verify that counter and limits are increased
-        Int96 newCounter = abstractInt96Counter.getCounterForTesting();
-        Int96 newLimit = abstractInt96Counter.getLimitForTesting();
+        Int96 newCounter = int96CounterImpl.getCounterForTesting();
+        Int96 newLimit = int96CounterImpl.getLimitForTesting();
         assertEquals(Int96Counter.COUNTER_RANGE * 2, newLimit.getLsb());
         assertEquals(0, newLimit.getMsb());
         assertEquals(Int96Counter.COUNTER_RANGE + 2, newCounter.getLsb());
@@ -109,18 +108,20 @@ public abstract class Int96CounterTest {
         // set range in store to have lsb = Long.Max - 100
         mockCounterValue();
         // set local limit to {msb, Long.Max - 100}
-        abstractInt96Counter.setCounterAndLimitForTesting(0, Long.MAX_VALUE - 100, 0, Long.MAX_VALUE - 100);
+        int96CounterImpl.setCounterAndLimitForTesting(0, Long.MAX_VALUE - 100, 0, Long.MAX_VALUE - 100);
         // now the call to getNextCounter should result in another refresh
         int96Counter.getNextCounter(context).join();
         // verify that post refresh counter and limit have different msb
-        Int96 newCounter2 = abstractInt96Counter.getCounterForTesting();
-        Int96 newLimit2 = abstractInt96Counter.getLimitForTesting();
+        Int96 newCounter2 = int96CounterImpl.getCounterForTesting();
+        Int96 newLimit2 = int96CounterImpl.getLimitForTesting();
 
         assertEquals(1, newLimit2.getMsb());
         assertEquals(Int96Counter.COUNTER_RANGE - 100, newLimit2.getLsb());
         assertEquals(0, newCounter2.getMsb());
         assertEquals(Long.MAX_VALUE - 99, newCounter2.getLsb());
     }
+
+    protected abstract void verifyStoreCall();
 
     @Test(timeout = 30000)
     public void testCounterConcurrentUpdates() {
@@ -131,9 +132,9 @@ public abstract class Int96CounterTest {
         Int96Counter counter2 = spy(getInt96Counter());
         Int96Counter counter3 = spy(getInt96Counter());
 
-        AbstractInt96Counter abstractCounter1 = (AbstractInt96Counter) counter1;
-        AbstractInt96Counter abstractCounter2 = (AbstractInt96Counter) counter2;
-        AbstractInt96Counter abstractCounter3 = (AbstractInt96Counter) counter3;
+        Int96CounterImpl abstractCounter1 = (Int96CounterImpl) counter1;
+        Int96CounterImpl abstractCounter2 = (Int96CounterImpl) counter2;
+        Int96CounterImpl abstractCounter3 = (Int96CounterImpl) counter3;
 
         // first call should get the new range from store
         Int96 counter = counter1.getNextCounter(context).join();
@@ -145,15 +146,18 @@ public abstract class Int96CounterTest {
         Int96 limit = abstractCounter1.getLimitForTesting();
         assertEquals(Int96Counter.COUNTER_RANGE, limit.getLsb());
 
-        abstractCounter3.getRefreshFuture(context).join();
+        abstractCounter3.function.apply(new Int96CounterImpl.CounterInfo(context, Int96Counter.COUNTER_RANGE),
+                abstractCounter3::reset).join();
         assertEquals(Int96Counter.COUNTER_RANGE, abstractCounter3.getCounterForTesting().getLsb());
         assertEquals(Int96Counter.COUNTER_RANGE * 2, abstractCounter3.getLimitForTesting().getLsb());
 
-        abstractCounter2.getRefreshFuture(context).join();
+        abstractCounter2.function.apply(new Int96CounterImpl.CounterInfo(context, Int96Counter.COUNTER_RANGE),
+                abstractCounter2::reset).join();
         assertEquals(Int96Counter.COUNTER_RANGE * 2, abstractCounter2.getCounterForTesting().getLsb());
         assertEquals(Int96Counter.COUNTER_RANGE * 3, abstractCounter2.getLimitForTesting().getLsb());
 
-        abstractCounter1.getRefreshFuture(context).join();
+        abstractCounter1.function.apply(new Int96CounterImpl.CounterInfo(context, Int96Counter.COUNTER_RANGE),
+                abstractCounter1::reset).join();
         assertEquals(Int96Counter.COUNTER_RANGE * 3, abstractCounter1.getCounterForTesting().getLsb());
         assertEquals(Int96Counter.COUNTER_RANGE * 4, abstractCounter1.getLimitForTesting().getLsb());
     }

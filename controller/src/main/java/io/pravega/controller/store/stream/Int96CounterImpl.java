@@ -20,17 +20,25 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.tracing.TagLogger;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 
 /**
-  * Abstract Int96 counter. It implements getNextCounter using the Int96Counter interface.
+  * Int96CounterImpl implements getNextCounter using the Int96Counter interface.
   */
-abstract class AbstractInt96Counter implements Int96Counter {
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AbstractInt96Counter.class));
+class Int96CounterImpl implements Int96Counter {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(Int96CounterImpl.class));
+
+    @VisibleForTesting
+    final BiFunction<CounterInfo, BiConsumer<Int96, Int96>, CompletableFuture<Void>> function;
+
     private final Object lock;
     @GuardedBy("lock")
     private final AtomicInt96 limit;
@@ -39,11 +47,13 @@ abstract class AbstractInt96Counter implements Int96Counter {
     @GuardedBy("lock")
     private CompletableFuture<Void> refreshFutureRef;
 
-    public AbstractInt96Counter() {
+
+    public Int96CounterImpl(final BiFunction<CounterInfo, BiConsumer<Int96, Int96>, CompletableFuture<Void>> function) {
         this.lock = new Object();
         this.counter = new AtomicInt96();
         this.limit = new AtomicInt96();
         this.refreshFutureRef = null;
+        this.function = function;
     }
 
     @Override
@@ -61,7 +71,8 @@ abstract class AbstractInt96Counter implements Int96Counter {
         return future;
     }
 
-    void reset(Int96 previous, Int96 nextLimit, final OperationContext context) {
+     @VisibleForTesting
+     void reset(Int96 previous, Int96 nextLimit) {
         // Received new range, we should reset the counter and limit under the lock
         // and then reset refreshfutureref to null
         synchronized (lock) {
@@ -71,8 +82,6 @@ abstract class AbstractInt96Counter implements Int96Counter {
             counter.set(previous.getMsb(), previous.getLsb());
             limit.set(nextLimit.getMsb(), nextLimit.getLsb());
             refreshFutureRef = null;
-            log.info(context.getRequestId(), "Refreshed counter range. Current counter is {}. Current limit is {}",
-                    counter.get(), limit.get());
         }
     }
 
@@ -91,7 +100,7 @@ abstract class AbstractInt96Counter implements Int96Counter {
 
                     // Need to refresh counter and limit. Start a new refresh future. We are under lock so no other
                     // concurrent thread can start the refresh future.
-                    refreshFutureRef = getRefreshFuture(context)
+                    refreshFutureRef = function.apply(new CounterInfo(context, COUNTER_RANGE), this::reset)
                             .exceptionally(e -> {
                                 // if any exception is thrown here, we would want to reset refresh future so that it can be retried.
                                 synchronized (lock) {
@@ -100,6 +109,8 @@ abstract class AbstractInt96Counter implements Int96Counter {
                                 log.warn("Exception thrown while trying to refresh transaction counter range", e);
                                 throw new CompletionException(e);
                             });
+                    log.info(context.getRequestId(), "Refreshed counter range. Current counter is {}. Current limit is {}",
+                            counter.get(), limit.get());
                     // Note: refreshFutureRef is reset to null under the lock, and since we have the lock in this thread
                     // until we release it, refresh future ref cannot be reset to null. So we will always return a non-null
                     // future from here.
@@ -112,9 +123,6 @@ abstract class AbstractInt96Counter implements Int96Counter {
         }
         return refreshFuture;
     }
-
-    @VisibleForTesting
-    abstract CompletableFuture<Void> getRefreshFuture(final OperationContext context);
 
     // region getters and setters for testing
     @VisibleForTesting
@@ -137,6 +145,13 @@ abstract class AbstractInt96Counter implements Int96Counter {
         synchronized (lock) {
             return counter.get();
         }
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class CounterInfo {
+        private OperationContext operationContext;
+        private int range;
     }
 
 }
