@@ -46,6 +46,11 @@ public class Attributes {
     public static final long TABLE_ATTRIBUTES_START_OFFSET = 1024 * 1024; // Powers of 2 make UUID.toString look readable.
 
     /**
+     * Defines an attribute that is used to store index record size. This value is reserved to be used in rust repo.
+     */
+    public static final AttributeId INDEX_RECORD_SIZE_ATTRIBUTE_ID = AttributeId.uuid(-99999999999L, 17);
+    
+    /**
      * Defines an attribute value that denotes a missing value.
      */
     public static final long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as WireCommands.NULL_ATTRIBUTE_VALUE
@@ -135,11 +140,6 @@ public class Attributes {
      * Defines an attribute that can be used to keep track of the event size that is allowed to be appended to index segment.
      */
     public static final AttributeId EXPECTED_INDEX_SEGMENT_EVENT_SIZE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 16);
-
-    /**
-     * Defines an attribute that is used to store index record size. This value is reserved to be used in rust repo.
-     */
-    public static final AttributeId INDEX_RECORD_SIZE_ATTRIBUTE_ID = AttributeId.uuid(-99999999999L, 17);
 
     /**
      * Determines whether the given attribute cannot be modified once originally set on the Segment.
