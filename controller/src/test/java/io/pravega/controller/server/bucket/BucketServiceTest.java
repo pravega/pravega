@@ -20,8 +20,12 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
+import io.pravega.common.cluster.Cluster;
+import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -43,27 +47,30 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public abstract class BucketServiceTest {
 
+    protected PeriodicWatermarking periodicWatermarking;
+    protected String hostId;
     StreamMetadataStore streamMetadataStore;
     BucketStore bucketStore;
     BucketManager retentionService;
     BucketManager watermarkingService;
     ScheduledExecutorService executor;
     StreamMetadataTasks streamMetadataTasks;
-    private PeriodicWatermarking periodicWatermarking;
+    Host controller;
     private ConnectionFactory connectionFactory;
-    private String hostId;
     private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
     public void setup() throws Exception {
         executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
-        hostId = UUID.randomUUID().toString();
+        controller = new Host(UUID.randomUUID().toString(), 9090, null);
+        hostId = controller.getHostId();
 
         streamMetadataStore = createStreamStore(executor);
         bucketStore = createBucketStore(3);
@@ -75,7 +82,7 @@ public abstract class BucketServiceTest {
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, taskMetadataStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
-        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2);
+        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2, 1);
         PeriodicRetention periodicRetention = new PeriodicRetention(streamMetadataStore, streamMetadataTasks, executor, requestTracker);
         retentionService = bucketStoreFactory.createRetentionService(Duration.ofMillis(5), periodicRetention::retention, executor);
         retentionService.startAsync();
@@ -88,6 +95,8 @@ public abstract class BucketServiceTest {
         watermarkingService.startAsync();
         watermarkingService.awaitRunning();
     }
+
+    protected abstract void addEntryToZkCluster(Host host);
 
     @After
     public void tearDown() throws Exception {
@@ -105,10 +114,12 @@ public abstract class BucketServiceTest {
 
     abstract BucketStore createBucketStore(int bucketCount);
 
-    @Test(timeout = 10000)
-    public void testRetentionService() {
+    @Test (timeout = 30000)
+    public void testRetentionService() throws Exception {
+        addEntryToZkCluster(controller);
+        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 3000);
         Map<Integer, BucketService> bucketServices = retentionService.getBucketServices();
-                                          
+
         assertNotNull(bucketServices);
         assertEquals(3, bucketServices.size());
         assertTrue(retentionService.takeBucketOwnership(0, hostId, executor).join());
@@ -141,10 +152,12 @@ public abstract class BucketServiceTest {
         assertEquals(0, bucketService.getKnownStreams().size());
     }
 
-    @Test(timeout = 10000)
-    public void testWatermarkingService() {
+    @Test(timeout = 30000)
+    public void testWatermarkingService() throws Exception {
+        addEntryToZkCluster(controller);
+        assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 3000);
         Map<Integer, BucketService> bucketServices = watermarkingService.getBucketServices();
-                                          
+
         assertNotNull(bucketServices);
         assertEquals(3, bucketServices.size());
         assertTrue(watermarkingService.takeBucketOwnership(0, hostId, executor).join());
@@ -175,5 +188,20 @@ public abstract class BucketServiceTest {
         RetryHelper.loopWithDelay(() -> !removed.get(), () -> CompletableFuture.completedFuture(null)
                 .thenAccept(x -> removed.set(bucketService.getKnownStreams().size() == 0)), Duration.ofSeconds(1).toMillis(), executor).join();
         assertEquals(0, bucketService.getKnownStreams().size());
+    }
+
+    protected void addControllerToZkCluster(Host host, Cluster cluster)  {
+        final ReusableLatch latch = new ReusableLatch();
+        cluster.addListener((type, host1) -> latch.release());
+        cluster.registerHost(host);
+        Exceptions.handleInterrupted(() -> latch.await());
+    }
+
+
+    protected void removeControllerFromZkCluster(Host host, Cluster cluster)  {
+        final ReusableLatch latch = new ReusableLatch();
+        cluster.addListener((type, host1) -> latch.release());
+        cluster.deregisterHost(host);
+        Exceptions.handleInterrupted(() -> latch.await());
     }
 }

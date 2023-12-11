@@ -65,6 +65,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ControllerToBucketMappingRequest.BucketType;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -82,6 +83,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -1122,6 +1124,23 @@ public class ControllerService {
                         }
                         return response.build();
                 });
+    }
+
+    /**
+     * Controller Service API to get controller to bucket mapping.
+     *
+     * @param serviceType Name of scope to be deleted.
+     * @param requestId   request id
+     * @return Controller to bucket mapping.
+     */
+    public CompletableFuture<Map<String, Set<Integer>>> getControllerToBucketMapping(final BucketType serviceType,
+                                                                                     final long requestId) {
+        BucketStore.ServiceType type = BucketStore.ServiceType.valueOf(serviceType.toString());
+        return bucketStore.getBucketControllerMap(type).thenApply(mapping -> {
+            log.info(requestId, "Successfully fetched controllers to bucket mapping for service type {}",
+                    serviceType.toString());
+            return mapping;
+        });
     }
 
     public CompletableFuture<Controller.RemoveWriterResponse> removeWriter(String scope, String stream, String writer, 
