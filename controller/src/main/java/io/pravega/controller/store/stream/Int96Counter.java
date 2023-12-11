@@ -32,8 +32,6 @@ public interface Int96Counter {
      */
     @VisibleForTesting
     int COUNTER_RANGE = 10000;
-    @VisibleForTesting
-    String COUNTER_PATH = "/counter";
 
     /**
      * Method to get next Int96 value.
