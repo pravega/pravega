@@ -53,6 +53,8 @@ public class ZKCounterTest extends Int96CounterTest {
     void mockCounterValue() {
         // set range in store to have lsb = Long.Max - 100
         VersionedMetadata<Int96> data = new VersionedMetadata<>(new Int96(0, Long.MAX_VALUE - 100), null);
-        doReturn(CompletableFuture.completedFuture(data)).when(zkStoreHelper).getData(eq(store.COUNTER_PATH), any());
+        doReturn(CompletableFuture.completedFuture(data))
+                .doReturn(CompletableFuture.failedFuture(StoreException.create(StoreException.Type.UNKNOWN, "Unknown error")))
+                .when(zkStoreHelper).getData(eq(store.COUNTER_PATH), any());
     }
 }

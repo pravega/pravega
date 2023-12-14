@@ -33,10 +33,12 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
@@ -119,6 +121,9 @@ public abstract class Int96CounterTest {
         assertEquals(Int96Counter.COUNTER_RANGE - 100, newLimit2.getLsb());
         assertEquals(0, newCounter2.getMsb());
         assertEquals(Long.MAX_VALUE - 99, newCounter2.getLsb());
+
+        int96CounterImpl.setCounterAndLimitForTesting(1, Long.MAX_VALUE - 100, 1, Long.MAX_VALUE - 100);
+        assertThrows(CompletionException.class, () -> int96CounterImpl.getNextCounter(context).join());
     }
 
     protected abstract void verifyStoreCall();

@@ -73,8 +73,9 @@ public class PravegaTablesInt96CounterTest extends Int96CounterTest {
         // set range in store to have lsb = Long.Max - 100
         VersionedMetadata<Int96> data = new VersionedMetadata<>(new Int96(0, Long.MAX_VALUE - 100),
                 new Version.LongVersion(2L));
-        doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getEntry(eq(TRANSACTION_ID_COUNTER_TABLE),
-                eq(store.COUNTER_KEY), any(), anyLong());
+        doReturn(CompletableFuture.completedFuture(data))
+                .doReturn(CompletableFuture.failedFuture(StoreException.create(StoreException.Type.UNKNOWN, "Unknown error")))
+                .when(storeHelper).getEntry(eq(TRANSACTION_ID_COUNTER_TABLE), eq(store.COUNTER_KEY), any(), anyLong());
     }
 
     @Test(timeout = 30000)
