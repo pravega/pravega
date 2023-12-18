@@ -93,7 +93,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private static final String READER_GROUP_4 = "timeBasedRetentionReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String SIZE_30_EVENT = "data of size 30";
     private static final long CLOCK_ADVANCE_INTERVAL = 5 * 1000000000L;
-
+    private static final int CONTROLLER_GRPC_PORT = 9090;
     private static final int READ_TIMEOUT = 1000;
     private static final int MAX_SIZE_IN_STREAM = 180;
     private static final int MIN_SIZE_IN_STREAM = 90;
@@ -142,7 +142,12 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         List<URI> controllerUris = controllerService.getServiceDetails();
         // Fetch all the RPC endpoints and construct the client URIs.
         List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-        controllerURI = URI.create(TCP + String.join(",", uris));
+        if (Utils.TLS_AND_AUTH_ENABLED) {
+            controllerURI = URI.create(TLS + Utils.getConfig("tlsCertCNName", "pravega-pravega-controller") + ":" + CONTROLLER_GRPC_PORT);
+        } else {
+            controllerURI = URI.create(TCP + String.join(",", uris));
+        }
+        log.debug("controller URI string list  is: {}", controllerURI);
         clientConfig = Utils.buildClientConfig(controllerURI);
         controller = new ControllerImpl(ControllerImplConfig.builder()
                 .clientConfig(clientConfig)
@@ -168,7 +173,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, STREAM_CONFIGURATION));
 
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         @Cleanup
@@ -276,7 +281,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM_2, TIME_BASED_RETENTION_STREAM_CONFIGURATION));
 
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_1, controller, connectionFactory);
         @Cleanup
@@ -428,7 +433,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Creating scope", streamManager.createScope(scope));
         assertTrue("Creating stream", streamManager.createStream(scope, stream, STREAM_CONFIGURATION));
 
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
 
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
 
@@ -509,7 +514,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Creating scope", streamManager.createScope(scope));
         assertTrue("Creating stream", streamManager.createStream(scope, stream, STREAM_CONFIGURATION));
 
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
 
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
 
@@ -587,7 +592,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Creating scope", streamManager.createScope(scope));
         assertTrue("Creating stream", streamManager.createStream(scope, streamName, streamConfiguration));
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
         @Cleanup
@@ -724,7 +729,12 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
             log.info("Pravega Controller service  details: {}", controllerUris);
             List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
             assertEquals(instanceCount + " controller instances should be running", instanceCount, uris.size());
-            controllerURI = URI.create(TCP + String.join(",", uris));
+            if (Utils.TLS_AND_AUTH_ENABLED) {
+                controllerURI = URI.create(TLS + Utils.getConfig("tlsCertCNName", "pravega-pravega-controller") + ":" + CONTROLLER_GRPC_PORT);
+            } else {
+                controllerURI = URI.create(TCP + String.join(",", uris));
+            }
+            log.debug("controllerURI {}", controllerURI);
             clientConfig = Utils.buildClientConfig(controllerURI);
             controller = new ControllerImpl(ControllerImplConfig.builder()
                     .clientConfig(clientConfig)

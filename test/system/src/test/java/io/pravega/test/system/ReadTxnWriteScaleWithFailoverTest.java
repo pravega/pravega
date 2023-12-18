@@ -60,6 +60,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
 
     private static final int NUM_READERS = 5;
     private static final int NUM_WRITERS = 5;
+    private static final int CONTROLLER_GRPC_PORT = 9090;
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(32 * 60);
@@ -99,7 +100,11 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         // Fetch all the RPC endpoints and construct the client URIs.
         final List<String> uris = conURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
-        controllerURIDirect = URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris));
+        if (Utils.TLS_AND_AUTH_ENABLED) {
+            controllerURIDirect = URI.create(TLS + Utils.getConfig("tlsCertCNName", "pravega-pravega-controller") + ":" + CONTROLLER_GRPC_PORT);
+        } else {
+            controllerURIDirect = URI.create(TCP + String.join(",", uris));
+        }
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.

@@ -16,6 +16,7 @@
 package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.collect.ImmutableMap;
+import io.kubernetes.client.openapi.models.V1PodStatus;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
@@ -83,12 +84,18 @@ public class PravegaControllerK8sService extends AbstractService {
     public List<URI> getServiceDetails() {
         //fetch the URI.
         String prefix = Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP;
-        return Futures.getAndHandleExceptions(k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL)
-                                                       .thenApply(statuses -> statuses.stream()
-                                                                                     .flatMap(s -> Stream.of(URI.create(prefix + s.getPodIP() + ":" + CONTROLLER_GRPC_PORT),
-                                                                                                             URI.create(prefix + s.getPodIP() + ":" + CONTROLLER_REST_PORT)))
-                                                                                     .collect(Collectors.toList())),
+        String tlsCname = Utils.getConfig("tlsCertCNName", "pravega-pravega-controller");
+        log.debug("Tls enabled status :{} auth enabled status :{} tls cname :{}", Utils.TLS_AND_AUTH_ENABLED, Utils.AUTH_ENABLED, tlsCname);
+        List<V1PodStatus> viPodsList = k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL).join();
+        log.info("Pods list size {} and pods list details {}", viPodsList.size(), viPodsList);
+
+        List<URI> uriList = Futures.getAndHandleExceptions(k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL)
+                       .thenApply(statuses -> statuses.stream()
+                  .flatMap(s -> Stream.of(URI.create(prefix + ((Utils.TLS_AND_AUTH_ENABLED) ? tlsCname : s.getPodIP()) + ":" + CONTROLLER_GRPC_PORT),
+                                          URI.create(prefix + ((Utils.TLS_AND_AUTH_ENABLED) ? tlsCname : s.getPodIP()) + ":" + CONTROLLER_REST_PORT)))
+                     .collect(Collectors.toList())),
                                               t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for pravega-controller", t));
+        return uriList;
     }
 
     @Override

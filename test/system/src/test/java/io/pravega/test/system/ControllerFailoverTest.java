@@ -57,6 +57,7 @@ import org.junit.runner.RunWith;
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest extends AbstractSystemTest {
 
+    private static final int CONTROLLER_GRPC_PORT = 9090;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(3 * 60);
 
@@ -91,7 +92,11 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         // Fetch all the RPC endpoints and construct the client URIs.
         final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
-        controllerURIDirect = URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris));
+        if (Utils.TLS_AND_AUTH_ENABLED) {
+            controllerURIDirect = URI.create(TLS + Utils.getConfig("tlsCertCNName", "pravega-pravega-controller") + ":" + CONTROLLER_GRPC_PORT);
+        } else {
+            controllerURIDirect = URI.create(TCP + String.join(",", uris));
+        }
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerUris.get(0));
