@@ -31,8 +31,6 @@ echo "Tls enabled status : $tlsEnabled"
 echo "Security auth enable status : $securityEnabled"
 
 # Delete secret if it exists
-
-# Delete existing secrets
 # Loop through and delete each secret if it exists
 for secret in "${secrets_to_delete[@]}"; do
     kubectl get secret $secret &> /dev/null

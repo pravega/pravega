@@ -77,7 +77,7 @@ class ControllerResolverFactory extends NameResolver.Factory {
             return InetSocketAddress.createUnresolved(strings[0], Integer.parseInt(strings[1]));
         }).collect(Collectors.toList());
 
-        return new ControllerNameResolver(authority, addresses, scheme, executor);
+        return new ControllerNameResolver(authority, addresses, SCHEME_DISCOVER.equals(scheme) || SCHEME_DISCOVER_TLS.equals(scheme), executor);
     }
 
     @Override
@@ -129,23 +129,18 @@ class ControllerResolverFactory extends NameResolver.Factory {
          *
          * @param authority         The authority string used to create the URI.
          * @param bootstrapServers  The initial set of controller endpoints.
-         * @param scheme            Use this scheme when client want to connect with controller server.
+         * @param enableDiscovery   Whether to use the controller's discovery API.
          * @param executor          The executor to run resolve tasks on.
          */
         @SuppressWarnings("deprecation")
         ControllerNameResolver(final String authority, final List<InetSocketAddress> bootstrapServers,
-                               final String scheme, ScheduledExecutorService executor) {
-            log.debug("ControllerNameResolver scheme ::{}", scheme);
+                               final boolean enableDiscovery, ScheduledExecutorService executor) {
             this.authority = authority;
             this.bootstrapServers = ImmutableList.copyOf(bootstrapServers);
-            this.enableDiscovery = SCHEME_DISCOVER.equals(scheme) || SCHEME_DISCOVER_TLS.equals(scheme);
-            log.info("ControllerNameResolver enableDiscovery ::{}", this.enableDiscovery);
-            String connectString = "tcp://";
-            if (SCHEME_DISCOVER_TLS.equals(scheme)) {
-                connectString = "tls://";
-            }
+            this.enableDiscovery = enableDiscovery;
             if (this.enableDiscovery) {
                 // We will use the direct scheme to send the discovery RPC request to the controller bootstrap servers.
+                String connectString = "tcp://";
                 final List<String> strings = this.bootstrapServers.stream()
                         .map(server -> server.getHostString() + ":" + server.getPort())
                         .collect(Collectors.toList());
