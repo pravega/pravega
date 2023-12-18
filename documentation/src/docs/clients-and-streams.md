@@ -35,12 +35,26 @@ To use this URI, we must stand up a controller at `localhost:9090` either by clo
 
 With a standalone server running, we can invoke the `StreamManager` to create our scope and a `numbers` stream:
 
-```java
-try (StreamManager streamManager = StreamManager.create(controllerURI)) {
+
+=== "Java"
+
+    ```java
+    try (StreamManager streamManager = StreamManager.create(controllerURI)) {
     streamManager.createScope("tutorial");
     streamManager.createStream("tutorial", "numbers", streamConfig);
-}
-```
+    }
+    ```
+
+=== "Python"
+
+    ```python
+    import pravega_client
+
+    stream_manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
+
+    scope_result = stream_manager.create_scope("tutorial")
+    stream_result = stream_manager.create_stream("tutorial", "numbers", 1) 
+    ```
 
 It is important to note that all managers, factories and clients ought to be closed and are auto-closeable. Being sure to close your instances will avoid resource leaks or untimely resource deallocation.
 
@@ -55,51 +69,99 @@ ClientConfig clientConfig = ClientConfig.builder()
 
 Let’s start by creating an [`EventStreamWriter`](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/EventStreamWriter.html) for storing some numbers:
 
-```java
-EventWriterConfig writerConfig = EventWriterConfig.builder().build();
-EventStreamClientFactory factory = EventStreamClientFactory
+=== "Java"
+
+    ```java
+    EventWriterConfig writerConfig = EventWriterConfig.builder().build();
+    EventStreamClientFactory factory = EventStreamClientFactory
         .withScope("tutorial", clientConfig);
-EventStreamWriter<Integer> writer = factory
+    EventStreamWriter<Integer> writer = factory
         .createEventWriter("numbers", new JavaSerializer<Integer>(), writerConfig);
-```
+    ```
+
+=== "Python"
+
+    ```python
+    import pravega_client
+
+    manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
+
+    # assuming the Pravega scope and stream are already created.
+    writer=manager.create_writer("tutorial", "numbers")
+    ```
 
 And use it to write some numbers (note that `writeEvent()` returns a `CompletableFuture`, which can be captured for use or will be resolved when calling `flush()` or `close()`, and, if destined for the same segment, the futures write in the order `writeEvent()` is called):
 
-```java
-writer.writeEvent(1);
-writer.writeEvent(2);
-writer.writeEvent(3);
-writer.flush();
-```
+=== "Java"
+
+    ```java
+    writer.writeEvent(1);
+    writer.writeEvent(2);
+    writer.writeEvent(3);
+    writer.flush();
+    ```
+
+=== "Python"
+
+    ```python
+    writer.write_event("1")
+    writer.write_event("2")
+    writer.write_event("3")
+    writer.flush()             
+    ```
 
 Notice how we’re able to write unadorned native Java objects and primitives to a stream. When instantiating the `EventStreamWriter` above, we passed in a [`JavaSerializer<Integer>`](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/JavaSerializer.java) instance. Pravega uses a [`Serializer`](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/Serializer.html) interface in its writers and readers to simplify the act of writing and reading an object’s bytes to and from streams. The `JavaSerializer` can handle any Serializable object. If you’ll be passing around `String`s, be sure to look at [`UTF8StringSerializer`](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/UTF8StringSerializer.java) for a more compatible in-stream encoding. For interoperability, you’ll probably want to use a `JsonSerializer`, `CborSerializer` or `AvroSerializer`, but, for illustration purposes, we’re using the built in and less portable `JavaSerializer`. [Pravega Schema Registry](https://github.com/pravega/schema-registry/blob/master/README.md) is another appealing option. Schema Registry natively handles several formats.
 
 We can read back these events using a reader. Readers are associated with reader groups, which track the readers’ progress and allow more than one reader to coordinate over which segments they’ll read.
 
-```java
-ReaderGroupManager readerGroupManager = ReaderGroupManager
+=== "Java"
+
+    ```java
+    ReaderGroupManager readerGroupManager = ReaderGroupManager
         .withScope("tutorial", clientConfig);
-ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+    ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
         .stream("tutorial/numbers").build();
-readerGroupManager.createReaderGroup("numReader", readerGroupConfig);
-```
+    readerGroupManager.createReaderGroup("numReader", readerGroupConfig);
+    ```
+
+=== "Python"
+
+    ```python
+    import pravega_client
+    manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
+    # create a ReaderGroup rg1 against an already created Pravega scope and Stream.
+    manager.create_reader_group("numReader", "tutorial", "numbers")            
+    ```
 
 Here we used the [`ReaderGroupManager`](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/admin/ReaderGroupManager.html) to create a new reader group on numbers called `numReader`.
 
 Now we can attach a single [`EventStreamReader`](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/EventStreamReader.html) instance to our reader group and read our 3 numbers from our numbers stream:
 
-```java
-EventStreamReader<Integer> reader = factory
+=== "Java"
+
+    ```java
+    EventStreamReader<Integer> reader = factory
         .createReader("myId", "numReader",
                       new JavaSerializer<Integer>(), ReaderConfig.builder().build());
 
-Integer intEvent;
-while ((intEvent = reader.readNextEvent(1000).getEvent()) != null) {
+    Integer intEvent;
+    while ((intEvent = reader.readNextEvent(1000).getEvent()) != null) {
     System.out.println(intEvent);
-}
+    }
 
-reader.close();
-```
+    reader.close();
+    ```
+
+=== "Python"
+
+    ```python
+    reader = reader_group.create_reader("myId");
+    slice = await reader.get_segment_slice_async()
+    for event in slice:
+      print(event.data())  
+
+    reader.reader_offline()
+    ```
 
 Outputs:
 ```
@@ -114,11 +176,19 @@ Note that `readNextEvent()` takes a timeout in milliseconds, which is the maximu
 
 If a reader is not properly closed, before it can come back online or before its work can be assigned to other readers, it will need to be explicitly marked as offline in the reader group, and, when doing so, it’s last known position can be provided. If a reader is gracefully shutdown, then it is removed from its reader group and its segments are redistributed among the remaining readers. A reader group cannot presume when a reader has shutdown ungracefully. A dead reader needs to be marked as offline for other readers to pick up its work or for that reader to rejoin the reader group, otherwise the reader’s assigned segments will never be read:
 
-```java
-try (ReaderGroup readerGroup = readerGroupManager.getReaderGroup("numReader")) {
-    readerGroup.readerOffline("myId", null);
-}
-```
+=== "Java"
+
+    ```java
+    try (ReaderGroup readerGroup = readerGroupManager.getReaderGroup("numReader")) {
+        readerGroup.readerOffline("myId", null);
+    }
+    ```
+
+=== "Python"
+
+    ```python
+    readerGroup.reader_offline("myId")
+    ```
 
 A reader group tracks each reader’s position in a stream. If all readers in a reader group are closed, when they come back online, they will automatically pick up where they left off. Should any readers remain online, they will pick up the work of the offline readers. When a closed or offline reader comes back online, it joins an active reader group as a new reader and negotiates a share of the work.
 
@@ -126,13 +196,21 @@ A reader group tracks each reader’s position in a stream. If all readers in a 
 
 In order to re-use reader group names and reader IDs when starting over from the beginning of a stream or from a newly chosen [stream cut](streamcuts.md), you need to either delete and recreate the reader group or reset the reader group’s [ReaderGroupConfig](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/ReaderGroupConfig.html):
 
-```java
-readerGroupManager.deleteReaderGroup("numReader");
-// or
-try (ReaderGroup readerGroup = readerGroupManager.getReaderGroup("numReader")) {
-    readerGroup.resetReaderGroup(readerGroupConfig);
-}
-```
+=== "Java"
+
+    ```java
+    readerGroupManager.deleteReaderGroup("numReader");
+    // or
+    try (ReaderGroup readerGroup = readerGroupManager.getReaderGroup("numReader")) {
+        readerGroup.resetReaderGroup(readerGroupConfig);
+    }
+    ```
+
+=== "Python"
+
+    ```python
+    manager.delete_reader_group("numReader", "tutorial")
+    ```
 
 Pravega keeps reader group metadata for you inside internal metadata streams until you decide to delete it. When you are finished with a reader group, it is advised to delete the reader group as shown above.
 
@@ -140,37 +218,64 @@ Pravega keeps reader group metadata for you inside internal metadata streams unt
 
 We’ve just explored reading from the beginning of a stream to the end in sequential order. But can we seek through the stream? Of course, we can! Let’s explore that now using a new `tailNumReader` reader group that is given the current tail stream cut as its starting point (a stream cut is a set of positions across all stream segments within a specific time step or epoch, a tail is the end of a stream at that point in time):
 
-```java
-StreamInfo streamInfo;
-StreamCut tail; // current end of stream
-try (StreamManager streamManager = StreamManager.create(controllerURI)) {
-    streamInfo = streamManager.getStreamInfo("tutorial", "numbers");
-    tail = streamInfo.getTailStreamCut();
-}
-ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+=== "Java"
+
+    ```java
+    StreamInfo streamInfo;
+    StreamCut tail; // current end of stream
+    try (StreamManager streamManager = StreamManager.create(controllerURI)) {
+        streamInfo = streamManager.getStreamInfo("tutorial", "numbers");
+        tail = streamInfo.getTailStreamCut();
+    }
+    ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
         .stream("tutorial/numbers", tail).build();
-readerGroupManager.createReaderGroup("tailNumReader", readerGroupConfig);
-```
+    readerGroupManager.createReaderGroup("tailNumReader", readerGroupConfig);
+    ```
+
+=== "Python"
+
+    ```python
+    # Create a reader Group Configuration to read from HEAD of stream.
+    rg_config = pravega_client.StreamReaderGroupConfig(True, "tutorial", "numbers")
+    reader_group=stream_manager.create_reader_group_with_config("tailNumReader", "tutorial", rg_config)
+    ```
 
 We can now create an `EventStreamReader` instance named `tailReader` that can read from the end of the stream. If we append to the stream, we will only read new events with this reader group. Let’s append to `numbers` and read with `tailNumReader`. As already mentioned, our `while` loop was a bit too simplistic previously. Let’s see about improving things further by checking for the end of stream by tracking unread bytes available:
 
-```java
-writer.writeEvent(4);
-writer.writeEvent(5);
-writer.writeEvent(6);
-writer.flush();
+=== "Java"
 
-try (ReaderGroup readerGroup = readerGroupManager.getReaderGroup("tailNumReader");
-     EventStreamReader<Integer> tailReader = factory
-         .createReader("tailId", "tailNumReader",
+    ```java
+    writer.writeEvent(4);
+    writer.writeEvent(5);
+    writer.writeEvent(6);
+    writer.flush();
+
+    try (ReaderGroup readerGroup = readerGroupManager.getReaderGroup("tailNumReader");
+        EventStreamReader<Integer> tailReader = factory
+            .createReader("tailId", "tailNumReader",
                        new JavaSerializer<Integer>(), ReaderConfig.builder().build())) {
-    Integer intEvent;
-    while ((intEvent = tailReader.readNextEvent(2000).getEvent()) != null
+        Integer intEvent;
+        while ((intEvent = tailReader.readNextEvent(2000).getEvent()) != null
            || readerGroup.getMetrics().unreadBytes() != 0) {
-        System.out.println(intEvent);
+            System.out.println(intEvent);
+        }
     }
-}
-```
+    ```
+
+=== "Python"
+
+    ```python
+    # Create a reader Group Configuration to read from HEAD of stream.
+    writer.write_event("4")
+    writer.write_event("5")
+    writer.write_event("6")
+    writer.flush()
+
+    reader = reader_group.create_reader("tailId");
+    slice = await reader.get_segment_slice_async()
+    for event in slice:
+      print(event.data())
+    ```
 
 Outputs:
 ```
@@ -194,45 +299,85 @@ Exploring stream parallelism further will help us to conceive of how to compose 
 
 To do this, we’ll need to create a new `parallel-numbers` stream that has more than 1 segment, let’s say, 5:
 
-```java
-StreamConfiguration parallelConfig = StreamConfiguration.builder()
+=== "Java"
+
+    ```java
+    StreamConfiguration parallelConfig = StreamConfiguration.builder()
         .scalingPolicy(ScalingPolicy.fixed(5))
         .build();
-try (StreamManager streamManager = StreamManager.create(controllerURI)) {
-    streamManager.createStream("tutorial", "parallel-numbers", parallelConfig);
-}
-```
+    try (StreamManager streamManager = StreamManager.create(controllerURI)) {
+        streamManager.createStream("tutorial", "parallel-numbers", parallelConfig);
+    }
+    ```
+
+=== "Python"
+
+    ```python
+    import pravega_client
+
+    stream_manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
+
+    scope_result = stream_manager.create_scope("tutorial")
+    stream_result = stream_manager.create_stream("tutorial", "parallel-numbers", 5) 
+    ```
 
 ### Non-sequential writes and reads on a multi-segment stream
 
 If we again write successive integers to this stream of 5 fixed segments, we will find that they aren’t necessarily read back in order.
 
-```java
-EventStreamWriter<Integer> paraWriter = factory
+=== "Java"
+
+    ```java
+    EventStreamWriter<Integer> paraWriter = factory
         .createEventWriter("parallel-numbers",
                            new JavaSerializer<Integer>(), writerConfig);
 
-paraWriter.writeEvent(1);
-paraWriter.writeEvent(2);
-paraWriter.writeEvent(3);
-paraWriter.writeEvent(4);
-paraWriter.writeEvent(5);
-paraWriter.writeEvent(6);
-paraWriter.close();
+    paraWriter.writeEvent(1);
+    paraWriter.writeEvent(2);
+    paraWriter.writeEvent(3);
+    paraWriter.writeEvent(4);
+    paraWriter.writeEvent(5);
+    paraWriter.writeEvent(6);
+    paraWriter.close();
 
-ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+    ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
         .stream("tutorial/parallel-numbers").build();
-readerGroupManager.createReaderGroup("paraNumReader", readerGroupConfig);
+    readerGroupManager.createReaderGroup("paraNumReader", readerGroupConfig);
 
-try (EventStreamReader<Integer> reader = factory
+    try (EventStreamReader<Integer> reader = factory
         .createReader("paraId", "paraNumReader",
                       new JavaSerializer<Integer>(), ReaderConfig.builder().build())) {
-    Integer intEvent;
-    while ((intEvent = reader.readNextEvent(1000).getEvent()) != null) {
-        System.out.println(intEvent);
+        Integer intEvent;
+        while ((intEvent = reader.readNextEvent(1000).getEvent()) != null) {
+            System.out.println(intEvent);
+        }
     }
-}
-```
+    ```
+
+=== "Python"
+
+    ```python
+    import pravega_client
+
+    manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
+
+    # assuming the Pravega scope and stream are already created.
+    paraWriter=manager.create_writer("tutorial", "parallel-numbers")
+    paraWriter.writeEvent("1");
+    paraWriter.writeEvent("2");
+    paraWriter.writeEvent("3");
+    paraWriter.writeEvent("4");
+    paraWriter.writeEvent("5");
+    paraWriter.writeEvent("6");
+
+    manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
+    # assuming the Pravega scope and stream are already created.
+    reader_group = manager.create_reader_group("paraNumReader", "tutorial", "parallel-numbers")
+    reader = reader_group.create_reader("paraId");
+    slice = await reader.get_segment_slice_async()
+    for event in slice:
+        print(event.data())
+    ```
 
 Outputs will be non-deterministic, for example:
 ```
@@ -252,49 +397,83 @@ Often, however, you’ll need to preserve the order of related events, and this 
 
 Let’s consider an example where we want to preserve the order of several independent series of events. In this last example with [`EventStreamClientFactory`](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/EventStreamClientFactory.html), we’ll use the decades of the number line, writing the numbers of each decade in order along with their respective routing keys of “ones,” “tens,” “twenties,” and so on:
 
-```java
-try (StreamManager streamManager = StreamManager.create(controllerURI)) {
-    streamManager.createStream("tutorial", "parallel-decades", parallelConfig);
-}
-EventStreamWriter<Integer> decWriter = factory
+=== "Java"
+
+    ```java
+    try (StreamManager streamManager = StreamManager.create(controllerURI)) {
+        streamManager.createStream("tutorial", "parallel-decades", parallelConfig);
+    }
+    EventStreamWriter<Integer> decWriter = factory
         .createEventWriter("parallel-decades",
                            new JavaSerializer<Integer>(), writerConfig);
 
-Map<String, Integer> decades = new LinkedHashMap<>();
-decades.put("ones", 0);
-decades.put("tens", 10);
-decades.put("twenties", 20);
-decades.entrySet().stream().forEach(decade -> {
-    IntStream.range(decade.getValue(), decade.getValue() + 10)
-    .forEachOrdered(n -> {
-        try {
-            decWriter.writeEvent(decade.getKey(), n);
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
-        }
+    Map<String, Integer> decades = new LinkedHashMap<>();
+    decades.put("ones", 0);
+    decades.put("tens", 10);
+    decades.put("twenties", 20);
+    decades.entrySet().stream().forEach(decade -> {
+        IntStream.range(decade.getValue(), decade.getValue() + 10)
+        .forEachOrdered(n -> {
+            try {
+                decWriter.writeEvent(decade.getKey(), n);
+            } catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+        });
     });
-});
-decWriter.close();
-```
+    decWriter.close();
+    ```
+
+=== "Python"
+
+    ```python
+    import pravega_client
+
+    manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
+
+    # assuming the Pravega scope and stream are already created.
+    paraWriter=manager.create_writer("tutorial", "parallel-decades")
+    
+    for x in range(10):
+        paraWriter.writeEvent(x, "ones")
+    for y in range(20):
+        paraWriter.writeEvent(y, "tens")
+    for z in range(20):
+        paraWriter.writeEvent(z, "twenties")
+    ```
 
 The “ones” (0-9), “tens” (10-19) and “twenties” (20-29) are written to our `parallel-decades` stream. Since we have 3 sequences to 5 segments, each decade sequence is potentially in its own segment.
 
 When we read this back, the values of each decade will be in order, but the sequences may be interleaved, and the lower decades won’t necessarily come first:
 
-```java
-ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
-        .stream("tutorial/parallel-decades").build();
-readerGroupManager.createReaderGroup("paraDecReader", readerGroupConfig);
-EventStreamReader<Integer> reader = factory
-        .createReader("decId", "paraDecReader",
-                      new JavaSerializer<Integer>(), ReaderConfig.builder().build());
-Integer intEvent;
-while ((intEvent = reader.readNextEvent(1000).getEvent()) != null) {
-    System.out.println(intEvent);
-}
-reader.close();
-```
+=== "Java"
 
+    ```java
+    ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+            .stream("tutorial/parallel-decades").build();
+    readerGroupManager.createReaderGroup("paraDecReader", readerGroupConfig);
+    EventStreamReader<Integer> reader = factory
+            .createReader("decId", "paraDecReader",
+                      new JavaSerializer<Integer>(), ReaderConfig.builder().build());
+    Integer intEvent;
+    while ((intEvent = reader.readNextEvent(1000).getEvent()) != null) {
+        System.out.println(intEvent);
+    }
+    reader.close();
+    ```
+
+=== "Python"
+
+    ```python
+    import pravega_client
+    manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
+    # assuming the Pravega scope and stream are already created.
+    reader_group = manager.create_reader_group("paraDecReader", "tutorial", "parallel-decades")
+    reader = reader_group.create_reader("decId");
+    slice = await reader.get_segment_slice_async()
+    for event in slice:
+        print(event.data())
+    ```
 For me, this outputs:
 ```
 10
@@ -484,28 +663,48 @@ Many advanced features of `EventStreamClientFactory`’s writers and readers hav
 
 As stated above, we should practice good hygiene and clean up after ourselves by deleting our reader groups, our streams and our scope (streams must be sealed, and scopes must be empty, to be deleted):
 
-```java
-factory.close();
-readerGroupManager.deleteReaderGroup("numReader");
-readerGroupManager.deleteReaderGroup("tailNumReader");
-readerGroupManager.deleteReaderGroup("paraNumReader");
-readerGroupManager.deleteReaderGroup("paraDecReader");
-readerGroupManager.close();
-try (StreamManager streamManager = StreamManager.create(controllerURI)) {
-    streamManager.sealStream("tutorial", "numbers");
-    streamManager.deleteStream("tutorial", "numbers");
-    streamManager.sealStream("tutorial", "parallel-numbers");
-    streamManager.deleteStream("tutorial", "parallel-numbers");
-    streamManager.sealStream("tutorial", "parallel-decades");
-    streamManager.deleteStream("tutorial", "parallel-decades");
-    streamManager.sealStream("tutorial", "scaled-stream");
-    streamManager.deleteStream("tutorial", "scaled-stream");
-    streamManager.sealStream("tutorial", "int-bytestream");
-    streamManager.deleteStream("tutorial", "int-bytestream");
-    streamManager.deleteScope("tutorial");
-}
-```
+=== "Java"
 
+    ```java
+    factory.close();
+    readerGroupManager.deleteReaderGroup("numReader");
+    readerGroupManager.deleteReaderGroup("tailNumReader");
+    readerGroupManager.deleteReaderGroup("paraNumReader");
+    readerGroupManager.deleteReaderGroup("paraDecReader");
+    readerGroupManager.close();
+    try (StreamManager streamManager = StreamManager.create(controllerURI)) {
+        streamManager.sealStream("tutorial", "numbers");
+        streamManager.deleteStream("tutorial", "numbers");
+        streamManager.sealStream("tutorial", "parallel-numbers");
+        streamManager.deleteStream("tutorial", "parallel-numbers");
+        streamManager.sealStream("tutorial", "parallel-decades");
+        streamManager.deleteStream("tutorial", "parallel-decades");
+        streamManager.sealStream("tutorial", "scaled-stream");
+        streamManager.deleteStream("tutorial", "scaled-stream");
+        streamManager.sealStream("tutorial", "int-bytestream");
+        streamManager.deleteStream("tutorial", "int-bytestream");
+        streamManager.deleteScope("tutorial");
+    }
+    ```
+
+=== "Python"
+
+    ```python
+    import pravega_client
+    streamManager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
+    streamManager.delete_reader_group("numReader", "tutorial")
+    streamManager.delete_reader_group("tailNumReader", "tutorial")
+    streamManager.delete_reader_group("paraNumReader", "tutorial")
+    streamManager.delete_reader_group("paraDecReader", "tutorial")
+
+    streamManager.seal_stream("tutorial", "numbers");
+    streamManager.delete_stream("tutorial", "numbers");
+    streamManager.seal_stream("tutorial", "parallel-numbers");
+    streamManager.delete_stream("tutorial", "parallel-numbers");
+    streamManager.seal_stream("tutorial", "parallel-decades");
+    streamManager.delete_stream("tutorial", "parallel-decades");
+    streamManager.delete_scope("tutorial");
+    ```
 ## Conclusion
 
 Understanding the fundamental aspects of streams as outlined above and their sequential, non-sequential and semi-sequential nature is all you need to compose applications with Pravega. Of course, Pravega has several more client interfaces and many advanced features, and we’ve only scratched the surface. But you’ve just learned the basics, and you’re ready to start building apps!
