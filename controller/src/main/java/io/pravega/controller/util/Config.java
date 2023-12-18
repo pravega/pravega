@@ -213,6 +213,8 @@ public final class Config {
     public static final Property<Integer> PROPERTY_MIN_BUCKET_REDISTRIBUTION_INTERVAL_IN_SECONDS = Property.named(
             "min.bucket.redistribution.interval.in.seconds", 10);
 
+    public static final Property<String> PROPERTY_CONTROLLER_CLUSTER_SERVICE_NAME = Property.named(
+            "cluster.service.name", "pravega-pravega-controller:");
     public static final String COMPONENT_CODE = "controller";
 
     //endregion
@@ -308,6 +310,8 @@ public final class Config {
 
     public static final int MIN_BUCKET_REDISTRIBUTION_INTERVAL_IN_SECONDS;
 
+    public static final String CONTROLLER_CLUSTER_SERVICE_NAME;
+
     private static final String METRICS_PATH = "controller.metrics.";
 
     //endregion
@@ -382,6 +386,8 @@ public final class Config {
         LIST_COMPLETED_TXN_MAX_RECORDS = p.getInt(PROPERTY_LIST_COMPLETED_TXN_MAX_RECORDS);
 
         MIN_BUCKET_REDISTRIBUTION_INTERVAL_IN_SECONDS = p.getInt(PROPERTY_MIN_BUCKET_REDISTRIBUTION_INTERVAL_IN_SECONDS);
+        CONTROLLER_CLUSTER_SERVICE_NAME = p.get(PROPERTY_CONTROLLER_CLUSTER_SERVICE_NAME);
+
     }
 
     private static Properties loadConfiguration() {
