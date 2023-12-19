@@ -1157,6 +1157,7 @@ project('test:system') {
         environment "helmHookImageName", System.getProperty("helmHookImageName", "lachlanevenson/k8s-kubectl")
         environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
         environment "securityEnabled", System.getProperty("securityEnabled", "false")
+        environment "tlsCertCNName", System.getProperty("tlsCertCNName", "pravega-pravega-controller")
         environment "skipServiceInstallation", System.getProperty("skipServiceInstallation", "false")
         environment "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
 

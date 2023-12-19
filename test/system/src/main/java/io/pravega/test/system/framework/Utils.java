@@ -241,4 +241,8 @@ public class Utils {
         String config = getConfig("skipLogDownload", "false");
         return config.trim().equalsIgnoreCase("true") ? true : false;
     }
+
+    public static String getTlsCommonName() {
+               return Utils.getConfig("tlsCertCNName", "pravega-pravega-controller");
+    }
 }

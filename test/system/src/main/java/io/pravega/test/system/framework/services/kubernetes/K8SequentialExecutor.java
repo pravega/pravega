@@ -199,7 +199,8 @@ public class K8SequentialExecutor implements TestExecutor {
                 "securityEnabled",
                 "tlsEnabled",
                 "failFast",
-                "log.level"
+                "log.level",
+                "tlsCertCNName"
         };
 
         StringBuilder builder = new StringBuilder();
