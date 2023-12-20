@@ -59,7 +59,6 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
-    private static final int CONTROLLER_GRPC_PORT = 9090;
 
     //The execution time for @Before + @After + @Test methods should be less than 25 mins. Else the test will timeout.
     @Rule
@@ -100,11 +99,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         final List<String> uris = conURIs.stream().filter(ISGRPC).map(URI::getAuthority)
                                          .collect(Collectors.toList());
         log.debug("controller uris {}", uris);
-        if (Utils.TLS_AND_AUTH_ENABLED) {
-            controllerURIDirect = URI.create("tls://" + Utils.getConfig("tlsCertCNName", "pravega-pravega-controller") + ":" + CONTROLLER_GRPC_PORT);
-        } else {
-            controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
-        }
+        controllerURIDirect = Utils.getControllerURI(uris);
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.

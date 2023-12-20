@@ -52,7 +52,6 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
 
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
-    private static final int CONTROLLER_GRPC_PORT = 9090;
     private static final String STREAM_NAME = "testMultiReaderWriterTxnStream";
 
     //The execution time for @Before + @After + @Test methods should be less than 15 mins. Else the test will timeout.
@@ -94,11 +93,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         // Fetch all the RPC endpoints and construct the client URIs.
         final List<String> uris = conURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
-        if (Utils.TLS_AND_AUTH_ENABLED) {
-            controllerURIDirect = URI.create("tls://" + Utils.getConfig("tlsCertCNName", "pravega-pravega-controller") + ":" + CONTROLLER_GRPC_PORT);
-        } else {
-            controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
-        }
+        controllerURIDirect = Utils.getControllerURI(uris);
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.

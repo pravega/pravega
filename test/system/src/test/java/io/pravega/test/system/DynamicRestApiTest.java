@@ -168,6 +168,7 @@ public class DynamicRestApiTest extends AbstractSystemTest {
         return null;
     }
 
+    //TODO Need to checks the server is trusted with the truststore configured correctly.
     /**
      * Host name verifier that does not perform nay checks.
      */
@@ -177,6 +178,7 @@ public class DynamicRestApiTest extends AbstractSystemTest {
         }
     }
 
+    //TODO Need to checks the server is trusted with the truststore configured correctly.
     /**
      * Trust manager that does not perform nay checks.
      */

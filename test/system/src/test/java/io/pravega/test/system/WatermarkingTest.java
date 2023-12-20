@@ -87,7 +87,6 @@ public class WatermarkingTest extends AbstractSystemTest {
 
     private static final String STREAM = "testWatermarkingStream";
     private static final String SCOPE = "testWatermarkingScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    private static final int CONTROLLER_GRPC_PORT = 9090;
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10 * 60);
@@ -118,11 +117,7 @@ public class WatermarkingTest extends AbstractSystemTest {
         List<URI> ctlURIs = controllerInstance.getServiceDetails();
         final List<String> uris = ctlURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
-        if (Utils.TLS_AND_AUTH_ENABLED) {
-            controllerURI = URI.create("tls://" + Utils.getConfig("tlsCertCNName", "pravega-pravega-controller") + ":" + CONTROLLER_GRPC_PORT);
-        } else {
-            controllerURI = URI.create("tcp://" + String.join(",", uris));
-        }
+        controllerURI = Utils.getControllerURI(uris);
         log.info("setup controller uri :{}", controllerURI);
         streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
