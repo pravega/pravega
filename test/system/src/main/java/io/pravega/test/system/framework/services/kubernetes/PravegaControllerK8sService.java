@@ -84,7 +84,7 @@ public class PravegaControllerK8sService extends AbstractService {
     public List<URI> getServiceDetails() {
         //fetch the URI.
         String prefix = Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP;
-        String tlsCname = Utils.getConfig("tlsCertCNName", "pravega-pravega-controller");
+        String tlsCname = Utils.getTlsCommonName();
         log.debug("Tls enabled status :{} auth enabled status :{} tls cname :{}", Utils.TLS_AND_AUTH_ENABLED, Utils.AUTH_ENABLED, tlsCname);
         List<V1PodStatus> viPodsList = k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL).join();
         log.info("Pods list size {} and pods list details {}", viPodsList.size(), viPodsList);

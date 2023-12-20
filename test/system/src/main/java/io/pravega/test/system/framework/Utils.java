@@ -35,6 +35,7 @@ import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.List;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
 
@@ -53,6 +54,9 @@ public class Utils {
     public static final boolean DOCKER_BASED = Utils.isDockerExecEnabled();
     public static final int ALTERNATIVE_CONTROLLER_PORT = 9093;
     public static final int ALTERNATIVE_REST_PORT = 9094;
+    public static final int CONTROLLER_GRPC_PORT = 9090;
+    public static final String TCP = "tcp://";
+    public static final String TLS = "tls://";
     public static final TestExecutorFactory.TestExecutorType EXECUTOR_TYPE = TestExecutorFactory.getTestExecutionType();
     public static final boolean AUTH_ENABLED = isAuthEnabled();
     public static final boolean TLS_AND_AUTH_ENABLED = isTLSEnabled();
@@ -244,5 +248,13 @@ public class Utils {
 
     public static String getTlsCommonName() {
                return Utils.getConfig("tlsCertCNName", "pravega-pravega-controller");
+    }
+
+    public static URI getControllerURI(List<String> uris) {
+        if (Utils.TLS_AND_AUTH_ENABLED) {
+            return URI.create(Utils.TLS + Utils.getTlsCommonName() + ":" + CONTROLLER_GRPC_PORT);
+        } else {
+            return URI.create(Utils.TCP + String.join(",", uris));
+        }
     }
 }

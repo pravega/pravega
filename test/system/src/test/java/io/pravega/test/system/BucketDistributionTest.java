@@ -51,7 +51,6 @@ import static org.junit.Assert.assertEquals;
 @RunWith(SystemTestRunner.class)
 public class BucketDistributionTest extends AbstractSystemTest {
 
-    private static final int CONTROLLER_GRPC_PORT = 9090;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(3 * 60);
 
@@ -87,11 +86,7 @@ public class BucketDistributionTest extends AbstractSystemTest {
         // Fetch all the RPC endpoints and construct the client URIs.
         final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
-        if (Utils.TLS_AND_AUTH_ENABLED) {
-            controllerURIDirect = URI.create(TLS + Utils.getConfig("tlsCertCNName", "pravega-pravega-controller") + ":" + CONTROLLER_GRPC_PORT);
-        } else {
-            controllerURIDirect = URI.create(TCP + String.join(",", uris));
-        }
+        controllerURIDirect = Utils.getControllerURI(uris);
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerUris.get(0));
@@ -133,11 +128,7 @@ public class BucketDistributionTest extends AbstractSystemTest {
         final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority)
                 .collect(Collectors.toList());
 
-        if (Utils.TLS_AND_AUTH_ENABLED) {
-            controllerURIDirect = URI.create(TLS + Utils.getConfig("tlsCertCNName", "pravega-pravega-controller") + ":" + CONTROLLER_GRPC_PORT);
-        } else {
-            controllerURIDirect = URI.create(TCP + String.join(",", uris));
-        }
+        controllerURIDirect = Utils.getControllerURI(uris);
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         log.info("Test tcp:// with only 2 controller instance running");
         Futures.delayedFuture(Duration.ofSeconds(2), executorService).join();

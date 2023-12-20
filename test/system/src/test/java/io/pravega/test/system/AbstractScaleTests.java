@@ -39,7 +39,6 @@ import lombok.extern.slf4j.Slf4j;
 abstract class AbstractScaleTests extends AbstractReadWriteTest {
 
     final static String SCOPE = "testAutoScale" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    private static final int CONTROLLER_GRPC_PORT = 9090;
     @Getter
     private final URI controllerURI;
     @Getter
@@ -68,11 +67,7 @@ abstract class AbstractScaleTests extends AbstractReadWriteTest {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         final List<String> uris = ctlURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-        if (Utils.TLS_AND_AUTH_ENABLED) {
-            return URI.create("tls://" + Utils.getConfig("tlsCertCNName", "pravega-pravega-controller") + ":" + CONTROLLER_GRPC_PORT);
-        } else {
-            return URI.create("tcp://" + String.join(",", uris.get(0)));
-        }
+        return Utils.getControllerURI(uris);
     }
 
     void recordResult(final CompletableFuture<Void> scaleTestResult, final String testName) {

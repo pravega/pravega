@@ -93,7 +93,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
     private static final String READER_GROUP_4 = "timeBasedRetentionReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String SIZE_30_EVENT = "data of size 30";
     private static final long CLOCK_ADVANCE_INTERVAL = 5 * 1000000000L;
-    private static final int CONTROLLER_GRPC_PORT = 9090;
+
     private static final int READ_TIMEOUT = 1000;
     private static final int MAX_SIZE_IN_STREAM = 180;
     private static final int MIN_SIZE_IN_STREAM = 90;
@@ -142,11 +142,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         List<URI> controllerUris = controllerService.getServiceDetails();
         // Fetch all the RPC endpoints and construct the client URIs.
         List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-        if (Utils.TLS_AND_AUTH_ENABLED) {
-            controllerURI = URI.create(TLS + Utils.getConfig("tlsCertCNName", "pravega-pravega-controller") + ":" + CONTROLLER_GRPC_PORT);
-        } else {
-            controllerURI = URI.create(TCP + String.join(",", uris));
-        }
+        controllerURI = Utils.getControllerURI(uris);
         log.debug("controller URI string list  is: {}", controllerURI);
         clientConfig = Utils.buildClientConfig(controllerURI);
         controller = new ControllerImpl(ControllerImplConfig.builder()
@@ -729,11 +725,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
             log.info("Pravega Controller service  details: {}", controllerUris);
             List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
             assertEquals(instanceCount + " controller instances should be running", instanceCount, uris.size());
-            if (Utils.TLS_AND_AUTH_ENABLED) {
-                controllerURI = URI.create(TLS + Utils.getConfig("tlsCertCNName", "pravega-pravega-controller") + ":" + CONTROLLER_GRPC_PORT);
-            } else {
-                controllerURI = URI.create(TCP + String.join(",", uris));
-            }
+            controllerURI = Utils.getControllerURI(uris);
             log.debug("controllerURI {}", controllerURI);
             clientConfig = Utils.buildClientConfig(controllerURI);
             controller = new ControllerImpl(ControllerImplConfig.builder()
