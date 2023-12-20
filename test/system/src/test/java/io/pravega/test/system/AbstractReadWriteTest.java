@@ -278,7 +278,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
             log.info("Exit flag status: {}, Read count: {}, Write count: {}", testState.stopReadFlag.get(),
                     testState.getEventReadCount(), testState.getEventWrittenCount());
             while (!(stopFlag.get() && testState.getEventReadCount() == testState.getEventWrittenCount())) {
-                log.info("Entering read loop");
+                log.info("Entering read loop (Read Count: {}, Write Count: {})", testState.getEventReadCount(), testState.getEventWrittenCount());
                 // Exit only if exitFlag is true  and read Count equals write count.
                 try {
                     final String event = reader.readNextEvent(SECONDS.toMillis(5)).getEvent();
