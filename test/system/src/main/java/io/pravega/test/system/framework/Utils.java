@@ -247,7 +247,7 @@ public class Utils {
     }
 
     public static String getTlsCommonName() {
-               return Utils.getConfig("tlsCertCNName", "pravega-pravega-controller");
+               return Utils.getConfig("tlsCertCNName", "localhost");
     }
 
     public static URI getControllerURI(List<String> uris) {
