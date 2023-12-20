@@ -51,7 +51,6 @@ import static org.junit.Assert.assertEquals;
 @RunWith(SystemTestRunner.class)
 public class MultiControllerTest extends AbstractSystemTest {
 
-    private static final int CONTROLLER_GRPC_PORT = 9090;
     private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
     private Service controllerService = null;
     private Service segmentStoreService = null;
@@ -92,8 +91,8 @@ public class MultiControllerTest extends AbstractSystemTest {
         assertEquals("2 controller instances should be running", 2, uris.size());
 
         if (Utils.TLS_AND_AUTH_ENABLED) {
-            controllerURIDirect.set(URI.create(TLS + Utils.getTlsCommonName() + ":" + CONTROLLER_GRPC_PORT));
-            controllerURIDiscover.set(URI.create(TLS + Utils.getTlsCommonName() + ":" + CONTROLLER_GRPC_PORT));
+            controllerURIDirect.set(URI.create(TLS + Utils.getTlsCommonName() + ":" + Utils.CONTROLLER_GRPC_PORT));
+            controllerURIDiscover.set(URI.create(TLS + Utils.getTlsCommonName() + ":" + Utils.CONTROLLER_GRPC_PORT));
         } else {
             // use the last two uris
             controllerURIDirect.set(URI.create((TCP) + String.join(",", uris)));

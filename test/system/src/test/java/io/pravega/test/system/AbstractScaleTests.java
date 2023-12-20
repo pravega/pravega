@@ -28,7 +28,6 @@ import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -66,8 +65,7 @@ abstract class AbstractScaleTests extends AbstractReadWriteTest {
     private URI createControllerURI() {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
-        final List<String> uris = ctlURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-        return Utils.getControllerURI(uris);
+        return ctlURIs.get(0);
     }
 
     void recordResult(final CompletableFuture<Void> scaleTestResult, final String testName) {
