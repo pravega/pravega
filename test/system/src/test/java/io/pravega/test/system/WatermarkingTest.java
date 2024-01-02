@@ -172,7 +172,7 @@ public class WatermarkingTest extends AbstractSystemTest {
         LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
         fetchWatermarks(watermarkReader, watermarks, stopFlag);
 
-        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 200000);
+        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
 
         // scale down one controller instance. 
         Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
