@@ -49,34 +49,34 @@ markdown_extensions:
 
 nav:
   - Overview: 'index.md'
-  - Quick Start: 'getting-started/quick-start.md'
   - Getting Started:
+    - 'Quick Start': 'getting-started/quick-start.md'
+    - 'Your First Pravega Application': 'beginner_dev_guide.md'
     - 'Running a Sample Application': 'getting-started.md'
     - 'Deploying Pravega on Kubernetes': 'getting-started/pravega-on-kubernetes-101.md'
   - Understanding Pravega:
     - 'Concepts': 'pravega-concepts.md'
     - 'Terminology': 'terminology.md'
     - 'Key Features': 'key-features.md'
-    - 'FAQ': 'faq.md'
-    - 'Segment Store Service': 'segment-store-service.md'
-    - 'Segment Containers': 'segment-containers.md'
-    - 'Controller Service': 'controller-service.md'
-    - 'Wire Protocol': 'wire-protocol.md'
-    - 'StateSynchronizer': 'state-synchronizer-design.md'
     - 'Reader Groups': 'reader-group-design.md'
     - 'Watermarking': 'watermarking.md'
+    - 'StateSynchronizer': 'state-synchronizer-design.md'
+    - 'Controller Service': 'controller-service.md'
+    - 'Segment Store Service': 'segment-store-service.md'
+    - 'Segment Containers': 'segment-containers.md' 
   - Developing Applications:
-    - '1st Code Walkthrough': 'beginner_dev_guide.md'
+    - 'Controller REST API': 'rest/restapis.md'
+    - 'Client APIs': 'javadoc.md'
     - 'Client & Stream Semantics': 'clients-and-streams.md'
     - 'Event Reader and Writer': 'basic-reader-and-writer.md'
-    - 'Reader Group notifications': 'reader-group-notifications.md'
+    - 'Reader Group Notifications': 'reader-group-notifications.md'
     - 'State Synchronizer': 'state-synchronizer.md'
     - 'Transactions': 'transactions.md'
     - 'StreamCuts': 'streamcuts.md'
-    - 'Client APIs': 'javadoc.md'
-    - 'Controller REST API': 'rest/restapis.md'
     - 'Working with Metrics': 'metrics.md'
+    - 'Wire Protocol': 'wire-protocol.md'
   - Ecosystem:
+    - 'Schema Registry': 'https://github.com/pravega/schema-registry/blob/master/README.md'
     - 'Connectors':
       - 'Overview': 'connectors.md'
       - 'Flink Connector': 'https://github.com/pravega/flink-connectors/blob/master/README.md'
@@ -92,7 +92,6 @@ nav:
       - 'Kafka Adapter': 'https://github.com/pravega/kafka-adapter/blob/master/README.md'
       - 'Pravega Flink Tools': 'https://github.com/pravega/flink-tools/blob/master/README.md'
       - 'Keycloak Plugin': 'https://github.com/pravega/pravega-keycloak/blob/master/README.md'
-  - 'Schema Registry': 'https://github.com/pravega/schema-registry/blob/master/README.md'
   - 'Deployment':
     - 'Overview': 'deployment/deployment.md'
     - 'Running Locally': 'deployment/run-local.md'
@@ -106,7 +105,6 @@ nav:
     - 'Number of Segment Containers': 'admin-guide/num-containers.md'
     - 'Segment Store Memory': 'admin-guide/segmentstore-memory.md'
     - 'Deploying Small Bookkeeper Clusters': 'admin-guide/deploying-small-bookkeeper-clusters.md'
-    - 'Data Recovery Tool': 'admin-guide/data-recovery-tools.md'
     - 'Security':
       - 'Overview': 'security/pravega-security-authorization-authentication.md'
       - 'Authentication/Authorization Plugin': 'auth/auth-plugin.md'
@@ -116,16 +114,19 @@ nav:
       - 'Standalone Mode': 'security/securing-standalone-mode-cluster.md'
       - 'Distributed Mode': 'security/securing-distributed-mode-cluster.md'
       - 'TLS Artifacts': 'security/generating-tls-artifacts.md'
+    - 'Disaster Recovery':
+      - 'Data Recovery Tools': 'admin-guide/data-recovery-tools.md'
+      - 'Recovery Procedures':
+        - 'Corrupted Table Segment Index': 'recovery-procedures/table-segment-recovery.md'
+        - 'Recover from Table Segment Pre-Index Full': 'recovery-procedures/table-segment-recover-pre-index-full.md'
+        - 'Safely Enable Durable Data Logs': 'recovery-procedures/enable-durable-data-log.md'
+        - 'Recover Pravega from LTS': 'recovery-procedures/lts-recovery-steps.md'
     - 'Admin CLI': 'https://github.com/pravega/pravega/blob/master/cli/admin/README.md'
-    - 'Recovery Procedures':
-      - 'Corrupted Table Segment Index': 'recovery-procedures/table-segment-recovery.md'
-      - 'Recover from Table Segment Pre-Index Full': 'recovery-procedures/table-segment-recover-pre-index-full.md'
-      - 'Safely Enable Durable Data Logs': 'recovery-procedures/enable-durable-data-log.md'
-      - 'Recover Pravega from LTS': 'recovery-procedures/lts-recovery-steps.md'
   - Contributing:
-    - 'Coding guildelines': 'contributing.md'
-    - 'Pravega Roadmap': 'roadmap.md'
     - 'Join the Community': 'join-community.md'
+    - 'Roadmap': 'roadmap.md'
+    - 'Coding Guidelines': 'contributing.md'
+  - FAQ: 'faq.md'
 extra:
     version: 0.1
 

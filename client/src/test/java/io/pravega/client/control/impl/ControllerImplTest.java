@@ -98,6 +98,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.protocol.netty.BucketType;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.security.auth.DefaultCredentials;
@@ -241,6 +242,18 @@ public class ControllerImplTest {
                 if (!request.getScope().equals("throwing")) {
                     responseObserver.onNext(Controller.ExistsResponse.newBuilder()
                                                                  .setExists(request.getStream().equals("stream1")).build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
+            public void getControllerToBucketMapping(Controller.ControllerToBucketMappingRequest request,
+                                                     StreamObserver<Controller.ControllerToBucketMappingResponse> responseObserver) {
+                if (request.getServiceType().equals(Controller.ControllerToBucketMappingRequest.BucketType.RetentionService)) {
+                    responseObserver.onNext(Controller.ControllerToBucketMappingResponse.newBuilder()
+                            .putMapping("controller1", Controller.BucketIds.newBuilder().addId(1).build()).build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -2493,6 +2506,15 @@ public class ControllerImplTest {
 
         kvtSegments = controllerClient.getCurrentSegmentsForKeyValueTable("scope1", "kvtable2");
         AssertExtensions.assertFutureThrows("Should throw Exception", kvtSegments, throwable -> true);
+    }
+
+    @Test
+    public void testGetControllerToBucketMapping() {
+        CompletableFuture<Map<String, List<Integer>>> mapping = controllerClient.getControllerToBucketMapping(BucketType.WatermarkingService);
+        AssertExtensions.assertFutureThrows("Should throw Exception", mapping, throwable -> true);
+
+        mapping = controllerClient.getControllerToBucketMapping(BucketType.RetentionService);
+        assertEquals(1, mapping.join().size());
     }
 
     @Test

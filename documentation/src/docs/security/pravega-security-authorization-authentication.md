@@ -27,5 +27,5 @@ Key features of security implementation:
 4. Multiple mechanisms are enabled by Pravega to the users for specifying _auth_ parameters to the client. See [here](../auth/client-auth.md) for more details.
 5. Components like Bookkeeper, Zookeeper etc., which are deployed with Pravega can be deployed securely with TLS.
 
-[PDP-23](https://github.com/pravega/pravega/wiki/PDP-23:-Pravega-security----encryption-and-Role-Based-Access-Control)
+[PDP-23](https://github.com/pravega/pravega/wiki/PDP-23-%28Pravega-Security-Encryption-and-Role-Based-Access-Control%29)
 discusses various options for this design and anlayzes the pros and cons in detail.

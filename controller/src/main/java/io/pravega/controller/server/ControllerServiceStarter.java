@@ -272,7 +272,8 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
 
-            BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000);
+            BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000,
+                    serviceConfig.getMinBucketRedistributionIntervalInSeconds());
             Duration executionDurationRetention = serviceConfig.getRetentionFrequency();
 
             PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
@@ -593,7 +594,9 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
     @Override
     public void close() {
-        Callbacks.invokeSafely(() -> stopAsync().awaitTerminated(serviceConfig.getShutdownTimeout().toMillis(), TimeUnit.MILLISECONDS), ex -> log.error("Exception while forcefully shutting down.", ex));
+        Callbacks.invokeSafely(() -> {
+            stopAsync().awaitTerminated(serviceConfig.getShutdownTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        }, ex -> log.error("Exception while forcefully shutting down.", ex));
         close(watermarkingWork);
         close(streamMetadataTasks);
         close(streamTransactionMetadataTasks);

@@ -16,21 +16,23 @@
 package io.pravega.client;
 
 import com.google.common.annotations.Beta;
+import io.pravega.client.admin.StreamInfo;
+import io.pravega.client.admin.StreamManager;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.batch.impl.BatchClientFactoryImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.control.impl.ControllerImpl;
-import io.pravega.client.control.impl.ControllerImplConfig;
-import lombok.val;
-
 import java.util.List;
+import lombok.val;
 
 /**
  * Please note this is an experimental API.
@@ -103,4 +105,20 @@ public interface BatchClientFactory extends AutoCloseable {
      * @return A list of segment range in between a start and end stream cut.
      */
     List<SegmentRange> getSegmentRangeBetweenStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut);
+
+    /**
+     * Provides a streamcut approximately the requested distance after the starting streamcut.
+     * The returned stream cut will not 'skip over' scaling events. So all the segments in the returned 
+     * stream cut will either be in the starting stream cut or be immediate successors to those segments.
+     * (This is so that if this method is called in a loop and all the data between the starting and 
+     * returned stream cut is read before next invocation, the data will be read in order)
+     * 
+     * @param startingStreamCut Starting streamcut
+     * @param approxDistanceToNextOffset approx distance to nextoffset in bytes
+     * @return A streamcut after the apporoximate distance from the startingStreamCut.
+     * @throws SegmentTruncatedException If the data at the starting streamcut has been truncated
+     *             away and can no longer be read. (In such a case it may be best to restart reading
+     *             from {@link StreamManager#fetchStreamInfo(String, String)}'s {@link StreamInfo#getHeadStreamCut()}
+     */
+    StreamCut getNextStreamCut(final StreamCut startingStreamCut, long approxDistanceToNextOffset) throws SegmentTruncatedException;
 }

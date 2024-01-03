@@ -20,7 +20,7 @@ Pravega guarantees that every acknowledged written event is durably stored and r
 thanks to the durable log abstraction that the Segment Store offers, which relies on Apache Bookkeeper.
 Therefore, the configuration of both the Bookkeeper client at the Segment Store and the configuration of 
 Apache Bookkeeper service itself are critical for a production cluster. Note that we do not attempt to fully cover 
-the configuration of Bookkeeper ([available here](https://bookkeeper.apache.org/docs/latest/reference/config/)). Instead, 
+the configuration of Bookkeeper ([available here](https://bookkeeper.apache.org/docs/reference/config/)). Instead, 
 we focus on the parameters that we have found important to properly configure in our practical experience:
 
 - **`bookkeeper.ensemble.size`**: Ensemble size for Bookkeeper ledgers. This value need not be the same for all 
@@ -44,7 +44,7 @@ _Type_: `Option`. _Default_: `org.apache.bookkeeper.bookie.SortedLedgerStorage`.
 
 First, let's focus on the configuration of the _Bookkeeper client in the Segment Store_. The parameters
 `bookkeeper.write.quorum.size` and `bookkeeper.ack.quorum.size` determine the 
-[level of durability](https://bookkeeper.apache.org/docs/latest/development/protocol/) (i.e., replicas) 
+[level of durability](https://bookkeeper.apache.org/docs/development/protocol/) (i.e., replicas) 
 for data stored in the durable log until it is moved to long-term storage. For context, these parameters dictate
 the upper (`bookkeeper.write.quorum.size`) and lower (`bookkeeper.ack.quorum.size`) bounds of the degree of replication
 for your data in Bookkeeper. While the Bookkeeper client will attempt to write `bookkeeper.ack.quorum.size` copies

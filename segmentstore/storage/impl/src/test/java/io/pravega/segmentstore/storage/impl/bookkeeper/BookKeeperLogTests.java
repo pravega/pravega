@@ -827,6 +827,20 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 ex -> ex instanceof DurableDataLogException);
     }
 
+    @Test
+    public void testOverrideEpochInLog() throws Exception {
+        try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
+            log.initialize(TIMEOUT);
+            log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            val epoch = log.getEpoch();
+            long epochToOverride = 100;
+            log.overrideEpoch(epochToOverride);
+            val overridenEpoch = log.loadMetadata();
+            Assert.assertNotEquals("Epoch not overriden!", epoch, overridenEpoch);
+            Assert.assertEquals( "Overriden epoch has not been set correctly.", epochToOverride, overridenEpoch.getEpoch());
+        }
+    }
+
     @Override
     protected int getThreadPoolSize() {
         return THREAD_POOL_SIZE;

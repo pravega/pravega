@@ -30,11 +30,14 @@ public class BucketServiceFactory {
     private final String hostId;
     private final BucketStore bucketStore;
     private final int maxConcurrentExecutions;
+    private final int minBucketRedistributionInterval;
 
-    public BucketServiceFactory(@NonNull String hostId, @NonNull BucketStore bucketStore, int maxConcurrentExecutions) {
+    public BucketServiceFactory(@NonNull String hostId, @NonNull BucketStore bucketStore, int maxConcurrentExecutions,
+                                int minBucketRedistributionInterval) {
         this.hostId = hostId;
         this.bucketStore = bucketStore;
         this.maxConcurrentExecutions = maxConcurrentExecutions;
+        this.minBucketRedistributionInterval = minBucketRedistributionInterval;
     }
 
     public BucketManager createRetentionService(Duration executionDuration, BucketWork work, ScheduledExecutorService executorService) {
@@ -45,7 +48,8 @@ public class BucketServiceFactory {
                         new ZooKeeperBucketService(BucketStore.ServiceType.RetentionService, bucket, zkBucketStore, executorService,
                                 maxConcurrentExecutions, executionDuration, work);
 
-                return new ZooKeeperBucketManager(hostId, zkBucketStore, BucketStore.ServiceType.RetentionService, executorService, zkSupplier);
+                return new ZooKeeperBucketManager(hostId, zkBucketStore, BucketStore.ServiceType.RetentionService,
+                        executorService, zkSupplier, getBucketManagerLeader(BucketStore.ServiceType.RetentionService, executorService));
             case InMemory:
                 InMemoryBucketStore inMemoryBucketStore = (InMemoryBucketStore) bucketStore;
                 Function<Integer, BucketService> inMemorySupplier = bucket ->
@@ -53,7 +57,7 @@ public class BucketServiceFactory {
                                 maxConcurrentExecutions, executionDuration, work);
 
                 return new InMemoryBucketManager(hostId, (InMemoryBucketStore) bucketStore, BucketStore.ServiceType.RetentionService, 
-                        executorService, inMemorySupplier);
+                        executorService, inMemorySupplier, new UniformBucketDistributor());
             default:
                 throw new IllegalArgumentException(String.format("store type %s not supported", bucketStore.getStoreType().name()));
         }
@@ -67,7 +71,8 @@ public class BucketServiceFactory {
                         new ZooKeeperBucketService(BucketStore.ServiceType.WatermarkingService, bucket, zkBucketStore, executorService,
                                 maxConcurrentExecutions, executionDuration, work);
 
-                return new ZooKeeperBucketManager(hostId, zkBucketStore, BucketStore.ServiceType.WatermarkingService, executorService, zkSupplier);
+                return new ZooKeeperBucketManager(hostId, zkBucketStore, BucketStore.ServiceType.WatermarkingService,
+                        executorService, zkSupplier, getBucketManagerLeader(BucketStore.ServiceType.WatermarkingService, executorService));
             case InMemory:
                 InMemoryBucketStore inMemoryBucketStore = (InMemoryBucketStore) bucketStore;
                 Function<Integer, BucketService> inMemorySupplier = bucket ->
@@ -75,9 +80,15 @@ public class BucketServiceFactory {
                                 maxConcurrentExecutions, executionDuration, work);
 
                 return new InMemoryBucketManager(hostId, (InMemoryBucketStore) bucketStore, BucketStore.ServiceType.WatermarkingService, 
-                        executorService, inMemorySupplier);
+                        executorService, inMemorySupplier, new UniformBucketDistributor());
             default:
                 throw new IllegalArgumentException(String.format("store type %s not supported", bucketStore.getStoreType().name()));
         }
+    }
+
+    private BucketManagerLeader getBucketManagerLeader(BucketStore.ServiceType serviceType,
+                                                       ScheduledExecutorService executorService) {
+        return new BucketManagerLeader(bucketStore, minBucketRedistributionInterval,
+                new UniformBucketDistributor(), serviceType, executorService);
     }
 }

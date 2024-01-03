@@ -208,6 +208,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 .maxJournalUpdatesPerSnapshot(2)
                 .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
+                .selfCheckForSnapshotEnabled(true)
                 .build());
 
         val testSegmentName = testContext.segmentNames[0];
@@ -287,6 +288,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 .maxJournalUpdatesPerSnapshot(3)
                 .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
+                .selfCheckForSnapshotEnabled(true)
                 .build());
 
         val testSegmentName = testContext.segmentNames[0];
@@ -385,6 +387,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 .maxJournalUpdatesPerSnapshot(2)
                 .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
+                .selfCheckForSnapshotEnabled(true)
                 .build());
 
         val testSegmentName = testContext.segmentNames[0];
@@ -461,6 +464,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 .maxJournalUpdatesPerSnapshot(2)
                 .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
+                .selfCheckForSnapshotEnabled(true)
                 .build());
         val testSegmentName = testContext.segmentNames[0];
         testScenario(testContext, getSimpleScenarioActions(testContext, testSegmentName));
@@ -549,6 +553,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                         .maxJournalUpdatesPerSnapshot(2)
                         .garbageCollectionDelay(Duration.ZERO)
                         .selfCheckEnabled(true)
+                        .selfCheckForSnapshotEnabled(true)
                         .build());
                 val testSegmentName = testContext.segmentNames[0];
                 val truncateAt = i * maxChunkSize + j;
@@ -583,6 +588,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 .maxJournalUpdatesPerSnapshot(2)
                 .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
+                .selfCheckForSnapshotEnabled(true)
                 .build());
         val testSegmentName = testContext.segmentNames[0];
         val sizes = new int[chunkCount];
@@ -611,6 +617,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 .maxJournalUpdatesPerSnapshot(maxJournalUpdatesPerSnapshot)
                 .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
+                .selfCheckForSnapshotEnabled(true)
                 .build();
     }
 
@@ -672,7 +679,9 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         return chunkId;
     }
 
-    void testWithFlakyChunkStorage(ChunkedSegmentStorageConfig config, TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod1, String interceptMethod2, int[] primes) throws Exception {
+    void testWithFlakyChunkStorage(ChunkedSegmentStorageConfig config, TestMethod test,
+                                   TestScenarioProvider scenarioProvider, String interceptMethod1,
+                                   String interceptMethod2, int[] primes) throws Exception {
         for (val prime1 : primes) {
             for (val prime2 : primes) {
                 FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(new InMemoryChunkStorage(executorService()), executorService());
@@ -1089,6 +1098,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
+                .selfCheckForSnapshotEnabled(true)
                 .build();
         ChunkStorage chunkStorage;
         HashMap<String, ArrayList<ExpectedChunkInfo>> expectedChunks = new HashMap<>();

@@ -213,21 +213,22 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * Initializes the ChunkedSegmentStorage and bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
      * @param snapshotInfoStore Store that saves {@link SnapshotInfo}.
-     * @param taskQueue  Task queue to use for garbage collection.
      */
-    public CompletableFuture<Void> bootstrap(SnapshotInfoStore snapshotInfoStore, AbstractTaskQueueManager<GarbageCollector.TaskInfo> taskQueue) {
+    public CompletableFuture<Void> bootstrap(SnapshotInfoStore snapshotInfoStore) {
 
         this.logPrefix = String.format("ChunkedSegmentStorage[%d]", containerId);
-        this.taskQueue = taskQueue;
         // Now bootstrap
         return this.systemJournal.bootstrap(epoch, snapshotInfoStore);
     }
 
     /**
      * Concludes and finalizes the boostrap.
+     *
+     * @param taskQueue  Task queue to use for garbage collection.
      * @return
      */
-    public CompletableFuture<Void> finishBootstrap() {
+    public CompletableFuture<Void> finishBootstrap(AbstractTaskQueueManager<GarbageCollector.TaskInfo> taskQueue) {
+        this.taskQueue = taskQueue;
         return garbageCollector.initialize(taskQueue);
     }
 
@@ -809,10 +810,15 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         close("garbageCollector", this.garbageCollector);
         // taskQueue is per instance so safe to close this here.
         close("taskQueue", this.taskQueue);
+
+        // Do not forget to close ChunkStorage.
+        close("chunkStorage", this.chunkStorage);
+
         this.reporter.cancel(true);
         if (null != this.storageChecker) {
             this.storageChecker.cancel(true);
         }
+
         this.closed.set(true);
     }
 

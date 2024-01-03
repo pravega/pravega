@@ -44,8 +44,11 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -60,17 +63,6 @@ import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.utils.ControllerWrapper;
-import lombok.Cleanup;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-import org.apache.commons.lang3.RandomUtils;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -90,9 +82,20 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.apache.commons.lang3.RandomUtils;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -143,7 +146,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         store = serviceBuilder.createStreamSegmentService();
         tableStore = serviceBuilder.createTableStoreService();
         // Start up server.
-        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
+                new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
         this.server.startListening();
         // 3. Start Pravega Controller service
         this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
@@ -200,7 +204,17 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         Map<Integer, List<ByteBuffer>> data = generateEventData(NUM_WRITERS, events * 0, events, LARGE_EVENT_SIZE);
 
         readWriteCycle(streamName, readerGroupName, data);
+        val si = store.getStreamSegmentInfo(NameUtils.getIndexSegmentName(NameUtils.getQualifiedStreamSegmentName(SCOPE_NAME, streamName, 0)), Duration.ofMinutes(1)).join();
+        val segmentType = SegmentType.fromAttributes(si.getAttributes());
+        assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem() || segmentType.isTableSegment());
+        assertEquals(SegmentType.STREAM_SEGMENT, segmentType);
+
+        val attributes = si.getAttributes();
+        val length = si.getLength();
+        assertTrue((long) attributes.get(Attributes.EVENT_COUNT) > 0);
+        assertTrue( length > 0);
         validateCleanUp(streamName);
+
     }
 
     @Test(timeout = 60000)
@@ -279,7 +293,8 @@ public class LargeEventTest extends LeakDetectorTestSuite {
         Runnable restart = () -> {
             // Reset the server, in effect clearing the AppendProcessor and PravegaRequestProcessor.
             this.server.close();
-            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
+                    new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
             this.server.startListening();
         };
         restart.run();

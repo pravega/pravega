@@ -17,6 +17,7 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Service;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.segment.impl.Segment;
@@ -188,7 +189,15 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
 
         EventProcessorGroup mockEventProcessorGroup = mock(EventProcessorGroup.class);
         doNothing().when(mockEventProcessorGroup).awaitRunning();
-        doReturn(mockEventProcessorGroup).when(system).createEventProcessorGroup(any(EventProcessorConfig.class), any(CheckpointStore.class), any(ScheduledExecutorService.class));
+        when(system.createEventProcessorGroup(any(EventProcessorConfig.class), any(CheckpointStore.class), any(ScheduledExecutorService.class)))
+                .thenThrow(new RuntimeException("Error occurred") )
+                .thenReturn(mockEventProcessorGroup)
+                .thenThrow(new RuntimeException("Error occurred") )
+                .thenReturn(mockEventProcessorGroup)
+                .thenThrow(new RuntimeException("Error occurred") )
+                .thenReturn(mockEventProcessorGroup)
+                .thenThrow(new RuntimeException("Error occurred") )
+                .thenReturn(mockEventProcessorGroup);
 
         processors.startAsync();
         processors.awaitRunning();
@@ -500,6 +509,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
             }
             
             @Override
+            @SuppressFBWarnings("NP_NONNULL_RETURN_VIOLATION")
             public Service startAsync() {
                 return null;
             }
@@ -510,11 +520,13 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
             }
 
             @Override
+            @SuppressFBWarnings("NP_NONNULL_RETURN_VIOLATION")
             public State state() {
                 return null;
             }
 
             @Override
+            @SuppressFBWarnings("NP_NONNULL_RETURN_VIOLATION")
             public Service stopAsync() {
                 return null;
             }
@@ -540,6 +552,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
             }
 
             @Override
+            @SuppressFBWarnings("NP_NONNULL_RETURN_VIOLATION")
             public Throwable failureCause() {
                 return null;
             }

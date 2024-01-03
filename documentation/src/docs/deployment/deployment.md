@@ -46,7 +46,7 @@ For more details on the prerequisites and recommended configuration options for 
 There are multiple options provided for running Pravega in different environments. Most of these use the installation package from a Pravega release. You can find the latest Pravega release on the [GitHub Releases page](https://github.com/pravega/pravega/releases).
 
 - [Local](run-local.md) - Running Pravega locally is suitable for development and testing.
-    - [Running from source](run-local.md#from-source)
+    - [Running from source](run-local.md#from-source-code)
     - [Local Standalone Mode](run-local.md#from-installation-package)
     - [Docker Compose (Distributed Mode)](run-local.md#docker-compose-distributed-mode)
 - Production - Multi-node installation suitable for running in production.

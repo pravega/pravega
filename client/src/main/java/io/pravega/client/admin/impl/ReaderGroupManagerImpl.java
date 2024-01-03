@@ -107,7 +107,9 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         } else {
             @Cleanup
             StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
-                                                                                                     new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+                                                                                                     new ReaderGroupStateUpdatesSerializer(), 
+                                                                                                     new ReaderGroupStateInitSerializer(), 
+                                                                                                     SynchronizerConfig.builder().build());
             Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, controllerConfig);
             synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
             return true;

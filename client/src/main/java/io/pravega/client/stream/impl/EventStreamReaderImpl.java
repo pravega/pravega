@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Cleanup;
@@ -152,6 +153,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
 
             EventSegmentReader segmentReader = orderer.nextSegment(readers);
             if (segmentReader == null) {
+                log.debug("Reader {} has no segment to read. Number of available segments = {}.", groupState.getReaderId(), readers.size());
                 if (groupState.reachedEndOfStream()) {
                     log.info("Empty event returned for reader {} as it reached end of stream ", groupState.getReaderId());
                     return createEmptyEventEndOfStream();
@@ -169,7 +171,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
                     handleEndOfSegment(segmentReader, isSegmentSealed);
                     buffer = null;
                 } catch (SegmentTruncatedException e) {
-                    handleSegmentTruncated(segmentReader);
+                    handleSegmentTruncated(segmentReader, timeoutMillis);
                     buffer = null;
                 } finally {
                     if (buffer == null) {
@@ -394,7 +396,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
         sealedSegments.put(segmentId, segmentSealed ? -1L : oldSegment.getOffset());
     }
     
-    private void handleSegmentTruncated(EventSegmentReader segmentReader) throws TruncatedDataException {
+    private void handleSegmentTruncated(EventSegmentReader segmentReader, long timeoutInMilli) throws TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
 
@@ -402,7 +404,7 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId,
                 DelegationTokenProviderFactory.create(controller, segmentId, AccessOperation.READ));
         try {
-            long startingOffset = Futures.getThrowingException(metadataClient.getSegmentInfo()).getStartingOffset();
+            long startingOffset = Futures.getThrowingExceptionWithTimeout(metadataClient.getSegmentInfo(), timeoutInMilli).getStartingOffset();
             if (segmentReader.getOffset() == startingOffset) {
                 log.warn("Attempt to fetch the next available read offset on the segment {} returned a truncated offset {}",
                          segmentId, startingOffset);
@@ -410,6 +412,8 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
             segmentReader.setOffset(startingOffset);
         } catch (NoSuchSegmentException e) {
             handleEndOfSegment(segmentReader, true);
+        } catch (TimeoutException te) {
+            log.warn("A timeout has occurred while attempting to retrieve segment information from the server");
         }
         throw new TruncatedDataException();
     }

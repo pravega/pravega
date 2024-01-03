@@ -33,6 +33,9 @@ import io.pravega.controller.mocks.EventHelperMock;
 import io.pravega.controller.mocks.ControllerEventTableWriterMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.bucket.BucketManager;
+import io.pravega.controller.server.bucket.BucketServiceFactory;
+import io.pravega.controller.server.bucket.PeriodicRetention;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
@@ -70,6 +73,7 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 
+import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
@@ -102,6 +106,8 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private KVTableMetadataStore kvtStore;
     private TableMetadataTasks kvtMetadataTasks;
     private TableRequestHandler tableRequestHandler;
+    private BucketManager retentionService;
+    private BucketStore bucketStore;
 
     @Override
     public ControllerService getControllerService() throws Exception {
@@ -130,7 +136,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), this.kvtStore, executorService);
-        BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
+        bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock);
@@ -161,8 +167,18 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         cluster.registerHost(new Host("localhost", 9090, null));
         latch.await();
 
+        BucketServiceFactory bucketServiceFactory = new BucketServiceFactory("host", bucketStore, 1000,
+                1);
+        PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, executorService, requestTracker);
+        retentionService = bucketServiceFactory.createRetentionService(Duration.ofMinutes(30), retentionWork::retention, executorService);
+
         return new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelper, executorService, cluster, requestTracker);
+    }
+
+    @Override
+    BucketManager getBucketManager() {
+        return retentionService;
     }
 
     @After
@@ -220,7 +236,12 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         AssertExtensions.assertThrows("", list::get, 
                 e -> Exceptions.unwrap(e) instanceof StatusRuntimeException);
     }
-    
+
+    @Override
+    protected BucketStore getBucketStore() {
+        return bucketStore;
+    }
+
     private Controller.TxnStatus closeTransaction(final String scope,
                                                   final String stream,
                                                   final Controller.TxnId txnId,

@@ -39,9 +39,12 @@ import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
+import io.pravega.segmentstore.storage.DataLogInitializationException;
+import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.LogAddress;
+
 import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -54,6 +57,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+
 
 /**
  * Represents an OperationLog that durably stores Log Operations it receives.
@@ -292,6 +296,21 @@ public class DurableLog extends AbstractService implements OperationLog {
     public boolean isOffline() {
         return !this.delayedStart.isDone();
     }
+
+    @Override
+   public boolean isInitialized() {
+       try {
+           return this.durableDataLog.loadMetadata() == null;
+       } catch (DataLogInitializationException e) {
+           return false;
+       }
+   }
+
+
+   @Override
+    public void overrideEpoch(long epoch) throws DurableDataLogException {
+        this.durableDataLog.overrideEpoch(epoch);
+   }
 
     //endregion
 

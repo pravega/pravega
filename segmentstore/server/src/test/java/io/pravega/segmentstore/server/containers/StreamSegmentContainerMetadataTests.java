@@ -110,6 +110,20 @@ public class StreamSegmentContainerMetadataTests {
         Assert.assertEquals("Unexpected value from getContainerEpoch after exit from recovery mode.", epoch, m.getContainerEpoch());
     }
 
+    @Test
+    public void testWrongEpochAfterRestore() {
+        final long epoch = -1;
+        final StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID, 10);
+        Assert.assertThrows( IllegalArgumentException.class, () -> m.setContainerEpochAfterRestore(epoch));
+    }
+
+    @Test
+    public void testWrongSequenceNumberAfterRestore() {
+        final long sn = -1;
+        final StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID, 10);
+        Assert.assertThrows( IllegalArgumentException.class, () -> m.setOperationSequenceNumberAfterRestore(sn));
+    }
+
     /**
      * Tests the ability to map new StreamSegments.
      */
@@ -278,7 +292,9 @@ public class StreamSegmentContainerMetadataTests {
             }
 
             truncationMarker = m.getClosestTruncationMarker(input);
-            Assert.assertEquals("Unexpected truncation marker value for Op Sequence Number " + input + " after removing marker at Sequence Number " + seqNo, expectedTruncationMarker, truncationMarker);
+            Assert.assertEquals(
+                "Unexpected truncation marker value for Op Sequence Number " + input + " after removing marker at Sequence Number " + seqNo,
+                expectedTruncationMarker, truncationMarker);
         }
     }
 

@@ -18,6 +18,10 @@ package io.pravega.controller.server.bucket;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.cluster.Cluster;
+import io.pravega.common.cluster.ClusterType;
+import io.pravega.common.cluster.Host;
+import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
@@ -50,6 +54,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -57,6 +62,7 @@ import static org.junit.Assert.assertTrue;
 public class ZkStoreBucketServiceTest extends BucketServiceTest {
     private TestingServer zkServer;
     private CuratorFramework zkClient;
+    private Cluster cluster;
 
     @Override
     @Before
@@ -68,6 +74,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
                 (r, e, s) -> false);
 
         zkClient.start();
+        cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
         super.setup();
     }
 
@@ -75,6 +82,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
+        cluster.close();
         streamMetadataStore.close();
         zkClient.close();
         zkServer.close();
@@ -95,8 +103,8 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
 
     @Test(timeout = 10000)
     public void testBucketOwnership() throws Exception {
-        // verify that ownership is not taken up by another host
-        assertFalse(retentionService.takeBucketOwnership(0, "", executor).join());
+        addEntryToZkCluster(controller);
+        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 3000);
 
         // Introduce connection failure error
         zkClient.getZookeeperClient().close();
@@ -157,7 +165,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         String streamName2 = "stream2";
         bucketStore2.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope2, streamName2, executor2).join();
 
-        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore2, 5);
+        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore2, 5, 1);
 
         BucketManager service2 = bucketStoreFactory.createRetentionService(Duration.ofMillis(5000), stream -> CompletableFuture.completedFuture(null), executor2);
         service2.startAsync();
@@ -275,4 +283,10 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         // stream 4's work should be called and completed
         streamWorkLatch.get(stream4).join();
     }
+
+    @Override
+    protected void addEntryToZkCluster(Host host)  {
+        addControllerToZkCluster(host, cluster);
+    }
+
 }

@@ -273,11 +273,11 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         LogMetadata metadata = this.bkLog.loadMetadata();
         val newMetadata = LogMetadata
                 .builder()
-                .enabled(true)
+                .enabled(metadata.isEnabled())
                 .epoch(epoch)
                 .truncationAddress(getOrDefault(metadata, LogMetadata::getTruncationAddress, LogMetadata.INITIAL_TRUNCATION_ADDRESS))
                 .updateVersion(getOrDefault(metadata, LogMetadata::getUpdateVersion, LogMetadata.INITIAL_VERSION))
-                .ledgers(getOrDefault(metadata, LogMetadata::getLedgers, new ArrayList<LedgerMetadata>()))
+                .ledgers(getOrDefault(metadata, LogMetadata::getLedgers, new ArrayList<>()))
                 .build();
         forceMetadataOverWrite(newMetadata);
     }
@@ -375,8 +375,18 @@ public class DebugBookKeeperLogWrapper implements DebugDurableDataLogWrapper {
         }
 
         @Override
+        public ReadOnlyLogMetadata loadMetadata() throws DataLogInitializationException {
+            throw new DataLogInitializationException("Unsupported operation");
+        }
+
+        @Override
         public long getEpoch() {
             return this.logMetadata.getEpoch();
+        }
+
+        @Override
+        public void overrideEpoch(long epoch) throws DurableDataLogException {
+            throw new DataLogInitializationException("Unsupported operation");
         }
 
         @Override
