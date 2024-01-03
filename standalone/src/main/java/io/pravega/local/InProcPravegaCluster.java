@@ -412,7 +412,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl
                 .withDefaultBuilder()
-                .shutdownTimeout(Duration.ofMillis(100))
+                .shutdownTimeout(Duration.ofMillis(1000))
                 .build();
 
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl
@@ -454,7 +454,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(Optional.ofNullable(restServerConfig))
-                .shutdownTimeout(Duration.ofMillis(100))
+                .shutdownTimeout(Duration.ofMillis(1000))
+                .minBucketRedistributionIntervalInSeconds(10)
                 .build();
 
         ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);

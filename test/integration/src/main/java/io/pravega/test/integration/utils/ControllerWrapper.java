@@ -68,7 +68,7 @@ public class ControllerWrapper implements AutoCloseable {
     public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount) {
-        this(connectionString, disableEventProcessor, true, controllerPort, serviceHost,
+        this(connectionString, disableEventProcessor, false, controllerPort, serviceHost,
                 servicePort, containerCount, -1);
     }
 
@@ -207,6 +207,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(restServerConfig)
                 .retentionFrequency(Duration.ofSeconds(1))
+                .minBucketRedistributionIntervalInSeconds(Config.MIN_BUCKET_REDISTRIBUTION_INTERVAL_IN_SECONDS)
                 .build();
 
         controllerServiceMain = new ControllerServiceMain(serviceConfig);

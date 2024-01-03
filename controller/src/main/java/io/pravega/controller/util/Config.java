@@ -16,7 +16,6 @@
 package io.pravega.controller.util;
 
 import com.google.common.base.Strings;
-import io.pravega.client.stream.RetentionPolicy.RetentionType;
 import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
@@ -175,18 +174,6 @@ public final class Config {
     public static final Property<Integer> PROPERTY_RETENTION_BUCKET_COUNT = Property.named(
             "retention.bucket.count", 1, "retention.bucketCount");
 
-    public static final Property<RetentionType> PROPERTY_RETENTION_TYPE = Property.named(
-            "retention.type", RetentionType.TIME, "retention.type");
-
-    public static final Property<Integer> PROPERTY_RETENTION_MIN_VALUE = Property.named(
-            "retention.min.value", Integer.MAX_VALUE, "retention.minVal");
-
-    public static final Property<Integer> PROPERTY_RETENTION_MAX_VALUE = Property.named(
-            "retention.max.value", Integer.MAX_VALUE, "retention.maxVal");
-
-    public static final Property<Boolean> PROPERTY_GLOBAL_RETENTION_POLICY = Property.named(
-            "retention.global.policy.enabled", false, "retention.globalPolicy");
-
     public static final Property<Integer> PROPERTY_RETENTION_THREAD_COUNT = Property.named(
             "retention.thread.count", 1, "retention.threadCount");
 
@@ -222,6 +209,9 @@ public final class Config {
 
     public static final Property<Integer> PROPERTY_LIST_COMPLETED_TXN_MAX_RECORDS = Property.named(
             "listCompletedTxn.max.records", 500);
+
+    public static final Property<Integer> PROPERTY_MIN_BUCKET_REDISTRIBUTION_INTERVAL_IN_SECONDS = Property.named(
+            "min.bucket.redistribution.interval.in.seconds", 10);
 
     public static final String COMPONENT_CODE = "controller";
 
@@ -291,13 +281,6 @@ public final class Config {
     // Retention Configuration
     public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES;
     public static final int RETENTION_BUCKET_COUNT;
-
-    public static final RetentionType RETENTION_TYPE;
-
-    public static final boolean GLOBAL_RETENTION_POLICY;
-    public static final int RETENTION_MIN_VALUE;
-
-    public static final int RETENTION_MAX_VALUE;
     public static final int RETENTION_THREAD_POOL_SIZE;
 
     // Watermarking Configuration
@@ -322,6 +305,8 @@ public final class Config {
     public static final int HEALTH_CHECK_FREQUENCY;
 
     public static final int LIST_COMPLETED_TXN_MAX_RECORDS;
+
+    public static final int MIN_BUCKET_REDISTRIBUTION_INTERVAL_IN_SECONDS;
 
     private static final String METRICS_PATH = "controller.metrics.";
 
@@ -381,10 +366,6 @@ public final class Config {
         COMPLETED_TRANSACTION_TTL_IN_HOURS = p.getInt(PROPERTY_TXN_TTL_HOURS);
         MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = p.getInt(PROPERTY_RETENTION_FREQUENCY_MINUTES);
         RETENTION_BUCKET_COUNT = p.getInt(PROPERTY_RETENTION_BUCKET_COUNT);
-        RETENTION_TYPE = p.getEnum(PROPERTY_RETENTION_TYPE, RetentionType.class);
-        RETENTION_MIN_VALUE = p.getInt(PROPERTY_RETENTION_MIN_VALUE);
-        RETENTION_MAX_VALUE = p.getInt(PROPERTY_RETENTION_MAX_VALUE);
-        GLOBAL_RETENTION_POLICY = p.getBoolean(PROPERTY_GLOBAL_RETENTION_POLICY);
         RETENTION_THREAD_POOL_SIZE = p.getInt(PROPERTY_RETENTION_THREAD_COUNT);
         MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS = p.getInt(PROPERTY_WATERMARKING_FREQUENCY_SECONDS);
         WATERMARKING_BUCKET_COUNT = p.getInt(PROPERTY_WATERMARKING_BUCKET_COUNT);
@@ -399,6 +380,8 @@ public final class Config {
         REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE = p.getInt(PROPERTY_SEGMENT_STORE_REQUEST_TIMEOUT_SECONDS);
         HEALTH_CHECK_FREQUENCY = p.getInt(PROPERTY_HEALTH_CHECK_FREQUENCY);
         LIST_COMPLETED_TXN_MAX_RECORDS = p.getInt(PROPERTY_LIST_COMPLETED_TXN_MAX_RECORDS);
+
+        MIN_BUCKET_REDISTRIBUTION_INTERVAL_IN_SECONDS = p.getInt(PROPERTY_MIN_BUCKET_REDISTRIBUTION_INTERVAL_IN_SECONDS);
     }
 
     private static Properties loadConfiguration() {

@@ -29,6 +29,7 @@ import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -84,7 +85,7 @@ public class ReaderGroupTest {
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
         server.startListening();
 
         @Cleanup
@@ -132,7 +133,7 @@ public class ReaderGroupTest {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store));
         server.startListening();
 
         @Cleanup

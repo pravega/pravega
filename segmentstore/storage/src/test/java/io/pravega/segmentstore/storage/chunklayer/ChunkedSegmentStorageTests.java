@@ -52,6 +52,7 @@ import java.util.HashSet;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -1399,7 +1400,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, int expectedLastChunkLength, boolean shouldAppend, boolean useLazyCommitBefore) throws Exception {
+    private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks,
+                                            int lastChunkLengthInStorage, int expectedLastChunkLength,
+                                            boolean shouldAppend, boolean useLazyCommitBefore) throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .appendEnabled(shouldAppend)
@@ -1428,7 +1431,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         Assert.assertEquals(metadataAfter.getLength(), testContext.chunkedSegmentStorage.getStreamSegmentInfo(testSegmentName, null).get().getLength());
     }
 
-    private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, int expectedLastChunkLength, boolean shouldAppend, boolean useLazyCommitBefore) throws Exception {
+    private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks,
+                                           int lastChunkLengthInStorage, int expectedLastChunkLength,
+                                           boolean shouldAppend, boolean useLazyCommitBefore) throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .appendEnabled(shouldAppend)
@@ -2352,7 +2357,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         testTruncate(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().indexBlockSize(3).build(), maxChunkLength, truncateAt, chunksCountBefore, chunksCountAfter, expectedLength, maxChunkLength);
     }
 
-    private void testTruncate(ChunkedSegmentStorageConfig config, long maxChunkLength, long truncateAt, int chunksCountBefore, int chunksCountAfter, long expectedLength, long expectedFirstChunkLength) throws Exception {
+    private void testTruncate(ChunkedSegmentStorageConfig config, long maxChunkLength, long truncateAt,
+                              int chunksCountBefore, int chunksCountAfter, long expectedLength,
+                              long expectedFirstChunkLength) throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(config);
         String testSegmentName = "testSegmentName";
@@ -2361,7 +2368,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         testTruncate(testContext, testSegmentName, maxChunkLength, truncateAt, chunksCountAfter, expectedLength, expectedFirstChunkLength);
     }
 
-    private void testTruncate(TestContext testContext, String testSegmentName, long maxChunkLength, long truncateAt, int chunksCountAfter, long expectedLength, long expectedFirstChunkLength) throws Exception {
+    private void testTruncate(TestContext testContext, String testSegmentName, long maxChunkLength, long truncateAt,
+                              int chunksCountAfter, long expectedLength,
+                              long expectedFirstChunkLength) throws Exception {
         HashSet<String> chunksBefore = new HashSet<>();
         chunksBefore.addAll(TestUtils.getChunkNameList(testContext.metadataStore, testSegmentName));
 
@@ -2982,7 +2991,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         checkDataReadPermutations(testContext, testSegmentName, total, numberOfWrites, bytesToWrite);
     }
 
-    private void checkDataReadPermutations(TestContext testContext, String segmentName, int total, int numberOfWrites, byte[] expected) throws InterruptedException, java.util.concurrent.ExecutionException {
+    private void checkDataReadPermutations(TestContext testContext, String segmentName, int total, int numberOfWrites,
+                                           byte[] expected) throws InterruptedException, ExecutionException {
         val h = testContext.chunkedSegmentStorage.openRead(segmentName).join();
         // Read all bytes at once.
         byte[] output = new byte[total];

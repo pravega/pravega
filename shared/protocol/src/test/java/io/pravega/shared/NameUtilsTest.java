@@ -175,6 +175,10 @@ public class NameUtilsTest {
                 "_system/containers/_sysjournal.epoch3.container2.file4");
         Assert.assertEquals(NameUtils.getSystemJournalSnapshotFileName(5, 6, 7),
                 "_system/containers/_sysjournal.epoch6.container5.snapshot7");
+        Assert.assertEquals(NameUtils.getSystemJournalSnapshotInfoFileName(42),
+                "_system/containers/_sysjournal.container42.snapshot_info");
+        Assert.assertEquals(NameUtils.getContainerEpochFileName(0),
+                "_system/containers/container_0_epoch");
         Assert.assertTrue(NameUtils.getSegmentChunkName("segment", 8, 9).startsWith("segment.E-8-O-9"));
         Assert.assertEquals(NameUtils.getSegmentReadIndexBlockName("segment", 10), "segment.B-10");
     }
@@ -226,5 +230,30 @@ public class NameUtilsTest {
     public void testGetConnectionDetails() {
         Assert.assertEquals("localhost", NameUtils.getConnectionDetails("localhost :12345")[0].trim());
         Assert.assertEquals("12345", NameUtils.getConnectionDetails("localhost :12345")[1].trim());
+    }
+
+    @Test
+    public void testIndexSegmentName() {
+        String scope = "scope";
+        String stream = "stream";
+        String qualifiedStreamSegmentName = NameUtils.getQualifiedStreamSegmentName(scope, stream, 0L);
+        String indexSegmentName = NameUtils.getIndexSegmentName(qualifiedStreamSegmentName);
+        Assert.assertTrue("Passed segment is an index segment", NameUtils.isIndexSegment(indexSegmentName));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateStreamName(indexSegmentName));
+        AssertExtensions.assertThrows("", () -> NameUtils.getIndexSegmentName(indexSegmentName), ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test(timeout = 5000)
+    public void isUserStreamSegment() {
+        testUserStreamVerifier(NameUtils::isUserStreamSegment);
+    }
+
+    private void testUserStreamVerifier(Function<String, Boolean> toTest) {
+        Assert.assertEquals(Boolean.TRUE, toTest.apply("testScope/testStream/0"));
+        Assert.assertEquals(Boolean.FALSE, toTest.apply("_stream/_requestStream/0"));
+        Assert.assertEquals(Boolean.FALSE, toTest.apply(null));
+        Assert.assertEquals(Boolean.TRUE, toTest.apply("test/a-b-c/1"));
+        Assert.assertEquals(Boolean.TRUE, toTest.apply("test/1.2.3/0"));
+        Assert.assertEquals(Boolean.FALSE, toTest.apply("test/1.2.3/0#index"));
     }
 }

@@ -149,6 +149,7 @@ import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_READER_
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_STREAM;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.UPDATE_TRUNCATION_STREAM_CUT;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_COMPLETED_TRANSACTIONS;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_CONTROLLER_TO_BUCKET_MAPPING;
 
 /**
  * gRPC Service API implementation for the Controller.
@@ -1241,6 +1242,30 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         authorizationResource.ofScopes(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.deleteScopeRecursive(request.getScope(), requestTag.getRequestId()),
                 responseObserver, requestTag);
+    }
+
+    @Override
+    public void getControllerToBucketMapping(Controller.ControllerToBucketMappingRequest request,
+                                             StreamObserver<Controller.ControllerToBucketMappingResponse> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(ControllerService.nextRequestId(),
+                GET_CONTROLLER_TO_BUCKET_MAPPING, request.getServiceType().toString());
+        log.info(requestTag.getRequestId(), "getControllerToBucketMapping called for type {}.",
+                request.getServiceType().toString());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                        authorizationResource.ofScopes(), AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.getControllerToBucketMapping(request.getServiceType(),
+                        requestTag.getRequestId()).handle((result, ex) -> {
+                    if (ex == null) {
+                        Controller.ControllerToBucketMappingResponse.Builder controllerToBucketMappingResponse =
+                                Controller.ControllerToBucketMappingResponse.newBuilder();
+                        result.forEach((k, v) -> controllerToBucketMappingResponse.putMapping(k,
+                                Controller.BucketIds.newBuilder().addAllId(new ArrayList<>(v)).build()));
+                        return controllerToBucketMappingResponse.build();
+                    } else {
+                        log.warn("getControllerToBucketMapping call failed due to ", ex);
+                        throw new CompletionException(ex);
+                    }
+                }), responseObserver, requestTag);
     }
 
     @Override

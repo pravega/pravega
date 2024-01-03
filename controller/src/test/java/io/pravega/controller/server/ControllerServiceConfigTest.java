@@ -195,5 +195,18 @@ public class ControllerServiceConfigTest {
                         .grpcServerConfig(Optional.empty())
                         .restServerConfig(Optional.empty())
                         .build());
+
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> ControllerServiceConfigImpl.builder()
+                                                 .threadPoolSize(15)
+                                                 .storeClientConfig(storeClientConfig)
+                                                 .hostMonitorConfig(hostMonitorConfig)
+                                                 .controllerClusterListenerEnabled(true)
+                                                 .timeoutServiceConfig(timeoutServiceConfig)
+                                                 .eventProcessorConfig(Optional.empty())
+                                                 .grpcServerConfig(Optional.empty())
+                                                 .restServerConfig(Optional.empty())
+                                                 .minBucketRedistributionIntervalInSeconds(0)
+                                                 .build());
     }
 }

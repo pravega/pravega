@@ -135,6 +135,13 @@ public interface DurableDataLog extends AutoCloseable {
     WriteSettings getWriteSettings();
 
     /**
+     * Fetch the metadata for this log.
+     * @return the metadata persisted for this DurableDataLog.
+     * @throws DataLogInitializationException any exception with ZK while fetching metadata.
+     */
+    ReadOnlyLogMetadata loadMetadata() throws DataLogInitializationException;
+
+    /**
      * Gets a value indicating the current Epoch of this DurableDataLog.
      * <p>
      * An Epoch is a monotonically strictly number that changes (not necessarily incremented) every time the DurableDataLog
@@ -149,6 +156,14 @@ public interface DurableDataLog extends AutoCloseable {
      * of this object.
      */
     long getEpoch();
+
+    /**
+     * Override the epoch in the log metadata. To be used in cases where we initialize container from storage
+     * where we override the epoch in container metadata with epoch read from starage.
+     * @param epoch epoch to be overriden
+     * @throws  DurableDataLogException in case of exceptions while overriding.
+     */
+    void overrideEpoch(long epoch) throws DurableDataLogException;
 
     /**
      * Gets a QueueStats with information about the current state of the queue.

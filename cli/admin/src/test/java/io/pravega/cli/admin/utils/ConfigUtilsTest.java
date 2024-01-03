@@ -16,24 +16,28 @@
 package io.pravega.cli.admin.utils;
 
 import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.Cleanup;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 
+@RunWith(SerializedClassRunner.class)
 public class ConfigUtilsTest {
 
     @Test
     public void testConfigUtilsWithValidFile() throws IOException {
+        System.setProperty("pravega.configurationFile", "../../config/admin-cli.properties");
         @Cleanup
         AdminCommandState commandState = new AdminCommandState();
-        System.setProperty("pravega.configurationFile", "../../config/admin-cli.properties");
         System.setProperty("pravegaservice", "pravegaservice");
         ConfigUtils.loadProperties(commandState);
     }
 
     @Test
     public void testConfigUtilsWithInValidFile() throws IOException {
+        System.setProperty("pravega.configurationFile", "../../config/admin-cli.properties");
         @Cleanup
         AdminCommandState commandState = new AdminCommandState();
         System.setProperty("pravega.configurationFile", "dummy");

@@ -42,7 +42,11 @@ import java.util.UUID;
 @Data
 public class CommittingTransactionsRecord {
     public static final CommitTransactionsRecordSerializer SERIALIZER = new CommitTransactionsRecordSerializer();
-    public static final CommittingTransactionsRecord EMPTY = CommittingTransactionsRecord.builder().epoch(Integer.MIN_VALUE).transactionsToCommit(ImmutableList.of()).activeEpoch(Optional.empty()).build();
+    public static final CommittingTransactionsRecord EMPTY = CommittingTransactionsRecord.builder()
+                                                                                         .epoch(Integer.MIN_VALUE)
+                                                                                         .transactionsToCommit(ImmutableList.of())
+                                                                                         .activeEpoch(Optional.empty())
+                                                                                         .build();
     /**
      * Epoch from which transactions are committed.
      */

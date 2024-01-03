@@ -21,6 +21,7 @@ import com.google.common.base.Throwables;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -68,6 +69,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -83,6 +86,12 @@ import org.slf4j.LoggerFactory;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SEGMENT_TYPE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
+import static io.pravega.segmentstore.contracts.Attributes.EXPECTED_INDEX_SEGMENT_EVENT_SIZE;
+import static io.pravega.shared.NameUtils.INDEX_APPEND_EVENT_SIZE;
+import static io.pravega.shared.NameUtils.getIndexSegmentName;
+import static io.pravega.shared.NameUtils.isTransactionSegment;
+import static io.pravega.shared.NameUtils.isTransientSegment;
+import static io.pravega.shared.NameUtils.isUserStreamSegment;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
@@ -103,6 +112,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
     private final ScheduledExecutorService tokenExpiryHandlerExecutor;
     private final Collection<String> transientSegmentNames;
+    private final IndexAppendProcessor indexAppendProcessor;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     //endregion
@@ -112,7 +122,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
     @Builder
     AppendProcessor(@NonNull StreamSegmentStore store, @NonNull TrackedConnection connection, @NonNull RequestProcessor nextRequestProcessor,
                     @NonNull SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
-                    boolean replyWithStackTraceOnError, ScheduledExecutorService tokenExpiryHandlerExecutor) {
+                    boolean replyWithStackTraceOnError, ScheduledExecutorService tokenExpiryHandlerExecutor, IndexAppendProcessor indexAppendProcessor) {
         this.store = store;
         this.connection = connection;
         this.nextRequestProcessor = nextRequestProcessor;
@@ -121,18 +131,21 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.tokenExpiryHandlerExecutor = tokenExpiryHandlerExecutor;
         this.transientSegmentNames = Collections.synchronizedSet(new HashSet<>());
+        this.indexAppendProcessor = indexAppendProcessor;
     }
 
     /**
      * Creates a new {@link AppendProcessorBuilder} instance with all optional arguments set to default values.
      * These default values may not be appropriate for production use and should be used for testing purposes only.
+     * @param indexAppendProcessor Index append processor to be used for appending on index segment.
      * @return A {@link AppendProcessorBuilder} instance.
      */
     @VisibleForTesting
-    public static AppendProcessorBuilder defaultBuilder() {
+    public static AppendProcessorBuilder defaultBuilder(IndexAppendProcessor indexAppendProcessor) {
         return builder()
                 .nextRequestProcessor(new FailingRequestProcessor())
                 .statsRecorder(SegmentStatsRecorder.noOp())
+                .indexAppendProcessor(indexAppendProcessor)
                 .replyWithStackTraceOnError(false);
     }
 
@@ -194,22 +207,65 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
                                 } else {
                                     // Last event number stored according to Segment store.
                                     long eventNumber = attributes.getOrDefault(writerAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
+                                    CompletableFuture<Long> indexSegmentEventsize;
 
-                                    // Create a new WriterState object based on the attribute value for the last event number for the writer.
-                                    // It should be noted that only one connection for a given segment writer is created by the client.
-                                    // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
-                                    // below the specified event number.
-                                    WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber));
-                                    if (current != null) {
-                                        log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
-                                                writer, eventNumber, current);
+                                    if (!isTransientSegment(newSegment) && !isTransactionSegment(newSegment) && isUserStreamSegment(newSegment)) {
+                                        String indexSegment = getIndexSegmentName(newSegment);
+                                        indexSegmentEventsize = createIndexSegmentIfNotExists(indexSegment, setupAppend.getRequestId());
+                                    } else {
+                                        indexSegmentEventsize = CompletableFuture.completedFuture(0L);
                                     }
-                                    connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
+
+                                    indexSegmentEventsize.thenAccept(eventSize -> {
+                                        // Create a new WriterState object based on the attribute value for the last event number for the writer.
+                                        // It should be noted that only one connection for a given segment writer is created by the client.
+                                        // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
+                                        // below the specified event number.
+                                        WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber, eventSize));
+                                        if (current != null) {
+                                            log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
+                                                    writer, eventNumber, current);
+                                        }
+                                        connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
+                                    }).exceptionally(e -> handleException(writer, setupAppend.getRequestId(), getIndexSegmentName(newSegment), "creating index segment", e));
                                 }
                             } catch (Throwable e) {
                                 handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
                             }
                         });
+    }
+
+    private CompletableFuture<Long> createIndexSegmentIfNotExists(String indexSegment, long requestId) {
+        return store.getAttributes(indexSegment, List.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE), true, TIMEOUT)
+                    .exceptionally(ex -> {
+                        log.warn("Unable to get attribute for index segment {} due to ", indexSegment, ex);
+                        ex = Exceptions.unwrap(ex);
+                        if (ex instanceof NoSuchSegmentException || ex instanceof StreamSegmentNotExistsException) {
+                            return Map.of(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, -1L);
+                        } else {
+                            throw Exceptions.sneakyThrow(ex);
+                        }
+                    }).thenCompose(value -> {
+                        Long size = value.getOrDefault(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, 0L);
+                        if (size != -1) {
+                            return CompletableFuture.completedFuture(size);
+                        } 
+                        return createIndexSegmentAndFetchEventSize(indexSegment, requestId);
+                    });
+    }
+
+    private CompletableFuture<Long> createIndexSegmentAndFetchEventSize(String indexSegment, long requestId) {
+        log.info("Creating index segment {} while processing request: {}.", indexSegment, requestId);
+        Collection<AttributeUpdate> attributes = Arrays.asList(
+                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()),
+                new AttributeUpdate(ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.None, SegmentType.STREAM_SEGMENT.getValue()),
+                new AttributeUpdate(EXPECTED_INDEX_SEGMENT_EVENT_SIZE, AttributeUpdateType.None, INDEX_APPEND_EVENT_SIZE)
+        );
+        return store.createStreamSegment(indexSegment, SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
+                    .thenApply(eventSize -> {
+                        log.info("Index segment {} created successfully.", indexSegment);
+                        return Long.valueOf(INDEX_APPEND_EVENT_SIZE);
+                    });
     }
 
     @VisibleForTesting
@@ -304,6 +360,7 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         boolean success = exception == null;
         try {
             if (success) {
+                appendOnIndexSegment(append);
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
                     long previousLastAcked = state.appendSuccessful(append.getEventNumber());
@@ -349,6 +406,14 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
         if (success) {
             // Record any necessary metrics or statistics, but after we have sent the ack back and initiated the next append.
             this.statsRecorder.recordAppend(append.getSegment(), append.getDataLength(), append.getEventCount(), elapsedTimer.getElapsed());
+        }
+    }
+
+    private void appendOnIndexSegment(Append append) {
+        if (!isTransientSegment(append.getSegment()) && !isTransactionSegment(append.getSegment()) && isUserStreamSegment(append.getSegment())) {
+            WriterState state = this.writerStates.get(Pair.of(append.getSegment(), append.getWriterId()));
+            long maxAllowedEventSize = state.getEventSizeForAppend();
+            indexAppendProcessor.processAppend(append.getSegment(), maxAllowedEventSize);
         }
     }
 
@@ -417,6 +482,8 @@ public class AppendProcessor extends DelegatingRequestProcessor implements AutoC
             close();
         } else if (u instanceof TokenExpiredException) {
             log.warn(requestId, "Token expired for writer {} on segment {}.", writerId, segment, u);
+            connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
             close();
         } else if (u instanceof TokenException) {
             log.warn(requestId, "Token check failed or writer {} on segment {}.", writerId, segment, u);

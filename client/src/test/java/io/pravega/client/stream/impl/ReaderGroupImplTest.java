@@ -28,14 +28,14 @@ import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
-import io.pravega.client.stream.Checkpoint;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReaderSegmentDistribution;
-import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.ReaderSegmentDistribution;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Checkpoint;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -168,6 +168,50 @@ public class ReaderGroupImplTest {
     }
 
     @Test
+    public void testCancelOutstanding() {
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 12345);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController mkController = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream("scope", "stream", mkController);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+
+        @Cleanup
+        SynchronizerClientFactory syncClientFactory = new ClientFactoryImpl("scope", mkController, connectionFactory, streamFactory,
+                streamFactory, streamFactory, streamFactory);
+        SynchronizerConfig syncConfig = SynchronizerConfig.builder().build();
+        Map<SegmentWithRange, Long> segments = new HashMap<>();
+        Segment s1 = new Segment("scope", "stream", 1);
+        Segment s2 = new Segment("scope", "stream", 2);
+        segments.put(new SegmentWithRange(s1, 0.0, 0.5), 1L);
+        segments.put(new SegmentWithRange(s2, 0.5, 1.0), 2L);
+        createScopeAndStream("scope", NameUtils.getStreamForReaderGroup(GROUP_NAME), mkController);
+        readerGroup = new ReaderGroupImpl("scope", GROUP_NAME, syncConfig, initSerializer,
+                updateSerializer, syncClientFactory, mkController, connectionPool);
+
+        @Cleanup("shutdown")
+        InlineExecutor executor = new InlineExecutor();
+        StateSynchronizer<ReaderGroupState> rgStateSynchronizer = readerGroup.getSynchronizer();
+        rgStateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(
+                ReaderGroupConfig.builder().stream(Stream.of("scope", "stream")).maxOutstandingCheckpointRequest(3).build(), segments, Collections.emptyMap(), false));
+        CheckpointState rgState = rgStateSynchronizer.getState().getCheckpointState();
+        rgState.beginNewCheckpoint("1", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        CompletableFuture<Checkpoint> c1 = readerGroup.initiateCheckpoint("test1", executor);
+        rgState.beginNewCheckpoint("2", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        CompletableFuture<Checkpoint> c2 = readerGroup.initiateCheckpoint("test2", executor);
+        rgState.beginNewCheckpoint("3", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        CompletableFuture<Checkpoint> c3 = readerGroup.initiateCheckpoint("test3", executor);
+        assertEquals("1", rgState.getCheckpointForReader("a"));
+        assertEquals("1", rgState.getCheckpointForReader("b"));
+        assertEquals(null, rgState.getCheckpointForReader("c"));
+        rgState.readerCheckpointed("1", "a", Collections.emptyMap());
+        assertEquals("2", rgState.getCheckpointForReader("a"));
+        assertEquals("1", rgState.getCheckpointForReader("b"));
+        assertEquals(3, rgState.getOutstandingCheckpoints().size());
+        readerGroup.cancelOutstandingCheckpoints();
+        assertEquals(0, rgState.getOutstandingCheckpoints().size());
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     public void resetRGToLastCheckpoint() {
         final UUID readerGroupId = UUID.randomUUID();
@@ -286,7 +330,8 @@ public class ReaderGroupImplTest {
 
         verify(synchronizer, times(1)).fetchUpdates();
         verify(controller, times(1)).updateReaderGroup(eq(SCOPE), eq(GROUP_NAME), argThat(new ReaderGroupConfigMatcher(config1)));
-        verify(controller, times(1)).updateReaderGroup(eq(SCOPE), eq(GROUP_NAME), argThat(new ReaderGroupConfigMatcher(ReaderGroupConfig.cloneConfig(config1, config1.getReaderGroupId(), config2.getGeneration()))));
+        verify(controller, times(1)).updateReaderGroup(eq(SCOPE), eq(GROUP_NAME), 
+            argThat(new ReaderGroupConfigMatcher(ReaderGroupConfig.cloneConfig(config1, config1.getReaderGroupId(), config2.getGeneration()))));
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
         verify(synchronizer, times(4)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }
