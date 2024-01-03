@@ -41,6 +41,8 @@ public class ZookeeperK8sService extends AbstractService {
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
     private static final String ZOOKEEPER_IMAGE_NAME = System.getProperty("zookeeperImageName", "zookeeper");
     private static final String PRAVEGA_ZOOKEEPER_IMAGE_VERSION = System.getProperty("zookeeperImageVersion", "latest");
+    private static final String SYSTEMTESTCONFIG = "systemTestConfig.json";
+    private ResourceWrapper resourceWrapper = ResourceWrapper.getSystemTestConfig(SYSTEMTESTCONFIG);
 
     public ZookeeperK8sService(String id) {
         super(id);
@@ -110,22 +112,13 @@ public class ZookeeperK8sService extends AbstractService {
                 .put("metadata", ImmutableMap.of("name", deploymentName))
                 .put("spec", ImmutableMap.builder().put("image",  getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + ZOOKEEPER_IMAGE_NAME, PRAVEGA_ZOOKEEPER_IMAGE_VERSION))
                                          .put("replicas", clusterSize)
-                                         .put("persistence", ImmutableMap.of("reclaimPolicy", "Delete"))
-                                         .put("pod", ImmutableMap.of("resources", getZookeeperResources()))
-                                         .build())
+                                         .put("persistence", ImmutableMap.copyOf(resourceWrapper.getZookeeperProperties().getPersistentVolumeClaim()))
+                                         .put("pod", ImmutableMap.of(resourceWrapper.getZookeeperProperties().getZookeeperResources().getLimits().get("cpu"),
+                                                 resourceWrapper.getZookeeperProperties().getZookeeperResources().getLimits().get("memory"),
+                                                 resourceWrapper.getZookeeperProperties().getZookeeperResources().getRequests().get("cpu"),
+                                                 resourceWrapper.getZookeeperProperties().getZookeeperResources().getRequests().get("memory")))
+                                .build())
                 .build();
     }
 
-    private Map<String, Object> getZookeeperResources() {
-        return ImmutableMap.<String, Object>builder()
-                           .put("limits", ImmutableMap.builder()
-                                                      .put("cpu", "400m")
-                                                      .put("memory", "2Gi")
-                                                      .build())
-                           .put("requests", ImmutableMap.builder()
-                                                        .put("cpu", "200m")
-                                                        .put("memory", "1Gi")
-                                                        .build())
-                           .build();
-    }
 }

@@ -17,27 +17,29 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.openapi.models.V1Secret;
-import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.util.Yaml;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
-
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
+import java.util.stream.Stream;
 
 import static io.pravega.common.Exceptions.checkNotNullOrEmpty;
 import static java.util.Collections.singletonList;
@@ -55,7 +57,6 @@ public abstract class AbstractService implements Service {
     static final int DEFAULT_SEGMENTSTORE_COUNT = 1;
     static final int DEFAULT_BOOKIE_COUNT = 3;
     static final int ZKPORT = 2181;
-
     static final int SEGMENTSTORE_PORT = 12345;
     static final int BOOKKEEPER_PORT = 3181;
     static final String NAMESPACE = System.getProperty("namespace", "default");
@@ -86,11 +87,10 @@ public abstract class AbstractService implements Service {
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
     private static final String BOOKKEEPER_VERSION = System.getProperty("bookkeeperImageVersion", "latest");
     private static final String ZK_SERVICE_NAME = "zookeeper-client:2181";
-    private static final String JOURNALDIRECTORIES = "/bk/journal/j0,/bk/journal/j1,/bk/journal/j2,/bk/journal/j3";
-    private static final String LEDGERDIRECTORIES = "/bk/ledgers/l0,/bk/ledgers/l1,/bk/ledgers/l2,/bk/ledgers/l3";
-
+    private static final String SYSTEMTESTCONFIG = "systemTestConfig.json";
     final K8sClient k8sClient;
     private final String id;
+    private ResourceWrapper resourceWrapper = ResourceWrapper.getSystemTestConfig(SYSTEMTESTCONFIG);
 
     AbstractService(final String id) {
         this.k8sClient = ClientFactory.INSTANCE.getK8sClient();
@@ -107,6 +107,7 @@ public abstract class AbstractService implements Service {
             log.info("Skipping PravegaCluster installation.");
             return CompletableFuture.completedFuture(null);
         }
+        Map<String, String> combinedPropsMap = getCombinedMap(props, ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()));
         return registerTLSSecret()
                 .thenCompose(v -> k8sClient.createSecret(NAMESPACE, authSecret()))
                 .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
@@ -114,12 +115,11 @@ public abstract class AbstractService implements Service {
                 getPravegaOnlyDeployment(zkUri.getAuthority(),
                 controllerCount,
                 segmentStoreCount,
-                props)));
+                ImmutableMap.copyOf(combinedPropsMap))));
     }
 
     private Map<String, Object> getPravegaOnlyDeployment(String zkLocation, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
         // generate Pravega Spec.
-        final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("20Gi", "standard");
         final String pravegaImg = DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME;
         final Map<String, Object> pravegaImgSpec;
 
@@ -128,10 +128,9 @@ public abstract class AbstractService implements Service {
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                 .put("segmentStoreReplicas", segmentStoreCount)
                 .put("debugLogging", true)
-                .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
-                .put("controllerResources", getResources("2000m", "2Gi", "1000m", "2Gi"))
-                .put("segmentStoreResources", getResources("2000m", "6Gi", "1000m", "6Gi"))
-                .put("options", props)
+                .put("controllerResources", getResources(resourceWrapper.getControllerProperties().getControllerResources()))
+                .put("segmentStoreResources", getResources(resourceWrapper.getSegmentStoreProperties().getSegmentStoreResources()))
+                .put("options", ImmutableMap.copyOf(getCombinedMap(props, ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))))
                 .put("image", pravegaImgSpec)
                 .put("longtermStorage", tier2Spec())
                 .put("segmentStoreJVMOptions", getSegmentStoreJVMOptions())
@@ -258,15 +257,15 @@ public abstract class AbstractService implements Service {
     // Removal of the JVM option 'UseCGroupMemoryLimitForHeap' is required with JVM environments >= 10. This option
     // is supplied by default by the operators. We cannot 'deactivate' it using the XX:- counterpart as it is unrecognized.
     private String[] getSegmentStoreJVMOptions() {
-        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-XX:MaxDirectMemorySize=4g", "-Xmx1024m"};
+        return resourceWrapper.getSegmentStoreProperties().getSegmentStoreJVMOptions();
     }
 
     private String[] getControllerJVMOptions() {
-        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-Xmx1024m"};
+        return resourceWrapper.getControllerProperties().getControllerJVMOptions();
     }
 
-    private String[] getBookkeeperMemoryOptions() {
-        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions", "-Xmx1024m"};
+    private List<String> getBookkeeperMemoryOptions() {
+        return resourceWrapper.getBookkeeperProperties().getBookkeeperJVMOptions().get("memoryOpts");
     }
 
 
@@ -292,15 +291,15 @@ public abstract class AbstractService implements Service {
                 .build()).build();
     }
 
-    private Map<String, Object> getResources(String limitsCpu, String limitsMem, String requestsCpu, String requestsMem) {
+    private Map<String, Object> getResources(Resources resources) {
         return ImmutableMap.<String, Object>builder()
                 .put("limits", ImmutableMap.builder()
-                        .put("cpu", limitsCpu)
-                        .put("memory", limitsMem)
+                        .put("cpu", resources.getLimits().get("cpu"))
+                        .put("memory", resources.getLimits().get("memory"))
                         .build())
                 .put("requests", ImmutableMap.builder()
-                        .put("cpu", requestsCpu)
-                        .put("memory", requestsMem)
+                        .put("cpu", resources.getRequests().get("cpu"))
+                        .put("memory", resources.getRequests().get("memory"))
                         .build())
                 .build();
     }
@@ -366,7 +365,7 @@ public abstract class AbstractService implements Service {
                         NAMESPACE, CUSTOM_RESOURCE_PLURAL_BOOKKEEPER,
                         getBookkeeperDeployment(zkUri.getAuthority(),
                                 bookieCount,
-                                props)));
+                                ImmutableMap.copyOf(getCombinedMap(props, ImmutableMap.copyOf(resourceWrapper.getPravegaOptions()))))));
     }
 
     private V1ConfigMap getBookkeeperOperatorConfigMap() {
@@ -382,23 +381,20 @@ public abstract class AbstractService implements Service {
 
     private Map<String, Object> getBookkeeperDeployment(String zkLocation, int bookieCount, ImmutableMap<String, String> props) {
         // generate BookkeeperSpec.
-        final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
         final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", getBookkeeperImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME))
                 .put("replicas", bookieCount)
                 .put("version", BOOKKEEPER_VERSION)
-                .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
+                .put("probes", ImmutableMap.builder().put("readinessProbe", resourceWrapper.getBookkeeperProperties().getProbes().getReadinessProbe()).build())
+                .put("resources", getResources(resourceWrapper.getBookkeeperProperties().getBookkeeperResources()))
                 .put("storage", ImmutableMap.builder()
-                        .put("indexVolumeClaimTemplate", bkPersistentVolumeSpec)
-                        .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
-                        .put("journalVolumeClaimTemplate", bkPersistentVolumeSpec)
+                        .put("index", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getIndex())
+                        .put("ledger", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getLedger())
+                        .put("journal", resourceWrapper.getBookkeeperProperties().getBookkeeperStorage().getJournal())
                         .build())
-
                 .put("envVars", CONFIG_MAP_BOOKKEEPER)
                 .put("zookeeperUri", zkLocation)
                 .put("autoRecovery", true)
-                .put("options", ImmutableMap.builder()  .put("journalDirectories", JOURNALDIRECTORIES)
-                        .put("ledgerDirectories", LEDGERDIRECTORIES)
-                        .build())
+                .put("options", resourceWrapper.getBookkeeperProperties().getBookkeeperOptions())
                 .put("jvmOptions", ImmutableMap.builder()
                         .put("memoryOpts", getBookkeeperMemoryOptions())
                         .build())
@@ -432,6 +428,16 @@ public abstract class AbstractService implements Service {
                         .put(service, replicaCount)
                         .build())
                 .build();
+    }
+
+    private Map<String, String> getCombinedMap(ImmutableMap<String, String> props, ImmutableMap<String, String> pravegaOptions) {
+        Map<String, String> propertiesMap = Stream.of(pravegaOptions, props)
+                .flatMap(map -> map.entrySet().stream())
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (value1, value2) -> value1));
+        return propertiesMap;
     }
 
     @Override
