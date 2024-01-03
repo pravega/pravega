@@ -56,8 +56,10 @@ import java.util.stream.Collectors;
 import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 
 import static java.util.concurrent.CompletableFuture.completedFuture;
@@ -72,6 +74,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 
+@RunWith(MockitoJUnitRunner.class)
 public class BatchClientImplTest {
 
     private static final String SCOPE = "scope";
