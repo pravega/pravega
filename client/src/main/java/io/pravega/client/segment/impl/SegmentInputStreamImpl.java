@@ -263,7 +263,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             result += request.getData().readableBytes();
             atEnd |= request.isEndOfSegment();
         }
-        if (result <= 8 && atEnd) {
+        if (result <= 0 && atEnd) {
            result = -1;
         }
         log.trace("bytesInBuffer {} on segment {} status is {}", result, getSegmentId(), this);        
