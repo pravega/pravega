@@ -145,7 +145,7 @@ public class MultiControllerTest extends AbstractSystemTest {
             controllerURIDirect.set(URI.create("tcp://0.0.0.0:9090"));
             controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
         }
-        log.info("amit controllerURIDiscover ::{}", controllerURIDiscover.get());
+        log.info("ControllerURIDiscover ::{}", controllerURIDiscover.get());
 
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect.get());
         log.info("Test tcp:// with no controller instances running");
