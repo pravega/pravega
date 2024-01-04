@@ -240,13 +240,11 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 SegmentContainerMonitorHealthContributor segmentContainerMonitorHC = new SegmentContainerMonitorHealthContributor("segmentContainerMonitor", monitor );
                 healthServiceManager.register(segmentContainerMonitorHC);
             }
-            String controllerServiceName = Config.getConfig("tlsCertCNName", "localhost");
-            log.debug("Controller service name {}", controllerServiceName);
-            String hostString = grpcServerConfig.isTlsEnabled() ? controllerServiceName : "localhost";
+
             // This client config is used by the segment store helper (SegmentHelper) to connect to the segment store.
             ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
                     .controllerURI(URI.create((grpcServerConfig.isTlsEnabled() ?
-                            "tls://" : "tcp://") + hostString + ":" + grpcServerConfig.getPort()))
+                            "tls://" : "tcp://") + "localhost:" + grpcServerConfig.getPort()))
                     .trustStore(grpcServerConfig.getTlsTrustStore())
                     .validateHostName(false);
 
