@@ -16,7 +16,6 @@
 package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.openapi.models.V1PodStatus;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
@@ -86,8 +85,6 @@ public class PravegaControllerK8sService extends AbstractService {
         String prefix = Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP;
         String tlsCname = Utils.getTlsCommonName();
         log.debug("Tls enabled status :{} auth enabled status :{} tls cname :{}", Utils.TLS_AND_AUTH_ENABLED, Utils.AUTH_ENABLED, tlsCname);
-        List<V1PodStatus> viPodsList = k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL).join();
-        log.info("Pods list size {} and pods list details {}", viPodsList.size(), viPodsList);
 
         List<URI> uriList = Futures.getAndHandleExceptions(k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL)
                        .thenApply(statuses -> statuses.stream()

@@ -73,7 +73,6 @@ public class K8SequentialExecutor implements TestExecutor {
         Map<String, V1ContainerStatus> podStatusBeforeTest = getPravegaPodStatus(client);
 
         final V1Pod pod = getTestPod(className, methodName, podName.toLowerCase());
-        log.debug("Pod details {}", pod);
         final AtomicReference<CompletableFuture<Void>> logDownload = new AtomicReference<>(CompletableFuture.completedFuture(null));
         return client.createServiceAccount(NAMESPACE, getServiceAccount()) // create service Account, ignore if already present.
                 .thenCompose(v -> client.createClusterRoleBinding(getClusterRoleBinding())) // ensure test pod has cluster admin rights.
@@ -151,7 +150,6 @@ public class K8SequentialExecutor implements TestExecutor {
             List<V1Volume> volumes = new ArrayList<>(pod.getSpec().getVolumes());
             volumes.add(new V1Volume().name("tls-cert").secret(new V1SecretVolumeSource().defaultMode(420).secretName(Utils.TLS_SECRET_NAME)));
             pod.getSpec().setVolumes(volumes);
-            log.debug("Volume spec :{} Alias list :{}", pod.getSpec().getVolumes(), pod.getSpec().getHostAliases());
             List<V1VolumeMount> volumeMounts = new ArrayList<>(pod.getSpec().getContainers().get(0).getVolumeMounts());
             volumeMounts.add(new V1VolumeMount().mountPath(Utils.TLS_MOUNT_PATH).name("tls-cert"));
             pod.getSpec().getContainers().get(0).setVolumeMounts(volumeMounts);

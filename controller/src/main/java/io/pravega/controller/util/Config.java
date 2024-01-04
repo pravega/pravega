@@ -500,9 +500,5 @@ public final class Config {
         return builder.build();
     }
 
-    public static String getConfig(final String key, final String defaultValue) {
-        return System.getenv().getOrDefault(key, System.getProperty(key, defaultValue));
-    }
-
     //endregion
 }

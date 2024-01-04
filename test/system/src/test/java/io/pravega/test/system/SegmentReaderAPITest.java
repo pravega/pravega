@@ -460,7 +460,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         Supplier<String> routingKeyGenerator = () -> String.valueOf(random.nextInt());
         for (int i = 0; i < totalEvents; i++) {
             writer.writeEvent(routingKeyGenerator.get(), DATA_OF_SIZE_30).join();
-            log.info("Writing event: {} to stream {}.", streamName + i, streamName);
+            log.debug("Writing event: {} to stream {}.", streamName + i, streamName);
         }
         log.info("Writer {} finished writing {} events.", writer, totalEvents);
     }
