@@ -494,7 +494,7 @@ public class SegmentInputStreamTest extends LeakDetectorTestSuite {
         fakeNetwork6.completeExceptionally(1, new SegmentTruncatedException());
         
         Orderer o = new Orderer();
-        List<EventSegmentReaderImpl> segments = ImmutableList.of(eventSegment1, eventSegment2, eventSegment3, eventSegment4, eventSegment5,eventSegment6);
+        List<EventSegmentReaderImpl> segments = ImmutableList.of(eventSegment1, eventSegment2, eventSegment3, eventSegment4, eventSegment5, eventSegment6);
         assertEquals(eventSegment2, o.nextSegment(segments));
         assertEquals(eventSegment3, o.nextSegment(segments));
         assertEquals(eventSegment4, o.nextSegment(segments));
