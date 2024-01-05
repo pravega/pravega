@@ -148,8 +148,8 @@ class Int96CounterImpl implements Int96Counter {
     @Data
     @AllArgsConstructor
     static class CounterInfo {
-        private OperationContext operationContext;
-        private int range;
+        private final OperationContext operationContext;
+        private final int range;
     }
 
 }
