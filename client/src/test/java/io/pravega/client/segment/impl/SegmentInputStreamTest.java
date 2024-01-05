@@ -471,43 +471,51 @@ public class SegmentInputStreamTest extends LeakDetectorTestSuite {
         TestAsyncSegmentInputStream fakeNetwork3 = new TestAsyncSegmentInputStream(segment, 3);
         TestAsyncSegmentInputStream fakeNetwork4 = new TestAsyncSegmentInputStream(segment, 4);
         TestAsyncSegmentInputStream fakeNetwork5 = new TestAsyncSegmentInputStream(segment, 5);
+        TestAsyncSegmentInputStream fakeNetwork6 = new TestAsyncSegmentInputStream(segment, 3);
         
         @Cleanup
-        EventSegmentReaderImpl stream1 = SegmentInputStreamFactoryImpl.getEventSegmentReader(fakeNetwork1, 0);
+        EventSegmentReaderImpl eventSegment1 = SegmentInputStreamFactoryImpl.getEventSegmentReader(fakeNetwork1, 0);
         @Cleanup
-        EventSegmentReaderImpl stream2 = SegmentInputStreamFactoryImpl.getEventSegmentReader(fakeNetwork2, 0);
+        EventSegmentReaderImpl eventSegment2 = SegmentInputStreamFactoryImpl.getEventSegmentReader(fakeNetwork2, 0);
         @Cleanup
-        EventSegmentReaderImpl stream3 = SegmentInputStreamFactoryImpl.getEventSegmentReader(fakeNetwork3, 0);
+        EventSegmentReaderImpl eventSegment3 = SegmentInputStreamFactoryImpl.getEventSegmentReader(fakeNetwork3, 0);
         @Cleanup
-        EventSegmentReaderImpl stream4 = SegmentInputStreamFactoryImpl.getEventSegmentReader(fakeNetwork4, 0);
+        EventSegmentReaderImpl eventSegment4 = SegmentInputStreamFactoryImpl.getEventSegmentReader(fakeNetwork4, 0);
         @Cleanup
-        EventSegmentReaderImpl stream5 = SegmentInputStreamFactoryImpl.getEventSegmentReader(fakeNetwork5, 0);
+        EventSegmentReaderImpl eventSegment5 = SegmentInputStreamFactoryImpl.getEventSegmentReader(fakeNetwork5, 0);
+        @Cleanup
+        EventSegmentReaderImpl eventSegment6 = SegmentInputStreamFactoryImpl.getEventSegmentReader(fakeNetwork6, 0);
 
         fakeNetwork2.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice(), requestId));
         fakeNetwork3.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, true, wireData.slice(), requestId));
         fakeNetwork4.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, true, Unpooled.EMPTY_BUFFER, requestId));
         fakeNetwork5.completeExceptionally(0, new SegmentTruncatedException());
+        fakeNetwork6.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, Unpooled.wrappedBuffer(data).slice(0, 4), requestId));
+        fakeNetwork6.completeExceptionally(1, new SegmentTruncatedException());
         
         Orderer o = new Orderer();
-        List<EventSegmentReaderImpl> segments = ImmutableList.of(stream1, stream2, stream3, stream4, stream5);
-        assertEquals(stream2, o.nextSegment(segments));
-        assertEquals(stream3, o.nextSegment(segments));
-        assertEquals(stream4, o.nextSegment(segments));
-        assertEquals(stream5, o.nextSegment(segments));
-        assertNotNull(stream2.read());
-        assertEquals(stream3, o.nextSegment(segments));
-        assertEquals(stream4, o.nextSegment(segments));
-        assertEquals(stream5, o.nextSegment(segments));
-        assertNotNull(stream3.read());
-        assertEquals(stream3, o.nextSegment(segments));
-        assertEquals(stream4, o.nextSegment(segments));
-        assertEquals(stream5, o.nextSegment(segments));
-        AssertExtensions.assertThrows(EndOfSegmentException.class, () -> stream3.read());
-        AssertExtensions.assertThrows(EndOfSegmentException.class, () -> stream4.read());
-        AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> stream5.read());
-        assertEquals(stream3, o.nextSegment(segments));
-        assertEquals(stream4, o.nextSegment(segments));
-        assertEquals(stream5, o.nextSegment(segments));
+        List<EventSegmentReaderImpl> segments = ImmutableList.of(eventSegment1, eventSegment2, eventSegment3, eventSegment4, eventSegment5,eventSegment6);
+        assertEquals(eventSegment2, o.nextSegment(segments));
+        assertEquals(eventSegment3, o.nextSegment(segments));
+        assertEquals(eventSegment4, o.nextSegment(segments));
+        assertEquals(eventSegment5, o.nextSegment(segments));
+        assertEquals(eventSegment6, o.nextSegment(segments));
+        AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> eventSegment6.read());
+        eventSegment6.setOffset(123L, false);
+        assertNotNull(eventSegment2.read());
+        assertEquals(eventSegment3, o.nextSegment(segments));
+        assertEquals(eventSegment4, o.nextSegment(segments));
+        assertEquals(eventSegment5, o.nextSegment(segments));
+        assertNotNull(eventSegment3.read());
+        assertEquals(eventSegment3, o.nextSegment(segments));
+        assertEquals(eventSegment4, o.nextSegment(segments));
+        assertEquals(eventSegment5, o.nextSegment(segments));
+        AssertExtensions.assertThrows(EndOfSegmentException.class, () -> eventSegment3.read());
+        AssertExtensions.assertThrows(EndOfSegmentException.class, () -> eventSegment4.read());
+        AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> eventSegment5.read());
+        assertEquals(eventSegment3, o.nextSegment(segments));
+        assertEquals(eventSegment4, o.nextSegment(segments));
+        assertEquals(eventSegment5, o.nextSegment(segments));
     }
 
     @Test
