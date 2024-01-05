@@ -117,7 +117,7 @@ public class WatermarkingTest extends AbstractSystemTest {
         List<URI> ctlURIs = controllerInstance.getServiceDetails();
         final List<String> uris = ctlURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
-        controllerURI = URI.create("tcp://" + String.join(",", uris));
+        controllerURI = Utils.getControllerURI(uris);
         streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
