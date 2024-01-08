@@ -391,7 +391,7 @@ jobs:
             ${{github.ref}}-${{github.run_id}}
             ${{github.ref}}
       - name: Integration Tests
-        run: ./gradlew test:integration:test --parallel ${{env.GRADLE_OPTS}}
+        run: ./gradlew test:integration:test ${{env.GRADLE_OPTS}}
       #Integration tests don't upload code-cov reports
 
   # DO NOT RENAME THIS JOB. Mergers to master branch are gated on this completing successfully.
