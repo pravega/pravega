@@ -38,16 +38,16 @@ With a standalone server running, we can invoke the `StreamManager` to create ou
 
 === "Java"
 
-    ```java
+    ``` java
     try (StreamManager streamManager = StreamManager.create(controllerURI)) {
-    streamManager.createScope("tutorial");
-    streamManager.createStream("tutorial", "numbers", streamConfig);
+        streamManager.createScope("tutorial");
+        streamManager.createStream("tutorial", "numbers", streamConfig);
     }
     ```
 
 === "Python"
 
-    ```python
+    ``` python
     import pravega_client
 
     stream_manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
@@ -71,7 +71,7 @@ Let’s start by creating an [`EventStreamWriter`](https://pravega.io/docs/lates
 
 === "Java"
 
-    ```java
+    ``` java
     EventWriterConfig writerConfig = EventWriterConfig.builder().build();
     EventStreamClientFactory factory = EventStreamClientFactory
         .withScope("tutorial", clientConfig);
@@ -81,7 +81,7 @@ Let’s start by creating an [`EventStreamWriter`](https://pravega.io/docs/lates
 
 === "Python"
 
-    ```python
+    ``` python
     import pravega_client
 
     manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
@@ -94,7 +94,7 @@ And use it to write some numbers (note that `writeEvent()` returns a `Completabl
 
 === "Java"
 
-    ```java
+    ``` java
     writer.writeEvent(1);
     writer.writeEvent(2);
     writer.writeEvent(3);
@@ -103,7 +103,7 @@ And use it to write some numbers (note that `writeEvent()` returns a `Completabl
 
 === "Python"
 
-    ```python
+    ``` python
     writer.write_event("1")
     writer.write_event("2")
     writer.write_event("3")
@@ -116,7 +116,7 @@ We can read back these events using a reader. Readers are associated with reader
 
 === "Java"
 
-    ```java
+    ``` java
     ReaderGroupManager readerGroupManager = ReaderGroupManager
         .withScope("tutorial", clientConfig);
     ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
@@ -126,7 +126,7 @@ We can read back these events using a reader. Readers are associated with reader
 
 === "Python"
 
-    ```python
+    ``` python
     import pravega_client
     manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
     # create a ReaderGroup rg1 against an already created Pravega scope and Stream.
@@ -139,14 +139,14 @@ Now we can attach a single [`EventStreamReader`](https://pravega.io/docs/latest/
 
 === "Java"
 
-    ```java
+    ``` java
     EventStreamReader<Integer> reader = factory
         .createReader("myId", "numReader",
                       new JavaSerializer<Integer>(), ReaderConfig.builder().build());
 
     Integer intEvent;
     while ((intEvent = reader.readNextEvent(1000).getEvent()) != null) {
-    System.out.println(intEvent);
+        System.out.println(intEvent);
     }
 
     reader.close();
@@ -154,7 +154,7 @@ Now we can attach a single [`EventStreamReader`](https://pravega.io/docs/latest/
 
 === "Python"
 
-    ```python
+    ``` python
     reader = reader_group.create_reader("myId");
     slice = await reader.get_segment_slice_async()
     for event in slice:
@@ -178,7 +178,7 @@ If a reader is not properly closed, before it can come back online or before its
 
 === "Java"
 
-    ```java
+    ``` java
     try (ReaderGroup readerGroup = readerGroupManager.getReaderGroup("numReader")) {
         readerGroup.readerOffline("myId", null);
     }
@@ -186,7 +186,7 @@ If a reader is not properly closed, before it can come back online or before its
 
 === "Python"
 
-    ```python
+    ``` python
     readerGroup.reader_offline("myId")
     ```
 
@@ -198,7 +198,7 @@ In order to re-use reader group names and reader IDs when starting over from the
 
 === "Java"
 
-    ```java
+    ``` java
     readerGroupManager.deleteReaderGroup("numReader");
     // or
     try (ReaderGroup readerGroup = readerGroupManager.getReaderGroup("numReader")) {
@@ -208,7 +208,7 @@ In order to re-use reader group names and reader IDs when starting over from the
 
 === "Python"
 
-    ```python
+    ``` python
     manager.delete_reader_group("numReader", "tutorial")
     ```
 
@@ -220,7 +220,7 @@ We’ve just explored reading from the beginning of a stream to the end in seque
 
 === "Java"
 
-    ```java
+    ``` java
     StreamInfo streamInfo;
     StreamCut tail; // current end of stream
     try (StreamManager streamManager = StreamManager.create(controllerURI)) {
@@ -234,7 +234,7 @@ We’ve just explored reading from the beginning of a stream to the end in seque
 
 === "Python"
 
-    ```python
+    ``` python
     # Create a reader Group Configuration to read from HEAD of stream.
     rg_config = pravega_client.StreamReaderGroupConfig(True, "tutorial", "numbers")
     reader_group=stream_manager.create_reader_group_with_config("tailNumReader", "tutorial", rg_config)
@@ -244,7 +244,7 @@ We can now create an `EventStreamReader` instance named `tailReader` that can re
 
 === "Java"
 
-    ```java
+    ``` java
     writer.writeEvent(4);
     writer.writeEvent(5);
     writer.writeEvent(6);
@@ -264,7 +264,7 @@ We can now create an `EventStreamReader` instance named `tailReader` that can re
 
 === "Python"
 
-    ```python
+    ``` python
     # Create a reader Group Configuration to read from HEAD of stream.
     writer.write_event("4")
     writer.write_event("5")
@@ -301,7 +301,7 @@ To do this, we’ll need to create a new `parallel-numbers` stream that has more
 
 === "Java"
 
-    ```java
+    ``` java
     StreamConfiguration parallelConfig = StreamConfiguration.builder()
         .scalingPolicy(ScalingPolicy.fixed(5))
         .build();
@@ -312,7 +312,7 @@ To do this, we’ll need to create a new `parallel-numbers` stream that has more
 
 === "Python"
 
-    ```python
+    ``` python
     import pravega_client
 
     stream_manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
@@ -327,7 +327,7 @@ If we again write successive integers to this stream of 5 fixed segments, we wil
 
 === "Java"
 
-    ```java
+    ``` java
     EventStreamWriter<Integer> paraWriter = factory
         .createEventWriter("parallel-numbers",
                            new JavaSerializer<Integer>(), writerConfig);
@@ -356,7 +356,7 @@ If we again write successive integers to this stream of 5 fixed segments, we wil
 
 === "Python"
 
-    ```python
+    ``` python
     import pravega_client
 
     manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
@@ -399,7 +399,7 @@ Let’s consider an example where we want to preserve the order of several indep
 
 === "Java"
 
-    ```java
+    ``` java
     try (StreamManager streamManager = StreamManager.create(controllerURI)) {
         streamManager.createStream("tutorial", "parallel-decades", parallelConfig);
     }
@@ -426,7 +426,7 @@ Let’s consider an example where we want to preserve the order of several indep
 
 === "Python"
 
-    ```python
+    ``` python
     import pravega_client
 
     manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
@@ -448,7 +448,7 @@ When we read this back, the values of each decade will be in order, but the sequ
 
 === "Java"
 
-    ```java
+    ``` java
     ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
             .stream("tutorial/parallel-decades").build();
     readerGroupManager.createReaderGroup("paraDecReader", readerGroupConfig);
@@ -464,7 +464,7 @@ When we read this back, the values of each decade will be in order, but the sequ
 
 === "Python"
 
-    ```python
+    ``` python
     import pravega_client
     manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
     # assuming the Pravega scope and stream are already created.
@@ -665,7 +665,7 @@ As stated above, we should practice good hygiene and clean up after ourselves by
 
 === "Java"
 
-    ```java
+    ``` java
     factory.close();
     readerGroupManager.deleteReaderGroup("numReader");
     readerGroupManager.deleteReaderGroup("tailNumReader");
@@ -689,7 +689,7 @@ As stated above, we should practice good hygiene and clean up after ourselves by
 
 === "Python"
 
-    ```python
+    ``` python
     import pravega_client
     streamManager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
     streamManager.delete_reader_group("numReader", "tutorial")

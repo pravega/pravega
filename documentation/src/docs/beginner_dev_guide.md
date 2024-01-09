@@ -160,16 +160,16 @@ The code to create a Pravega Stream is as follows.
 
 === "Java"
 
-    ```java
+    ``` java
     try (StreamManager streamManager = StreamManager.create(controllerURI)) {
-    streamManager.createScope("examples");
-    streamManager.createStream("examples", "helloStream", streamConfig);
+      streamManager.createScope("examples");
+      streamManager.createStream("examples", "helloStream", streamConfig);
     }
     ```
 
 === "Python"
 
-    ```python
+    ``` python
     import pravega_client
 
     stream_manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
@@ -186,18 +186,18 @@ Let's create a Pravega Event Writer using the [EventStreamClientFactory](https:/
 
 === "Java"
 
-    ```java
+    ``` java
     try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("examples",
         ClientConfig.builder().controllerURI(controllerURI).build());
-    EventStreamWriter<String> writer = clientFactory.createEventWriter("helloStream",
+        EventStreamWriter<String> writer = clientFactory.createEventWriter("helloStream",
         new UTF8StringSerializer(), EventWriterConfig.builder().build())) {
-        writer.writeEvent("helloRoutingKey", "hello world!"); // write an event.
+          writer.writeEvent("helloRoutingKey", "hello world!"); // write an event.
     }
     ```
 
 === "Python"
 
-    ```python
+    ``` python
     import pravega_client
 
     manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
@@ -233,9 +233,9 @@ The below snippet creates a [ReaderGroup](https://pravega.io/docs/latest/javadoc
 
 === "Java"
 
-    ```java
+    ``` java
     try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope("examples", controllerURI)) {
-    ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+      ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
         .stream(Stream.of("examples", "helloStream"))
         .disableAutomaticCheckpoints()
         .build();
@@ -245,7 +245,7 @@ The below snippet creates a [ReaderGroup](https://pravega.io/docs/latest/javadoc
 
 === "Python"
 
-    ```python
+    ``` python
     import pravega_client
 
     manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
@@ -258,21 +258,21 @@ We can attach a Pravega Event Reader to this Reader Group and read the data from
 
 === "Java"
 
-    ```java
+    ``` java
     try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("examples",
         ClientConfig.builder().controllerURI(controllerURI).build());
-    EventStreamReader<String> reader = clientFactory.createReader("reader",
+      EventStreamReader<String> reader = clientFactory.createReader("reader",
         "readerGroup",
         new UTF8StringSerializer(),
         ReaderConfig.builder().build())) {
-    String event = reader.readNextEvent(5000).getEvent();
-        System.out.println(event);
+          String event = reader.readNextEvent(5000).getEvent();
+          System.out.println(event);
     }
     ```
 
 === "Python"
 
-    ```python
+    ``` python
     reader = reader_group.create_reader("reader");
     slice = await reader.get_segment_slice_async()
     for event in slice:
