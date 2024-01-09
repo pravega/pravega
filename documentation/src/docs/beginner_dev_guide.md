@@ -162,8 +162,8 @@ The code to create a Pravega Stream is as follows.
 
     ``` java
     try (StreamManager streamManager = StreamManager.create(controllerURI)) {
-      streamManager.createScope("examples");
-      streamManager.createStream("examples", "helloStream", streamConfig);
+        streamManager.createScope("examples");
+        streamManager.createStream("examples", "helloStream", streamConfig);
     }
     ```
 
@@ -235,7 +235,7 @@ The below snippet creates a [ReaderGroup](https://pravega.io/docs/latest/javadoc
 
     ``` java
     try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope("examples", controllerURI)) {
-      ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
         .stream(Stream.of("examples", "helloStream"))
         .disableAutomaticCheckpoints()
         .build();
@@ -260,13 +260,11 @@ We can attach a Pravega Event Reader to this Reader Group and read the data from
 
     ``` java
     try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("examples",
-        ClientConfig.builder().controllerURI(controllerURI).build());
-      EventStreamReader<String> reader = clientFactory.createReader("reader",
-        "readerGroup",
-        new UTF8StringSerializer(),
-        ReaderConfig.builder().build())) {
-          String event = reader.readNextEvent(5000).getEvent();
-          System.out.println(event);
+         ClientConfig.builder().controllerURI(controllerURI).build());
+         EventStreamReader<String> reader = clientFactory.createReader("reader",
+         "readerGroup", new UTF8StringSerializer(), ReaderConfig.builder().build())) {
+            String event = reader.readNextEvent(5000).getEvent();
+            System.out.println(event);
     }
     ```
 
