@@ -102,8 +102,7 @@ public interface EventSegmentReader extends AutoCloseable {
     public abstract void close();
     
     /**
-     * Returns true if {@link #read()} can be invoked without blocking. (This may be because there
-     * is data in a buffer, or the call will throw EndOfSegmentException).
+     * Returns true if there is data in the buffer, or the call will throw EndOfSegmentException.
      *
      * @return False if data read is blocking.
      */
