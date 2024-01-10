@@ -210,9 +210,8 @@ Let's create a Pravega Event Writer using the [EventStreamClientFactory](https:/
     # write into Pravega stream by specifying the routing key.
     writer.write_event("hello world!", "helloRoutingKey")
 
-    e="eventData"
     # convert the event object to a byte array.
-    e_bytes=e.encode("utf-8")
+    e_bytes="eventData".encode("utf-8")
     # write into Pravega stream without specifying the routing key.
     writer.write_event_bytes(e_bytes)
     # write into Pravega stream by specifying the routing key.
