@@ -237,7 +237,6 @@ The below snippet creates a [ReaderGroup](https://pravega.io/docs/latest/javadoc
     try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope("examples", controllerURI)) {
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
         .stream(Stream.of("examples", "helloStream"))
-        .disableAutomaticCheckpoints()
         .build();
         readerGroupManager.createReaderGroup("readerGroup", readerGroupConfig);
     }

@@ -144,9 +144,12 @@ Now we can attach a single [`EventStreamReader`](https://pravega.io/docs/latest/
         .createReader("myId", "numReader",
                       new JavaSerializer<Integer>(), ReaderConfig.builder().build());
 
-    Integer intEvent;
-    while ((intEvent = reader.readNextEvent(1000).getEvent()) != null) {
-        System.out.println(intEvent);
+    EventRead<Integer> eventRead;
+    Integer intEvent = null;
+    while ((eventRead = reader.readNextEvent(1000)).isCheckpoint() || (intEvent = eventRead.getEvent()) != null) {
+        if (intEvent != null) {
+            System.out.println(intEvent);
+        }
     }
 
     reader.close();
@@ -254,10 +257,12 @@ We can now create an `EventStreamReader` instance named `tailReader` that can re
         EventStreamReader<Integer> tailReader = factory
             .createReader("tailId", "tailNumReader",
                        new JavaSerializer<Integer>(), ReaderConfig.builder().build())) {
-        Integer intEvent;
-        while ((intEvent = tailReader.readNextEvent(2000).getEvent()) != null
-           || readerGroup.getMetrics().unreadBytes() != 0) {
-            System.out.println(intEvent);
+        EventRead<Integer> eventRead;
+        Integer intEvent = null;
+        while ((eventRead = reader.readNextEvent(2000)).isCheckpoint() || (intEvent = eventRead.getEvent()) != null) {
+            if (intEvent != null) {
+                System.out.println(intEvent);
+            }
         }
     }
     ```
@@ -347,9 +352,12 @@ If we again write successive integers to this stream of 5 fixed segments, we wil
     try (EventStreamReader<Integer> reader = factory
         .createReader("paraId", "paraNumReader",
                       new JavaSerializer<Integer>(), ReaderConfig.builder().build())) {
-        Integer intEvent;
-        while ((intEvent = reader.readNextEvent(1000).getEvent()) != null) {
-            System.out.println(intEvent);
+        EventRead<Integer> eventRead;
+        Integer intEvent = null;
+        while ((eventRead = reader.readNextEvent(1000)).isCheckpoint() || (intEvent = eventRead.getEvent()) != null) {
+            if (intEvent != null) {
+                System.out.println(intEvent);
+            }
         }
     }
     ```
@@ -455,9 +463,12 @@ When we read this back, the values of each decade will be in order, but the sequ
     EventStreamReader<Integer> reader = factory
             .createReader("decId", "paraDecReader",
                       new JavaSerializer<Integer>(), ReaderConfig.builder().build());
-    Integer intEvent;
-    while ((intEvent = reader.readNextEvent(1000).getEvent()) != null) {
-        System.out.println(intEvent);
+    EventRead<Integer> eventRead;
+    Integer intEvent = null;
+    while ((eventRead = reader.readNextEvent(1000)).isCheckpoint() || (intEvent = eventRead.getEvent()) != null) {
+        if (intEvent != null) {
+            System.out.println(intEvent);
+        }
     }
     reader.close();
     ```
