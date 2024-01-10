@@ -17,6 +17,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.concurrent.SequentialProcessor;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.tracing.TagLogger;
@@ -27,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.concurrent.GuardedBy;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
@@ -44,16 +46,16 @@ class Int96CounterImpl implements Int96Counter {
     private final AtomicInt96 limit;
     @GuardedBy("lock")
     private final AtomicInt96 counter;
-    @GuardedBy("lock")
-    private CompletableFuture<Void> refreshFutureRef;
+    private final SequentialProcessor sequentialProcessor;
 
 
-    public Int96CounterImpl(final BiFunction<CounterInfo, BiConsumer<Int96, Int96>, CompletableFuture<Void>> function) {
+    public Int96CounterImpl(final BiFunction<CounterInfo, BiConsumer<Int96, Int96>, CompletableFuture<Void>> function,
+                            Executor executor) {
         this.lock = new Object();
         this.counter = new AtomicInt96();
         this.limit = new AtomicInt96();
-        this.refreshFutureRef = null;
         this.function = function;
+        this.sequentialProcessor = new SequentialProcessor(executor);
     }
 
     @Override
@@ -82,47 +84,27 @@ class Int96CounterImpl implements Int96Counter {
             // be a collision with counter used by someone else.
             counter.set(previous.getMsb(), previous.getLsb());
             limit.set(nextLimit.getMsb(), nextLimit.getLsb());
-            refreshFutureRef = null;
         }
     }
 
     @VisibleForTesting
     CompletableFuture<Void> refreshRangeIfNeeded(final OperationContext context) {
-        CompletableFuture<Void> refreshFuture;
-        synchronized (lock) {
-            // Ensure that only one background refresh is happening. For this we will reference the future in refreshFutureRef
-            // If reference future ref is not null, we will return the reference to that future.
-            // It is set to null when refresh completes.
-            refreshFuture = this.refreshFutureRef;
-            if (this.refreshFutureRef == null) {
-                // no ongoing refresh, check if refresh is still needed
-                if (counter.get().compareTo(limit.get()) >= 0) {
-                    log.info("Refreshing counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
-
-                    // Need to refresh counter and limit. Start a new refresh future. We are under lock so no other
-                    // concurrent thread can start the refresh future.
-                    refreshFutureRef = function.apply(new CounterInfo(context, COUNTER_RANGE), this::reset)
-                            .exceptionally(e -> {
-                                // if any exception is thrown here, we would want to reset refresh future so that it can be retried.
-                                synchronized (lock) {
-                                    refreshFutureRef = null;
-                                }
-                                log.warn("Exception thrown while trying to refresh transaction counter range", e);
-                                throw new CompletionException(e);
-                            });
-                    log.info(context.getRequestId(), "Refreshed counter range. Current counter is {}. Current limit is {}",
-                            counter.get(), limit.get());
-                    // Note: refreshFutureRef is reset to null under the lock, and since we have the lock in this thread
-                    // until we release it, refresh future ref cannot be reset to null. So we will always return a non-null
-                    // future from here.
-                    refreshFuture = refreshFutureRef;
-                } else {
-                    // nothing to do
-                    refreshFuture = CompletableFuture.completedFuture(null);
-                }
+        return sequentialProcessor.add(() -> {
+            // no ongoing refresh, check if refresh is still needed
+            if (counter.get().compareTo(limit.get()) >= 0) {
+                log.info("Refreshing counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
+                return function.apply(new CounterInfo(context, COUNTER_RANGE), this::reset)
+                        .thenAccept(result -> log.info(context.getRequestId(), "Refreshed counter range. Current counter is {}. Current limit is {}",
+                                counter.get(), limit.get()))
+                        .exceptionally(e -> {
+                            log.warn("Exception thrown while trying to refresh transaction counter range", e);
+                            throw new CompletionException(e);
+                        });
+            } else {
+                // nothing to do
+                return CompletableFuture.completedFuture(null);
             }
-        }
-        return refreshFuture;
+        });
     }
 
     // region getters and setters for testing

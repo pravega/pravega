@@ -109,7 +109,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         this.completedTxnGC.awaitRunning();
         this.completedTxnGCRef = new AtomicReference<>(completedTxnGC);
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
-        this.counter = new Int96CounterImpl(this::getCounter);
+        this.counter = new Int96CounterImpl(this::getCounter, executor);
         this.executor = executor;
     }
 
@@ -124,7 +124,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         this.completedTxnGC.awaitRunning();
         this.completedTxnGCRef = new AtomicReference<>(completedTxnGC);
         this.storeHelper = helper;
-        this.counter = new Int96CounterImpl(this::getCounter);
+        this.counter = new Int96CounterImpl(this::getCounter, executor);
         this.executor = executor;
     }
 

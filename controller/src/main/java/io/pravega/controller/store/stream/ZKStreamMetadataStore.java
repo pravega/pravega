@@ -107,7 +107,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
-        this.counter = new Int96CounterImpl(this::getCounter);
+        this.counter = new Int96CounterImpl(this::getCounter, executor);
         this.executor = executor;
     }
 
