@@ -230,12 +230,12 @@ public class FlowHandlerTest {
         ClientConnection connection2 = flowHandler.createFlow(flow, processor);
         doAnswer((Answer<Void>) invocation -> {
             throw new RuntimeException("Reply processor error");
-        }).when(errorProcessor).hello(any(WireCommands.Hello.class));
+        }).when(errorProcessor).process(any(WireCommands.Hello.class));
 
         final WireCommands.Hello msg = new WireCommands.Hello(5, 4);
         flowHandler.process(msg);
-        verify(processor).hello(msg);
-        verify(errorProcessor).hello(msg);
+        verify(processor).process(msg);
+        verify(errorProcessor).process(msg);
     }
 
     @Test
