@@ -59,7 +59,10 @@ class Int96CounterImpl implements Int96Counter {
     @Override
     public CompletableFuture<Int96> getNextCounter(OperationContext context) {
         CompletableFuture<Int96> future;
-        Int96 next = counter.incrementAndGet();
+        Int96 next;
+        synchronized (lock) {
+            next = counter.incrementAndGet();
+        }
         if (next.compareTo(limit.get()) > 0) {
             // ignore the counter value and after refreshing call getNextCounter
             future = refreshRangeIfNeeded(context).thenCompose(x -> getNextCounter(context));
