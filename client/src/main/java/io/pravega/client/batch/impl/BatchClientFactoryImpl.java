@@ -54,6 +54,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.shared.security.auth.AccessOperation;
 import java.time.Duration;
 import java.util.HashMap;
@@ -253,14 +254,25 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
             long requestId = connection.getFlow().getNextSequenceNumber();
             final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
                     .create(controller, segment, AccessOperation.READ);
-            return tokenProvider.retrieveToken().thenCompose(token -> {
-                return connection.sendRequest(requestId, new WireCommands.LocateOffset(requestId, segment.getScopedName(), targetOffset, token));
-            }).handle((r, e) -> {
-                connection.close();
-                if (e != null) {
-                    throw Exceptions.sneakyThrow(e);
-                } 
-                return transformReply(r, WireCommands.OffsetLocated.class).getOffset();
+            CompletableFuture<Long> result = Futures.futureWithTimeout(() -> {
+                return tokenProvider.retrieveToken().thenCompose(token -> {
+                    return connection.getWireProtocolVersion().thenCompose(version -> {
+                        if (version >= 17) {
+                            return connection.sendRequest(requestId, new WireCommands.LocateOffset(requestId, segment.getScopedName(), targetOffset, token))
+                                             .thenApply(r -> transformReply(r, WireCommands.OffsetLocated.class).getOffset());
+                        } else {
+                            return connection.sendRequest(requestId, new WireCommands.GetStreamSegmentInfo(requestId, segment.getScopedName(), token))
+                                             .thenApply(r -> transformReply(r, StreamSegmentInfo.class).getWriteOffset());
+                        }
+                    });
+                });
+            }, Duration.ofMillis(clientConfig.getConnectTimeoutMilliSec()), "Get next offset for segment", connectionPool.getInternalExecutor());
+            return Futures.handle(result, (length, e) -> {
+              connection.close();
+              if (e != null) {
+                  throw Exceptions.sneakyThrow(e);
+              } 
+              return length; 
             });
         }, connectionPool.getInternalExecutor());
     }

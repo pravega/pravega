@@ -41,6 +41,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
+import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import java.time.Duration;
 import java.util.Arrays;
@@ -228,10 +229,44 @@ public class BatchClientImplTest {
         StreamCut nextSC = client.getNextStreamCut(startingSC, 50L);
         assertNotNull(nextSC);
         assertEquals(2, nextSC.asImpl().getPositions().size());
-        assertTrue(nextSC.asImpl().getPositions().containsKey(segment1));
-        assertTrue(nextSC.asImpl().getPositions().containsKey(segment2));
+        assertEquals(Long.valueOf(90), nextSC.asImpl().getPositions().get(segment1));
+        assertEquals(Long.valueOf(90), nextSC.asImpl().getPositions().get(segment2));
     }
 
+    @Test(timeout = 5000)
+    public void testGetNextStreamCutOldServer() throws Exception {
+        Segment segment1 = new Segment("scope", "stream", 1L);
+        Segment segment2 = new Segment("scope", "stream", 2L);
+        Map<Segment, Long> positionMap = new HashMap<>();
+        positionMap.put(segment1, 20L);
+        positionMap.put(segment2, 30L);
+        StreamCut startingSC = new StreamCutImpl(Stream.of("scope", "stream"), positionMap);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockControllerWithSuccessors controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(), cf, getEmptyReplacement().join());
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection, new Hello(16, 5));
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(controller, ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), cf);
+
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) {
+                WireCommands.GetStreamSegmentInfo locateOffset = invocation.getArgument(0);
+                ReplyProcessor processor = cf.getProcessor(endpoint);
+                processor.process(new WireCommands.StreamSegmentInfo(locateOffset.getRequestId(), locateOffset.getSegmentName(), true, false, false, 0, 90L, 0));
+                return null;
+            }
+        }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
+        StreamCut nextSC = client.getNextStreamCut(startingSC, 50L);
+        assertNotNull(nextSC);
+        assertEquals(2, nextSC.asImpl().getPositions().size());
+        assertEquals(Long.valueOf(90), nextSC.asImpl().getPositions().get(segment1));
+        assertEquals(Long.valueOf(90), nextSC.asImpl().getPositions().get(segment2));
+    }
+    
     @Test(timeout = 5000)
     public void testGetNextStreamCutSegmentScaleUp() throws Exception {
         Segment segment1 = new Segment("scope", "stream", 1L);
