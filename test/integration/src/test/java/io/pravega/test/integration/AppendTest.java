@@ -512,7 +512,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         streamManager.createStream("Scope", streamName, null);
         @Cleanup
         EventStreamWriter<ByteBuffer> producer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(), EventWriterConfig.builder().build());
-        // Reducing number of blocking appends to bring down overall time taken on low-resource runners.
+        // Reducing number of blocking appends to bring down overall time taken on low resource runners.
         long blockingTime = timeWrites(testPayload, 2500, producer, true);
         long nonBlockingTime = timeWrites(testPayload, 60000, producer, false);
         System.out.println("Blocking took: " + blockingTime + "ms.");
