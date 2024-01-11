@@ -16,6 +16,7 @@
 package io.pravega.controller.server.bucket;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.common.cluster.Host;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -23,6 +24,11 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import java.util.concurrent.ScheduledExecutorService;
 
 public class InMemoryStoreBucketServiceTest extends BucketServiceTest {
+
+    @Override
+    protected void addEntryToZkCluster(Host host) {
+
+    }
 
     @Override
     public StreamMetadataStore createStreamStore(ScheduledExecutorService executor) {

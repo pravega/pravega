@@ -45,37 +45,37 @@ public class GCPStorageConfig {
     //endregion
 
     /**
-     * The GCP use mock. Keep always false in production
+     * The GCP use mock. Keep always false in production.
      */
     @Getter
     boolean useMock;
 
     /**
-     * The access token is a string representation of google service account json.
+     * The access token is a string representation of Google service account json.
      */
     @Getter
     private final String accountType;
 
     /**
-     * The GCP project id
+     * The GCP project id.
      */
     @Getter
     private final String projectId;
 
     /**
-     * The gcp private key id
+     * The GCP private key id.
      */
     @Getter
     private final String privateKeyId;
 
     /**
-     * The GCP private key
+     * The GCP private key.
      */
     @Getter
     private final String privateKey;
 
     /**
-     * The GCP client email
+     * The GCP client email.
      */
     @Getter
     private final String clientEmail;
@@ -87,7 +87,7 @@ public class GCPStorageConfig {
     private final String clientId;
 
     /**
-     * A unique bucket name to store objects
+     * A unique bucket name to store objects.
      */
     @Getter
     private final String bucket;

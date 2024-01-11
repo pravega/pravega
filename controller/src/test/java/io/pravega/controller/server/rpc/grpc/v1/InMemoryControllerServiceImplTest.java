@@ -28,6 +28,9 @@ import io.pravega.controller.mocks.EventHelperMock;
 import io.pravega.controller.mocks.ControllerEventTableWriterMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.bucket.BucketManager;
+import io.pravega.controller.server.bucket.BucketServiceFactory;
+import io.pravega.controller.server.bucket.PeriodicRetention;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
@@ -64,6 +67,7 @@ import io.pravega.shared.security.auth.AccessOperation;
 import org.junit.After;
 import org.junit.Test;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -90,14 +94,16 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     private KVTableMetadataStore kvtStore;
     private TableMetadataTasks kvtMetadataTasks;
     private TableRequestHandler tableRequestHandler;
-    
+    private BucketManager retentionService;
+    private BucketStore bucketStore;
+
     @Override
     public ControllerService getControllerService() {
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
     
         taskMetadataStore = TaskStoreFactoryForTests.createInMemoryStore(executorService);
         streamStore = StreamStoreFactory.createInMemoryStore();
-        BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
@@ -131,11 +137,25 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         tableEventHelper.setRequestEventWriter(new ControllerEventTableWriterMock(tableRequestHandler, executorService));
+        BucketServiceFactory bucketServiceFactory = new BucketServiceFactory("host", bucketStore, 1000,
+                1);
+        PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, executorService, requestTracker);
+        retentionService = bucketServiceFactory.createRetentionService(Duration.ofMinutes(30), retentionWork::retention, executorService);
 
         Cluster mockCluster = mock(Cluster.class);
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
-        return new ControllerService(kvtStore, kvtMetadataTasks, streamStore, StreamStoreFactory.createInMemoryBucketStore(), streamMetadataTasks, streamTransactionMetadataTasks,
+        return new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
                 SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster, requestTracker);
+    }
+
+    @Override
+    BucketManager getBucketManager() {
+        return retentionService;
+    }
+
+    @Override
+    protected BucketStore getBucketStore() {
+        return bucketStore;
     }
 
     @After

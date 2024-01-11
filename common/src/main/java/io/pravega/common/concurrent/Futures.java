@@ -51,6 +51,21 @@ import lombok.val;
 public final class Futures {
 
     /**
+     * Exactly like {@link CompletableFuture#handle(BiFunction)} except with exact types.
+     * (This avoids type checking errors)
+     * 
+     * @param <T> The type returned by the incoming future
+     * @param <U> The type returned by the provided function
+     * @param future The future to chain off of
+     * @param handler The function to run after the future has completed either successfully or not.
+     * @return A future of the return type of the handler function.
+     */
+    public static <T, U> CompletableFuture<U> handle(CompletableFuture<T> future, 
+                                                            BiFunction<T, Throwable, U> handler) {
+        return future.handle((u, t) -> handler.apply(u, t));
+    }
+    
+    /**
      * Returns a new {@link CompletableFuture} that completes with the same outcome as the given one, but on the given {@link Executor}.
      * This helps transfer the downstream callback executions on another executor.
      *

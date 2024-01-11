@@ -103,7 +103,9 @@ Pravega can be installed locally or in a distributed environment. The installati
 
 ## Support
 
-Don’t hesitate to ask! Contact the developers and community on [slack](https://pravega-io.slack.com/) ([signup](https://pravega-slack-invite.herokuapp.com/)) if you need any help. Open an issue if you found a bug on [Github Issues](https://github.com/pravega/pravega/issues).
+Don’t hesitate to ask! Contact the developers and community on [slack](https://pravega-io.slack.com/) 
+([signup](https://join.slack.com/t/pravega-io/shared_invite/zt-245sgpw47-vbLBLiLfBdW9TlKemXkUnw)) if you need any help. 
+Open an issue if you found a bug on [Github Issues](https://github.com/pravega/pravega/issues).
 
 ## Documentation
 

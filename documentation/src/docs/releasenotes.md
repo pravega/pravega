@@ -13,13 +13,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Join the Pravega Community
+# Pravega Release Notes
 
-## Slack
-[Slack Channel](https://join.slack.com/t/pravega-io/shared_invite/zt-245sgpw47-vbLBLiLfBdW9TlKemXkUnw)
+Find the release notes for the latest releases, packed with enhancements, fixes, and exciting features
+in our [GitHub Release page](https://github.com/pravega/pravega/releases).
 
-## Developer Mailing List
-[cncf-pravega-dev@lists.cncf.io](mailto:cncf-pravega-dev@lists.cncf.io)
 
-## Twitter
-[@PravegaIO](https://twitter.com/PravegaIO)

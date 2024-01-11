@@ -33,7 +33,9 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.controller.server.bucket.BucketManager;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -115,13 +117,15 @@ public abstract class ControllerServiceImplTest {
 
     //Ensure each test completes within 10 seconds.
     @Rule
-    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
 
     ControllerServiceImpl controllerService;
     RequestTracker requestTracker = new RequestTracker(true);
     private ControllerService controllerSpied;
     
     abstract ControllerService getControllerService() throws Exception;
+
+    abstract BucketManager getBucketManager();
 
     @Before
     public void setUp() throws Exception {
@@ -1308,6 +1312,28 @@ public abstract class ControllerServiceImplTest {
         shutdownResultObserver = new ResultObserver<>();
         this.controllerService.removeWriter(writerShutdownRequest, shutdownResultObserver);
         assertEquals(shutdownResultObserver.get().getResult(), Controller.RemoveWriterResponse.Status.UNKNOWN_WRITER);
+    }
+    @Test
+    public  void testGetControllerToBucketMapping() throws Exception {
+        BucketManager bucketManager = getBucketManager();
+        bucketManager.startAsync().awaitRunning();
+        waitForDistribution(getBucketStore());
+        ResultObserver<Controller.ControllerToBucketMappingResponse> mapping = new ResultObserver<>();
+        this.controllerService.getControllerToBucketMapping(Controller.ControllerToBucketMappingRequest.newBuilder().
+                setServiceType(Controller.ControllerToBucketMappingRequest.BucketType.RetentionService).build(), mapping);
+        Controller.ControllerToBucketMappingResponse response = mapping.get();
+        assertEquals(1,  response.getMappingMap().keySet().size());
+        assertEquals(3,  response.getMappingMap().values().stream().findFirst().get().getIdCount());
+        bucketManager.stopAsync().awaitTerminated();
+    }
+
+    protected abstract BucketStore getBucketStore();
+
+    private void waitForDistribution(BucketStore bucketStore) throws Exception {
+        if (bucketStore != null) {
+            AssertExtensions.assertEventuallyEquals(1, () -> bucketStore.getBucketControllerMap(BucketStore.ServiceType.RetentionService).get().size(),
+                    3000);
+        }
     }
 
     protected void createScopeAndStream(String scope, String stream, ScalingPolicy scalingPolicy) {

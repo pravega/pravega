@@ -249,13 +249,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      */
     private CompletableFuture<Void> initializeStorage() throws Exception {
         long containerEpoch = this.metadata.getContainerEpoch();
+        long backedUpOperationSeq = 0;
         if (shouldRecoverFromStorage().get()) {
             // If we are recovering from storage, the durableLog will be
             // initialized with 0 epoch. So override the durableLog with backed up epoch.
-            containerEpoch = readContainerEpoch().get();
+            EpochInfo info = readContainerEpoch().get();
+            // Increment epoch for restore just like container restart.
+            containerEpoch = info.getEpoch() + 1;
+            backedUpOperationSeq = info.getOperationSequenceNumber();
             this.durableLog.overrideEpoch(containerEpoch);
-            this.metadata.setContainerEpochAfterRecovery(containerEpoch);
-            log.info("{}: Recovered container epoch {} has been set in the DurableDataLog", this.traceObjectId, containerEpoch);
+            this.metadata.setContainerEpochAfterRestore(containerEpoch);
+            this.metadata.setOperationSequenceNumberAfterRestore(backedUpOperationSeq);
+            log.info("{}: Recovered container epoch {} has been set in the DurableDataLog", this.traceObjectId, info);
         }
         log.info("{}: Initializing storage with epoch {}", this.traceObjectId, containerEpoch);
         this.storage.initialize(containerEpoch);
@@ -349,7 +354,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
         // are not required for accepting new operations and can still start in the background.
-        delayedStart.thenComposeAsync( v -> this.adjustStorageMetadataLength(), this.executor)
+        delayedStart.thenComposeAsync( v -> this.adjustLengthsPostRecovery(), this.executor)
                 .thenComposeAsync(v -> {
                     val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
                     if (null != chunkedSegmentStorage) {
@@ -380,35 +385,34 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     /**
-     * Adjusting storage metadata segment length in container metadata.
+     * Adjusting lengths for the passed segment in container metadata taking
+     * storage metadata as truth.
      * @return a CompletableFuture which when completed indicates successful updation
      * of storage metadata length in container metadata.
      */
-    private CompletableFuture<Void> adjustStorageMetadataLength() {
+    private CompletableFuture<Void> adjustLengthsForSegment(String segmentName) {
         try {
             // No-op for non-recovery container startup.
-            if (!shouldRecoverFromStorage().get()) {
-                log.info("{}: Non-recovery startup. No need to adjust storage metadata length", this.traceObjectId);
-                return CompletableFuture.completedFuture(null);
-            }
             // Adjust always the storage metadata segment length in container metadata. This is the planned migration
             // recovery usecase where we would flush-to-storage, so should be safe to invoke the below adjust-length flow if not taken effect.
             val extension = this.getExtension(ContainerTableExtension.class);
-            val storageSegment = this.storage.getStreamSegmentInfo(NameUtils.getStorageMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout()).get();
-            log.debug("{}: Storage Metadata segment details retrieved: {}", this.traceObjectId, storageSegment);
-            return this.metadataStore.getSegmentInfoInternal(NameUtils.getStorageMetadataSegmentName(this.getId()), this.config.getMetadataStoreInitTimeout())
-                    .thenComposeAsync( storageMetadataSegmentBytes -> {
-                        val storageMetadataSegmentInfo = MetadataStore.SegmentInfo.deserialize(storageMetadataSegmentBytes);
-                        val toBeSerializedSM = constructStorageMetadataSegmentInfoWithLength(storageMetadataSegmentInfo, storageSegment.getLength());
-                        val serializedStorageSegment = MetadataStore.SegmentInfo.serialize(toBeSerializedSM);
-                        val unversionedEntry = TableEntry.unversioned(new ByteArraySegment(NameUtils.getStorageMetadataSegmentName(this.getId()).getBytes(Charsets.UTF_8)), serializedStorageSegment);
+            val storageSegment = this.storage.getStreamSegmentInfo(segmentName, this.config.getMetadataStoreInitTimeout()).get();
+            log.debug("{}: Storage Metadata segment details retrieved for: {}", this.traceObjectId, storageSegment);
+            return this.metadataStore.getSegmentInfoInternal(segmentName, this.config.getMetadataStoreInitTimeout())
+                    .thenComposeAsync( segmentInfoBytes -> {
+                        val segmentInfo = MetadataStore.SegmentInfo.deserialize(segmentInfoBytes);
+                        val tobeSerializedSegment = constructStorageMetadataSegmentInfoWithLength(segmentInfo, storageSegment.getLength());
+                        val toBeSerializedSegmentInSM = MetadataStore.SegmentInfo.serialize(tobeSerializedSegment);
+                        val unversionedEntry = TableEntry.unversioned(new ByteArraySegment(segmentName.getBytes(Charsets.UTF_8)), toBeSerializedSegmentInSM);
                         try {
-                            extension.put(NameUtils.getMetadataSegmentName(this.getId()), Collections.singletonList(unversionedEntry), this.config.getMetadataStoreInitTimeout())
-                                     .get(this.config.getMetadataStoreInitTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                            extension.put(NameUtils.getMetadataSegmentName(this.getId()), Collections.singletonList(unversionedEntry),
+                                    this.config.getMetadataStoreInitTimeout())
+                                    .get(this.config.getMetadataStoreInitTimeout().toMillis(), TimeUnit.MILLISECONDS);
                         } catch (Exception e) {
                             log.error("{}: Could not save storage metadata info in container metadata. Failed with exception {}", this.traceObjectId, e );
                             return Futures.failedFuture(e);
                         }
+                        log.info("{}: Reconciled lengths for segment {}", this.traceObjectId, segmentName);
                         return CompletableFuture.completedFuture(null);
                     }, this.executor);
         } catch (Exception ex) {
@@ -418,21 +422,41 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     /**
+     * Adjust lengths for segments that might have possible mismatch or a difference
+     * in their lengths in the container and storage metadata after the container
+     * boots up in recover-from-storage mode.
+     * @return a CompletableFuture that indicates completion.
+     */
+    private CompletableFuture<Void> adjustLengthsPostRecovery() {
+        return shouldRecoverFromStorage().
+                thenComposeAsync( shouldRecover -> {
+                    if (shouldRecover) {
+                        return this.adjustLengthsForSegment(NameUtils.getStorageMetadataSegmentName(this.getId()))
+                                .thenComposeAsync(v -> this.adjustLengthsForSegment(NameUtils.getEventProcessorSegmentName(this.getId(), String.format("GC.queue.%d", this.getId()))), this.executor);
+                    } else {
+                        log.info("{}: Not recovering from storage. No need to adjust lengths", this.traceObjectId);
+                        return CompletableFuture.completedFuture(null);
+                    }
+                }, this.executor);
+    }
+
+    /**
      * Constructs a SegmentInfo object from the passed SegmentInfo object and setting the provided length.
-     * @param storageMetadataSegmentInfo SegmentInfo object to construct from.
+     * @param segmentInfo SegmentInfo object to construct from.
      * @param length length to be set in the constructed SegmentInfo object.
      * @return constructed SegmentInfo object
      */
-    private MetadataStore.SegmentInfo constructStorageMetadataSegmentInfoWithLength(MetadataStore.SegmentInfo storageMetadataSegmentInfo, long length) {
-        Map<AttributeId, Long> attribs = new HashMap<>(storageMetadataSegmentInfo.getProperties().getAttributes());
-        attribs.put(TableAttributes.INDEX_OFFSET, length);
-        // On LTS restore, reset the PERSIST_SEQ_NO as a new BK log is created with operation seq no's resetting or starting afresh.
-        attribs.put(TableAttributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, Operation.NO_SEQUENCE_NUMBER);
-        StreamSegmentInformation newStorageMetadata = StreamSegmentInformation.from(storageMetadataSegmentInfo.getProperties()).length(length)
+    private MetadataStore.SegmentInfo constructStorageMetadataSegmentInfoWithLength(MetadataStore.SegmentInfo segmentInfo, long length) {
+        Map<AttributeId, Long> attribs = new HashMap<>(segmentInfo.getProperties().getAttributes());
+        if (SegmentType.fromAttributes(segmentInfo.getProperties().getAttributes()).isTableSegment()) {
+            attribs.put(TableAttributes.INDEX_OFFSET, length);
+            attribs.put(TableAttributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, Operation.NO_SEQUENCE_NUMBER);
+        }
+        StreamSegmentInformation newStorageMetadata = StreamSegmentInformation.from(segmentInfo.getProperties()).length(length)
                 .attributes(attribs)
                 .build();
         return MetadataStore.SegmentInfo.builder()
-                .segmentId(storageMetadataSegmentInfo.getSegmentId())
+                .segmentId(segmentInfo.getSegmentId())
                 .properties(newStorageMetadata)
                 .build();
     }
@@ -856,17 +880,17 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         log.info("{}: Starting flush to storage for container ID: {}", this.traceObjectId, containerId);
         val flusher = new LogFlusher(containerId, this.durableLog, this.writer, this.metadataCleaner, this.executor);
         return flusher.flushToStorage(timeout)
-                .thenComposeAsync( v -> saveEpochInfo(containerId, this.metadata.getContainerEpoch(), timeout), this.executor)
+                .thenComposeAsync( v -> saveEpochInfo(containerId, this.metadata.getContainerEpoch(), this.metadata.getOperationSequenceNumber(), timeout), this.executor)
                 .thenAccept(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
     }
 
-    private CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, Duration timeout) {
+    private CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, long operationSequenceNumber, Duration timeout) {
         if (!(storage instanceof ChunkedSegmentStorage)) {
             return CompletableFuture.completedFuture(null);
         }
         val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
         val chunk = NameUtils.getContainerEpochFileName(containerId);
-        val epochInfo = new EpochInfo(containerEpoch);
+        val epochInfo = new EpochInfo(containerEpoch, operationSequenceNumber);
         val isDone = new AtomicBoolean(false);
         val attempts = new AtomicInteger();
         try {
@@ -878,11 +902,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                 if (exists) {
                                     return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength())
                                             .thenComposeAsync(savedEpoch -> {
-                                                if (savedEpoch.getEpoch() > epochInfo.getEpoch()) {
+                                                if (savedEpoch.getEpoch() > epochInfo.getEpoch() ||
+                                                        savedEpoch.getOperationSequenceNumber() > epochInfo.getOperationSequenceNumber()) {
                                                     return CompletableFuture.failedFuture(
                                                         new IllegalContainerStateException(String.format(
                                                             "Unexpected epoch. Expected = {} actual = {}",
-                                                            epochInfo.getEpoch(), savedEpoch.getEpoch())));
+                                                            epochInfo, savedEpoch)));
                                                 } else {
                                                     return chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunk));
                                                 }
@@ -897,13 +922,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                 log.debug("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo);
                                 return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength()); }, executor)
                             .thenApplyAsync( readBackInfo -> {
-                                if (readBackInfo.getEpoch() > epochInfo.getEpoch()) {
+                                if (readBackInfo.getEpoch() > epochInfo.getEpoch() || readBackInfo.getOperationSequenceNumber() >
+                                        epochInfo.getOperationSequenceNumber()) {
                                     throw new CompletionException(
-                                            new IllegalContainerStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo.getEpoch(), readBackInfo.getEpoch())));
+                                            new IllegalContainerStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
                                 }
                                 if (!epochInfo.equals(readBackInfo)) {
                                     throw new CompletionException(
-                                            new IllegalStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo.getEpoch(), readBackInfo.getEpoch())));
+                                            new IllegalStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
                                 }
                                 return null;
                             }, executor)
@@ -952,7 +978,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * Container startup in case of recovery mode uses this saved epoch information
      * @return epoch read from storage.
      */
-    private CompletableFuture<Long> readContainerEpoch() {
+    private CompletableFuture<EpochInfo> readContainerEpoch() {
         log.info(" {}: Reading container epoch from storage", this.traceObjectId);
         val containerEpochFileName = NameUtils.getContainerEpochFileName(this.getId());
         UtilsWrapper wrapper = new UtilsWrapper((ChunkedSegmentStorage) this.storage, BUFFER_SIZE, this.config.getMetadataStoreInitTimeout());
@@ -965,8 +991,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
-                    log.info("{}: Read container epoch {} from storage", this.traceObjectId, containerEpoch.getEpoch());
-                    return CompletableFuture.completedFuture(containerEpoch.getEpoch() + 1);
+                    log.info("{}: Read container epoch {} from storage", this.traceObjectId, containerEpoch);
+                    return CompletableFuture.completedFuture(containerEpoch);
                 }, this.executor)
                 .handleAsync( (epoch, ex) -> {
                    if ( ex != null ) {

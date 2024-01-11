@@ -97,7 +97,7 @@ public class ServiceConfig {
     //Connection Tracker related parameters
     public static final Property<Integer> DEFAULT_ALL_CONNECTIONS_MAX_OUTSTANDING_BYTES = Property.named("default.all.connections.max.outstanding.bytes",
             512 * 1024 * 1024);
-    public static final Property<Integer> DEFAULT_SINGLE_CONNECTION_MAX_OUTSTANDING_BYTES = Property.named("default.all.connections.max.outstanding.bytes",
+    public static final Property<Integer> DEFAULT_SINGLE_CONNECTION_MAX_OUTSTANDING_BYTES = Property.named("default.single.connections.max.outstanding.bytes",
             128 * 1024 * 1024);
 
 
