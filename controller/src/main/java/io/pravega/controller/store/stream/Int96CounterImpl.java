@@ -62,10 +62,12 @@ class Int96CounterImpl implements Int96Counter {
     public CompletableFuture<Int96> getNextCounter(OperationContext context) {
         CompletableFuture<Int96> future;
         Int96 next;
+        Int96 currentLimit;
         synchronized (lock) {
             next = counter.incrementAndGet();
+            currentLimit = limit.get();
         }
-        if (next.compareTo(limit.get()) > 0) {
+        if (next.compareTo(currentLimit) > 0) {
             // ignore the counter value and after refreshing call getNextCounter
             future = refreshRangeIfNeeded(context).thenCompose(x -> getNextCounter(context));
         } else {
@@ -90,12 +92,22 @@ class Int96CounterImpl implements Int96Counter {
     @VisibleForTesting
     CompletableFuture<Void> refreshRangeIfNeeded(final OperationContext context) {
         return sequentialProcessor.add(() -> {
+            Int96 currentCounter;
+            Int96 currentLimit;
+            synchronized (lock) {
+                currentCounter = counter.get();
+                currentLimit = limit.get();
+            }
             // no ongoing refresh, check if refresh is still needed
-            if (counter.get().compareTo(limit.get()) >= 0) {
+            if (currentCounter.compareTo(currentLimit) >= 0) {
                 log.info("Refreshing counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
                 return function.apply(new CounterInfo(context, COUNTER_RANGE), this::reset)
-                        .thenAccept(result -> log.info(context.getRequestId(), "Refreshed counter range. Current counter is {}. Current limit is {}",
-                                counter.get(), limit.get()))
+                        .thenAccept(result -> {
+                            synchronized (lock) {
+                                log.info(context.getRequestId(), "Refreshed counter range. Current counter is {}. Current limit is {}",
+                                        counter.get(), limit.get());
+                            }
+                        })
                         .exceptionally(e -> {
                             log.warn("Exception thrown while trying to refresh transaction counter range", e);
                             throw new CompletionException(e);
