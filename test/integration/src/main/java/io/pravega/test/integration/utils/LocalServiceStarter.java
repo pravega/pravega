@@ -256,7 +256,9 @@ public class LocalServiceStarter {
         }
 
         public void shutDownControllerRunner() throws Exception {
-            this.controllerRunner.close();
+            if (this.controllerRunner != null) {
+                this.controllerRunner.close();
+            }
         }
 
         public void shutDownSegmentStoreRunner() {
