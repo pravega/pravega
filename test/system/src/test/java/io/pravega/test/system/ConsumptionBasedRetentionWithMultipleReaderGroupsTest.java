@@ -142,7 +142,8 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         List<URI> controllerUris = controllerService.getServiceDetails();
         // Fetch all the RPC endpoints and construct the client URIs.
         List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-        controllerURI = URI.create(TCP + String.join(",", uris));
+        controllerURI = Utils.getControllerURI(uris);
+        log.debug("controller URI string list  is: {}", controllerURI);
         clientConfig = Utils.buildClientConfig(controllerURI);
         controller = new ControllerImpl(ControllerImplConfig.builder()
                 .clientConfig(clientConfig)
@@ -168,7 +169,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, STREAM_CONFIGURATION));
 
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         @Cleanup
@@ -276,7 +277,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM_2, TIME_BASED_RETENTION_STREAM_CONFIGURATION));
 
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE_1, controller, connectionFactory);
         @Cleanup
@@ -428,7 +429,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Creating scope", streamManager.createScope(scope));
         assertTrue("Creating stream", streamManager.createStream(scope, stream, STREAM_CONFIGURATION));
 
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
 
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
 
@@ -509,7 +510,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Creating scope", streamManager.createScope(scope));
         assertTrue("Creating stream", streamManager.createStream(scope, stream, STREAM_CONFIGURATION));
 
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
 
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
 
@@ -587,7 +588,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         assertTrue("Creating scope", streamManager.createScope(scope));
         assertTrue("Creating stream", streamManager.createStream(scope, streamName, streamConfiguration));
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
         @Cleanup
@@ -724,7 +725,8 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
             log.info("Pravega Controller service  details: {}", controllerUris);
             List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
             assertEquals(instanceCount + " controller instances should be running", instanceCount, uris.size());
-            controllerURI = URI.create(TCP + String.join(",", uris));
+            controllerURI = Utils.getControllerURI(uris);
+            log.debug("controllerURI {}", controllerURI);
             clientConfig = Utils.buildClientConfig(controllerURI);
             controller = new ControllerImpl(ControllerImplConfig.builder()
                     .clientConfig(clientConfig)

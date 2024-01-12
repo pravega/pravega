@@ -115,7 +115,7 @@ abstract class AbstractSystemTest {
         // Fetch all the RPC endpoints and construct the client URIs.
         final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
-        URI controllerURI = URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris));
+        URI controllerURI = Utils.getControllerURI(uris);
         log.info("Controller Service direct URI: {}", controllerURI);
         return controllerURI;
     }
