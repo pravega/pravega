@@ -82,12 +82,8 @@ Let’s start by creating an [`EventStreamWriter`](https://pravega.io/docs/lates
 === "Python"
 
     ``` python
-    import pravega_client
-
-    manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
-
     # assuming the Pravega scope and stream are already created.
-    writer=manager.create_writer("tutorial", "numbers")
+    writer = stream_manager.create_writer("tutorial", "numbers")
     ```
 
 And use it to write some numbers (note that `writeEvent()` returns a `CompletableFuture`, which can be captured for use or will be resolved when calling `flush()` or `close()`, and, if destined for the same segment, the futures write in the order `writeEvent()` is called):
@@ -127,10 +123,8 @@ We can read back these events using a reader. Readers are associated with reader
 === "Python"
 
     ``` python
-    import pravega_client
-    manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
     # create a ReaderGroup rg1 against an already created Pravega scope and Stream.
-    manager.create_reader_group("numReader", "tutorial", "numbers")            
+    reader_group = stream_manager.create_reader_group("numReader", "tutorial", "numbers")            
     ```
 
 Here we used the [`ReaderGroupManager`](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/admin/ReaderGroupManager.html) to create a new reader group on numbers called `numReader`.
@@ -158,10 +152,13 @@ Now we can attach a single [`EventStreamReader`](https://pravega.io/docs/latest/
 === "Python"
 
     ``` python
-    reader = reader_group.create_reader("myId");
-    slice = await reader.get_segment_slice_async()
-    for event in slice:
-      print(event.data())  
+    reader = reader_group.create_reader("myId")
+    count = 0
+    while count != 3:
+        slice = await reader.get_segment_slice_async()
+        for event in slice:
+            print(event.data())
+            count += 1  
 
     reader.reader_offline()
     ```
@@ -190,7 +187,7 @@ If a reader is not properly closed, before it can come back online or before its
 === "Python"
 
     ``` python
-    readerGroup.reader_offline("myId")
+    reader_group.reader_offline("myId")
     ```
 
 A reader group tracks each reader’s position in a stream. If all readers in a reader group are closed, when they come back online, they will automatically pick up where they left off. Should any readers remain online, they will pick up the work of the offline readers. When a closed or offline reader comes back online, it joins an active reader group as a new reader and negotiates a share of the work.
@@ -212,7 +209,7 @@ In order to re-use reader group names and reader IDs when starting over from the
 === "Python"
 
     ``` python
-    manager.delete_reader_group("numReader", "tutorial")
+    stream_manager.delete_reader_group("numReader", "tutorial")
     ```
 
 Pravega keeps reader group metadata for you inside internal metadata streams until you decide to delete it. When you are finished with a reader group, it is advised to delete the reader group as shown above.
@@ -238,9 +235,9 @@ We’ve just explored reading from the beginning of a stream to the end in seque
 === "Python"
 
     ``` python
-    # Create a reader Group Configuration to read from HEAD of stream.
+    # Create a reader Group Configuration to read from tail of stream.
     rg_config = pravega_client.StreamReaderGroupConfig(True, "tutorial", "numbers")
-    reader_group=stream_manager.create_reader_group_with_config("tailNumReader", "tutorial", rg_config)
+    reader_group = stream_manager.create_reader_group_with_config("tailNumReader", "tutorial", rg_config)
     ```
 
 We can now create an `EventStreamReader` instance named `tailReader` that can read from the end of the stream. If we append to the stream, we will only read new events with this reader group. Let’s append to `numbers` and read with `tailNumReader`. As already mentioned, our `while` loop was a bit too simplistic previously. Let’s see about improving things further by checking for the end of stream by tracking unread bytes available:
@@ -276,10 +273,13 @@ We can now create an `EventStreamReader` instance named `tailReader` that can re
     writer.write_event("6")
     writer.flush()
 
-    reader = reader_group.create_reader("tailId");
-    slice = await reader.get_segment_slice_async()
-    for event in slice:
-      print(event.data())
+    reader = reader_group.create_reader("tailId")
+    count = 0
+    while count != 3:
+        slice = await reader.get_segment_slice_async()
+        for event in slice:
+            print(event.data())
+            count += 1
     ```
 
 Outputs:
@@ -318,11 +318,6 @@ To do this, we’ll need to create a new `parallel-numbers` stream that has more
 === "Python"
 
     ``` python
-    import pravega_client
-
-    stream_manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
-
-    scope_result = stream_manager.create_scope("tutorial")
     stream_result = stream_manager.create_stream("tutorial", "parallel-numbers", 5) 
     ```
 
@@ -365,26 +360,24 @@ If we again write successive integers to this stream of 5 fixed segments, we wil
 === "Python"
 
     ``` python
-    import pravega_client
-
-    manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
+    # assuming the Pravega scope and stream are already created.
+    para_writer = stream_manager.create_writer("tutorial", "parallel-numbers")
+    para_writer.write_event("1")
+    para_writer.write_event("2")
+    para_writer.write_event("3")
+    para_writer.write_event("4")
+    para_writer.write_event("5")
+    para_writer.write_event("6")
 
     # assuming the Pravega scope and stream are already created.
-    paraWriter=manager.create_writer("tutorial", "parallel-numbers")
-    paraWriter.writeEvent("1");
-    paraWriter.writeEvent("2");
-    paraWriter.writeEvent("3");
-    paraWriter.writeEvent("4");
-    paraWriter.writeEvent("5");
-    paraWriter.writeEvent("6");
-
-    manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
-    # assuming the Pravega scope and stream are already created.
-    reader_group = manager.create_reader_group("paraNumReader", "tutorial", "parallel-numbers")
-    reader = reader_group.create_reader("paraId");
-    slice = await reader.get_segment_slice_async()
-    for event in slice:
-        print(event.data())
+    reader_group = stream_manager.create_reader_group("paraNumReader", "tutorial", "parallel-numbers")
+    reader = reader_group.create_reader("paraId")
+    count = 0
+    while count != 6:
+        slice = await reader.get_segment_slice_async()
+        for event in slice:
+            print(event.data())
+            count += 1
     ```
 
 Outputs will be non-deterministic, for example:
@@ -435,19 +428,16 @@ Let’s consider an example where we want to preserve the order of several indep
 === "Python"
 
     ``` python
-    import pravega_client
-
-    manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
-
+    stream_result = stream_manager.create_stream("tutorial", "parallel-decades", 5) 
     # assuming the Pravega scope and stream are already created.
-    paraWriter=manager.create_writer("tutorial", "parallel-decades")
+    para_writer = stream_manager.create_writer("tutorial", "parallel-decades")
     
     for x in range(10):
-        paraWriter.writeEvent(x, "ones")
-    for y in range(20):
-        paraWriter.writeEvent(y, "tens")
-    for z in range(20):
-        paraWriter.writeEvent(z, "twenties")
+        para_writer.write_event(str(x), "ones")
+    for y in range(10, 20):
+        para_writer.write_event(str(y), "tens")
+    for z in range(20, 30):
+        para_writer.write_event(str(z), "twenties")
     ```
 
 The “ones” (0-9), “tens” (10-19) and “twenties” (20-29) are written to our `parallel-decades` stream. Since we have 3 sequences to 5 segments, each decade sequence is potentially in its own segment.
@@ -476,14 +466,15 @@ When we read this back, the values of each decade will be in order, but the sequ
 === "Python"
 
     ``` python
-    import pravega_client
-    manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
     # assuming the Pravega scope and stream are already created.
-    reader_group = manager.create_reader_group("paraDecReader", "tutorial", "parallel-decades")
-    reader = reader_group.create_reader("decId");
-    slice = await reader.get_segment_slice_async()
-    for event in slice:
-        print(event.data())
+    reader_group = stream_manager.create_reader_group("paraDecReader", "tutorial", "parallel-decades")
+    reader = reader_group.create_reader("decId")
+    count = 0
+    while count != 30:
+        slice = await reader.get_segment_slice_async()
+        for event in slice:
+            print(event.data())
+            count += 1
     ```
 For me, this outputs:
 ```
@@ -701,20 +692,18 @@ As stated above, we should practice good hygiene and clean up after ourselves by
 === "Python"
 
     ``` python
-    import pravega_client
-    streamManager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
-    streamManager.delete_reader_group("numReader", "tutorial")
-    streamManager.delete_reader_group("tailNumReader", "tutorial")
-    streamManager.delete_reader_group("paraNumReader", "tutorial")
-    streamManager.delete_reader_group("paraDecReader", "tutorial")
+    stream_manager.delete_reader_group("numReader", "tutorial")
+    stream_manager.delete_reader_group("tailNumReader", "tutorial")
+    stream_manager.delete_reader_group("paraNumReader", "tutorial")
+    stream_manager.delete_reader_group("paraDecReader", "tutorial")
 
-    streamManager.seal_stream("tutorial", "numbers");
-    streamManager.delete_stream("tutorial", "numbers");
-    streamManager.seal_stream("tutorial", "parallel-numbers");
-    streamManager.delete_stream("tutorial", "parallel-numbers");
-    streamManager.seal_stream("tutorial", "parallel-decades");
-    streamManager.delete_stream("tutorial", "parallel-decades");
-    streamManager.delete_scope("tutorial");
+    stream_manager.seal_stream("tutorial", "numbers")
+    stream_manager.delete_stream("tutorial", "numbers")
+    stream_manager.seal_stream("tutorial", "parallel-numbers")
+    stream_manager.delete_stream("tutorial", "parallel-numbers")
+    stream_manager.seal_stream("tutorial", "parallel-decades")
+    stream_manager.delete_stream("tutorial", "parallel-decades")
+    stream_manager.delete_scope("tutorial")
     ```
 ## Conclusion
 
