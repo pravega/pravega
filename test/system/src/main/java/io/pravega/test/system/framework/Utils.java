@@ -35,6 +35,7 @@ import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.List;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
 
@@ -53,13 +54,16 @@ public class Utils {
     public static final boolean DOCKER_BASED = Utils.isDockerExecEnabled();
     public static final int ALTERNATIVE_CONTROLLER_PORT = 9093;
     public static final int ALTERNATIVE_REST_PORT = 9094;
+    public static final int CONTROLLER_GRPC_PORT = 9090;
+    public static final String TCP = "tcp://";
+    public static final String TLS = "tls://";
     public static final TestExecutorFactory.TestExecutorType EXECUTOR_TYPE = TestExecutorFactory.getTestExecutionType();
     public static final boolean AUTH_ENABLED = isAuthEnabled();
     public static final boolean TLS_AND_AUTH_ENABLED = isTLSEnabled();
     public static final String PROPERTIES_FILE = "pravega.properties";
     public static final String PROPERTIES_FILE_WITH_AUTH = "pravega_withAuth.properties";
     public static final String PROPERTIES_FILE_WITH_TLS = "pravega_withTLS.properties";
-    public static final String TLS_SECRET_NAME = "selfsigned-cert-tls";
+    public static final String TLS_SECRET_NAME = "controller-tls";
     public static final String TLS_MOUNT_PATH = "/etc/secret-volume";
     public static final ImmutableMap<String, String> PRAVEGA_PROPERTIES = readPravegaProperties();
     public static final String DEFAULT_TRUSTSTORE_PATH = TLS_MOUNT_PATH + "/tls.crt";
@@ -153,6 +157,7 @@ public class Utils {
         if (TLS_AND_AUTH_ENABLED)  {
             resourceName = PROPERTIES_FILE_WITH_TLS;
         }
+        log.debug("Resource name :{}", resourceName);
         Properties props = new Properties();
         if (System.getProperty(CONFIGS) != null) {
             try {
@@ -172,6 +177,8 @@ public class Utils {
     }
 
     public static ClientConfig buildClientConfig(URI controllerUri) {
+        log.debug("Default trust store path :{} and validate hostname :{}  controllerUri :{}",
+                DEFAULT_TRUSTSTORE_PATH, VALIDATE_HOSTNAME, controllerUri);
         if (TLS_AND_AUTH_ENABLED) {
             log.debug("Generating config with tls and auth enabled.");
             return ClientConfig.builder()
@@ -231,11 +238,23 @@ public class Utils {
 
     private static boolean isTLSEnabled() {
         String tlsEnabled = Utils.getConfig("tlsEnabled", "false");
-        return Boolean.valueOf(tlsEnabled);
+        return Boolean.valueOf(tlsEnabled) && isAuthEnabled();
     }
 
     public static boolean isSkipLogDownloadEnabled() {
         String config = getConfig("skipLogDownload", "false");
         return config.trim().equalsIgnoreCase("true") ? true : false;
+    }
+
+    public static String getTlsCommonName() {
+               return Utils.getConfig("tlsCertCNName", "localhost");
+    }
+
+    public static URI getControllerURI(List<String> uris) {
+        if (Utils.TLS_AND_AUTH_ENABLED) {
+            return URI.create(Utils.TLS + Utils.getTlsCommonName() + ":" + CONTROLLER_GRPC_PORT);
+        } else {
+            return URI.create(Utils.TCP + String.join(",", uris));
+        }
     }
 }
