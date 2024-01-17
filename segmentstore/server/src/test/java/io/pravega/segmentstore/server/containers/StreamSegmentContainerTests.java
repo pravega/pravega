@@ -193,7 +193,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int EXPECTED_PINNED_SEGMENT_COUNT = 1;
     private static final long EXPECTED_METADATA_SEGMENT_ID = 1L;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
-    private static final int TEST_TIMEOUT_MILLIS = 100 * 1000;
+    private static final int TEST_TIMEOUT_MILLIS = 120 * 1000;
     private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT = 250; // Good for majority of tests.
     private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_LONG = 4 * EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT; // For heavy tests.
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
@@ -3031,6 +3031,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     @Test (timeout = 120000)
     public void testFlushToStorageForEpochFileAlreadyExists() throws Exception {
+        System.out.println("testFlushToStorageForEpochFileAlreadyExists: started");
+        long startTime = System.currentTimeMillis();
         final String segmentName = "segment512";
         final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
 
@@ -3044,27 +3046,48 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
         FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
+        long endTime = System.currentTimeMillis();
+        System.out.println("testFlushToStorageForEpochFileAlreadyExists: Time taken in ms before creating segment container: " + (endTime - startTime));
         try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                 context.getDefaultExtensions(), executorService())) {
+            startTime = endTime;
+            endTime = System.currentTimeMillis();
+            System.out.println("testFlushToStorageForEpochFileAlreadyExists: Time taken in ms to create segment container object: " + (endTime - startTime));
             container1.startAsync().awaitRunning();
+            startTime = endTime;
+            endTime = System.currentTimeMillis();
+            System.out.println("testFlushToStorageForEpochFileAlreadyExists: Time taken in ms to startAsync segment container: " + (endTime - startTime));
 
             // Create segment and make one append to it.
             container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            startTime = endTime;
+            endTime = System.currentTimeMillis();
+            System.out.println("testFlushToStorageForEpochFileAlreadyExists: Time taken in ms to create segment and append segment container: " + (endTime - startTime));
+
             // Test 1: Exercise epoch already exists flow in flushtostorage
             container1.flushToStorage(TIMEOUT).join();
             container1.flushToStorage(TIMEOUT).join();
             // Test 1 ends
-
+            startTime = endTime;
+            endTime = System.currentTimeMillis();
+            System.out.println("testFlushToStorageForEpochFileAlreadyExists: Time taken in ms to flushToStorage segment container: " + (endTime - startTime));
             // Test 2: Exercise saved epoch is higher than contaier epoch
             container1.metadata.setContainerEpochAfterRestore(5);
             container1.flushToStorage(TIMEOUT).join();
             container1.metadata.setContainerEpochAfterRestore(3);
+            startTime = endTime;
+            endTime = System.currentTimeMillis();
+            System.out.println("testFlushToStorageForEpochFileAlreadyExists: Time taken in ms to setContainerEpochAfterRestore and flushToStorage segment container: " + (endTime - startTime));
             AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
             //Test 2 ends
             container1.stopAsync().awaitTerminated();
+            startTime = endTime;
+            endTime = System.currentTimeMillis();
+            System.out.println("testFlushToStorageForEpochFileAlreadyExists: Time taken in ms to stopAsync segment container: " + (endTime - startTime));
         }
+        System.out.println("testFlushToStorageForEpochFileAlreadyExists: completed");
     }
 
     @SneakyThrows
