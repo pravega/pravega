@@ -24,6 +24,9 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import lombok.val;
 
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Used to create and manage segment reader.
  */
@@ -32,18 +35,17 @@ public interface SegmentReaderManager extends AutoCloseable {
     /**
      * Creates a new instance of SegmentReaderManager.
      *
-     * @param scope The Scope string.
      * @param config Configuration for the client.
      * @return Instance of Stream Manager implementation.
      */
-    static SegmentReaderManager withScope(String scope, ClientConfig config) {
+    static SegmentReaderManager create(ClientConfig config) {
         val connectionFactory = new SocketConnectionFactoryImpl(config);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor());
         return new SegmentReaderManagerImpl(controller, config, connectionFactory);
     }
 
-    List<SegmentReader> getSegmentReaders(Stream stream, StreamCut startStreamCut);
+    CompletableFuture<List<Long>> getSegmentReaders(Stream stream, StreamCut startStreamCut);
     
     /**
      * Closes this reader. No further methods may be called after close.

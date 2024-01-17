@@ -16,7 +16,6 @@
 package io.pravega.client.admin.impl;
 
 import com.google.common.annotations.Beta;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.SegmentReaderManager;
@@ -31,11 +30,10 @@ import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.common.util.Retry;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import java.time.Duration;
 import java.util.Map;
 import java.util.List;
 import java.util.Optional;
@@ -52,49 +50,44 @@ public class SegmentReaderManagerImpl implements SegmentReaderManager {
     private final SegmentInputStreamFactory inputStreamFactory;
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
     private final StreamCutHelper streamCutHelper;
-    private final Retry.RetryWithBackoff retryWithBackoff;
     private final ClientConfig clientConfig;
 
     public SegmentReaderManagerImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory) {
-        this(controller, clientConfig, connectionFactory, Retry.withExpBackoff(1, 10, 10, Duration.ofSeconds(30).toMillis()));
-    }
-
-    @VisibleForTesting
-    public SegmentReaderManagerImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory, Retry.RetryWithBackoff retryWithBackoff) {
         this.controller = controller;
         this.connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
         this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
-        this.retryWithBackoff = retryWithBackoff;
         this.clientConfig = clientConfig;
     }
 
     @Override
-    public List<SegmentReader> getSegmentReaders(final Stream stream, final StreamCut startStreamCut) {
+    public CompletableFuture<List<SegmentReader>> getSegmentReaders(final Stream stream, final StreamCut startStreamCut) {
         Preconditions.checkNotNull(stream, "stream");
         return listSegmentReaders(stream, Optional.ofNullable(startStreamCut));
     }
 
-    private List<SegmentReader> listSegmentReaders(final Stream stream, final Optional<StreamCut> startStreamCut) {
+    private CompletableFuture<List<SegmentReader>> listSegmentReaders(final Stream stream, final Optional<StreamCut> startStreamCut) {
         val startCut = startStreamCut.filter(sc -> !sc.equals(StreamCut.UNBOUNDED));
         // if startStreamCut is not provided use the streamCut at the start of the stream.
         CompletableFuture<StreamCut> startSCFuture = startCut.isPresent() ?
                 CompletableFuture.completedFuture(startCut.get()) : streamCutHelper.fetchHeadStreamCut(stream);
-        StreamCut streamCutRequested = startSCFuture.join();
-        Map<Segment, Long> segmentPosition = streamCutRequested.asImpl().getPositions();
-        List<SegmentReader> segmentReaderList = new ArrayList<>();
-        for(Entry<Segment, Long> entry: segmentPosition.entrySet())
-        {
-            SegmentReader sg = getSegmentReader(entry);
-            segmentReaderList.add(sg);
-        }
-        return segmentReaderList;
+        return CompletableFuture.allOf(startSCFuture)
+                .thenApply(v -> {
+                    Map<Segment, Long> segmentPosition = ((StreamCutImpl) startSCFuture.join()).getPositions();
+                    List<SegmentReader> segmentReaderList = new ArrayList<>();
+                    for(Entry<Segment, Long> entry: segmentPosition.entrySet())
+                    {
+                        SegmentReader sg = getSegmentReader(entry);
+                        segmentReaderList.add(sg);
+                    }
+                    return segmentReaderList;
+                });
     }
 
     private SegmentReader getSegmentReader(Entry<Segment, Long> entry) {
         // Based on the entry<key, value> Return SegmentReader from here.
-
+        return null;
     }
 
     @Override
