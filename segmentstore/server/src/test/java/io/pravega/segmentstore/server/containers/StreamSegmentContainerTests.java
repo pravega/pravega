@@ -3056,10 +3056,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             container1.flushToStorage(TIMEOUT).join(); // already exists
 
             // Test 1: Exercise saved epoch is higher than contaier epoch
-//            container1.metadata.setContainerEpochAfterRestore(5);
-//            container1.flushToStorage(TIMEOUT).join(); // Test 2: Exercise epoch already exists flow in flushtostorage
-//            container1.metadata.setContainerEpochAfterRestore(3);
-//            AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
+            // container1.metadata.setContainerEpochAfterRestore(5);
+            // container1.flushToStorage(TIMEOUT).join(); // Test 2: Exercise epoch already exists flow in flushtostorage
+            // container1.metadata.setContainerEpochAfterRestore(3);
+            //AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
             //Test 2 ends
             container1.stopAsync().awaitTerminated();
         }
