@@ -22,7 +22,7 @@ package io.pravega.client.stream;
  */
 public interface ReadEventWithStatus<T> {
     /**
-     * Returns the event that is wrapped in this EventRead or null a timeout occurred or if a checkpoint was requested.
+     * Returns the event that is wrapped in this ReadEventWithStatus or null if a timeout occurred.
      *
      * @return The event itself.
      */
