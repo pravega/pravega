@@ -22,15 +22,15 @@ package io.pravega.client.stream;
 public interface SegmentReader<T> extends AutoCloseable {
 
     /**
-     * Gets the next event in the stream. If there are no events currently available this will block up for
-     * timeoutMillis waiting for them to arrive. If none do, an EventRead will be returned with null for
-     * {@link ReadEventWithStatus#getEvent()}.
+     * Gets the next event in the segment. If there are no events currently available this will block up for
+     * timeoutMillis waiting for them to arrive. If none do, an EventReadWithStatus {@link EventReadWithStatus} will be returned with null for
+     * {@link EventReadWithStatus#getEvent()}.
      *
      * @param timeoutMillis An upper bound on how long the call may block before returning null.
-     * @return An instance of {@link ReadEventWithStatus}, which contains the next event in the segment. In the case the timeoutMillis
-     *         is reached, {@link ReadEventWithStatus#getEvent()} returns null.
+     * @return An instance of {@link EventReadWithStatus}, which contains the next event in the segment. In the case the timeoutMillis
+     *         is reached, {@link EventReadWithStatus#getEvent()} returns null.
      */
-    ReadEventWithStatus<T> read(long timeoutMillis);
+    EventReadWithStatus<T> read(long timeoutMillis);
 
     /**
      * Check the status of segment.

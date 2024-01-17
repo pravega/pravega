@@ -24,7 +24,7 @@ import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ReadEventWithStatus;
+import io.pravega.client.stream.EventReadWithStatus;
 import io.pravega.client.stream.SegmentReader;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -79,7 +79,7 @@ public class SegmentReaderTest {
         sendData("3", outputStream);
         SegmentReader<String> segmentReader = new SegmentReaderImpl<>(factory, segment, stringSerializer, 0,
                 ClientConfig.builder().build(), controller, factory);
-        ReadEventWithStatus<String> status = segmentReader.read(timeout);
+        EventReadWithStatus<String> status = segmentReader.read(timeout);
         assertEquals("1", status.getEvent());
         assertEquals(SegmentReader.Status.AVAILABLE_NOW, status.getStatus());
         status = segmentReader.read(timeout);

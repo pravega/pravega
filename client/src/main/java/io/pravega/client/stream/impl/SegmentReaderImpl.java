@@ -21,7 +21,7 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.*;
-import io.pravega.client.stream.ReadEventWithStatus;
+import io.pravega.client.stream.EventReadWithStatus;
 import io.pravega.client.stream.SegmentReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
@@ -63,7 +63,7 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
     }
 
     @Override
-    public ReadEventWithStatus<T> read(long timeoutMillis) {
+    public EventReadWithStatus<T> read(long timeoutMillis) {
         AtomicReference<Status> status = new AtomicReference<>(Status.AVAILABLE_NOW);
         long firstByteTimeoutMillis = Math.min(timeoutMillis, BASE_READER_WAITING_TIME_MS);
         // retry in-case of an empty ByteBuffer
@@ -84,7 +84,7 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
                             }
                         });
 
-        return new ReadEventWithStatusImpl<>(read == null ? null : deserializer.deserialize(read), status.get());
+        return new EventReadWithStatusImpl<>(read == null ? null : deserializer.deserialize(read), status.get());
     }
 
     private Status getStatus(EndOfSegmentException e) {
