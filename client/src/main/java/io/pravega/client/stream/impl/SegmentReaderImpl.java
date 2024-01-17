@@ -20,25 +20,15 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import io.pravega.client.segment.impl.EventSegmentReader;
-import io.pravega.client.segment.impl.SegmentInputStreamFactory;
-import io.pravega.client.segment.impl.SegmentMetadataClient;
-import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
-import io.pravega.client.segment.impl.NoSuchSegmentException;
-import io.pravega.client.segment.impl.SegmentTruncatedException;
-import io.pravega.client.segment.impl.EndOfSegmentException;
-import io.pravega.client.segment.impl.ServerTimeoutException;
-import io.pravega.client.segment.impl.SegmentInfo;
+import io.pravega.client.segment.impl.*;
 import io.pravega.client.stream.ReadEventWithStatus;
 import io.pravega.client.stream.SegmentReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
-import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.security.auth.AccessOperation;
 import lombok.extern.slf4j.Slf4j;
-
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeoutException;
@@ -49,6 +39,8 @@ import static java.lang.String.format;
 @Slf4j
 public class SegmentReaderImpl<T> implements SegmentReader<T> {
 
+    // Base waiting time for a reader on an idle segment waiting for new data to be read.
+    private static final long BASE_READER_WAITING_TIME_MS = 1000;
     private final Segment segment;
     private final Serializer<T> deserializer;
     private final EventSegmentReader input;
@@ -71,17 +63,16 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
     }
 
     @Override
-    public ReadEventWithStatus<T> read() {
+    public ReadEventWithStatus<T> read(long timeoutMillis) {
         AtomicReference<Status> status = new AtomicReference<>(Status.AVAILABLE_NOW);
+        long firstByteTimeoutMillis = Math.min(timeoutMillis, BASE_READER_WAITING_TIME_MS);
         // retry in-case of an empty ByteBuffer
         ByteBuffer read = backoffSchedule.retryWhen(t -> t instanceof TimeoutException)
                         .run(() -> {
                             try {
-                                ByteBuffer buffer = input.read();
+                                ByteBuffer buffer = input.read(firstByteTimeoutMillis);
                                 if (buffer == null) {
-                                    log.warn("Empty buffer while reading from Segment {} at offset {}",
-                                            input.getSegmentId(), input.getOffset());
-                                    throw new TimeoutException(input.toString());
+                                    status.set(checkStatus());
                                 }
                                 return buffer;
                             } catch (NoSuchSegmentException | SegmentTruncatedException e) {
@@ -97,9 +88,11 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
     }
 
     private Status getStatus(EndOfSegmentException e) {
-        Status status = Status.AVAILABLE_LATER;
+        Status status;
         if (e.getErrorType().equals(EndOfSegmentException.ErrorType.END_OF_SEGMENT_REACHED)) {
             status = Status.FINISHED;
+        } else {
+            status = Status.AVAILABLE_LATER;
         }
         return status;
     }
