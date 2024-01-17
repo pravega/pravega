@@ -17,22 +17,21 @@
 package io.pravega.client.stream;
 
 /**
- * Allows to read data from a specific segment.
+ * An event that was read from a segment.
+ * Along with event, it will also provide the status {@link io.pravega.client.stream.SegmentReader.Status} of segment reader.
  */
-public interface SegmentReader<T> extends AutoCloseable {
-    ReadEventWithStatus<T> read();
-
-    Status checkStatus();
+public interface ReadEventWithStatus<T> {
+    /**
+     * Returns the event that is wrapped in this EventRead or null a timeout occurred or if a checkpoint was requested.
+     *
+     * @return The event itself.
+     */
+    T getEvent();
 
     /**
-     * The status of this segment reader.
+     * Returns the status of events in specific segment.
+     *
+     * @return The status of segment.
      */
-    enum Status {
-        /** The next event is available right now. */
-        AVAILABLE_NOW,
-        /** The segment is not sealed and reader has read all the events. */
-        AVAILABLE_LATER,
-        /** The segment is sealed and reader has read all the events. */
-        FINISHED
-    }
+    SegmentReader.Status getStatus();
 }

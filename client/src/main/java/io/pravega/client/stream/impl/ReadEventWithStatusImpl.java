@@ -14,25 +14,14 @@
  * limitations under the License.
  */
 
-package io.pravega.client.stream;
+package io.pravega.client.stream.impl;
 
-/**
- * Allows to read data from a specific segment.
- */
-public interface SegmentReader<T> extends AutoCloseable {
-    ReadEventWithStatus<T> read();
+import io.pravega.client.stream.ReadEventWithStatus;
+import io.pravega.client.stream.SegmentReader;
+import lombok.Data;
 
-    Status checkStatus();
-
-    /**
-     * The status of this segment reader.
-     */
-    enum Status {
-        /** The next event is available right now. */
-        AVAILABLE_NOW,
-        /** The segment is not sealed and reader has read all the events. */
-        AVAILABLE_LATER,
-        /** The segment is sealed and reader has read all the events. */
-        FINISHED
-    }
+@Data
+public class ReadEventWithStatusImpl<T> implements ReadEventWithStatus<T> {
+    private final T event;
+    private final SegmentReader.Status status;
 }

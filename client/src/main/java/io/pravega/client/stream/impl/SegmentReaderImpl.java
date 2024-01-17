@@ -29,6 +29,7 @@ import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.ServerTimeoutException;
 import io.pravega.client.segment.impl.SegmentInfo;
+import io.pravega.client.stream.ReadEventWithStatus;
 import io.pravega.client.stream.SegmentReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
@@ -41,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.String.format;
 
@@ -69,7 +71,8 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
     }
 
     @Override
-    public T read() {
+    public ReadEventWithStatus<T> read() {
+        AtomicReference<Status> status = new AtomicReference<>(Status.AVAILABLE_NOW);
         // retry in-case of an empty ByteBuffer
         ByteBuffer read = backoffSchedule.retryWhen(t -> t instanceof TimeoutException)
                         .run(() -> {
@@ -85,12 +88,22 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
                                 handleSegmentTruncated(segment);
                                 throw new TruncatedDataException("Segment " + segment + " has been truncated.");
                             } catch (EndOfSegmentException e) {
+                                status.set(getStatus(e));
                                 return null;
                             }
                         });
 
-        return deserializer.deserialize(read);
+        return new ReadEventWithStatusImpl<>(read == null ? null : deserializer.deserialize(read), status.get());
     }
+
+    private Status getStatus(EndOfSegmentException e) {
+        Status status = Status.AVAILABLE_LATER;
+        if (e.getErrorType().equals(EndOfSegmentException.ErrorType.END_OF_SEGMENT_REACHED)) {
+            status = Status.FINISHED;
+        }
+        return status;
+    }
+
 
     @Override
     public Status checkStatus() {
