@@ -3048,11 +3048,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                 context.getDefaultExtensions(), executorService())) {
             container1.startAsync().awaitRunning();
-
+            container1.flushToStorage(TIMEOUT).join(); // create backup file
             // Create segment and make one append to it.
             container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            container1.flushToStorage(TIMEOUT).join();
+
             container1.flushToStorage(TIMEOUT).join(); // already exists
 
             // Test 1: Exercise saved epoch is higher than contaier epoch
