@@ -888,6 +888,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         if (!(storage instanceof ChunkedSegmentStorage)) {
             return CompletableFuture.completedFuture(null);
         }
+        log.info("Abhin , epochinfo save started");
         val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
         val chunk = NameUtils.getContainerEpochFileName(containerId);
         val epochInfo = new EpochInfo(containerEpoch, operationSequenceNumber);
@@ -900,8 +901,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     () -> chunkedSegmentStorage.getChunkStorage().exists(chunk)
                             .thenComposeAsync( exists -> {
                                 if (exists) {
+                                    log.info("Abhin .epoch info exists.");
                                     return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength())
                                             .thenComposeAsync(savedEpoch -> {
+                                                log.info("Abhin..epoch infro read");
                                                 if (savedEpoch.getEpoch() > epochInfo.getEpoch() ||
                                                         savedEpoch.getOperationSequenceNumber() > epochInfo.getOperationSequenceNumber()) {
                                                     return CompletableFuture.failedFuture(
@@ -916,10 +919,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                     return CompletableFuture.completedFuture(null);
                                 }
                             }, this.executor)
-                            .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(),
-                                    new ByteArrayInputStream(epochBytes.array(), 0, epochBytes.getLength())), executor)
+                            .thenComposeAsync(v -> {
+                                    log.info(" Abhin after epoch info delete, create file");
+                                    return chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(),
+                                    new ByteArrayInputStream(epochBytes.array(), 0, epochBytes.getLength())); }, executor)
                             .thenComposeAsync( v -> {
-                                log.debug("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo);
+                                log.info("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo);
                                 return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength()); }, executor)
                             .thenApplyAsync( readBackInfo -> {
                                 if (readBackInfo.getEpoch() > epochInfo.getEpoch() || readBackInfo.getOperationSequenceNumber() >

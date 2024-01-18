@@ -123,6 +123,8 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -163,9 +165,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
+import org.apache.commons.io.FileUtils;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.jupiter.api.RepeatedTest;
+import org.junit.rules.TemporaryFolder;
 import org.junit.rules.Timeout;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
@@ -271,6 +280,17 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
+
+    private File baseDir;
+
+
+    @After
+    public void tearDown() throws Exception {
+        if( baseDir.exists() ) {
+            System.out.println("Aaaaaa"+baseDir.getAbsolutePath());
+            FileUtils.deleteDirectory(this.baseDir);
+        }
+    }
 
     @Override
     protected int getThreadPoolSize() {
@@ -3034,28 +3054,39 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         final String segmentName = "segment512";
         final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
 
-        final TestContainerConfig containerConfig = new TestContainerConfig();
-        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+            final TestContainerConfig containerConfig = new TestContainerConfig();
+            containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
 
-        @Cleanup
-        TestContext context = createContext(containerConfig);
-        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
-        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+            @Cleanup
+            TestContext context = createContext(containerConfig);
+            val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+            AtomicReference<OperationLog> durableLog = new AtomicReference<>();
 
-        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
-        FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
-        try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
-            context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
-            context.getDefaultExtensions(), executorService())) {
-            container1.startAsync().awaitRunning();
+            val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
+            FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
+            try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                    context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                    context.getDefaultExtensions(), executorService())) {
+                container1.startAsync().awaitRunning();
+                String containersFolder = baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers";
+//                while (!Files.exists(Paths.get(containersFolder))) {
+//                    System.out.println("waint for the file "+containersFolder);
+//                    Thread.sleep(1000);
+//                }
+                String epochFile = containersFolder + File.separator + "container_" + container1.metadata.getContainerId() + "_epoch";
+                EpochInfo epochInfo = new EpochInfo.EpochInfoBuilder().epoch(1).operationSequenceNumber(1).build();
+                ByteArraySegment byteArrayEpochInfo = new EpochInfo.Serializer().serialize(epochInfo);
+                Files.write(Paths.get(epochFile), byteArrayEpochInfo.array());
 
-            // Create segment and make one append to it.
-            container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            container1.flushToStorage(TIMEOUT).join(); // create backup file
-            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            container1.flushToStorage(TIMEOUT).join(); // already exists
+                System.out.println("------------------");
+//                Thread.sleep(500000);
+                // Create segment and make one append to it.
+                container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+//                container1.flushToStorage(TIMEOUT).join(); // create backup file
+//                container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+//                container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                container1.flushToStorage(TIMEOUT).join(); // already exists
 
             // Test 1: Exercise saved epoch is higher than contaier epoch
             // container1.metadata.setContainerEpochAfterRestore(5);
@@ -3069,7 +3100,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     @SneakyThrows
     private FileSystemSimpleStorageFactory createFileSystemStorageFactory() {
-        File baseDir = Files.createTempDirectory("TestStorage").toFile().getAbsoluteFile();
+        baseDir = Files.createTempDirectory("TestStorage").toFile().getAbsoluteFile();
         FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
                 .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
