@@ -28,9 +28,11 @@ import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
+import io.pravega.client.stream.SegmentReader;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.SegmentReaderImpl;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -43,51 +45,51 @@ import java.util.concurrent.CompletableFuture;
 
 @Beta
 @Slf4j
-public class SegmentReaderManagerImpl implements SegmentReaderManager {
+public class SegmentReaderManagerImpl<T> implements SegmentReaderManager<T> {
 
     private final Controller controller;
     private final ConnectionPool connectionPool;
+    private final Serializer<T> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
     private final StreamCutHelper streamCutHelper;
     private final ClientConfig clientConfig;
 
-    public SegmentReaderManagerImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory) {
+    public SegmentReaderManagerImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory, Serializer<T> deserializer) {
         this.controller = controller;
         this.connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
         this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
         this.clientConfig = clientConfig;
+        this.deserializer = deserializer;
     }
 
     @Override
-    public CompletableFuture<List<SegmentReader>> getSegmentReaders(final Stream stream, final StreamCut startStreamCut) {
-        Preconditions.checkNotNull(stream, "stream");
+    public CompletableFuture<List<SegmentReader<T>>> getSegmentReaders(final Stream stream, final StreamCut startStreamCut) {
+        Preconditions.checkNotNull(stream, "stream should be present");
         return listSegmentReaders(stream, Optional.ofNullable(startStreamCut));
     }
 
-    private CompletableFuture<List<SegmentReader>> listSegmentReaders(final Stream stream, final Optional<StreamCut> startStreamCut) {
+    private CompletableFuture<List<SegmentReader<T>>> listSegmentReaders(final Stream stream, final Optional<StreamCut> startStreamCut) {
         val startCut = startStreamCut.filter(sc -> !sc.equals(StreamCut.UNBOUNDED));
         // if startStreamCut is not provided use the streamCut at the start of the stream.
-        CompletableFuture<StreamCut> startSCFuture = startCut.isPresent() ?
-                CompletableFuture.completedFuture(startCut.get()) : streamCutHelper.fetchHeadStreamCut(stream);
+        CompletableFuture<StreamCut> startSCFuture =
+                startCut.map(CompletableFuture::completedFuture).orElseGet(() -> streamCutHelper.fetchHeadStreamCut(stream));
         return CompletableFuture.allOf(startSCFuture)
                 .thenApply(v -> {
-                    Map<Segment, Long> segmentPosition = ((StreamCutImpl) startSCFuture.join()).getPositions();
-                    List<SegmentReader> segmentReaderList = new ArrayList<>();
-                    for(Entry<Segment, Long> entry: segmentPosition.entrySet())
-                    {
-                        SegmentReader sg = getSegmentReader(entry);
-                        segmentReaderList.add(sg);
+                    Map<Segment, Long> segmentPosition = startSCFuture.join().asImpl().getPositions();
+                    List<SegmentReader<T>> segmentReaderList = new ArrayList<>();
+                    for (Entry<Segment, Long> entry: segmentPosition.entrySet()) {
+                        segmentReaderList.add(getSegmentReader(entry));
                     }
                     return segmentReaderList;
                 });
     }
 
-    private SegmentReader getSegmentReader(Entry<Segment, Long> entry) {
-        // Based on the entry<key, value> Return SegmentReader from here.
-        return null;
+    private SegmentReader<T> getSegmentReader(Entry<Segment, Long> entry) {
+        return new SegmentReaderImpl<>(inputStreamFactory, entry.getKey(), deserializer,
+                entry.getValue(), clientConfig, controller, segmentMetadataClientFactory);
     }
 
     @Override

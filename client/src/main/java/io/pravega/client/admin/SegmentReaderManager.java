@@ -20,6 +20,8 @@ import io.pravega.client.admin.impl.SegmentReaderManagerImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.stream.SegmentReader;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import lombok.val;
@@ -29,23 +31,27 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Used to create and manage segment reader.
+ *
+ * @param <T> The type of the events written to this segment.
  */
-public interface SegmentReaderManager extends AutoCloseable {
+public interface SegmentReaderManager<T> extends AutoCloseable {
 
     /**
      * Creates a new instance of SegmentReaderManager.
      *
      * @param config Configuration for the client.
-     * @return Instance of Stream Manager implementation.
+     * @param deserializer A deserializer to be used to parse events
+     * @param <T> The type of the events written to this segment.
+     * @return Instance of StreamReaderManager implementation.
      */
-    static SegmentReaderManager create(ClientConfig config) {
+    static <T> SegmentReaderManager<T> create(ClientConfig config, Serializer<T> deserializer) {
         val connectionFactory = new SocketConnectionFactoryImpl(config);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor());
-        return new SegmentReaderManagerImpl(controller, config, connectionFactory);
+        return new SegmentReaderManagerImpl<>(controller, config, connectionFactory, deserializer);
     }
 
-    CompletableFuture<List<Long>> getSegmentReaders(Stream stream, StreamCut startStreamCut);
+    CompletableFuture<List<SegmentReader<T>>> getSegmentReaders(Stream stream, StreamCut startStreamCut);
     
     /**
      * Closes this reader. No further methods may be called after close.
