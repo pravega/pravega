@@ -116,6 +116,19 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import lombok.Cleanup;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import lombok.SneakyThrows;
+import lombok.val;
+import org.apache.commons.io.FileUtils;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -123,7 +136,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -159,23 +171,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import lombok.Cleanup;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.Setter;
-import lombok.SneakyThrows;
-import lombok.val;
-import org.apache.commons.io.FileUtils;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.jupiter.api.RepeatedTest;
-import org.junit.rules.TemporaryFolder;
-import org.junit.rules.Timeout;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static org.junit.Assert.assertEquals;
@@ -286,8 +281,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     @After
     public void tearDown() throws Exception {
-        if( baseDir.exists() ) {
-            System.out.println("Aaaaaa"+baseDir.getAbsolutePath());
+        if (baseDir.exists()) {
+            System.out.println("Aaaaaa" + baseDir.getAbsolutePath());
             FileUtils.deleteDirectory(this.baseDir);
         }
     }
@@ -3069,23 +3064,15 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     context.getDefaultExtensions(), executorService())) {
                 container1.startAsync().awaitRunning();
                 String containersFolder = baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers";
-//                while (!Files.exists(Paths.get(containersFolder))) {
-//                    System.out.println("waint for the file "+containersFolder);
-//                    Thread.sleep(1000);
-//                }
                 String epochFile = containersFolder + File.separator + "container_" + container1.metadata.getContainerId() + "_epoch";
                 EpochInfo epochInfo = new EpochInfo.EpochInfoBuilder().epoch(1).operationSequenceNumber(1).build();
                 ByteArraySegment byteArrayEpochInfo = new EpochInfo.Serializer().serialize(epochInfo);
                 Files.write(Paths.get(epochFile), byteArrayEpochInfo.array());
 
                 System.out.println("------------------");
-//                Thread.sleep(500000);
                 // Create segment and make one append to it.
                 container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-//                container1.flushToStorage(TIMEOUT).join(); // create backup file
-//                container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-//                container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 container1.flushToStorage(TIMEOUT).join(); // already exists
 
             // Test 1: Exercise saved epoch is higher than contaier epoch
