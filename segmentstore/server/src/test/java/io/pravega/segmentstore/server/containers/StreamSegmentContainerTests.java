@@ -3094,7 +3094,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             container1.startAsync().awaitRunning();
             FileUtils.waitFor(new File(baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers"), 10);
             File epochFile = writeEpochFile(5, 1, container1.metadata.getContainerId()); // Write higher epoch here
-            // Some segment to flush
+            // Create a segment, append and then later flush.
             container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
