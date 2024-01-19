@@ -197,7 +197,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int EXPECTED_PINNED_SEGMENT_COUNT = 1;
     private static final long EXPECTED_METADATA_SEGMENT_ID = 1L;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
-    private static final int TEST_TIMEOUT_MILLIS = 120 * 1000;
+    private static final int TEST_TIMEOUT_MILLIS = 100 * 1000;
     private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT = 250; // Good for majority of tests.
     private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_LONG = 4 * EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT; // For heavy tests.
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
