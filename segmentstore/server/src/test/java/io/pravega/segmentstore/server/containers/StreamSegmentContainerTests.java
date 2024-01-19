@@ -136,6 +136,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -282,7 +283,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     @After
     public void tearDown() throws Exception {
         if (this.baseDir != null && baseDir.exists()) {
-            System.out.println("Aaaaaa" + baseDir.getAbsolutePath());
             FileUtils.deleteDirectory(this.baseDir);
         }
     }
@@ -3063,6 +3063,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                     context.getDefaultExtensions(), executorService())) {
                 container1.startAsync().awaitRunning();
+                FileUtils.waitFor(new File(baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers"),10);
                 writeEpochFile(1, 1, container1.metadata.getContainerId());
                 // Create segment and make one append to it.
                 container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -3092,8 +3093,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                 context.getDefaultExtensions(), executorService())) {
             container1.startAsync().awaitRunning();
-            writeEpochFile(5, 1, container1.metadata.getContainerId()); // Write higher epoch here
-
+            FileUtils.waitFor(new File(baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers"),10);
+            File epochFile = writeEpochFile(5, 1, container1.metadata.getContainerId()); // Write higher epoch here
             // Some segment to flush
             container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -3105,12 +3106,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void writeEpochFile(long epoch, long seq, int containerId) throws Exception {
+    private File writeEpochFile(long epoch, long seq, int containerId) throws Exception {
         String containersFolder = baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers";
         String epochFile = containersFolder + File.separator + "container_" + containerId + "_epoch";
         EpochInfo epochInfo = new EpochInfo.EpochInfoBuilder().epoch(epoch).operationSequenceNumber(seq).build(); // save epoch 5
         ByteArraySegment byteArrayEpochInfo = new EpochInfo.Serializer().serialize(epochInfo);
-        Files.write(Paths.get(epochFile), byteArrayEpochInfo.array());
+        return Files.write(Paths.get(epochFile), byteArrayEpochInfo.array()).toFile();
     }
 
     @SneakyThrows
