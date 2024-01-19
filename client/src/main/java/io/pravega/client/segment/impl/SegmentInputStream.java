@@ -94,4 +94,18 @@ public interface SegmentInputStream extends AutoCloseable {
      * @return 0 if data read is blocking.
      */
     public int bytesInBuffer();
+
+    /**
+     * Method to check the status of segment whether its reached to end of segment or not.
+     *
+     * @return true, if reader reached to end of segment or end offset.
+     */
+    boolean isEndOfSegment();
+
+    /**
+     * Method to check the status of segment whether its the provided offset is truncated or not.
+     *
+     * @return true, if start offset is already truncated.
+     */
+    boolean isDataTruncated();
 }

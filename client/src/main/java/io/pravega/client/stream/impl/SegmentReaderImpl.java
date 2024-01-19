@@ -20,30 +20,28 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import io.pravega.client.segment.impl.EventSegmentReader;
+import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
-import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.segment.impl.EndOfSegmentException;
-import io.pravega.client.segment.impl.SegmentInfo;
-import io.pravega.client.segment.impl.ServerTimeoutException;
 import io.pravega.client.stream.EventReadWithStatus;
 import io.pravega.client.stream.SegmentReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.Retry;
+import io.pravega.shared.protocol.netty.InvalidMessageException;
+import io.pravega.shared.protocol.netty.WireCommandType;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.security.auth.AccessOperation;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static java.lang.String.format;
 
 @Slf4j
 public class SegmentReaderImpl<T> implements SegmentReader<T> {
@@ -52,10 +50,10 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
     private static final long BASE_READER_WAITING_TIME_MS = 1000;
     private final Segment segment;
     private final Serializer<T> deserializer;
-    private final EventSegmentReader input;
+    private final SegmentInputStream input;
     private final ClientConfig clientConfig;
     private final SegmentMetadataClient metadataClient;
-    private final Retry.RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 9, 30000);
+    private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
 
     public SegmentReaderImpl(SegmentInputStreamFactory factory, Segment segment, Serializer<T> deserializer,
                              long startOffset, ClientConfig clientConfig, Controller controller,
@@ -67,33 +65,106 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
         DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(controller, segment, AccessOperation.READ);
         metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segment,
                 delegationTokenProvider);
-        this.input = factory.createEventReaderForSegment(segment);
-        input.setOffset(startOffset);
+        this.input = factory.createInputStreamForSegment(segment, delegationTokenProvider, startOffset);
     }
 
     @Override
-    public EventReadWithStatus<T> read(long timeoutMillis) {
-        AtomicReference<Status> status = new AtomicReference<>(Status.AVAILABLE_NOW);
+    public EventReadWithStatus<T> read(long timeoutMillis) throws SegmentTruncatedException{
         long firstByteTimeoutMillis = Math.min(timeoutMillis, BASE_READER_WAITING_TIME_MS);
-        // retry in-case of an empty ByteBuffer
-        ByteBuffer read = backoffSchedule.retryWhen(t -> t instanceof TimeoutException)
-                        .run(() -> {
-                            try {
-                                ByteBuffer buffer = input.read(firstByteTimeoutMillis);
-                                if (buffer == null) {
-                                    status.set(checkStatus());
-                                }
-                                return buffer;
-                            } catch (NoSuchSegmentException | SegmentTruncatedException e) {
-                                handleSegmentTruncated(segment);
-                                throw new TruncatedDataException("Segment " + segment + " has been truncated.");
-                            } catch (EndOfSegmentException e) {
-                                status.set(getStatus(e));
-                                return null;
-                            }
-                        });
+        long originalOffset = input.getOffset();
+        long traceId = LoggerHelpers.traceEnter(log, "read", input.getSegmentId(), originalOffset, firstByteTimeoutMillis);
+        boolean success = false;
+        boolean resendRequest = false;
+        ByteBuffer result = null;
+        Status status = Status.AVAILABLE_NOW;
+        //If bytesInBuffer is more than header buffer size, then issue a read request and get the event information. Else
+        // return empty buffer having status available later.
+        try {
+            headerReadingBuffer.clear();
+            int bytesInBuffer = input.bytesInBuffer();
+            boolean isAvailable = bytesInBuffer > headerReadingBuffer.capacity();
+            if (isAvailable  && (result = readEvent(firstByteTimeoutMillis)) != null) {
+                success = true;
+            } else if (bytesInBuffer <= 0) {
+                if (input.isDataTruncated()) {
+                    handleSegmentTruncated();
+                    log.warn("SegmentTruncatedException occurs while reading segment {} at offset {}.", segment, input.getOffset());
+                    throw new TruncatedDataException();
+                } else if (input.isEndOfSegment()) {
+                    log.debug("Reached to end of segment for {}, end offset is {}.", segment, input.getOffset());
+                    status = Status.FINISHED;
+                } else {
+                    status = Status.AVAILABLE_LATER;
+                }
+            } else {
+                status = Status.AVAILABLE_LATER;
+            }
+        } catch (TimeoutException e) {
+            resendRequest = true;
+            status = Status.AVAILABLE_LATER;
+            log.warn("Timeout observed while trying to read data from Segment store, the read request will be retransmitted");
+        } catch (EndOfSegmentException e) {
+            log.debug("Reached to end of segment for {}, end offset is {}.", segment, input.getOffset());
+            status = getStatus(e);
+        } catch (SegmentTruncatedException e) {
+            log.debug("Reached to end of segment for {}, end offset is {}.", segment, input.getOffset());
+            handleSegmentTruncated();
+            throw new TruncatedDataException();
+        } finally {
+            LoggerHelpers.traceLeave(log, "read", traceId, input.getSegmentId(), originalOffset, firstByteTimeoutMillis, success);
+            if (!success) {
+                // Reading failed, reset the offset to the original offset.
+                // The read request is retransmitted only in the case of a timeout.
+                input.setOffset(originalOffset, resendRequest);
+            }
+            input.fillBuffer();
+        }
+        return new EventReadWithStatusImpl<>(result == null ? null : deserializer.deserialize(result), status);
+    }
 
-        return new EventReadWithStatusImpl<>(read == null ? null : deserializer.deserialize(read), status.get());
+    @Override
+    public CompletableFuture<Void> isAvailable() {
+        return input.fillBuffer().thenCompose(x -> {
+            int bytesInBuffer = input.bytesInBuffer();
+            CompletableFuture<Void> result = new CompletableFuture<>();
+            if (bytesInBuffer > 0) {
+                result.complete(null);
+            } else {
+                if (input.isEndOfSegment()) {
+                    result.completeExceptionally(new EndOfSegmentException());
+                } else if (input.isDataTruncated()) {
+                    result.completeExceptionally(new SegmentTruncatedException());
+                } else {
+                    result.completeExceptionally(new Throwable("No Data available to read"));
+                }
+            }
+            return result;
+        });
+    }
+
+    private ByteBuffer readEvent(long firstByteTimeoutMillis) throws EndOfSegmentException, SegmentTruncatedException, TimeoutException {
+        int read = input.read(headerReadingBuffer, firstByteTimeoutMillis);
+        if (headerReadingBuffer.hasRemaining()) {
+            log.debug("Unable to read event header for segment id {} at offset {}", input.getSegmentId(), input.getOffset());
+            log.debug("Desired event size in bytes : {}. Total bytes read : {}.", headerReadingBuffer.capacity(), read);
+            return null;
+        }
+        headerReadingBuffer.flip();
+        int type = headerReadingBuffer.getInt();
+        int length = headerReadingBuffer.getInt();
+        if (type != WireCommandType.EVENT.getCode()) {
+            throw new InvalidMessageException("Event was of wrong type: " + type);
+        }
+        if (length < 0) {
+            throw new InvalidMessageException("Event of invalid length: " + length);
+        }
+        if (input.bytesInBuffer() >= length) {
+            ByteBuffer result = ByteBuffer.allocate(length);
+            input.read(result, firstByteTimeoutMillis);
+            result.flip();
+            return result;
+        }
+        return null;
     }
 
     private Status getStatus(EndOfSegmentException e) {
@@ -106,43 +177,13 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
         return status;
     }
 
-
-    @Override
-    public Status checkStatus() {
-        SegmentInfo segmentInfo;
-        try {
-            segmentInfo = Futures.getThrowingExceptionWithTimeout(metadataClient.getSegmentInfo(), clientConfig.getConnectTimeoutMilliSec());
-        } catch (TimeoutException e) {
-            throw new ServerTimeoutException(format("Timeout occurred while reading the segment Info for segment {%s}", segment));
-        }
-
-        if (input.getOffset() > segmentInfo.getWriteOffset()) {
-            throw new IllegalStateException("startOffset: " + input.getOffset() + " is grater than endOffset: " + segmentInfo.getWriteOffset());
-        }
-
-        Status status = null;
-        if (input.getOffset() == segmentInfo.getWriteOffset()) {
-            log.debug("No new events are available to read. Offset read : {}, End offset : {}, IsSegmentSealed: {}",
-                    input.getOffset(), segmentInfo.getWriteOffset(), segmentInfo.isSealed());
-            if (segmentInfo.isSealed()) {
-                status = Status.FINISHED;
-            } else {
-                status = Status.AVAILABLE_LATER;
-            }
-        }
-        if (input.getOffset() < segmentInfo.getWriteOffset()) {
-            status = Status.AVAILABLE_NOW;
-        }
-        return status;
-    }
-
-    private void handleSegmentTruncated(Segment segmentId)  {
-        log.info("{} encountered truncation for segment while read{} ", this, segmentId);
+    private void handleSegmentTruncated()  {
+        log.info("{} encountered truncation for segment while read{} ", this, segment);
         try {
             input.setOffset(Futures.getThrowingExceptionWithTimeout(metadataClient.fetchCurrentSegmentHeadOffset(),
                     clientConfig.getConnectTimeoutMilliSec()));
         } catch (TimeoutException te) {
-            log.warn("A timeout has occurred while attempting to retrieve segment information from the server for segment {}", segmentId);
+            log.warn("A timeout has occurred while attempting to retrieve segment information from the server for segment {}", segment);
         }
     }
 

@@ -16,6 +16,10 @@
 
 package io.pravega.client.stream;
 
+import io.pravega.client.segment.impl.SegmentTruncatedException;
+
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Allows to read data from a specific segment.
  */
@@ -29,18 +33,17 @@ public interface SegmentReader<T> extends AutoCloseable {
      * @param timeoutMillis An upper bound on how long the call may block before returning null.
      * @return An instance of {@link EventReadWithStatus}, which contains the next event in the segment. In the case the timeoutMillis
      *         is reached, {@link EventReadWithStatus#getEvent()} returns null.
+     * @throws SegmentTruncatedException If the segment has been truncated beyond the current offset and the data cannot be read.
      */
-    EventReadWithStatus<T> read(long timeoutMillis);
+    EventReadWithStatus<T> read(long timeoutMillis) throws SegmentTruncatedException;
 
     /**
-     * Check the status of segment.
-     * If segment have events to read then status will be AVAILABLE_NOW {@link Status#AVAILABLE_NOW}
-     * If all the events in the segment has been read and segment is not sealed then the status will be AVAILABLE_LATER {@link Status#AVAILABLE_LATER}
-     * If all the events in the segment has been read and segment is sealed then the status will be FINISHED {@link Status#FINISHED}
-     *
-     * @return Status of the segment.
+     * Returns a future that will be completed when there is data available to be read.
+     * @return a future.
      */
-    Status checkStatus();
+    CompletableFuture<Void> isAvailable();
+
+
 
     /**
      * The status of this segment reader.

@@ -22,6 +22,7 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.EventReadWithStatus;
 import io.pravega.client.stream.SegmentReader;
@@ -67,7 +68,7 @@ public class SegmentReaderTest {
     }
 
     @Test
-    public void read() {
+    public void read() throws SegmentTruncatedException {
         long timeout = 1000;
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
