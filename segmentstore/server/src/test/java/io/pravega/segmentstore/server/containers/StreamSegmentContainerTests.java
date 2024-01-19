@@ -3085,6 +3085,38 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
+    @Test (timeout = 120000)
+    public void testFlushToStorageSavedEpochGreaterThanContainerEpoch() throws Exception {
+        final String segmentName = "segment512";
+        final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
+
+        final TestContainerConfig containerConfig = new TestContainerConfig();
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+
+        @Cleanup
+        TestContext context = createContext(containerConfig);
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+
+        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
+        FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
+        try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService())) {
+            container1.startAsync().awaitRunning();
+            String containersFolder = baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers";
+            String epochFile = containersFolder + File.separator + "container_" + container1.metadata.getContainerId() + "_epoch";
+            EpochInfo epochInfo = new EpochInfo.EpochInfoBuilder().epoch(5).operationSequenceNumber(1).build(); // save epoch 5
+            ByteArraySegment byteArrayEpochInfo = new EpochInfo.Serializer().serialize(epochInfo);
+            Files.write(Paths.get(epochFile), byteArrayEpochInfo.array());
+
+            // Test : Exercise saved epoch is higher than container epoch
+            container1.metadata.setContainerEpochAfterRestore(3);
+            AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
+            container1.stopAsync().awaitTerminated();
+        }
+    }
+
     @SneakyThrows
     private FileSystemSimpleStorageFactory createFileSystemStorageFactory() {
         baseDir = Files.createTempDirectory("TestStorage").toFile().getAbsoluteFile();
