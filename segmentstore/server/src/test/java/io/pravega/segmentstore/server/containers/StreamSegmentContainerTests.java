@@ -3063,24 +3063,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                     context.getDefaultExtensions(), executorService())) {
                 container1.startAsync().awaitRunning();
-                String containersFolder = baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers";
-                String epochFile = containersFolder + File.separator + "container_" + container1.metadata.getContainerId() + "_epoch";
-                EpochInfo epochInfo = new EpochInfo.EpochInfoBuilder().epoch(1).operationSequenceNumber(1).build();
-                ByteArraySegment byteArrayEpochInfo = new EpochInfo.Serializer().serialize(epochInfo);
-                Files.write(Paths.get(epochFile), byteArrayEpochInfo.array());
-
-                System.out.println("------------------");
+                writeEpochFile(1, 1, container1.metadata.getContainerId());
                 // Create segment and make one append to it.
                 container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 container1.flushToStorage(TIMEOUT).join(); // already exists
 
-            // Test 1: Exercise saved epoch is higher than contaier epoch
-            // container1.metadata.setContainerEpochAfterRestore(5);
-            // container1.flushToStorage(TIMEOUT).join(); // Test 2: Exercise epoch already exists flow in flushtostorage
-            // container1.metadata.setContainerEpochAfterRestore(3);
-            //AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
-            //Test 2 ends
             container1.stopAsync().awaitTerminated();
         }
     }
@@ -3104,21 +3092,25 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                 context.getDefaultExtensions(), executorService())) {
             container1.startAsync().awaitRunning();
-            String containersFolder = baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers";
-            String epochFile = containersFolder + File.separator + "container_" + container1.metadata.getContainerId() + "_epoch";
-            EpochInfo epochInfo = new EpochInfo.EpochInfoBuilder().epoch(5).operationSequenceNumber(1).build(); // save epoch 5
-            ByteArraySegment byteArrayEpochInfo = new EpochInfo.Serializer().serialize(epochInfo);
-            Files.write(Paths.get(epochFile), byteArrayEpochInfo.array());
+            writeEpochFile(5, 1, container1.metadata.getContainerId()); // Write higher epoch here
 
-            // some segment to flush
+            // Some segment to flush
             container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-            // Test : Exercise saved epoch is higher than container epoch
+            // Exercise saved epoch is higher than container epoch
             container1.metadata.setContainerEpochAfterRestore(3); // Use this to set lower epoch than saved epoch
             AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
             container1.stopAsync().awaitTerminated();
         }
+    }
+
+    private void writeEpochFile(long epoch, long seq, int containerId) throws Exception {
+        String containersFolder = baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers";
+        String epochFile = containersFolder + File.separator + "container_" + containerId + "_epoch";
+        EpochInfo epochInfo = new EpochInfo.EpochInfoBuilder().epoch(epoch).operationSequenceNumber(seq).build(); // save epoch 5
+        ByteArraySegment byteArrayEpochInfo = new EpochInfo.Serializer().serialize(epochInfo);
+        Files.write(Paths.get(epochFile), byteArrayEpochInfo.array());
     }
 
     @SneakyThrows
