@@ -69,7 +69,7 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
     }
 
     @Override
-    public EventReadWithStatus<T> read(long timeoutMillis) throws SegmentTruncatedException{
+    public EventReadWithStatus<T> read(long timeoutMillis) throws SegmentTruncatedException {
         long firstByteTimeoutMillis = Math.min(timeoutMillis, BASE_READER_WAITING_TIME_MS);
         long originalOffset = input.getOffset();
         long traceId = LoggerHelpers.traceEnter(log, "read", input.getSegmentId(), originalOffset, firstByteTimeoutMillis);
