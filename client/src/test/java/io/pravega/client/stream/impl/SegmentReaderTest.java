@@ -20,16 +20,22 @@ package io.pravega.client.stream.impl;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
+import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
+import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentOutputStream;
-import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.EventReadWithStatus;
 import io.pravega.client.stream.SegmentReader;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,6 +44,13 @@ import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 /**
  * Test case for
@@ -67,8 +80,8 @@ public class SegmentReaderTest {
         }
     }
 
-    @Test
-    public void read() throws SegmentTruncatedException {
+    @Test(timeout = 10000)
+    public void read() {
         long timeout = 1000;
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
@@ -99,7 +112,48 @@ public class SegmentReaderTest {
         outputStream.write(PendingEvent.withHeader("routingKey", stringSerializer.serialize(data), new CompletableFuture<>()));
     }
 
-    @Test
-    public void checkStatus() {
+    @Test(timeout = 10000)
+    public void testReadWithException() {
+        Segment segment = new Segment("Scope", "Stream", 1);
+        SegmentInputStreamFactory factory = mock(SegmentInputStreamFactory.class);
+        SegmentInputStream segmentInputStream = mock(SegmentInputStream.class);
+
+        SegmentMetadataClient metadataClient = mock(SegmentMetadataClient.class);
+        SegmentMetadataClientFactory segmentMetadataClientFactory = mock(SegmentMetadataClientFactory.class);
+
+        doReturn(segmentInputStream).when(factory).createInputStreamForSegment(eq(segment), any(), eq(0L));
+        doReturn(metadataClient).when(segmentMetadataClientFactory).createSegmentMetadataClient(eq(segment), any());
+        doNothing().when(segmentInputStream).setOffset(anyLong());
+        doReturn(CompletableFuture.completedFuture(0L)).when(metadataClient).fetchCurrentSegmentHeadOffset();
+
+        SegmentReader<String> segmentReader = new SegmentReaderImpl<>(factory, segment, stringSerializer, 0,
+                ClientConfig.builder().build(), controller, segmentMetadataClientFactory);
+
+        doReturn(2).when(segmentInputStream).bytesInBuffer();
+        doReturn(CompletableFuture.completedFuture(null)).when(segmentInputStream).fillBuffer();
+        doReturn(false).when(segmentInputStream).isEndOfSegment();
+        doReturn(false).when(segmentInputStream).isDataTruncated();
+
+        EventReadWithStatus<String> status = segmentReader.read(1000);
+        assertNull(status.getEvent());
+        assertEquals(SegmentReader.Status.AVAILABLE_LATER, status.getStatus());
+
+        doReturn(true).when(segmentInputStream).isEndOfSegment();
+
+        status = segmentReader.read(1000);
+        assertNull(status.getEvent());
+        assertEquals(SegmentReader.Status.FINISHED, status.getStatus());
+
+        doReturn(true).when(segmentInputStream).isDataTruncated();
+        assertThrows(TruncatedDataException.class, () -> segmentReader.read(1000));
+
+        segmentReader.isAvailable().join();
+
+        doReturn(0).when(segmentInputStream).bytesInBuffer();
+        AssertExtensions.assertFutureThrows("IsDataAvailable", segmentReader.isAvailable(), e -> e instanceof EndOfSegmentException);
+
+        doReturn(false).when(segmentInputStream).isEndOfSegment();
+        AssertExtensions.assertFutureThrows("IsDataAvailable", segmentReader.isAvailable(), e -> e instanceof TruncatedDataException);
+
     }
 }

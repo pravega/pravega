@@ -69,7 +69,7 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
     }
 
     @Override
-    public EventReadWithStatus<T> read(long timeoutMillis) throws SegmentTruncatedException {
+    public EventReadWithStatus<T> read(long timeoutMillis) throws TruncatedDataException {
         long firstByteTimeoutMillis = Math.min(timeoutMillis, BASE_READER_WAITING_TIME_MS);
         long originalOffset = input.getOffset();
         long traceId = LoggerHelpers.traceEnter(log, "read", input.getSegmentId(), originalOffset, firstByteTimeoutMillis);
@@ -85,7 +85,7 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
             boolean isAvailable = bytesInBuffer > headerReadingBuffer.capacity();
             if (isAvailable  && (result = readEvent(firstByteTimeoutMillis)) != null) {
                 success = true;
-            } else if (bytesInBuffer <= 0) {
+            } else {
                 if (input.isDataTruncated()) {
                     handleSegmentTruncated();
                     log.warn("SegmentTruncatedException occurs while reading segment {} at offset {}.", segment, input.getOffset());
@@ -96,8 +96,6 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
                 } else {
                     status = Status.AVAILABLE_LATER;
                 }
-            } else {
-                status = Status.AVAILABLE_LATER;
             }
         } catch (TimeoutException e) {
             resendRequest = true;
@@ -133,7 +131,7 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
                 if (input.isEndOfSegment()) {
                     result.completeExceptionally(new EndOfSegmentException());
                 } else if (input.isDataTruncated()) {
-                    result.completeExceptionally(new SegmentTruncatedException());
+                    result.completeExceptionally(new TruncatedDataException());
                 } else {
                     result.completeExceptionally(new Throwable("No Data available to read"));
                 }
