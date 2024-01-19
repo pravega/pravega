@@ -281,7 +281,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     @After
     public void tearDown() throws Exception {
-        if (baseDir.exists()) {
+        if (this.baseDir != null && baseDir.exists()) {
             System.out.println("Aaaaaa" + baseDir.getAbsolutePath());
             FileUtils.deleteDirectory(this.baseDir);
         }
