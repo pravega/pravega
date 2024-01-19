@@ -3110,8 +3110,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             ByteArraySegment byteArrayEpochInfo = new EpochInfo.Serializer().serialize(epochInfo);
             Files.write(Paths.get(epochFile), byteArrayEpochInfo.array());
 
+            // some segment to flush
+            container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
             // Test : Exercise saved epoch is higher than container epoch
-            container1.metadata.setContainerEpochAfterRestore(3);
+            container1.metadata.setContainerEpochAfterRestore(3); // Use this to set lower epoch than saved epoch
             AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
             container1.stopAsync().awaitTerminated();
         }
