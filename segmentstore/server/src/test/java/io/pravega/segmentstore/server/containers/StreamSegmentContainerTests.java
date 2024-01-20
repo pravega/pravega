@@ -26,6 +26,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ConfigurationException;
+import io.pravega.common.util.Retry;
 import io.pravega.common.util.TypedProperties;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -3058,19 +3059,27 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
             val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
             FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
-            try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
-                    context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
-                    context.getDefaultExtensions(), executorService())) {
-                container1.startAsync().awaitRunning();
-                FileUtils.waitFor(new File(baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers"), 10);
-                writeEpochFile(1, 1, container1.metadata.getContainerId());
-                // Create segment and make one append to it.
-                container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                container1.flushToStorage(TIMEOUT).join(); // already exists
 
-            container1.stopAsync().awaitTerminated();
-        }
+            Retry.withExpBackoff(10, 10, 4)
+                .retryWhen(ex -> true)
+                .run(() -> {
+                    val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                            context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                            context.getDefaultExtensions(), executorService());
+                    startContainerWithEpoch(container1, 1, 1);
+                    // Create segment and make one append to it.
+                    container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    container1.flushToStorage(TIMEOUT).join(); // already exists
+                    container1.stopAsync().awaitTerminated();
+                    return null;
+                });
+    }
+
+    private void startContainerWithEpoch(StreamSegmentContainer container1, long epoch, long op) throws Exception {
+        container1.startAsync().awaitRunning();
+        FileUtils.waitFor(new File(baseDir.getAbsolutePath() + File.separator + "_system" + File.separator + "containers"), 10);
+        writeEpochFile(epoch, op, container1.metadata.getContainerId());
     }
 
     @Test (timeout = 120000)
@@ -3088,29 +3097,31 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
         FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
-        try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
-                context.getDefaultExtensions(), executorService())) {
-            container1.startAsync().awaitRunning();
-            FileUtils.waitFor(new File(baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers"), 10);
-            File epochFile = writeEpochFile(5, 1, container1.metadata.getContainerId()); // Write higher epoch here
-            // Create a segment, append and then later flush.
-            container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-            // Exercise saved epoch is higher than container epoch
-            container1.metadata.setContainerEpochAfterRestore(3); // Use this to set lower epoch than saved epoch
-            AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
-            container1.stopAsync().awaitTerminated();
-        }
+        Retry.withExpBackoff(10, 10, 4)
+                .retryWhen(ex -> true)
+                .run(() -> {
+                    val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                            context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                            context.getDefaultExtensions(), executorService());
+                    startContainerWithEpoch(container1, 5, 1);
+                    // Create segment and make one append to it.
+                    container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    container1.metadata.setContainerEpochAfterRestore(3); // Use this to set lower epoch than saved epoch
+                    CompletableFuture<Void> cf = container1.flushToStorage(TIMEOUT);
+                    AssertExtensions.assertSuppliedFutureThrows("", () -> cf, ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
+                    container1.stopAsync().awaitTerminated();
+                    return null;
+                });
     }
 
-    private File writeEpochFile(long epoch, long seq, int containerId) throws Exception {
+    private void writeEpochFile(long epoch, long seq, int containerId) throws Exception {
         String containersFolder = baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers";
         String epochFile = containersFolder + File.separator + "container_" + containerId + "_epoch";
         EpochInfo epochInfo = new EpochInfo.EpochInfoBuilder().epoch(epoch).operationSequenceNumber(seq).build(); // save epoch 5
         ByteArraySegment byteArrayEpochInfo = new EpochInfo.Serializer().serialize(epochInfo);
-        return Files.write(Paths.get(epochFile), byteArrayEpochInfo.array()).toFile();
+        Files.write(Paths.get(epochFile), byteArrayEpochInfo.array());
     }
 
     @SneakyThrows
