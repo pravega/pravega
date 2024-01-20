@@ -3049,29 +3049,33 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         final String segmentName = "segment512";
         final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
 
-            final TestContainerConfig containerConfig = new TestContainerConfig();
-            containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+        final TestContainerConfig containerConfig = new TestContainerConfig();
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
 
-            @Cleanup
-            TestContext context = createContext(containerConfig);
-            val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
-            AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+        AtomicReference<TestContext> context = new AtomicReference<>();
+        AtomicReference<WatchableOperationLogFactory> watchableOperationLogFactory = new AtomicReference<>();
+        AtomicReference<StorageFactory> storageFactory = new AtomicReference<>();
 
-            val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
-            FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
+        context.set(createContext(containerConfig));
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.get().dataLogFactory, executorService());
+        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
 
-            Retry.withExpBackoff(10, 10, 4)
+        watchableOperationLogFactory.set(new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set));
+        storageFactory.set(createFileSystemStorageFactory());
+        AtomicInteger iter = new AtomicInteger(0);
+            Retry.withExpBackoff(10, 10, 5)
                 .retryWhen(ex -> true)
                 .run(() -> {
-                    val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
-                            context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
-                            context.getDefaultExtensions(), executorService());
+                    val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory.get(),
+                            context.get().readIndexFactory, context.get().attributeIndexFactory, context.get().writerFactory, storageFactory.get(),
+                            context.get().getDefaultExtensions(), executorService());
                     startContainerWithEpoch(container1, 1, 1);
                     // Create segment and make one append to it.
                     container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                     container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                     container1.flushToStorage(TIMEOUT).join(); // already exists
                     container1.stopAsync().awaitTerminated();
+                    container1.close();
                     return null;
                 });
     }
@@ -3084,26 +3088,36 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     @Test (timeout = 120000)
     public void testFlushToStorageSavedEpochGreaterThanContainerEpoch() throws Exception {
-        final String segmentName = "segment512";
         final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
 
         final TestContainerConfig containerConfig = new TestContainerConfig();
         containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
 
-        @Cleanup
-        TestContext context = createContext(containerConfig);
-        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        AtomicReference<TestContext> context = new AtomicReference<>();
+        AtomicReference<WatchableOperationLogFactory> watchableOperationLogFactory = new AtomicReference<>();
+        AtomicReference<StorageFactory> storageFactory = new AtomicReference<>();
+
+        context.set(createContext(containerConfig));
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.get().dataLogFactory, executorService());
         AtomicReference<OperationLog> durableLog = new AtomicReference<>();
 
-        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
-        FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
-
-        Retry.withExpBackoff(10, 10, 4)
-                .retryWhen(ex -> true)
+        watchableOperationLogFactory.set(new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set));
+        storageFactory.set(createFileSystemStorageFactory());
+        AtomicInteger iter = new AtomicInteger(0);
+        Retry.withExpBackoff(10, 10, 5)
+                .retryWhen(ex -> {
+                        context.set(createContext(containerConfig));
+                        val ldlf = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.get().dataLogFactory, executorService());
+                        AtomicReference<OperationLog> dLog = new AtomicReference<>();
+                        watchableOperationLogFactory.set(new WatchableOperationLogFactory(ldlf, dLog::set));
+                        storageFactory.set(createFileSystemStorageFactory());
+                        return true;
+                })
                 .run(() -> {
-                    val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
-                            context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
-                            context.getDefaultExtensions(), executorService());
+                    val segmentName = "segment" + iter.getAndIncrement();
+                    val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory.get(),
+                            context.get().readIndexFactory, context.get().attributeIndexFactory, context.get().writerFactory, storageFactory.get(),
+                            context.get().getDefaultExtensions(), executorService());
                     startContainerWithEpoch(container1, 5, 1);
                     // Create segment and make one append to it.
                     container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -3112,6 +3126,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     CompletableFuture<Void> cf = container1.flushToStorage(TIMEOUT);
                     AssertExtensions.assertSuppliedFutureThrows("", () -> cf, ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
                     container1.stopAsync().awaitTerminated();
+                    container1.close();
                     return null;
                 });
     }
