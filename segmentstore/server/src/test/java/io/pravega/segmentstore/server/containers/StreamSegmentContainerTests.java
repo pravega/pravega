@@ -3046,7 +3046,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     @Test (timeout = 120000)
     public void testFlushToStorageForEpochFileAlreadyExists() throws Exception {
-        final String segmentName = "segment512";
         final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
 
         final TestContainerConfig containerConfig = new TestContainerConfig();
@@ -3063,21 +3062,30 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         watchableOperationLogFactory.set(new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set));
         storageFactory.set(createFileSystemStorageFactory());
         AtomicInteger iter = new AtomicInteger(0);
+        // Start container and ensure it has started else retry.
+        AtomicReference<StreamSegmentContainer> container1 = new AtomicReference<>();
             Retry.withExpBackoff(10, 10, 5)
-                .retryWhen(ex -> true)
+                .retryWhen(ex -> {
+                    context.set(createContext(containerConfig));
+                    val ldlf = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.get().dataLogFactory, executorService());
+                    AtomicReference<OperationLog> dLog = new AtomicReference<>();
+                    watchableOperationLogFactory.set(new WatchableOperationLogFactory(ldlf, dLog::set));
+                    storageFactory.set(createFileSystemStorageFactory());
+                    return true;
+                } )
                 .run(() -> {
-                    val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory.get(),
+                    val segmentName = "segment" + iter.getAndIncrement();
+                    container1.set(new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory.get(),
                             context.get().readIndexFactory, context.get().attributeIndexFactory, context.get().writerFactory, storageFactory.get(),
-                            context.get().getDefaultExtensions(), executorService());
-                    startContainerWithEpoch(container1, 1, 1);
+                            context.get().getDefaultExtensions(), executorService()));
+                    startContainerWithEpoch(container1.get(), 1, 1);
+                    container1.get().createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    container1.get().append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                     // Create segment and make one append to it.
-                    container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                    container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                    container1.flushToStorage(TIMEOUT).join(); // already exists
-                    container1.stopAsync().awaitTerminated();
-                    container1.close();
                     return null;
                 });
+        container1.get().flushToStorage(TIMEOUT).join(); // already exists
+        container1.get().stopAsync().awaitTerminated();
     }
 
     private void startContainerWithEpoch(StreamSegmentContainer container1, long epoch, long op) throws Exception {
@@ -3104,6 +3112,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         watchableOperationLogFactory.set(new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set));
         storageFactory.set(createFileSystemStorageFactory());
         AtomicInteger iter = new AtomicInteger(0);
+        AtomicReference<StreamSegmentContainer> container1 = new AtomicReference<>();
+        // Start container and ensure it has started else retry.
         Retry.withExpBackoff(10, 10, 5)
                 .retryWhen(ex -> {
                         context.set(createContext(containerConfig));
@@ -3115,20 +3125,19 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 })
                 .run(() -> {
                     val segmentName = "segment" + iter.getAndIncrement();
-                    val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory.get(),
+                    container1.set(new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory.get(),
                             context.get().readIndexFactory, context.get().attributeIndexFactory, context.get().writerFactory, storageFactory.get(),
-                            context.get().getDefaultExtensions(), executorService());
-                    startContainerWithEpoch(container1, 5, 1);
+                            context.get().getDefaultExtensions(), executorService()));
+                    startContainerWithEpoch(container1.get(), 5, 1);
                     // Create segment and make one append to it.
-                    container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                    container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                    container1.metadata.setContainerEpochAfterRestore(3); // Use this to set lower epoch than saved epoch
-                    CompletableFuture<Void> cf = container1.flushToStorage(TIMEOUT);
-                    AssertExtensions.assertSuppliedFutureThrows("", () -> cf, ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
-                    container1.stopAsync().awaitTerminated();
-                    container1.close();
+                    container1.get().createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    container1.get().append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                     return null;
                 });
+        container1.get().metadata.setContainerEpochAfterRestore(3); // Use this to set lower epoch than saved epoch
+        CompletableFuture<Void> cf = container1.get().flushToStorage(TIMEOUT);
+        AssertExtensions.assertSuppliedFutureThrows("", () -> cf, ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
+        container1.get().stopAsync().awaitTerminated();
     }
 
     private void writeEpochFile(long epoch, long seq, int containerId) throws Exception {
