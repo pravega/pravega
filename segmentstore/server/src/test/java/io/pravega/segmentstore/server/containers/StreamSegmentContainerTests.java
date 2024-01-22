@@ -26,7 +26,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ConfigurationException;
-import io.pravega.common.util.Retry;
 import io.pravega.common.util.TypedProperties;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -137,7 +136,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -3044,108 +3042,58 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    @Test (timeout = 120000)
-    public void testFlushToStorageForEpochFileAlreadyExists() throws Exception {
+
+    @Test (timeout = 10000)
+    public void testFlushToStorageForEpochFileAlreadyExists2() throws Exception {
+        final String segmentName = "segment512";
         final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
 
         final TestContainerConfig containerConfig = new TestContainerConfig();
         containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
 
-        AtomicReference<TestContext> context = new AtomicReference<>();
-        AtomicReference<WatchableOperationLogFactory> watchableOperationLogFactory = new AtomicReference<>();
-        AtomicReference<StorageFactory> storageFactory = new AtomicReference<>();
-
-        context.set(createContext(containerConfig));
-        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.get().dataLogFactory, executorService());
+        @Cleanup
+        TestContext context = createContext(containerConfig);
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
         AtomicReference<OperationLog> durableLog = new AtomicReference<>();
 
-        watchableOperationLogFactory.set(new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set));
-        storageFactory.set(createFileSystemStorageFactory());
-        AtomicInteger iter = new AtomicInteger(0);
-        // Start container and ensure it has started else retry.
-        AtomicReference<StreamSegmentContainer> container1 = new AtomicReference<>();
-            Retry.withExpBackoff(10, 10, 5)
-                .retryWhen(ex -> {
-                    context.set(createContext(containerConfig));
-                    val ldlf = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.get().dataLogFactory, executorService());
-                    AtomicReference<OperationLog> dLog = new AtomicReference<>();
-                    watchableOperationLogFactory.set(new WatchableOperationLogFactory(ldlf, dLog::set));
-                    storageFactory.set(createFileSystemStorageFactory());
-                    return true;
-                } )
-                .run(() -> {
-                    val segmentName = "segment" + iter.getAndIncrement();
-                    container1.set(new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory.get(),
-                            context.get().readIndexFactory, context.get().attributeIndexFactory, context.get().writerFactory, storageFactory.get(),
-                            context.get().getDefaultExtensions(), executorService()));
-                    startContainerWithEpoch(container1.get(), 1, 1);
-                    container1.get().createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                    container1.get().append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                    // Create segment and make one append to it.
-                    return null;
-                });
-        container1.get().flushToStorage(TIMEOUT).join(); // already exists
-        container1.get().stopAsync().awaitTerminated();
+        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
+        FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
+
+        val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService());
+
+        // Create epoch file
+        container1.saveEpochInfo(CONTAINER_ID, 1, 1, TIMEOUT).join();
+        // Cover epoch file already exists. Should not throw exception
+        container1.saveEpochInfo(CONTAINER_ID, 1, 1, TIMEOUT).join();
     }
 
-    private void startContainerWithEpoch(StreamSegmentContainer container1, long epoch, long op) throws Exception {
-        container1.startAsync().awaitRunning();
-        FileUtils.waitFor(new File(baseDir.getAbsolutePath() + File.separator + "_system" + File.separator + "containers"), 10);
-        writeEpochFile(epoch, op, container1.metadata.getContainerId());
-    }
-
-    @Test (timeout = 120000)
-    public void testFlushToStorageSavedEpochGreaterThanContainerEpoch() throws Exception {
+    @Test (timeout = 10000)
+    public void testFlushToStorageSavedEpochGreaterThanContainerEpoch2() throws Exception {
+        final String segmentName = "segment512";
         final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
 
         final TestContainerConfig containerConfig = new TestContainerConfig();
         containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
 
-        AtomicReference<TestContext> context = new AtomicReference<>();
-        AtomicReference<WatchableOperationLogFactory> watchableOperationLogFactory = new AtomicReference<>();
-        AtomicReference<StorageFactory> storageFactory = new AtomicReference<>();
-
-        context.set(createContext(containerConfig));
-        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.get().dataLogFactory, executorService());
+        @Cleanup
+        TestContext context = createContext(containerConfig);
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
         AtomicReference<OperationLog> durableLog = new AtomicReference<>();
 
-        watchableOperationLogFactory.set(new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set));
-        storageFactory.set(createFileSystemStorageFactory());
-        AtomicInteger iter = new AtomicInteger(0);
-        AtomicReference<StreamSegmentContainer> container1 = new AtomicReference<>();
-        // Start container and ensure it has started else retry.
-        Retry.withExpBackoff(10, 10, 5)
-                .retryWhen(ex -> {
-                        context.set(createContext(containerConfig));
-                        val ldlf = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.get().dataLogFactory, executorService());
-                        AtomicReference<OperationLog> dLog = new AtomicReference<>();
-                        watchableOperationLogFactory.set(new WatchableOperationLogFactory(ldlf, dLog::set));
-                        storageFactory.set(createFileSystemStorageFactory());
-                        return true;
-                })
-                .run(() -> {
-                    val segmentName = "segment" + iter.getAndIncrement();
-                    container1.set(new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory.get(),
-                            context.get().readIndexFactory, context.get().attributeIndexFactory, context.get().writerFactory, storageFactory.get(),
-                            context.get().getDefaultExtensions(), executorService()));
-                    startContainerWithEpoch(container1.get(), 5, 1);
-                    // Create segment and make one append to it.
-                    container1.get().createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                    container1.get().append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                    return null;
-                });
-        container1.get().metadata.setContainerEpochAfterRestore(3); // Use this to set lower epoch than saved epoch
-        CompletableFuture<Void> cf = container1.get().flushToStorage(TIMEOUT);
-        AssertExtensions.assertSuppliedFutureThrows("", () -> cf, ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
-        container1.get().stopAsync().awaitTerminated();
-    }
+        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
+        FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
 
-    private void writeEpochFile(long epoch, long seq, int containerId) throws Exception {
-        String containersFolder = baseDir.getAbsolutePath() + File.separator +  "_system" + File.separator + "containers";
-        String epochFile = containersFolder + File.separator + "container_" + containerId + "_epoch";
-        EpochInfo epochInfo = new EpochInfo.EpochInfoBuilder().epoch(epoch).operationSequenceNumber(seq).build(); // save epoch 5
-        ByteArraySegment byteArrayEpochInfo = new EpochInfo.Serializer().serialize(epochInfo);
-        Files.write(Paths.get(epochFile), byteArrayEpochInfo.array());
+        val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService());
+
+        // Create epoch file
+        container1.saveEpochInfo(CONTAINER_ID, 5, 1, TIMEOUT).join();
+
+        // Set epoch to 3 this time. Covers saved epoch greater then container epoch.
+        AssertExtensions.assertSuppliedFutureThrows("", () -> container1.saveEpochInfo(CONTAINER_ID, 3, 1, TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
     }
 
     @SneakyThrows

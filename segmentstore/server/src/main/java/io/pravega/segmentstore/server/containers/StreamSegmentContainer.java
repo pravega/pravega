@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -884,7 +885,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 .thenAcceptAsync(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
     }
 
-    private CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, long operationSequenceNumber, Duration timeout) {
+    @VisibleForTesting
+    protected CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, long operationSequenceNumber, Duration timeout) {
         if (!(storage instanceof ChunkedSegmentStorage)) {
             return CompletableFuture.completedFuture(null);
         }
