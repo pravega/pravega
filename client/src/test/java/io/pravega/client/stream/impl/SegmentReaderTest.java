@@ -27,6 +27,7 @@ import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.EventReadWithStatus;
 import io.pravega.client.stream.SegmentReader;
@@ -34,6 +35,7 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
@@ -50,6 +52,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -104,7 +107,7 @@ public class SegmentReaderTest {
 
         status = segmentReader.read(timeout);
         assertNull( status.getEvent());
-        assertEquals(SegmentReader.Status.FINISHED, status.getStatus());
+        assertEquals(SegmentReader.Status.AVAILABLE_LATER, status.getStatus());
 
     }
 
@@ -113,7 +116,7 @@ public class SegmentReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testReadWithException() {
+    public void testReadWithException() throws EndOfSegmentException, SegmentTruncatedException {
         Segment segment = new Segment("Scope", "Stream", 1);
         SegmentInputStreamFactory factory = mock(SegmentInputStreamFactory.class);
         SegmentInputStream segmentInputStream = mock(SegmentInputStream.class);
@@ -131,29 +134,30 @@ public class SegmentReaderTest {
 
         doReturn(2).when(segmentInputStream).bytesInBuffer();
         doReturn(CompletableFuture.completedFuture(null)).when(segmentInputStream).fillBuffer();
-        doReturn(false).when(segmentInputStream).isEndOfSegment();
-        doReturn(false).when(segmentInputStream).isDataTruncated();
 
         EventReadWithStatus<String> status = segmentReader.read(1000);
         assertNull(status.getEvent());
         assertEquals(SegmentReader.Status.AVAILABLE_LATER, status.getStatus());
 
-        doReturn(true).when(segmentInputStream).isEndOfSegment();
+        doReturn(-1).when(segmentInputStream).bytesInBuffer();
+        doThrow(new EndOfSegmentException()).when(segmentInputStream).read(any(), anyLong());
 
         status = segmentReader.read(1000);
         assertNull(status.getEvent());
         assertEquals(SegmentReader.Status.FINISHED, status.getStatus());
 
-        doReturn(true).when(segmentInputStream).isDataTruncated();
+        doReturn(-1).when(segmentInputStream).bytesInBuffer();
+        doThrow(new SegmentTruncatedException()).when(segmentInputStream).read(any(), anyLong());
         assertThrows(TruncatedDataException.class, () -> segmentReader.read(1000));
 
         segmentReader.isAvailable().join();
 
-        doReturn(0).when(segmentInputStream).bytesInBuffer();
-        AssertExtensions.assertFutureThrows("IsDataAvailable", segmentReader.isAvailable(), e -> e instanceof EndOfSegmentException);
+        doReturn(-1).when(segmentInputStream).bytesInBuffer();
 
-        doReturn(false).when(segmentInputStream).isEndOfSegment();
+        doReturn(Futures.failedFuture(new SegmentTruncatedException())).when(segmentInputStream).fillBuffer();
         AssertExtensions.assertFutureThrows("IsDataAvailable", segmentReader.isAvailable(), e -> e instanceof TruncatedDataException);
 
+        doReturn(Futures.failedFuture(new EndOfSegmentException())).when(segmentInputStream).fillBuffer();
+        AssertExtensions.assertFutureThrows("IsDataAvailable", segmentReader.isAvailable(), e -> e instanceof EndOfSegmentException);
     }
 }

@@ -31,6 +31,7 @@ import io.pravega.client.stream.EventReadWithStatus;
 import io.pravega.client.stream.SegmentReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
+import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.InvalidMessageException;
@@ -41,10 +42,17 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 @Slf4j
 public class SegmentReaderImpl<T> implements SegmentReader<T> {
+
+    /*
+     * This timeout is the maximum amount of time the reader will wait in the case of partial event data being received
+     *  by the client. After this timeout the client will resend the request.
+     */
+    static final long PARTIAL_DATA_TIMEOUT = TimeUnit.SECONDS.toMillis(30);
 
     // Base waiting time for a reader on an idle segment waiting for new data to be read.
     private static final long BASE_READER_WAITING_TIME_MS = 1000;
@@ -82,20 +90,12 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
         try {
             headerReadingBuffer.clear();
             int bytesInBuffer = input.bytesInBuffer();
-            boolean isAvailable = bytesInBuffer > headerReadingBuffer.capacity();
+            //If outstanding request complete exceptionally then bytesInBuffer will return -1 and in read request will get the exception.
+            boolean isAvailable = bytesInBuffer == -1 || bytesInBuffer > headerReadingBuffer.capacity();
             if (isAvailable  && (result = readEvent(firstByteTimeoutMillis)) != null) {
                 success = true;
             } else {
-                if (input.isDataTruncated()) {
-                    handleSegmentTruncated();
-                    log.warn("SegmentTruncatedException occurs while reading segment {} at offset {}.", segment, input.getOffset());
-                    throw new TruncatedDataException();
-                } else if (input.isEndOfSegment()) {
-                    log.debug("Reached to end of segment for {}, end offset is {}.", segment, input.getOffset());
-                    status = Status.FINISHED;
-                } else {
-                    status = Status.AVAILABLE_LATER;
-                }
+               status = Status.AVAILABLE_LATER;
             }
         } catch (TimeoutException e) {
             resendRequest = true;
@@ -122,19 +122,21 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
 
     @Override
     public CompletableFuture<Void> isAvailable() {
-        return input.fillBuffer().thenCompose(x -> {
-            int bytesInBuffer = input.bytesInBuffer();
-            CompletableFuture<Void> result = new CompletableFuture<>();
-            if (bytesInBuffer > 0) {
-                result.complete(null);
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        return input.fillBuffer().exceptionally(ex -> {
+            if (Exceptions.unwrap(ex) instanceof SegmentTruncatedException) {
+                result.completeExceptionally(new TruncatedDataException());
+            } else if (Exceptions.unwrap(ex) instanceof EndOfSegmentException) {
+                result.completeExceptionally(new EndOfSegmentException());
             } else {
-                if (input.isEndOfSegment()) {
-                    result.completeExceptionally(new EndOfSegmentException());
-                } else if (input.isDataTruncated()) {
-                    result.completeExceptionally(new TruncatedDataException());
-                } else {
-                    result.completeExceptionally(new Throwable("No Data available to read"));
-                }
+                result.completeExceptionally(ex);
+            }
+            return null;
+        }).thenCompose(x -> {
+            //TODO : This check can be removed as fillBuffer itself ensure that once it will complete, there will be some data to read
+            int bytesInBuffer = input.bytesInBuffer();
+            if (bytesInBuffer != 0) {
+                result.complete(null);
             }
             return result;
         });
@@ -156,13 +158,25 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
         if (length < 0) {
             throw new InvalidMessageException("Event of invalid length: " + length);
         }
-        if (input.bytesInBuffer() >= length) {
-            ByteBuffer result = ByteBuffer.allocate(length);
-            input.read(result, firstByteTimeoutMillis);
-            result.flip();
-            return result;
+        //TODO: Here we are making the direct read call at segmentInputStream without comparing the event length with bytesInBuff.
+        // As SegmentInputStream is having buffer size as 1024 * 1024. It might be the case event size is more than buffer size.
+        ByteBuffer result = ByteBuffer.allocate(length);
+
+        readEventDataFromSegmentInputStream(result);
+        while (result.hasRemaining()) {
+            readEventDataFromSegmentInputStream(result);
         }
-        return null;
+        result.flip();
+        return result;
+    }
+
+    private void readEventDataFromSegmentInputStream(ByteBuffer result) throws EndOfSegmentException, SegmentTruncatedException, TimeoutException {
+        //SSS can return empty events incase of @link{io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor.ReadCancellationException}
+        if (input.read(result, PARTIAL_DATA_TIMEOUT) == 0 && result.limit() != 0) {
+            log.warn("Timeout while trying to read Event data from segment {} at offset {}. The buffer capacity is {} bytes and the data read so far is {} bytes",
+                    input.getSegmentId(), input.getOffset(), result.limit(), result.position());
+            throw new TimeoutException("Timeout while trying to read event data");
+        }
     }
 
     private Status getStatus(EndOfSegmentException e) {
