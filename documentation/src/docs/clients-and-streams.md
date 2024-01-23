@@ -129,6 +129,17 @@ We can read back these events using a reader. Readers are associated with reader
 
 Here we used the [`ReaderGroupManager`](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/admin/ReaderGroupManager.html) to create a new reader group on numbers called `numReader`.
 
+Create a method which will be responsible for processing the event after reading :
+```java
+private void processEvent(Integer event) {
+        //Here we can write our logic how we want to act after successfully reading the event. 
+        //In this example, we are simply printing the event.
+        if (event != null) {
+            System.out.println(event);
+        }
+}
+```
+
 Now we can attach a single [`EventStreamReader`](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/EventStreamReader.html) instance to our reader group and read our 3 numbers from our numbers stream:
 
 === "Java"
@@ -141,9 +152,7 @@ Now we can attach a single [`EventStreamReader`](https://pravega.io/docs/latest/
     EventRead<Integer> eventRead;
     Integer intEvent = null;
     while ((eventRead = reader.readNextEvent(1000)).isCheckpoint() || (intEvent = eventRead.getEvent()) != null) {
-        if (intEvent != null) {
-            System.out.println(intEvent);
-        }
+        processEvent(intEvent);
     }
 
     reader.close();
@@ -224,7 +233,7 @@ We’ve just explored reading from the beginning of a stream to the end in seque
     StreamInfo streamInfo;
     StreamCut tail; // current end of stream
     try (StreamManager streamManager = StreamManager.create(controllerURI)) {
-        streamInfo = streamManager.getStreamInfo("tutorial", "numbers");
+        streamInfo = streamManager.fetchStreamInfo("tutorial", "numbers").join;
         tail = streamInfo.getTailStreamCut();
     }
     ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
@@ -257,9 +266,7 @@ We can now create an `EventStreamReader` instance named `tailReader` that can re
         EventRead<Integer> eventRead;
         Integer intEvent = null;
         while ((eventRead = reader.readNextEvent(2000)).isCheckpoint() || (intEvent = eventRead.getEvent()) != null) {
-            if (intEvent != null) {
-                System.out.println(intEvent);
-            }
+            processEvent(intEvent);
         }
     }
     ```
@@ -350,9 +357,7 @@ If we again write successive integers to this stream of 5 fixed segments, we wil
         EventRead<Integer> eventRead;
         Integer intEvent = null;
         while ((eventRead = reader.readNextEvent(1000)).isCheckpoint() || (intEvent = eventRead.getEvent()) != null) {
-            if (intEvent != null) {
-                System.out.println(intEvent);
-            }
+            processEvent(intEvent);
         }
     }
     ```
@@ -456,9 +461,7 @@ When we read this back, the values of each decade will be in order, but the sequ
     EventRead<Integer> eventRead;
     Integer intEvent = null;
     while ((eventRead = reader.readNextEvent(1000)).isCheckpoint() || (intEvent = eventRead.getEvent()) != null) {
-        if (intEvent != null) {
-            System.out.println(intEvent);
-        }
+        processEvent(intEvent);
     }
     reader.close();
     ```
