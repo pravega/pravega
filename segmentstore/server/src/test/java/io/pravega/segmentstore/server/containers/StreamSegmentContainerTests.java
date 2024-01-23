@@ -3044,7 +3044,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
 
     @Test (timeout = 10000)
-    public void testFlushToStorageForEpochFileAlreadyExists2() throws Exception {
+    public void testFlushToStorageForEpochFileAlreadyExists() throws Exception {
         final String segmentName = "segment512";
         final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
 
@@ -3070,7 +3070,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     @Test (timeout = 10000)
-    public void testFlushToStorageSavedEpochGreaterThanContainerEpoch2() throws Exception {
+    public void testFlushToStorageSavedEpochGreaterThanContainerEpoch() throws Exception {
         final String segmentName = "segment512";
         final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
 
