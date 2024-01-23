@@ -130,15 +130,27 @@ We can read back these events using a reader. Readers are associated with reader
 Here we used the [`ReaderGroupManager`](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/admin/ReaderGroupManager.html) to create a new reader group on numbers called `numReader`.
 
 Create a method which will be responsible for processing the event after reading :
-```java
-private void processEvent(Integer event) {
+
+=== "Java"
+
+    ``` java
+    private void processEvent(Integer event) {
         //Here we can write our logic how we want to act after successfully reading the event. 
         //In this example, we are simply printing the event.
         if (event != null) {
             System.out.println(event);
         }
-}
-```
+    }
+    ```
+
+=== "Python"
+    
+    ``` python
+    def process_event(event):
+        # Here we can write our logic how we want to act after successfully reading the event.
+        # In this example, we are simply printing the event.
+        print(event)
+    ```
 
 Now we can attach a single [`EventStreamReader`](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/EventStreamReader.html) instance to our reader group and read our 3 numbers from our numbers stream:
 
@@ -166,7 +178,7 @@ Now we can attach a single [`EventStreamReader`](https://pravega.io/docs/latest/
     while count != 3:
         slice = await reader.get_segment_slice_async()
         for event in slice:
-            print(event.data())
+            process_event(event.data())
             count += 1  
 
     reader.reader_offline()
@@ -285,7 +297,7 @@ We can now create an `EventStreamReader` instance named `tailReader` that can re
     while count != 3:
         slice = await reader.get_segment_slice_async()
         for event in slice:
-            print(event.data())
+            process_event(event.data())
             count += 1
     ```
 
@@ -381,7 +393,7 @@ If we again write successive integers to this stream of 5 fixed segments, we wil
     while count != 6:
         slice = await reader.get_segment_slice_async()
         for event in slice:
-            print(event.data())
+            process_event(event.data())
             count += 1
     ```
 
@@ -476,7 +488,7 @@ When we read this back, the values of each decade will be in order, but the sequ
     while count != 30:
         slice = await reader.get_segment_slice_async()
         for event in slice:
-            print(event.data())
+            process_event(event.data())
             count += 1
     ```
 For me, this outputs:
