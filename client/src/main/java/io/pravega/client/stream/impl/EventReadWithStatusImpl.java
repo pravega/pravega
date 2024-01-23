@@ -16,12 +16,12 @@
 
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.stream.ReadEventWithStatus;
+import io.pravega.client.stream.EventReadWithStatus;
 import io.pravega.client.stream.SegmentReader;
 import lombok.Data;
 
 @Data
-public class ReadEventWithStatusImpl<T> implements ReadEventWithStatus<T> {
+public class EventReadWithStatusImpl<T> implements EventReadWithStatus<T> {
     private final T event;
     private final SegmentReader.Status status;
 }

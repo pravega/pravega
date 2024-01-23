@@ -54,7 +54,7 @@ public interface SegmentReaderManager<T> extends AutoCloseable {
     CompletableFuture<List<SegmentReader<T>>> getSegmentReaders(Stream stream, StreamCut startStreamCut);
     
     /**
-     * Closes this reader. No further methods may be called after close.
+     * Closes this segment reader manager. No further methods may be called after close.
      * This will free any resources associated with the reader.
      */
     @Override

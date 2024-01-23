@@ -76,9 +76,9 @@ public class SegmentReaderManagerImpl<T> implements SegmentReaderManager<T> {
         // if startStreamCut is not provided use the streamCut at the start of the stream.
         CompletableFuture<StreamCut> startSCFuture =
                 startCut.map(CompletableFuture::completedFuture).orElseGet(() -> streamCutHelper.fetchHeadStreamCut(stream));
-        return CompletableFuture.allOf(startSCFuture)
-                .thenApply(v -> {
-                    Map<Segment, Long> segmentPosition = startSCFuture.join().asImpl().getPositions();
+        return startSCFuture
+                .thenApply(streamCut -> {
+                    Map<Segment, Long> segmentPosition = streamCut.asImpl().getPositions();
                     List<SegmentReader<T>> segmentReaderList = new ArrayList<>();
                     for (Entry<Segment, Long> entry: segmentPosition.entrySet()) {
                         segmentReaderList.add(getSegmentReader(entry));

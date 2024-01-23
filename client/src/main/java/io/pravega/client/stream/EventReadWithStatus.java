@@ -20,9 +20,9 @@ package io.pravega.client.stream;
  * An event that was read from a segment.
  * Along with event, it will also provide the status {@link io.pravega.client.stream.SegmentReader.Status} of segment reader.
  */
-public interface ReadEventWithStatus<T> {
+public interface EventReadWithStatus<T> {
     /**
-     * Returns the event that is wrapped in this EventRead or null a timeout occurred or if a checkpoint was requested.
+     * Returns the event that is wrapped in this EventReadWithStatus or null if a timeout occurred.
      *
      * @return The event itself.
      */
