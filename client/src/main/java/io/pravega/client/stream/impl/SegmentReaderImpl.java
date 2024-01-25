@@ -75,7 +75,7 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
 
     @Override
     public CompletableFuture<Void> isAvailable() {
-        return input.fillBuffer().thenCompose(x -> CompletableFuture.completedFuture(null));
+        return Futures.toVoid(input.fillBuffer());
     }
 
     private void handleSegmentTruncated()  {
