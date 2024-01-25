@@ -67,7 +67,7 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
         try {
             ByteBuffer read = input.read();
             return read != null ? deserializer.deserialize(read) : null;
-        } catch (NoSuchSegmentException | SegmentTruncatedException e) {
+        } catch (SegmentTruncatedException e) {
             handleSegmentTruncated();
             throw new TruncatedDataException("Segment " + segment + " has been truncated.");
         }
