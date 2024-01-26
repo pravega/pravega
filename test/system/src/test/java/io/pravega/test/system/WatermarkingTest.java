@@ -117,7 +117,7 @@ public class WatermarkingTest extends AbstractSystemTest {
         List<URI> ctlURIs = controllerInstance.getServiceDetails();
         final List<String> uris = ctlURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
-        controllerURI = URI.create("tcp://" + String.join(",", uris));
+        controllerURI = Utils.getControllerURI(uris);
         streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
@@ -131,6 +131,13 @@ public class WatermarkingTest extends AbstractSystemTest {
 
     @Test
     public void watermarkingTests() throws Exception {
+        /*
+         Its required code changes in server side (ControllerServiceStarter.java) to run this system test with TLS enabled.
+         Skipping test execution when TLS is enabled as of now.
+        */
+        if (Utils.TLS_AND_AUTH_ENABLED) {
+            return;
+        }
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);

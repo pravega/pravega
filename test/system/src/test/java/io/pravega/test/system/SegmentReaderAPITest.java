@@ -18,6 +18,7 @@ package io.pravega.test.system;
 import com.google.common.collect.Lists;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.batch.SegmentRange;
@@ -67,7 +68,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertTrue;
@@ -156,8 +156,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 EventWriterConfig.builder().build());
 
         // write events to stream 30 *10  = 300 bytes
-        writeEvents(10, writer);
-        writer.flush();
+        writeEvents(clientFactory, streamName, 10);
 
         //Requested next stream cut at a distance of 170 bytes, and getting the next approx offset as a response.
         StreamCut streamCut1 = batchClient.getNextStreamCut(streamCut0, 170L);
@@ -166,7 +165,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         assertTrue(180 <= streamCut1Position);
 
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(streamScope, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(streamScope, Utils.buildClientConfig(controllerURI));
         ReaderGroupConfig readerGroupConfig1 = getReaderGroupConfig(streamCut0, streamCut1, stream);
         groupManager.createReaderGroup(readerGroupName, readerGroupConfig1);
 
@@ -250,7 +249,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 keyRanges,
                 executor).getFuture().get();
         assertTrue(status);
-        writeEvents(4, writer);
+        writeEvents(clientFactory, streamName, 4);
 
         StreamCut nextStreamCut5 = batchClient.getNextStreamCut(streamCut4, approxDistanceToNextOffset);
         log.info("Next stream cut5 {}", nextStreamCut5);
@@ -339,8 +338,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 EventWriterConfig.builder().build());
 
         // write events to stream 30 * 5  = 150 bytes
-        writeEvents(5, writer);
-        writer.flush();
+        writeEvents(clientFactory, streamName, 5);
 
         //Requested next stream cut at a distance of 180 bytes, and getting the next approx offset as a response.
         StreamCut streamCut1 = batchClient.getNextStreamCut(streamCut0, approxDistanceToNextOffset);
@@ -349,7 +347,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         assertEquals(150L, streamCut1Position);
 
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(streamScope, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(streamScope, Utils.buildClientConfig(controllerURI));
         ReaderGroupConfig readerGroupConfig1 = getReaderGroupConfig(streamCut0, streamCut1, stream);
         groupManager.createReaderGroup(readerGroupName, readerGroupConfig1);
         @Cleanup
@@ -376,7 +374,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 keyRanges,
                 executor).getFuture().get();
         assertTrue(status);
-        writeEvents(5, writer);
+        writeEvents(clientFactory, streamName, 5);
 
         StreamCut streamCut2 = batchClient.getNextStreamCut(streamCut1, approxDistanceToNextOffset);
         log.info("Next stream cut2 {}", streamCut2);
@@ -424,7 +422,7 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
                 keyRanges1,
                 executor).getFuture().get();
         assertTrue(status1);
-        writeEvents(5, writer);
+        writeEvents(clientFactory, streamName, 5);
 
         StreamCut streamCut3 = batchClient.getNextStreamCut(streamCut2, approxDistanceToNextOffset);
         log.info("Next stream cut3 {}", streamCut3);
@@ -455,9 +453,16 @@ public class SegmentReaderAPITest extends AbstractReadWriteTest {
         assertEquals(150L, streamCut3.asImpl().getPositions().get(segment3).longValue());
     }
 
-    private void writeEvents(int numberOfEvents, EventStreamWriter<String> writer) {
+    void writeEvents(EventStreamClientFactory clientFactory, String streamName, int totalEvents) {
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(),
+                EventWriterConfig.builder().build());
         Supplier<String> routingKeyGenerator = () -> String.valueOf(random.nextInt());
-        IntStream.range(0, numberOfEvents).forEach(v -> writer.writeEvent(routingKeyGenerator.get(), DATA_OF_SIZE_30).join());
+        for (int i = 0; i < totalEvents; i++) {
+            writer.writeEvent(routingKeyGenerator.get(), DATA_OF_SIZE_30).join();
+            log.debug("Writing event: {} to stream {}.", streamName + i, streamName);
+        }
+        log.info("Writer {} finished writing {} events.", writer, totalEvents);
     }
 
     private static ReaderGroupConfig getReaderGroupConfig(StreamCut startStreamCut, StreamCut endStreamCut, Stream stream) {
