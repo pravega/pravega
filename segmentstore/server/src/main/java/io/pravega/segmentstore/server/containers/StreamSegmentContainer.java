@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -884,7 +885,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 .thenAcceptAsync(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
     }
 
-    private CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, long operationSequenceNumber, Duration timeout) {
+    @VisibleForTesting
+    protected CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, long operationSequenceNumber, Duration timeout) {
         if (!(storage instanceof ChunkedSegmentStorage)) {
             return CompletableFuture.completedFuture(null);
         }
@@ -916,10 +918,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                     return CompletableFuture.completedFuture(null);
                                 }
                             }, this.executor)
-                            .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(),
-                                    new ByteArrayInputStream(epochBytes.array(), 0, epochBytes.getLength())), executor)
+                            .thenComposeAsync(v -> {
+                                    return chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(),
+                                    new ByteArrayInputStream(epochBytes.array(), 0, epochBytes.getLength())); }, executor)
                             .thenComposeAsync( v -> {
-                                log.debug("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo);
+                                log.info("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo);
                                 return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength()); }, executor)
                             .thenApplyAsync( readBackInfo -> {
                                 if (readBackInfo.getEpoch() > epochInfo.getEpoch() || readBackInfo.getOperationSequenceNumber() >
