@@ -21,24 +21,7 @@ import time
 import subprocess
 from kubernetes import client, config
 
-# Script to deploy Pravega using local NVMe drives on AWS EKS.
-# To run this script, you need to perform the next steps:
-# 1) Create the EKS cluster using eksctl:
-# > eksctl create cluster --name pravega --region us-east-1 --node-type i3en.2xlarge --nodes 3 --ssh-access --ssh-public-key ~/.ssh/pravega_aws.pub
-# Note that the script assumes a certain type of instance containing local drives to locate and mount them. Please, if
-# you are using another type of i3 instance, set the INSTANCE_TYPE variable accordingly. It may happen that the name of
-# the drives to mount change across instances. Take that into account when using the format_and_mount_nvme_drive() method.
-#
-# 2) Attach the AmazonEBSCSIDriverPolicy to the EKS Cluster role so we can create EBS volumes:
-# > aws iam attach-role-policy --role-name AmazonEBSCSIDriverPolicy --policy-arn arn:aws:iam::aws:policy/YourPolicyName
-#
-# 3) Run the deployment script for Pravega.
-# > python deploy_pravega.py
-
-
-#INSTANCE_TYPE = "i3en.2xlarge"
-#NVME_CAPACITY = "1000Gi"
-
+# Script to undeploy Pravega using local NVMe drives on AWS EKS.
 
 
 def run_command(tool, command):
