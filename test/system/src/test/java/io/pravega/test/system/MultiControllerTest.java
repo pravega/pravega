@@ -90,12 +90,16 @@ public class MultiControllerTest extends AbstractSystemTest {
         final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
         assertEquals("2 controller instances should be running", 2, uris.size());
 
-        // use the last two uris
-        controllerURIDirect.set(URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris)));
-        log.info("Controller Service direct URI: {}", controllerURIDirect);
-        controllerURIDiscover.set(URI.create("pravega://" + String.join(",", uris)));
-        log.info("Controller Service discovery URI: {}", controllerURIDiscover);
-
+        if (Utils.TLS_AND_AUTH_ENABLED) {
+            controllerURIDirect.set(URI.create(TLS + Utils.getTlsCommonName() + ":" + Utils.CONTROLLER_GRPC_PORT));
+            controllerURIDiscover.set(URI.create(TLS + Utils.getTlsCommonName() + ":" + Utils.CONTROLLER_GRPC_PORT));
+        } else {
+            // use the last two uris
+            controllerURIDirect.set(URI.create((TCP) + String.join(",", uris)));
+            log.info("Controller Service direct URI: {}", controllerURIDirect);
+            controllerURIDiscover.set(URI.create("pravega://" + String.join(",", uris)));
+        }
+        log.info("Controller Service discovery URI: {} direct URI :{}", controllerURIDiscover, controllerURIDirect);
         segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerService.getServiceDetails().get(0));
     }
 
@@ -134,8 +138,14 @@ public class MultiControllerTest extends AbstractSystemTest {
 
         AssertExtensions.assertEventuallyEquals("Problem scaling down the Controller service.", true,
                 () -> controllerService.getServiceDetails().isEmpty(), 1000, 30000);
-        controllerURIDirect.set(URI.create("tcp://0.0.0.0:9090"));
-        controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
+        if (Utils.TLS_AND_AUTH_ENABLED) {
+            controllerURIDirect.set(URI.create("tls://0.0.0.0:9090"));
+            controllerURIDiscover.set(URI.create("tls://0.0.0.0:9090"));
+        } else {
+            controllerURIDirect.set(URI.create("tcp://0.0.0.0:9090"));
+            controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
+        }
+        log.info("ControllerURIDiscover ::{}", controllerURIDiscover.get());
 
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect.get());
         log.info("Test tcp:// with no controller instances running");

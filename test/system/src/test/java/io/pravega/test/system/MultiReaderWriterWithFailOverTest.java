@@ -92,7 +92,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractFailoverTests {
         // Fetch all the RPC endpoints and construct the client URIs.
         final List<String> uris = conURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
-        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
+        controllerURIDirect = Utils.getControllerURI(uris);
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.
