@@ -1,0 +1,35 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: standard
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp2
+  fsType: ext4
+
+---
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: bookie-journal
+provisioner: rancher.io/local-path
+parameters:
+  nodePath: /home/journal
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+
+---
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: bookie-ledger
+provisioner: rancher.io/local-path
+parameters:
+  nodePath: /home/ledger
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+

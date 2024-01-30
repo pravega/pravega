@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: influxdb
+  labels:
+    app.kubernetes.io/name: influxdb
+spec:
+  containers:
+    - name: influxdb
+      image: 018573873269.dkr.ecr.us-east-1.amazonaws.com/pravega-influxdb:longer-retention
+      ports:
+        - containerPort: 8086
+          name: influxdb-port

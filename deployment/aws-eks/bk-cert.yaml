@@ -1,0 +1,22 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned-issuer-bk
+  namespace: default
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: selfsigned-cert-bk
+  namespace: default
+spec:
+  secretName: selfsigned-cert-tls-bk
+  commonName: bookkeeper-webhook-svc.default.svc.cluster.local
+  dnsNames:
+    - bookkeeper-webhook-svc
+    - bookkeeper-webhook-svc.default.svc.cluster.local
+    - bookkeeper-webhook-svc.default.svc
+  issuerRef:
+    name: selfsigned-issuer-bk
