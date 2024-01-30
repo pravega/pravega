@@ -51,6 +51,13 @@ public interface SegmentReaderManager<T> extends AutoCloseable {
         return new SegmentReaderManagerImpl<>(controller, config, connectionFactory, deserializer);
     }
 
+    /**
+     * This api returns a list of SegmentReader based on the provided streamcut.
+     * For StreamCut.UNBOUNDED it fetches headStreamCut and then returns list of SegmentReader
+     * @param stream Name of the stream
+     * @param startStreamCut StreamCut
+     * @return List of SegmentReader
+     */
     CompletableFuture<List<SegmentReader<T>>> getSegmentReaders(Stream stream, StreamCut startStreamCut);
     
     /**
