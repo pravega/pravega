@@ -28,6 +28,7 @@ import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
@@ -51,6 +52,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
@@ -60,6 +62,8 @@ import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FOR
 import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
 import static io.pravega.controller.store.PravegaTablesScope.DELETING_SCOPES_TABLE;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
+import static io.pravega.shared.NameUtils.TRANSACTION_ID_COUNTER_TABLE;
+
 
 /**
  * Pravega Tables stream metadata store.
@@ -67,10 +71,17 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
 public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
     public static final String SCOPES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "scopes");
 
+    @VisibleForTesting
+    static final String COUNTER_PATH = "/counter";
+    @VisibleForTesting
+    static final String COUNTER_KEY = "counter";
+
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaTablesStreamMetadataStore.class));
 
-    private final ZkInt96Counter counter;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
+    private final Int96Counter counter;
     private final AtomicReference<ZKGarbageCollector> completedTxnGCRef;
     private final ZKGarbageCollector completedTxnGC;
     @VisibleForTesting
@@ -79,6 +90,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     private final ZkOrderedStore orderer;
 
     private final ScheduledExecutorService executor;
+    private final ZKStoreHelper zkStoreHelper;
+
     @VisibleForTesting
     PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, 
                                      ScheduledExecutorService executor, GrpcAuthHelper authHelper) {
@@ -89,14 +102,14 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient,
                                      ScheduledExecutorService executor, Duration gcPeriod, GrpcAuthHelper authHelper) {
         super(new ZKHostIndex(curatorClient, "/hostTxnIndex", executor), new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
-        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
+        zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
         this.orderer = new ZkOrderedStore("txnCommitOrderer", zkStoreHelper, executor);
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, zkStoreHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
         this.completedTxnGCRef = new AtomicReference<>(completedTxnGC);
-        this.counter = new ZkInt96Counter(zkStoreHelper);
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
+        this.counter = new Int96CounterImpl(this::getCounter, executor);
         this.executor = executor;
     }
 
@@ -104,15 +117,47 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     public PravegaTablesStreamMetadataStore(CuratorFramework curatorClient, ScheduledExecutorService executor,
                                      Duration gcPeriod, PravegaTablesStoreHelper helper) {
         super(new ZKHostIndex(curatorClient, "/hostTxnIndex", executor), new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
-        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
+        zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
         this.orderer = new ZkOrderedStore("txnCommitOrderer", zkStoreHelper, executor);
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, zkStoreHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
         this.completedTxnGCRef = new AtomicReference<>(completedTxnGC);
-        this.counter = new ZkInt96Counter(zkStoreHelper);
         this.storeHelper = helper;
+        this.counter = new Int96CounterImpl(this::getCounter, executor);
         this.executor = executor;
+    }
+
+    private CompletableFuture<Void> getCounter(Int96CounterImpl.CounterInfo counterInfo, BiConsumer<Int96, Int96> biConsumer) {
+        return getCounterFromTable(counterInfo.getOperationContext()).thenCompose(data -> {
+            Int96 previous = data.getObject();
+            Int96 nextLimit = previous.add(counterInfo.getRange());
+            return storeHelper.updateEntry(TRANSACTION_ID_COUNTER_TABLE, COUNTER_KEY, nextLimit,
+                            Int96::toBytes, data.getVersion(), counterInfo.getOperationContext().getRequestId())
+                    .thenAccept(x -> biConsumer.accept(previous, nextLimit));
+        });
+    }
+
+    private CompletableFuture<VersionedMetadata<Int96>> getCounterFromTable(final OperationContext context) {
+        return Futures.exceptionallyComposeExpecting(storeHelper.getEntry(TRANSACTION_ID_COUNTER_TABLE,
+                        COUNTER_KEY, Int96::fromBytes, context.getRequestId()),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException,
+                () -> storeHelper.createTable(TRANSACTION_ID_COUNTER_TABLE, context.getRequestId())
+                        .thenCompose(v -> {
+                            log.info(context.getRequestId(), "batches root table {} created", TRANSACTION_ID_COUNTER_TABLE);
+                            return getCounterFromZK();
+                        }).thenCompose(v -> storeHelper.addNewEntryIfAbsent(TRANSACTION_ID_COUNTER_TABLE,
+                                COUNTER_KEY, v.getObject(), Int96::toBytes, context.getRequestId()))
+                        .thenCompose(v -> storeHelper.getEntry(TRANSACTION_ID_COUNTER_TABLE,
+                                COUNTER_KEY, Int96::fromBytes, context.getRequestId())));
+    }
+
+    private CompletableFuture<VersionedMetadata<Int96>> getCounterFromZK() {
+        return zkStoreHelper.getData(COUNTER_PATH, Int96::fromBytes)
+                .exceptionally(e -> {
+                    log.warn("Exception while reading the counter value from zookeeper store.", e);
+                    return new VersionedMetadata<>(Int96.ZERO, new Version.IntVersion(0));
+                });
     }
 
     @Override
@@ -208,8 +253,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
-    CompletableFuture<Int96> getNextCounter() {
-        return Futures.completeOn(counter.getNextCounter(), executor);
+    CompletableFuture<Int96> getNextCounter(final OperationContext context) {
+        return Futures.completeOn(counter.getNextCounter(context), executor);
     }
 
     @Override

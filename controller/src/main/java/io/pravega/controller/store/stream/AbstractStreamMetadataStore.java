@@ -782,7 +782,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         Stream stream = getStream(scopeName, streamName, context);
 
         // This can throw write conflict exception
-        CompletableFuture<Int96> nextFuture = getNextCounter();
+        CompletableFuture<Int96> nextFuture = getNextCounter(context);
         return Futures.completeOn(nextFuture.thenCompose(next -> stream.generateNewTxnId(next.getMsb(), next.getLsb(), 
                 context)), executor);
     }
@@ -1310,7 +1310,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     abstract Stream newStream(final String scopeName, final String name);
 
-    abstract CompletableFuture<Int96> getNextCounter();
+    abstract CompletableFuture<Int96> getNextCounter(final OperationContext context);
 
     private String getTxnResourceString(TxnResource txn) {
         return txn.toString(RESOURCE_PART_SEPARATOR);
