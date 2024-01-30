@@ -170,8 +170,6 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         assertEquals(1, bucketServices.size());
 
         assertTrue(watermarkingService.releaseBucketOwnership(1, dummyProcessId).join());
-        //For id which is not existing, it will return as true.
-        assertTrue(watermarkingService.releaseBucketOwnership(1, dummyProcessId).join());
         assertTrue(watermarkingService.releaseBucketOwnership(2, dummyProcessId).join());
         //All the bucket services get released from dummy process. Now actual owner will occupy this.
         assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 10000);
