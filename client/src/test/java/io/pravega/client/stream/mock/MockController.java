@@ -16,6 +16,8 @@
 package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.admin.KeyValueTableInfo;
@@ -52,6 +54,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.netty.BucketType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
@@ -837,6 +840,11 @@ public class MockController implements Controller {
     @Synchronized
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
         return CompletableFuture.completedFuture(getCurrentSegments(new KeyValueTableInfo(scope, kvtName)));
+    }
+
+    @Override
+    public CompletableFuture<Map<String, List<Integer>>> getControllerToBucketMapping(BucketType bucketType) {
+        return CompletableFuture.completedFuture(ImmutableMap.of("controller1", ImmutableList.of(1)));
     }
 
     @Override

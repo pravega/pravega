@@ -66,7 +66,8 @@ public abstract class AbstractService implements Service {
     static final String CUSTOM_RESOURCE_KIND_PRAVEGA = "PravegaCluster";
     static final String PRAVEGA_CONTROLLER_LABEL = System.getProperty("controllerLabel", "pravega-controller");
     static final String PRAVEGA_SEGMENTSTORE_LABEL = System.getProperty("segmentstoreLabel", "pravega-segmentstore");
-    static final String SECRET_NAME_USED_FOR_TLS = System.getProperty("tlsSecretName", "selfsigned-cert-tls");
+    static final String SECRET_NAME_USED_FOR_CONTROLLER = "controller-tls";
+    static final String SECRET_NAME_USED_FOR_SEGMENT_STORE = "segmentstore-tls";
     static final String SECRET_NAME_USED_FOR_AUTH = "password-auth";
     static final String BOOKKEEPER_LABEL = System.getProperty("bookkeeperLabel", "bookie");
     static final String PRAVEGA_ID = System.getProperty("pravegaID", "pravega");
@@ -107,8 +108,7 @@ public abstract class AbstractService implements Service {
             log.info("Skipping PravegaCluster installation.");
             return CompletableFuture.completedFuture(null);
         }
-        return registerTLSSecret()
-                .thenCompose(v -> k8sClient.createSecret(NAMESPACE, authSecret()))
+        return k8sClient.createSecret(NAMESPACE, authSecret())
                 .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
                 NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
                 getPravegaOnlyDeployment(zkUri.getAuthority(),
@@ -140,8 +140,8 @@ public abstract class AbstractService implements Service {
                 .build();
 
         final Map<String, Object> staticTlsSpec = ImmutableMap.<String, Object>builder()
-                .put("controllerSecret", SECRET_NAME_USED_FOR_TLS)
-                .put("segmentStoreSecret", SECRET_NAME_USED_FOR_TLS)
+                .put("controllerSecret", SECRET_NAME_USED_FOR_CONTROLLER)
+                .put("segmentStoreSecret", SECRET_NAME_USED_FOR_SEGMENT_STORE)
                 .build();
 
         final Map<String, Object> tlsSpec = ImmutableMap.<String, Object>builder()
@@ -323,9 +323,9 @@ public abstract class AbstractService implements Service {
         }
         try {
             V1Secret secret = getTLSSecret();
-            V1Secret existingSecret  = Futures.getThrowingException(k8sClient.getSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
+            V1Secret existingSecret  = Futures.getThrowingException(k8sClient.getSecret(SECRET_NAME_USED_FOR_CONTROLLER, NAMESPACE));
             if (existingSecret != null) {
-                Futures.getThrowingException(k8sClient.deleteSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
+                Futures.getThrowingException(k8sClient.deleteSecret(SECRET_NAME_USED_FOR_CONTROLLER, NAMESPACE));
             }
             return k8sClient.createSecret(NAMESPACE, secret);
         } catch (Exception e) {

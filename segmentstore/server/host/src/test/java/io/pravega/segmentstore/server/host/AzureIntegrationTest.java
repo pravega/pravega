@@ -79,7 +79,6 @@ public class AzureIntegrationTest extends BookKeeperIntegrationTestBase {
                                             + "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;")
                                         .with(AzureStorageConfig.CONTAINER, containerName)
                 .with(AzureStorageConfig.PREFIX, prefix)
-                .with(AzureStorageConfig.ACCESS_KEY, "access")
                 .with(AzureStorageConfig.CREATE_CONTAINER, true);
         this.configBuilder.include(builder);
         this.azureClient = new MockAzureClient(builder.build());

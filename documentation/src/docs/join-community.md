@@ -20,3 +20,6 @@ limitations under the License.
 
 ## Developer Mailing List
 [cncf-pravega-dev@lists.cncf.io](mailto:cncf-pravega-dev@lists.cncf.io)
+
+## Twitter
+[@PravegaIO](https://twitter.com/PravegaIO)

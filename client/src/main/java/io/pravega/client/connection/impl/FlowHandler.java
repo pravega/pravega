@@ -25,13 +25,16 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.Hello;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -51,9 +54,14 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
+    private final Object lock = new Object();
+    
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
-    private final ConcurrentHashMap<Integer, ReplyProcessor> flowIdReplyProcessorMap = new ConcurrentHashMap<>();
+    @GuardedBy("lock")
+    private final HashMap<Integer, ReplyProcessor> flowIdReplyProcessorMap = new HashMap<>();
+    @GuardedBy("lock")
+    private Hello receivedHello = null;
     private final AtomicBoolean disableFlow = new AtomicBoolean(false);
 
     private FlowHandler(PravegaNodeUri location, MetricNotifier updateMetric) {
@@ -86,8 +94,15 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         Preconditions.checkState(!disableFlow.get(), "Ensure flows are enabled.");
         final int flowID = flow.getFlowId();
         log.debug("Creating Flow {} for endpoint {}. ", flow.getFlowId(), location);
-        if (flowIdReplyProcessorMap.put(flowID, rp) != null) {
-            throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flowID);
+        Hello receivedHello;
+        synchronized (lock) {
+            if (flowIdReplyProcessorMap.put(flowID, rp) != null) {
+                throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flowID);
+            }
+            receivedHello = this.receivedHello;
+        }
+        if (receivedHello != null) {
+            rp.process(receivedHello);
         }
         return new FlowClientConnection(location.toString(), channel, flowID, this);
     }
@@ -102,7 +117,14 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkState(!disableFlow.getAndSet(true), "Flows are disabled, incorrect usage pattern.");
         log.debug("Creating a new connection with flow disabled for endpoint {}.", location);
-        flowIdReplyProcessorMap.put(FLOW_DISABLED, rp);
+        Hello receivedHello;
+        synchronized (lock) {            
+            flowIdReplyProcessorMap.put(FLOW_DISABLED, rp);
+            receivedHello = this.receivedHello;
+        }
+        if (receivedHello != null) {
+            rp.process(receivedHello);
+        }
         return new FlowClientConnection(location.toString(), channel, FLOW_DISABLED, this);
     }
 
@@ -113,7 +135,9 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     void closeFlow(FlowClientConnection clientConnection) {
         int flow = clientConnection.getFlowId();
         log.debug("Closing Flow {} for endpoint {}", flow, clientConnection.getConnectionName());
-        flowIdReplyProcessorMap.remove(flow);
+        synchronized (lock) {            
+            flowIdReplyProcessorMap.remove(flow);
+        }
         if (flow == FLOW_DISABLED) {
             // close the channel immediately since this connection will not be reused by other flows.
             close();
@@ -125,7 +149,9 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
      * @return Flow count.
      */
     public int getOpenFlowCount() {
-        return flowIdReplyProcessorMap.size();
+        synchronized (lock) {            
+            return flowIdReplyProcessorMap.size();
+        }
     }
 
     /**
@@ -141,13 +167,18 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
             log.debug("{} processing reply {} with flow {}", location, cmd, Flow.from(cmd.getRequestId()));
         }
         setRecentMessage();
-        if (cmd instanceof WireCommands.Hello) {
-            flowIdReplyProcessorMap.forEach((flowId, rp) -> {
+        if (cmd instanceof Hello) {
+            ArrayList<ReplyProcessor> toNotify;
+            synchronized (lock) {
+                receivedHello = (Hello) cmd;
+                toNotify = new ArrayList<>(flowIdReplyProcessorMap.values());
+            }
+            toNotify.forEach(rp -> {
                 try {
-                    rp.hello((WireCommands.Hello) cmd);
+                    rp.process(cmd);
                 } catch (Exception e) {
                     // Suppressing exception which prevents all ReplyProcessor.hello from being invoked.
-                    log.warn("Encountered exception invoking ReplyProcessor.hello for flow id {}", flowId, e);
+                    log.warn("Encountered exception invoking ReplyProcessor.hello for {}", rp, e);
                 }
             });
             return;
@@ -189,13 +220,16 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     }
 
     private void invokeProcessingFailureForAllFlows(Throwable cause) {
-        flowIdReplyProcessorMap.forEach((flowId, rp) -> {
+        ArrayList<ReplyProcessor> toNotify;
+        synchronized (lock) {                
+            toNotify = new ArrayList<>(flowIdReplyProcessorMap.values());
+        }
+        toNotify.forEach(rp -> {
             try {
-                log.debug("Exception observed for flow id {} due to {}", flowId, cause.getMessage());
                 rp.processingFailure(new ConnectionFailedException(cause));
             } catch (Exception e) {
                 // Suppressing exception which prevents all ReplyProcessor.processingFailure from being invoked.
-                log.warn("Encountered exception invoking ReplyProcessor.processingFailure for flow id {}", flowId, e);
+                log.warn("Encountered exception invoking ReplyProcessor.processingFailure for ", rp, e);
             }
         });
     }
@@ -212,14 +246,17 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
                 keepAliveFuture.cancel(false);
             }
             log.debug("Connection closed observed with endpoint {}", location);
-            flowIdReplyProcessorMap.forEach((flowId, rp) -> {
+            ArrayList<ReplyProcessor> toNotify;
+            synchronized (lock) {                
+                toNotify = new ArrayList<>(flowIdReplyProcessorMap.values());
+            }
+            toNotify.forEach(rp -> {
                 try {
-                    log.debug("Connection dropped for flow id {}", flowId);
                     rp.connectionDropped();
                 } catch (Exception e) {
                     // Suppressing exception which prevents all ReplyProcessor.connectionDropped
                     // from being invoked.
-                    log.warn("Encountered exception invoking ReplyProcessor for flow id {}", flowId, e);
+                    log.warn("Encountered exception invoking close on ReplyProcessor {}", rp, e);
                 }
             });
             channel.close();
@@ -259,7 +296,10 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
 
     private ReplyProcessor getReplyProcessor(Reply cmd) {
         int flowId = disableFlow.get() ? FLOW_DISABLED : Flow.toFlowID(cmd.getRequestId());
-        final ReplyProcessor processor = flowIdReplyProcessorMap.get(flowId);
+        ReplyProcessor processor;
+        synchronized (lock) {            
+            processor = flowIdReplyProcessorMap.get(flowId);
+        }
         if (processor == null) {
             log.warn("No ReplyProcessor found for the provided flowId {}. Ignoring response", flowId);
             if (cmd instanceof WireCommands.ReleasableCommand) {

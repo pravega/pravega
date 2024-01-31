@@ -51,7 +51,7 @@ nav:
   - Overview: 'index.md'
   - Getting Started:
     - 'Quick Start': 'getting-started/quick-start.md'
-    - 'Creating first application': 'beginner_dev_guide.md'
+    - 'Your First Pravega Application': 'beginner_dev_guide.md'
     - 'Running a Sample Application': 'getting-started.md'
     - 'Deploying Pravega on Kubernetes': 'getting-started/pravega-on-kubernetes-101.md'
   - Understanding Pravega:
@@ -69,11 +69,12 @@ nav:
     - 'Client APIs': 'javadoc.md'
     - 'Client & Stream Semantics': 'clients-and-streams.md'
     - 'Event Reader and Writer': 'basic-reader-and-writer.md'
-    - 'Reader Group notifications': 'reader-group-notifications.md'
+    - 'Reader Group Notifications': 'reader-group-notifications.md'
     - 'State Synchronizer': 'state-synchronizer.md'
     - 'Transactions': 'transactions.md'
     - 'StreamCuts': 'streamcuts.md'
     - 'Working with Metrics': 'metrics.md'
+    - 'Wire Protocol': 'wire-protocol.md'
   - Ecosystem:
     - 'Schema Registry': 'https://github.com/pravega/schema-registry/blob/master/README.md'
     - 'Connectors':
@@ -91,7 +92,6 @@ nav:
       - 'Kafka Adapter': 'https://github.com/pravega/kafka-adapter/blob/master/README.md'
       - 'Pravega Flink Tools': 'https://github.com/pravega/flink-tools/blob/master/README.md'
       - 'Keycloak Plugin': 'https://github.com/pravega/pravega-keycloak/blob/master/README.md'
-
   - 'Deployment':
     - 'Overview': 'deployment/deployment.md'
     - 'Running Locally': 'deployment/run-local.md'
@@ -115,7 +115,7 @@ nav:
       - 'Distributed Mode': 'security/securing-distributed-mode-cluster.md'
       - 'TLS Artifacts': 'security/generating-tls-artifacts.md'
     - 'Disaster Recovery':
-      - 'Data Recovery Tool': 'admin-guide/data-recovery-tools.md'
+      - 'Data Recovery Tools': 'admin-guide/data-recovery-tools.md'
       - 'Recovery Procedures':
         - 'Corrupted Table Segment Index': 'recovery-procedures/table-segment-recovery.md'
         - 'Recover from Table Segment Pre-Index Full': 'recovery-procedures/table-segment-recover-pre-index-full.md'
@@ -123,11 +123,9 @@ nav:
         - 'Recover Pravega from LTS': 'recovery-procedures/lts-recovery-steps.md'
     - 'Admin CLI': 'https://github.com/pravega/pravega/blob/master/cli/admin/README.md'
   - Contributing:
-    - 'Coding guildelines': 'contributing.md'
-    - 'Wire Protocol': 'wire-protocol.md'
-    - 'Pravega Release notes': 'releasenotes.md'
-    - 'Future work': 'roadmap.md'
     - 'Join the Community': 'join-community.md'
+    - 'Roadmap': 'roadmap.md'
+    - 'Coding Guidelines': 'contributing.md'
   - FAQ: 'faq.md'
 extra:
     version: 0.1

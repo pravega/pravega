@@ -109,7 +109,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    CompletableFuture<Int96> getNextCounter() {
+    CompletableFuture<Int96> getNextCounter(final OperationContext context) {
         return CompletableFuture.completedFuture(counter.incrementAndGet());
     }
 

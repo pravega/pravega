@@ -46,6 +46,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -64,6 +65,8 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
      */
     @VisibleForTesting
     static final String SCOPE_ROOT_PATH = "/store";
+    @VisibleForTesting
+    static final String COUNTER_PATH = "/counter";
     static final String SCOPE_DELETE_PATH = "_system/deletingScopes";
     static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
@@ -81,8 +84,12 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     private final ZkOrderedStore orderer;
 
     private final ZKGarbageCollector completedTxnGC;
-    private final ZkInt96Counter counter;
+
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
+    private final Int96Counter counter;
     private final Executor executor;
+
 
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
@@ -91,14 +98,31 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
 
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor, Duration gcPeriod) {
+        this(client, executor, gcPeriod, new ZKStoreHelper(client, executor));
+    }
+
+    @VisibleForTesting
+    ZKStreamMetadataStore(CuratorFramework client, Executor executor, Duration gcPeriod, ZKStoreHelper storeHelper) {
         super(new ZKHostIndex(client, "/hostTxnIndex", executor), new ZKHostIndex(client, "/hostRequestIndex", executor));
-        this.storeHelper = new ZKStoreHelper(client, executor);
+        this.storeHelper = storeHelper;
         this.orderer = new ZkOrderedStore("txnCommitOrderer", storeHelper, executor);
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
-        this.counter = new ZkInt96Counter(storeHelper);
+        this.counter = new Int96CounterImpl(this::getCounter, executor);
         this.executor = executor;
+    }
+
+    private CompletableFuture<Void> getCounter(Int96CounterImpl.CounterInfo counterInfo, BiConsumer<Int96, Int96> biConsumer) {
+        return storeHelper
+                .createZNodeIfNotExist(COUNTER_PATH, Int96.ZERO.toBytes())
+                .thenCompose(v -> storeHelper.getData(COUNTER_PATH, Int96::fromBytes)
+                        .thenCompose(data -> {
+                            Int96 previous = data.getObject();
+                            Int96 nextLimit = previous.add(counterInfo.getRange());
+                            return storeHelper.setData(COUNTER_PATH, nextLimit.toBytes(), data.getVersion())
+                                    .thenAccept(x -> biConsumer.accept(previous, nextLimit));
+                        }));
     }
 
     private CompletableFuture<Void> gcCompletedTxn() {
@@ -129,8 +153,8 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     }
 
     @Override
-    CompletableFuture<Int96> getNextCounter() {
-        return counter.getNextCounter();
+    CompletableFuture<Int96> getNextCounter(final OperationContext context) {
+        return counter.getNextCounter(context);
     }
 
     @Override

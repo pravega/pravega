@@ -35,6 +35,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.BackgroundCallback;
 import org.apache.curator.framework.api.CreateBuilder;
 import org.apache.curator.framework.api.CuratorEvent;
+import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
@@ -437,6 +438,10 @@ public class ZKStoreHelper {
     
     public PathChildrenCache getPathChildrenCache(String path, boolean cacheData) {
         return new PathChildrenCache(client, path, cacheData);
+    }
+
+    public NodeCache getNodeCache(String path, boolean cacheData) {
+        return new NodeCache(client, path, cacheData);
     }
 
     public <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String path, String id, Function<byte[], T> fromBytes) {

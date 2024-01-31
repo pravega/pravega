@@ -35,6 +35,8 @@ import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.Hello;
+import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import java.util.ArrayList;
@@ -74,11 +76,13 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         @Override
         public void process(Reply reply) {
             super.process(reply);
-            if (replyAvailable != null) {
-                replyAvailable.release();
+            if (!(reply instanceof Hello) && !(reply instanceof KeepAlive)) {
+                if (replyAvailable != null) {
+                    replyAvailable.release();
+                }
             }
         }
-        
+
         @Override
         public void connectionDropped() {
             closeConnection(new ConnectionFailedException());

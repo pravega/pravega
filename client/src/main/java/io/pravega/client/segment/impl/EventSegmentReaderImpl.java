@@ -149,7 +149,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
     @Synchronized
     public boolean isSegmentReady() {
         int bytesInBuffer = in.bytesInBuffer();
-        return bytesInBuffer >= WireCommands.TYPE_PLUS_LENGTH_SIZE || bytesInBuffer < 0;
+        return bytesInBuffer != 0;
     }
 
     @Override

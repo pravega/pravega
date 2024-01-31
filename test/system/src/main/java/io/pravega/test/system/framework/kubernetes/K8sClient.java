@@ -67,9 +67,9 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
@@ -96,6 +96,7 @@ public class K8sClient {
     private static final String DRY_RUN = null;
     private static final String FIELD_MANAGER = "pravega-k8-client";
     private static final String PRETTY_PRINT = null;
+    private static final int POD_RUNNING_RETRIES = Byte.MAX_VALUE;
     private final ApiClient client;
     private final PodLogs logUtility;
     // size of the executor is 3 (1 thread is used to watch the pod status, 2 threads for background log copy).
@@ -670,28 +671,61 @@ public class K8sClient {
      */
     public CompletableFuture<Void> waitUntilPodIsRunning(String namespace, String labelName, String labelValue, int expectedPodCount) {
 
-        AtomicBoolean shouldRetry = new AtomicBoolean(true);
+        return waitUntilPodIsRunningRetries(namespace, labelName, labelValue, expectedPodCount, POD_RUNNING_RETRIES);
+    }
 
-        return Futures.loop(shouldRetry::get,
+    /**
+     * A method which returns a CompletableFuture once *all* of the existing pods for the given label are in the running
+     * state. This means that it will wait for terminated pods to be removed in the case of a scale down event before
+     * proceeding.
+     *
+     * @param namespace Namespace
+     * @param labelName Label name.
+     * @param labelValue Value of the Label.
+     * @param expectedPodCount Number of pods that need to be running.
+     * @param retries The number of retries to attempt.
+     * @return A future which completes once the number of running pods matches the given criteria.
+     */
+    public CompletableFuture<Void> waitUntilPodIsRunningRetries(String namespace, String labelName, String labelValue, int expectedPodCount, int retries) {
+        AtomicInteger retriesRemaining = new AtomicInteger(retries);
+        Supplier<Boolean> shouldRetry = () -> retriesRemaining.getAndDecrement() > 0;
+
+        return Futures.loop(shouldRetry,
                 () -> Futures.delayedFuture(Duration.ofSeconds(5), executor) // wait for 5 seconds before checking for status.
-                        .thenCompose(v -> getStatusOfPodWithLabel(namespace, labelName, labelValue)) // fetch status of pods with the given label.
-                        .thenApply(podStatuses -> podStatuses.stream()
-                                // check for pods where all containers are running.
-                                .filter(podStatus -> {
-                                    if (podStatus.getContainerStatuses() == null) {
-                                        return false;
-                                    } else {
-                                        return podStatus.getContainerStatuses()
-                                                .stream()
-                                                .allMatch(st -> st.getState().getRunning() != null);
-                                    }
-                                }).count()),
-                runCount -> { // Number of pods which are running
-                    log.info("Expected running pod count of {}:{}, actual running pod count of {}:{}.", labelValue, expectedPodCount, labelValue, runCount);
-                    if (runCount == expectedPodCount) {
-                        shouldRetry.set(false);
+                        .thenCompose(v -> getPodsWithLabel(namespace, labelName, labelValue)) // fetch status of pods with the given label.
+                        .thenApply(pods -> pods),
+                pods -> {
+                    long runCount = pods.getItems().stream().map(pod -> pod.getStatus()).filter(this::isPodRunning).count();
+                    long totalCount = pods.getItems().size();
+
+                    if (runCount == totalCount && runCount == expectedPodCount) {
+                        log.info("Attempted {} retries waiting for pods.", retries - retriesRemaining.get());
+                        // Return a simplified list of the active pods (appended with their container id) to make
+                        // parsing the logs easier.
+                        List<String> names = pods.getItems()
+                                .stream()
+                                .map(pod -> pod.getMetadata().getName())
+                                .collect(Collectors.toList());
+                        log.info("Set of running pods after scale event: {}", names);
+                        // Break out of loop.
+                        retriesRemaining.set(0);
+                    } else if (retriesRemaining.get() == 0) {
+                        log.error("Retries exhausted waiting for pod(s): <{}={}>", labelName, labelValue);
+                        // Print full output in case of retry exhaustion.
+                        log.debug("{}", pods);
                     }
+                    log.info("Running pods: {}, Terminated & Waiting Pods: {} for <{}={}>", runCount, totalCount - runCount, labelName, labelValue);
                 }, executor);
+    }
+
+    private boolean isPodRunning(V1PodStatus status) {
+        if (status.getContainerStatuses() == null) {
+            return false;
+        } else {
+            return status.getContainerStatuses()
+                    .stream()
+                    .allMatch(st -> st.getState().getRunning() != null && st.getReady());
+        }
     }
 
     /**

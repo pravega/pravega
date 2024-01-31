@@ -27,3 +27,7 @@ including Python.
 ## HTTP Gateway
 [HTTP Gateway](https://github.com/pravega/pravega-ingest-gateway) is a simple HTTP server that can be used to write 
 JSON events to a Pravega stream.
+
+## Pravega Sensor Collector
+[Pravega Sensor Collector](https://github.com/pravega/pravega-sensor-collector) collects data from sensors
+and ingests the data into Pravega streams.
