@@ -94,4 +94,13 @@ public interface SegmentInputStream extends AutoCloseable {
      * @return 0 if data read is blocking.
      */
     public int bytesInBuffer();
+
+    /**
+     * A boolean indicating if all events in the segment read completely.
+     * This is true when the segment is sealed and all events in the segment have already been read or segment have been
+     * read till end offset.
+     *
+     * @return true if all events in the segment read completely.
+     */
+    boolean isEndOfSegment();
 }

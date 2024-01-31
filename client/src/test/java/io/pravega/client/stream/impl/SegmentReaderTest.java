@@ -25,6 +25,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.SegmentReader;
+import io.pravega.client.stream.SegmentReaderSnapshot;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
@@ -36,7 +37,10 @@ import org.junit.Test;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test case for
@@ -78,18 +82,36 @@ public class SegmentReaderTest {
         sendData("3", outputStream);
         SegmentReader<String> segmentReader = new SegmentReaderImpl<>(factory, segment, stringSerializer, 0,
                 ClientConfig.builder().build(), controller, factory);
+
+        checkSnapshot(segment, 0, false, segmentReader.getSnapshot());
+
         String event = segmentReader.read(timeout);
         assertEquals("1", event);
+
+        checkSnapshot(segment, 16, false, segmentReader.getSnapshot());
+
         event = segmentReader.read(timeout);
         assertEquals("2", event);
+
+        checkSnapshot(segment, 32, false, segmentReader.getSnapshot());
+
         event = segmentReader.read(timeout);
         assertEquals("3", event);
 
         assertThrows("Read event", EndOfSegmentException.class, () -> segmentReader.read(timeout));
 
+        checkSnapshot(segment, 48, true, segmentReader.getSnapshot());
+
     }
 
     private void sendData(String data, SegmentOutputStream outputStream) {
         outputStream.write(PendingEvent.withHeader("routingKey", stringSerializer.serialize(data), new CompletableFuture<>()));
+    }
+
+    private void checkSnapshot(Segment expectedSegment, long expectedPosition, boolean expectedIsEndOfSegment,
+                               SegmentReaderSnapshot segmentReaderSnapshot) {
+        assertEquals(expectedSegment, segmentReaderSnapshot.getSegment());
+        assertEquals(expectedIsEndOfSegment, segmentReaderSnapshot.isEndOfSegment());
+        assertEquals(expectedPosition, segmentReaderSnapshot.getPosition());
     }
 }

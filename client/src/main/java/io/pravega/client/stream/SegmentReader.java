@@ -41,4 +41,12 @@ public interface SegmentReader<T> extends AutoCloseable {
      * @return a future.
      */
     CompletableFuture<Void> isAvailable();
+
+    /**
+     * Gets the current snapshot of segment reader. It will provide information about segment reader's position,
+     * segment and if reader reads all the events in segment of not.
+     *
+     * @return The snapshot of segment reader.
+     */
+    SegmentReaderSnapshot getSnapshot();
 }
