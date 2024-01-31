@@ -15,7 +15,6 @@
  */
 package io.pravega.client.admin.impl;
 
-import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.SegmentReaderManager;
