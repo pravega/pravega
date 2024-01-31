@@ -38,6 +38,9 @@ import java.util.HashMap;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 
+/**
+ * Test class for SegmentReaderManager
+ */
 public class SegmentReaderManagerImplTest {
 
     private JavaSerializer<String> serializer = new JavaSerializer<>();

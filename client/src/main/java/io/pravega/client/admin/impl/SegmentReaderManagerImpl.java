@@ -43,7 +43,6 @@ import java.util.ArrayList;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 
-@Beta
 @Slf4j
 public class SegmentReaderManagerImpl<T> implements SegmentReaderManager<T> {
 
