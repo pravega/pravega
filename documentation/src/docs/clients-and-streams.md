@@ -161,10 +161,12 @@ Now we can attach a single [`EventStreamReader`](https://pravega.io/docs/latest/
         .createReader("myId", "numReader",
                       new JavaSerializer<Integer>(), ReaderConfig.builder().build());
 
-    EventRead<Integer> eventRead;
-    Integer intEvent = null;
-    while ((eventRead = reader.readNextEvent(1000)).isCheckpoint() || (intEvent = eventRead.getEvent()) != null) {
-        processEvent(intEvent);
+    EventRead<Integer> eventRead = reader.readNextEvent(1000);
+    // isReadCompleted() will return true if stream is sealed and reader consumed all the available events.
+    // We can update while condition depending on our use-case.
+    while (!eventRead.isReadCompleted()) {
+        processEvent(eventRead.getEvent());
+        eventRead = reader.readNextEvent(1000);
     }
 
     reader.close();
@@ -174,12 +176,14 @@ Now we can attach a single [`EventStreamReader`](https://pravega.io/docs/latest/
 
     ``` python
     reader = reader_group.create_reader("myId")
-    count = 0
-    while count != 3:
+
+    # Depending on our use case, we can update while condition. Currently it will continuously try to read events.
+    while True:
         slice = await reader.get_segment_slice_async()
         for event in slice:
-            process_event(event.data())
-            count += 1  
+            process_event(event.data()) 
+
+        reader.release_segment(slice)
 
     reader.reader_offline()
     ```
@@ -275,10 +279,12 @@ We can now create an `EventStreamReader` instance named `tailReader` that can re
         EventStreamReader<Integer> tailReader = factory
             .createReader("tailId", "tailNumReader",
                        new JavaSerializer<Integer>(), ReaderConfig.builder().build())) {
-        EventRead<Integer> eventRead;
-        Integer intEvent = null;
-        while ((eventRead = reader.readNextEvent(2000)).isCheckpoint() || (intEvent = eventRead.getEvent()) != null) {
-            processEvent(intEvent);
+        EventRead<Integer> eventRead = reader.readNextEvent(1000);
+        // isReadCompleted() will return true if stream is sealed and reader consumed all the available events.
+        // We can update while condition depending on our use-case.
+        while (!eventRead.isReadCompleted()) {
+            processEvent(eventRead.getEvent());
+            eventRead = reader.readNextEvent(1000);
         }
     }
     ```
@@ -293,12 +299,12 @@ We can now create an `EventStreamReader` instance named `tailReader` that can re
     writer.flush()
 
     reader = reader_group.create_reader("tailId")
-    count = 0
-    while count != 3:
+    # Depending on our use case, we can update while condition. Currently it will continuously try to read events.
+    while True:
         slice = await reader.get_segment_slice_async()
         for event in slice:
             process_event(event.data())
-            count += 1
+        reader_group.release_segment(slice)
     ```
 
 Outputs:
@@ -366,10 +372,13 @@ If we again write successive integers to this stream of 5 fixed segments, we wil
     try (EventStreamReader<Integer> reader = factory
         .createReader("paraId", "paraNumReader",
                       new JavaSerializer<Integer>(), ReaderConfig.builder().build())) {
-        EventRead<Integer> eventRead;
-        Integer intEvent = null;
-        while ((eventRead = reader.readNextEvent(1000)).isCheckpoint() || (intEvent = eventRead.getEvent()) != null) {
-            processEvent(intEvent);
+        // isReadCompleted() will return true if stream is sealed and reader consumed all the available events.
+        // We can update while condition depending on our use-case.
+
+        EventRead<Integer> eventRead = reader.readNextEvent(1000);
+        while (!eventRead.isReadCompleted()) {
+            processEvent(eventRead.getEvent());
+            eventRead = reader.readNextEvent(1000);
         }
     }
     ```
@@ -389,12 +398,12 @@ If we again write successive integers to this stream of 5 fixed segments, we wil
     # assuming the Pravega scope and stream are already created.
     reader_group = stream_manager.create_reader_group("paraNumReader", "tutorial", "parallel-numbers")
     reader = reader_group.create_reader("paraId")
-    count = 0
-    while count != 6:
+    # Depending on our use case, we can update while condition. Currently it will continuously try to read events.
+    while True:
         slice = await reader.get_segment_slice_async()
         for event in slice:
             process_event(event.data())
-            count += 1
+        reader_group.release_segment(slice)
     ```
 
 Outputs will be non-deterministic, for example:
@@ -470,10 +479,13 @@ When we read this back, the values of each decade will be in order, but the sequ
     EventStreamReader<Integer> reader = factory
             .createReader("decId", "paraDecReader",
                       new JavaSerializer<Integer>(), ReaderConfig.builder().build());
-    EventRead<Integer> eventRead;
-    Integer intEvent = null;
-    while ((eventRead = reader.readNextEvent(1000)).isCheckpoint() || (intEvent = eventRead.getEvent()) != null) {
-        processEvent(intEvent);
+
+    EventRead<Integer> eventRead = reader.readNextEvent(1000);
+    // isReadCompleted() will return true if stream is sealed and reader consumed all the available events.
+    // We can update while condition depending on our use-case.
+    while (!eventRead.isReadCompleted()) {
+        processEvent(eventRead.getEvent());
+        eventRead = reader.readNextEvent(1000);
     }
     reader.close();
     ```
@@ -484,12 +496,12 @@ When we read this back, the values of each decade will be in order, but the sequ
     # assuming the Pravega scope and stream are already created.
     reader_group = stream_manager.create_reader_group("paraDecReader", "tutorial", "parallel-decades")
     reader = reader_group.create_reader("decId")
-    count = 0
-    while count != 30:
+    # Depending on our use case, we can update while condition. Currently it will continuously try to read events.
+    while True:
         slice = await reader.get_segment_slice_async()
         for event in slice:
             process_event(event.data())
-            count += 1
+        reader_group.release_segment(slice)
     ```
 For me, this outputs:
 ```
