@@ -29,16 +29,16 @@ spec:
 
   replicas: 3
 
-  affinity:
-    podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchExpressions:
-              - key: "app"
-                operator: In
-                values:
-                  - bookkeeper-cluster
-          topologyKey: "kubernetes.io/hostname"
+  #affinity:
+  #  podAntiAffinity:
+  #    requiredDuringSchedulingIgnoredDuringExecution:
+  #      - labelSelector:
+  #          matchExpressions:
+  #            - key: "app"
+  #              operator: In
+  #              values:
+  #                - bookkeeper-cluster
+  #        topologyKey: "kubernetes.io/hostname"
 
   #envVars: bookkeeper-configmap
 

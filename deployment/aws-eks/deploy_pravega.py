@@ -35,12 +35,17 @@ from kubernetes import client, config
 # 3) Attach the AmazonEBSCSIDriverPolicy to the EKS Cluster role, so we can create EBS volumes (replace
 # YourClusterNameHere and YourRegion by the appropriate values):
 # > eksctl utils associate-iam-oidc-provider --region=YourRegion --cluster=YourClusterNameHere --approve
-# > eksctl create iamserviceaccount --region YourRegion -name ebs-csi-controller-sa --namespace kube-system \
-#   --cluster YourClusterNameHere --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
-#   --approve --role-only -role-name AmazonEKS_EBS_CSI_DriverRole
+# > eksctl create iamserviceaccount \
+#   --region eu-central-1 \
+#   --name ebs-csi-controller-sa \
+#   --namespace kube-system \
+#   --cluster YourClusterNameHere \
+#   --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+#   --approve \
+#   --role-only \
+#   --role-name AmazonEKS_EBS_CSI_DriverRole
 # > eksctl create addon --name aws-ebs-csi-driver --cluster YourClusterNameHere \
-#   --service-account-role-arn arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/AmazonEKS_EBS_CSI_DriverRole \
-#   --force
+#   --service-account-role-arn arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/AmazonEKS_EBS_CSI_DriverRole --force
 #
 # 4) Run the deployment script for Pravega.
 # > python deploy_pravega.py
