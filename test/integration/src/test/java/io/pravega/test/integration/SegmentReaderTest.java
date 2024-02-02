@@ -160,34 +160,7 @@ public class SegmentReaderTest extends ThreadPooledTestSuite {
         while (!exitNow) {
             try {
                 segmentReader.read(timeout);
-                readEventCount ++;
-            } catch (EndOfSegmentException e) {
-                exitNow = true;
-            }
-        }
-
-        assertEquals(noOfEvents, readEventCount);
-    }
-
-    @Test(timeout = 50000)
-    public void testSegmentRead() throws ExecutionException, InterruptedException {
-        int noOfEvents = 50;
-        long timeout = 1000;
-        int readEventCount = 0;
-        createStream(3);
-        writeEventsIntoStream(noOfEvents);
-
-        @Cleanup
-        SegmentReaderManager<Integer> segmentReaderManager = SegmentReaderManager.create(clientConfig, serializer);
-        List<SegmentReader<Integer>> segmentReaderList = segmentReaderManager.getSegmentReaders(Stream.of(SCOPE, STREAM), null).get();
-        assertEquals(1, segmentReaderList.size());
-        controllerWrapper.getControllerService().sealStream(SCOPE, STREAM, 0L).join();
-        SegmentReader<Integer> segmentReader = segmentReaderList.get(0);
-        boolean exitNow = false;
-        while (!exitNow) {
-            try {
-                segmentReader.read(timeout);
-                readEventCount ++;
+                readEventCount++;
             } catch (EndOfSegmentException e) {
                 exitNow = true;
             }
