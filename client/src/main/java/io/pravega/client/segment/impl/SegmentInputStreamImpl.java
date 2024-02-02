@@ -273,7 +273,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Override
     @Synchronized
     public boolean isEndOfSegment() {
-        return receivedEndOfSegment;
+        return buffer.dataAvailable() == 0 && receivedEndOfSegment;
     }
 
     @Override
