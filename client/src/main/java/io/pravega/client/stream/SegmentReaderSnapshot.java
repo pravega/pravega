@@ -19,7 +19,7 @@ package io.pravega.client.stream;
 import io.pravega.client.segment.impl.Segment;
 
 /**
- * SegmentReaderInfo provides the information about the current position, segment id and the status of segment reader.
+ * SegmentReaderSnapshot provides the information about the current position, segment id and the status of segment reader.
  *
  */
 public interface SegmentReaderSnapshot {

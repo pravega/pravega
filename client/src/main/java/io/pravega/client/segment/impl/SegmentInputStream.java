@@ -97,8 +97,7 @@ public interface SegmentInputStream extends AutoCloseable {
 
     /**
      * A boolean indicating if all events in the segment read completely.
-     * This is true when the segment is sealed and all events in the segment have already been read or segment have been
-     * read till end offset.
+     * This is true when the segment is sealed and all events in the segment have already been read.
      *
      * @return true if all events in the segment read completely.
      */
