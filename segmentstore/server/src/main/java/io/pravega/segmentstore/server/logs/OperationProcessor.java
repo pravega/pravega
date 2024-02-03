@@ -183,7 +183,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // Check if there is an exception from taking elements from commitQueue. If we get a TimeoutException, it is
         // expected, so do nothing. If any other exception comes form the commitQueue, then re-throw.
         if (ex != null) {
-            if (ex instanceof TimeoutException || isShutdownException(ex)) {
+            if (ex instanceof TimeoutException /* || isShutdownException(ex) */) {
                 return null;
             } else {
                 log.warn("{}: Unexpected exception in OperationProcessor while processing items for {}, rethrowing.", this.traceObjectId, processorName, ex);
