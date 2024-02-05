@@ -14,42 +14,47 @@
  * limitations under the License.
  */
 
-package io.pravega.client.stream;
+package io.pravega.client.stream.impl;
 
-import io.pravega.client.stream.impl.SegmentReaderSnapshotInternal;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.SegmentReaderSnapshot;
 
 import java.nio.ByteBuffer;
 
 /**
  * SegmentReaderSnapshot provides the information about the current position, segment id and the status of segment reader.
- * Note that this is serializable so that it can be written to an external datastore.
  *
  */
-public interface SegmentReaderSnapshot {
+public abstract class SegmentReaderSnapshotInternal implements SegmentReaderSnapshot {
+    /**
+     * Gets the segment which segment reader is reading.
+     *
+     * @return The segment.
+     */
+    abstract Segment getSegment();
 
     /**
-     * Serializes the segment reader snapshot to a compact byte array.
+     * Gets the current position of segment reader.
      *
-     * @return compact byte array
+     * @return The current position.
      */
-    ByteBuffer toBytes();
+    abstract long getPosition();
 
-    //TODO : To implement SorceSplit interface, i think we need this method. Else this can be removed.
     /**
-     * Get the assigned segment name.
+     * A boolean indicating if all events in the segment read completely.
+     * This is true when the segment is sealed and all events in the segment have already been read.
      *
-     * @return segment name.
+     * @return true if all events in the segment read completely.
      */
-    String getSegmentId();
+    abstract boolean isEndOfSegment();
 
     /**
      * Deserializes the segment reader snapshot from its serialized from obtained from calling {@link #toBytes()}.
      *
      * @param serializedSnapshot A serialized segment reader snapshot.
-     * @return The SegmentReaderSnapshot object.
+     * @return The segment reader snapshot object.
      */
-    static SegmentReaderSnapshot fromBytes(ByteBuffer serializedSnapshot) {
-        return SegmentReaderSnapshotInternal.fromBytes(serializedSnapshot);
+    public static SegmentReaderSnapshot fromBytes(ByteBuffer serializedSnapshot) {
+        return SegmentReaderSnapshotImpl.fromBytes(serializedSnapshot);
     }
-
 }

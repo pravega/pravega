@@ -34,6 +34,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertEquals;
@@ -107,8 +108,25 @@ public class SegmentReaderTest {
 
     private void checkSnapshot(Segment expectedSegment, long expectedPosition, boolean expectedIsEndOfSegment,
                                SegmentReaderSnapshot segmentReaderSnapshot) {
-        assertEquals(expectedSegment, segmentReaderSnapshot.getSegment());
-        assertEquals(expectedIsEndOfSegment, segmentReaderSnapshot.isEndOfSegment());
-        assertEquals(expectedPosition, segmentReaderSnapshot.getPosition());
+        SegmentReaderSnapshotInternal snapshotInternal = (SegmentReaderSnapshotInternal) segmentReaderSnapshot;
+        assertEquals(expectedSegment, snapshotInternal.getSegment());
+        assertEquals(expectedIsEndOfSegment, snapshotInternal.isEndOfSegment());
+        assertEquals(expectedPosition, snapshotInternal.getPosition());
+    }
+
+    @Test(timeout = 2000)
+    public void testSerializer() {
+        SegmentReaderSnapshotImpl snapshot = new SegmentReaderSnapshotImpl(new Segment("scope",
+                "stream", 0L), 0L, false);
+        ByteBuffer byteBuffer = snapshot.toBytes();
+
+        SegmentReaderSnapshot readerSnapshot = SegmentReaderSnapshot.fromBytes(byteBuffer);
+        SegmentReaderSnapshotInternal segmentReaderSnapshotInternal = (SegmentReaderSnapshotInternal) readerSnapshot;
+
+        assertEquals(snapshot.getSegment(), segmentReaderSnapshotInternal.getSegment());
+        assertEquals(snapshot.getSegmentId(), segmentReaderSnapshotInternal.getSegmentId());
+        assertEquals(snapshot.getPosition(), segmentReaderSnapshotInternal.getPosition());
+        assertEquals(snapshot.isEndOfSegment(), segmentReaderSnapshotInternal.isEndOfSegment());
+        assertEquals(byteBuffer, readerSnapshot.toBytes());
     }
 }
