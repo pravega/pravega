@@ -16,21 +16,25 @@
 
 package io.pravega.test.integration;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.SegmentReaderManager;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.SegmentReader;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.common.hash.RandomFactory;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
@@ -39,7 +43,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -50,9 +53,7 @@ import org.junit.Test;
 
 import java.net.URI;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
@@ -62,10 +63,7 @@ import static org.junit.Assert.assertTrue;
  * Integration test for Segment Reader.
  */
 @Slf4j
-public class SegmentReaderTest extends ThreadPooledTestSuite {
-
-    private static final String SCOPE = "testSegmentReaderScope";
-    private static final String STREAM = "testSegmentReaderStream";
+public class SegmentReaderTest {
 
     protected final int controllerPort = TestUtils.getAvailableListenPort();
     protected final String serviceHost = "localhost";
@@ -74,17 +72,11 @@ public class SegmentReaderTest extends ThreadPooledTestSuite {
 
     protected TestingServer zkTestServer;
 
-    private final Random random = RandomFactory.create();
-
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
     private JavaSerializer<Integer> serializer;
     private ClientConfig clientConfig;
-    @Override
-    protected int getThreadPoolSize() {
-        return 1;
-    }
 
     @Before
     public void setUp() throws Exception {
@@ -144,18 +136,25 @@ public class SegmentReaderTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 50000)
     public void testSegmentReadOnSealedStream() throws ExecutionException, InterruptedException {
+        String scope = "testSegmentReaderScope";
+        String stream = "testSegmentReaderStream";
         int noOfEvents = 50;
         long timeout = 1000;
         int readEventCount = 0;
-        createStream(1);
-        writeEventsIntoStream(noOfEvents);
+        createStream(scope, stream, 1);
+        writeEventsIntoStream(noOfEvents, scope, stream);
 
+        log.info("Creating segment reader manager.");
         @Cleanup
         SegmentReaderManager<Integer> segmentReaderManager = SegmentReaderManager.create(clientConfig, serializer);
-        List<SegmentReader<Integer>> segmentReaderList = segmentReaderManager.getSegmentReaders(Stream.of(SCOPE, STREAM), null).get();
+        List<SegmentReader<Integer>> segmentReaderList = segmentReaderManager.getSegmentReaders(Stream.of(scope, stream), null).get();
         assertEquals(1, segmentReaderList.size());
-        controllerWrapper.getControllerService().sealStream(SCOPE, STREAM, 0L).join();
+
+        boolean isSealed = controllerWrapper.getController().sealStream(scope, stream).join();
+        assertTrue("isSealed", isSealed);
+
         SegmentReader<Integer> segmentReader = segmentReaderList.get(0);
+        log.info("Starting reading the events.");
         boolean exitNow = false;
         while (!exitNow) {
             try {
@@ -165,29 +164,75 @@ public class SegmentReaderTest extends ThreadPooledTestSuite {
                 exitNow = true;
             }
         }
-
+        log.info("Reading of events is successful.");
         assertEquals(noOfEvents, readEventCount);
     }
 
-    private void createStream(int numOfSegments) {
+    @Test(timeout = 50000)
+    public void testSegmentReadWithTruncatedStream() throws ExecutionException, InterruptedException {
+        String scope = "testSegmentReaderWithTruncatedScope";
+        String stream = "testSegmentReaderWithTruncatedStream";
+        int noOfEvents = 10;
+        long timeout = 1000;
+        int readEventCount = 0;
+        createStream(scope, stream, 1);
+        writeEventsIntoStream(noOfEvents, scope, stream);
+
+        StreamCut streamCut = new StreamCutImpl(Stream.of(scope, stream), ImmutableMap.of(new Segment(scope, stream, 0L), 60L));
+        log.info("Truncating two events from stream");
+        boolean isTruncated = controllerWrapper.getController().truncateStream(scope, stream, streamCut).join();
+        assertTrue("isTruncated", isTruncated);
+
+        log.info("Sealing stream");
+        boolean isSealed = controllerWrapper.getController().sealStream(scope, stream).join();
+        assertTrue("isSealed", isSealed);
+
+        streamCut = new StreamCutImpl(Stream.of(scope, stream), ImmutableMap.of(new Segment(scope, stream, 0L), 0L));
+
+        log.info("Creating segment reader manager.");
+        @Cleanup
+        SegmentReaderManager<Integer> segmentReaderManager = SegmentReaderManager.create(clientConfig, serializer);
+        //Try to read the segment from offset 0.
+        List<SegmentReader<Integer>> segmentReaderList = segmentReaderManager.getSegmentReaders(Stream.of(scope, stream), streamCut).get();
+        assertEquals(1, segmentReaderList.size());
+        SegmentReader<Integer> segmentReader = segmentReaderList.get(0);
+
+        boolean exitNow = false;
+        while (!exitNow) {
+            try {
+                segmentReader.read(timeout);
+                readEventCount++;
+            } catch (EndOfSegmentException e) {
+                log.warn("End of segment reached");
+                exitNow = true;
+            } catch (TruncatedDataException e) {
+                log.warn("Truncated data found.", e);
+            }
+        }
+
+        assertEquals(noOfEvents - 2, readEventCount);
+    }
+
+    private void createStream(String scope, String stream, int numOfSegments) {
+        log.info("Creating stream {}/{} with number of segments {}.", scope, stream, numOfSegments);
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(numOfSegments))
                 .build();
-        controllerWrapper.getControllerService().createScope(SCOPE, 0L).join();
-        assertTrue("Create Stream operation", controllerWrapper.getController().createStream(SCOPE, STREAM, config).join());
+        controllerWrapper.getControllerService().createScope(scope, 0L).join();
+        assertTrue("Create Stream operation", controllerWrapper.getController().createStream(scope, stream, config).join());
     }
 
-    private void writeEventsIntoStream(int numberOfEvents) {
+    private void writeEventsIntoStream(int numberOfEvents, String scope, String stream) {
+        String dataOfSize30 = "data of size 30"; // data length = 22 bytes , header = 8 bytes
         Controller controller = controllerWrapper.getController();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
         @Cleanup
-        EventStreamWriter<Integer> writer = clientFactory.createEventWriter(STREAM, new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
-        Supplier<Integer> intEvent = random::nextInt;
-        IntStream.range(0, numberOfEvents).forEach(v -> writer.writeEvent(intEvent.get()).join());
+        IntStream.range(0, numberOfEvents).forEach(v -> writer.writeEvent(dataOfSize30).join());
     }
 
 
