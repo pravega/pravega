@@ -510,10 +510,8 @@ public class EndToEndChannelLeakTest {
     
     private void assertChannelCount(int expectedChannelCount, ConnectionPoolImpl connectionPool,
             SocketConnectionFactoryImpl factory) throws Exception {
-        assertEventuallyEquals(expectedChannelCount, () -> {
-            connectionPool.pruneUnusedConnections();
-            return factory.getOpenSocketCount();
-        }, ASSERT_TIMEOUT);
+        connectionPool.pruneUnusedConnections();
+        assertEquals(expectedChannelCount, factory.getOpenSocketCount());
     }
 
 }

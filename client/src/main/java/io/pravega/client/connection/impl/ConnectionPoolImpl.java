@@ -160,7 +160,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
     }
 
     private static boolean isUnused(Connection connection) {
-        return Futures.isSuccessful(connection.getFlowHandler()) && connection.getFlowCount() == 0;
+        return connection.getFlowCount() == 0;
     }
 
     /**
