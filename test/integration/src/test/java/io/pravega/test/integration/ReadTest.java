@@ -69,6 +69,7 @@ import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
+import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.NoOpScheduledExecutor;
 import io.pravega.test.common.TestUtils;
@@ -105,6 +106,7 @@ public class ReadTest extends LeakDetectorTestSuite {
 
     private static final int TIMEOUT_MILLIS = 60000;
     private static final ServiceBuilder SERVICE_BUILDER = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+    private static final InlineExecutor EXECUTOR = new InlineExecutor();
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
     @Rule
     public Timeout globalTimeout = Timeout.millis(TIMEOUT_MILLIS);
@@ -115,8 +117,9 @@ public class ReadTest extends LeakDetectorTestSuite {
     }
 
     @AfterClass
-    public static void teardown() {
+    public static void tearDown() {
         SERVICE_BUILDER.close();
+        EXECUTOR.shutdownNow();
     }
 
     @Test(timeout = 10000)
@@ -163,7 +166,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         // fill segment store with 10 entries; the total data size is 100 bytes.
         fillStoreForSegment(segmentName, data, entries, segmentStore);
         @Cleanup
-        EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
+        EmbeddedChannel channel = AppendTest.createChannel(segmentStore, EXECUTOR);
 
         ByteBuf actual = Unpooled.buffer(entries * data.length);
         while (actual.writerIndex() < actual.capacity()) {
