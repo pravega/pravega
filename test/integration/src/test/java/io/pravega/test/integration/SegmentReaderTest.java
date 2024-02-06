@@ -54,6 +54,7 @@ import org.junit.Test;
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
@@ -140,8 +141,7 @@ public class SegmentReaderTest {
         String scope = "testSegmentReaderScope";
         String stream = "testSegmentReaderStream";
         int noOfEvents = 50;
-        long timeout = 1000;
-        int readEventCount = 0;
+
         createStream(scope, stream, 1);
         writeEventsIntoStream(noOfEvents, scope, stream);
 
@@ -154,18 +154,28 @@ public class SegmentReaderTest {
         boolean isSealed = controllerWrapper.getController().sealStream(scope, stream).join();
         assertTrue("isSealed", isSealed);
 
-        SegmentReader<String> segmentReader = segmentReaderList.get(0);
-        log.info("Starting reading the events.");
-        while (true) {
-            try {
-                assertEquals(DATA_OF_SIZE_30, segmentReader.read(timeout));
-                readEventCount++;
-            } catch (EndOfSegmentException e) {
-                break;
-            }
-        }
-        log.info("Reading of events is successful.");
-        assertEquals(noOfEvents, readEventCount);
+        readEventFromSegmentReaders(segmentReaderList, noOfEvents);
+    }
+
+    @Test(timeout = 50000)
+    public void testSegmentReadOnWithMultipleSegments() throws ExecutionException, InterruptedException {
+        String scope = "testSegmentReaderScope";
+        String stream = "testSegmentReaderStream";
+        int noOfEvents = 100;
+
+        createStream(scope, stream, 3);
+        writeEventsIntoStream(noOfEvents, scope, stream);
+
+        log.info("Creating segment reader manager.");
+        @Cleanup
+        SegmentReaderManager<String> segmentReaderManager = SegmentReaderManager.create(clientConfig, serializer);
+        List<SegmentReader<String>> segmentReaderList = segmentReaderManager.getSegmentReaders(Stream.of(scope, stream), null).get();
+        assertEquals(3, segmentReaderList.size());
+
+        boolean isSealed = controllerWrapper.getController().sealStream(scope, stream).join();
+        assertTrue("isSealed", isSealed);
+
+        readEventFromSegmentReaders(segmentReaderList, noOfEvents);
     }
 
     @Test(timeout = 50000)
@@ -173,8 +183,6 @@ public class SegmentReaderTest {
         String scope = "testSegmentReaderWithTruncatedScope";
         String stream = "testSegmentReaderWithTruncatedStream";
         int noOfEvents = 10;
-        long timeout = 1000;
-        int readEventCount = 0;
         createStream(scope, stream, 1);
         writeEventsIntoStream(noOfEvents, scope, stream);
 
@@ -195,21 +203,9 @@ public class SegmentReaderTest {
         //Try to read the segment from offset 0.
         List<SegmentReader<String>> segmentReaderList = segmentReaderManager.getSegmentReaders(Stream.of(scope, stream), streamCut).get();
         assertEquals(1, segmentReaderList.size());
-        SegmentReader<String> segmentReader = segmentReaderList.get(0);
 
-        while (true) {
-            try {
-                assertEquals(DATA_OF_SIZE_30, segmentReader.read(timeout));
-                readEventCount++;
-            } catch (EndOfSegmentException e) {
-                log.warn("End of segment reached");
-                break;
-            } catch (TruncatedDataException e) {
-                log.warn("Truncated data found.", e);
-            }
-        }
-
-        assertEquals(noOfEvents - 2, readEventCount);
+        //As two events got truncated, expected event count will be totalEvent - 2.
+        readEventFromSegmentReaders(segmentReaderList, noOfEvents - 2);
     }
 
     private void createStream(String scope, String stream, int numOfSegments) {
@@ -233,5 +229,24 @@ public class SegmentReaderTest {
         IntStream.range(0, numberOfEvents).forEach(v -> writer.writeEvent(DATA_OF_SIZE_30).join());
     }
 
+    private void readEventFromSegmentReaders(final List<SegmentReader<String>> segmentReaderList, final int expectedEventCount) {
+        long timeout = 1000;
+        AtomicInteger readEventCount = new AtomicInteger(0);
+        segmentReaderList.forEach(reader -> {
+            log.info("Starting reading the events.");
+            while (true) {
+                try {
+                    assertEquals(DATA_OF_SIZE_30, reader.read(timeout));
+                    readEventCount.getAndIncrement();
+                } catch (EndOfSegmentException e) {
+                    break;
+                } catch (TruncatedDataException e) {
+                    log.warn("Truncated data found.", e);
+                }
+            }
+        });
+        log.info("Reading of events is successful.");
+        assertEquals(expectedEventCount, readEventCount.get());
+    }
 
 }
