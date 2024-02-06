@@ -117,7 +117,7 @@ public class ReadTest extends LeakDetectorTestSuite {
     }
 
     @AfterClass
-    public static void teardown() {
+    public static void tearDown() {
         SERVICE_BUILDER.close();
         EXECUTOR.shutdownNow();
     }
