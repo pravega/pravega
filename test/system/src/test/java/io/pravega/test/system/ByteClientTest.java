@@ -128,7 +128,7 @@ public class ByteClientTest extends AbstractSystemTest {
     }
 
     ByteStreamClientFactory createClientFactory(String scope) {
-        ClientConfig config = ClientConfig.builder().build();
+        ClientConfig config = Utils.buildClientConfig(controllerURI);
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(config);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
                                                        .clientConfig(Utils.buildClientConfig(controllerURI)).build(),

@@ -17,6 +17,9 @@
 
 set -euxo pipefail
 
+# Creation of secret for controller and segment store
+./kubernetes/createSecret.sh
+
 # Constants
 minKubectlVersion="v1.13.0"
 minHelmVersion="v3.1.2"

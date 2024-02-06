@@ -52,6 +52,8 @@ public class RawClient implements AutoCloseable {
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     @Getter
+    private final CompletableFuture<Integer> wireProtocolVersion = new CompletableFuture<Integer>();
+    @Getter
     private final Flow flow = Flow.create();
 
     private final class ResponseProcessor extends FailingReplyProcessor {
@@ -64,6 +66,7 @@ public class RawClient implements AutoCloseable {
                 if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
                     closeConnection(new IllegalStateException("Incompatible wire protocol versions " + hello));
                 }
+                wireProtocolVersion.complete(Math.min(WireCommands.WIRE_VERSION, hello.getHighVersion()));
             } else if (reply instanceof WireCommands.WrongHost) {
                 closeConnection(new ConnectionFailedException(reply.toString()));
             } else if (reply instanceof WireCommands.ErrorMessage) {
