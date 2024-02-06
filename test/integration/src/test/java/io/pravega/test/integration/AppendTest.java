@@ -90,6 +90,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -251,7 +252,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         return (Reply) decoded;
     }
 
-    static EmbeddedChannel createChannel(StreamSegmentStore store) {
+    static EmbeddedChannel createChannel(StreamSegmentStore store, ScheduledExecutorService executorService) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
                 new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
@@ -259,7 +260,7 @@ public class AppendTest extends LeakDetectorTestSuite {
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
-        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(EXECUTOR, store);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(executorService, store);
         lsh.setRequestProcessor(AppendProcessor.defaultBuilder(indexAppendProcessor)
                                                .store(store)
                                                .connection(new TrackedConnection(lsh))
@@ -267,6 +268,10 @@ public class AppendTest extends LeakDetectorTestSuite {
                                                        indexAppendProcessor))
                                                .build());
         return channel;
+    }
+
+    static EmbeddedChannel createChannel(StreamSegmentStore store) {
+        return createChannel(store, EXECUTOR);
     }
 
     @Test(timeout = 10000)
