@@ -64,6 +64,7 @@ import static org.junit.Assert.assertTrue;
  */
 @Slf4j
 public class SegmentReaderTest {
+    private static final String DATA_OF_SIZE_30 = "data of size 30"; // data length = 22 bytes , header = 8 bytes
 
     protected final int controllerPort = TestUtils.getAvailableListenPort();
     protected final String serviceHost = "localhost";
@@ -75,7 +76,7 @@ public class SegmentReaderTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
-    private JavaSerializer<Integer> serializer;
+    private JavaSerializer<String> serializer;
     private ClientConfig clientConfig;
 
     @Before
@@ -146,18 +147,18 @@ public class SegmentReaderTest {
 
         log.info("Creating segment reader manager.");
         @Cleanup
-        SegmentReaderManager<Integer> segmentReaderManager = SegmentReaderManager.create(clientConfig, serializer);
-        List<SegmentReader<Integer>> segmentReaderList = segmentReaderManager.getSegmentReaders(Stream.of(scope, stream), null).get();
+        SegmentReaderManager<String> segmentReaderManager = SegmentReaderManager.create(clientConfig, serializer);
+        List<SegmentReader<String>> segmentReaderList = segmentReaderManager.getSegmentReaders(Stream.of(scope, stream), null).get();
         assertEquals(1, segmentReaderList.size());
 
         boolean isSealed = controllerWrapper.getController().sealStream(scope, stream).join();
         assertTrue("isSealed", isSealed);
 
-        SegmentReader<Integer> segmentReader = segmentReaderList.get(0);
+        SegmentReader<String> segmentReader = segmentReaderList.get(0);
         log.info("Starting reading the events.");
         while (true) {
             try {
-                segmentReader.read(timeout);
+                assertEquals(DATA_OF_SIZE_30, segmentReader.read(timeout));
                 readEventCount++;
             } catch (EndOfSegmentException e) {
                 break;
@@ -190,15 +191,15 @@ public class SegmentReaderTest {
 
         log.info("Creating segment reader manager.");
         @Cleanup
-        SegmentReaderManager<Integer> segmentReaderManager = SegmentReaderManager.create(clientConfig, serializer);
+        SegmentReaderManager<String> segmentReaderManager = SegmentReaderManager.create(clientConfig, serializer);
         //Try to read the segment from offset 0.
-        List<SegmentReader<Integer>> segmentReaderList = segmentReaderManager.getSegmentReaders(Stream.of(scope, stream), streamCut).get();
+        List<SegmentReader<String>> segmentReaderList = segmentReaderManager.getSegmentReaders(Stream.of(scope, stream), streamCut).get();
         assertEquals(1, segmentReaderList.size());
-        SegmentReader<Integer> segmentReader = segmentReaderList.get(0);
+        SegmentReader<String> segmentReader = segmentReaderList.get(0);
 
         while (true) {
             try {
-                segmentReader.read(timeout);
+                assertEquals(DATA_OF_SIZE_30, segmentReader.read(timeout));
                 readEventCount++;
             } catch (EndOfSegmentException e) {
                 log.warn("End of segment reached");
@@ -221,16 +222,15 @@ public class SegmentReaderTest {
     }
 
     private void writeEventsIntoStream(int numberOfEvents, String scope, String stream) {
-        String dataOfSize30 = "data of size 30"; // data length = 22 bytes , header = 8 bytes
         Controller controller = controllerWrapper.getController();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, serializer,
                 EventWriterConfig.builder().build());
-        IntStream.range(0, numberOfEvents).forEach(v -> writer.writeEvent(dataOfSize30).join());
+        IntStream.range(0, numberOfEvents).forEach(v -> writer.writeEvent(DATA_OF_SIZE_30).join());
     }
 
 
