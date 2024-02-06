@@ -155,13 +155,12 @@ public class SegmentReaderTest {
 
         SegmentReader<Integer> segmentReader = segmentReaderList.get(0);
         log.info("Starting reading the events.");
-        boolean exitNow = false;
-        while (!exitNow) {
+        while (true) {
             try {
                 segmentReader.read(timeout);
                 readEventCount++;
             } catch (EndOfSegmentException e) {
-                exitNow = true;
+                break;
             }
         }
         log.info("Reading of events is successful.");
@@ -197,14 +196,13 @@ public class SegmentReaderTest {
         assertEquals(1, segmentReaderList.size());
         SegmentReader<Integer> segmentReader = segmentReaderList.get(0);
 
-        boolean exitNow = false;
-        while (!exitNow) {
+        while (true) {
             try {
                 segmentReader.read(timeout);
                 readEventCount++;
             } catch (EndOfSegmentException e) {
                 log.warn("End of segment reached");
-                exitNow = true;
+                break;
             } catch (TruncatedDataException e) {
                 log.warn("Truncated data found.", e);
             }
