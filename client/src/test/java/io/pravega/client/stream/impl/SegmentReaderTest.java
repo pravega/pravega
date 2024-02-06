@@ -26,6 +26,7 @@ import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.SegmentReader;
 import io.pravega.client.stream.SegmentReaderSnapshot;
+import io.pravega.client.stream.SegmentReaderSnapshotInternal;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;

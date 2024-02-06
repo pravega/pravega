@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package io.pravega.client.stream.impl;
+package io.pravega.client.stream;
 
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.SegmentReaderSnapshot;
+import io.pravega.client.stream.impl.SegmentReaderSnapshotImpl;
 
 import java.nio.ByteBuffer;
 
@@ -25,20 +25,20 @@ import java.nio.ByteBuffer;
  * SegmentReaderSnapshot provides the information about the current position, segment id and the status of segment reader.
  *
  */
-public abstract class SegmentReaderSnapshotInternal implements SegmentReaderSnapshot {
+public interface SegmentReaderSnapshotInternal extends SegmentReaderSnapshot {
     /**
      * Gets the segment which segment reader is reading.
      *
      * @return The segment.
      */
-    abstract Segment getSegment();
+    Segment getSegment();
 
     /**
      * Gets the current position of segment reader.
      *
      * @return The current position.
      */
-    abstract long getPosition();
+    long getPosition();
 
     /**
      * A boolean indicating if all events in the segment read completely.
@@ -46,7 +46,7 @@ public abstract class SegmentReaderSnapshotInternal implements SegmentReaderSnap
      *
      * @return true if all events in the segment read completely.
      */
-    abstract boolean isEndOfSegment();
+    boolean isEndOfSegment();
 
     /**
      * Deserializes the segment reader snapshot from its serialized from obtained from calling {@link #toBytes()}.
@@ -54,7 +54,7 @@ public abstract class SegmentReaderSnapshotInternal implements SegmentReaderSnap
      * @param serializedSnapshot A serialized segment reader snapshot.
      * @return The segment reader snapshot object.
      */
-    public static SegmentReaderSnapshot fromBytes(ByteBuffer serializedSnapshot) {
+    static SegmentReaderSnapshot fromBytes(ByteBuffer serializedSnapshot) {
         return SegmentReaderSnapshotImpl.fromBytes(serializedSnapshot);
     }
 }

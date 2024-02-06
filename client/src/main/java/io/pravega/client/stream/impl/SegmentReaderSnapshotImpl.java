@@ -19,20 +19,21 @@ package io.pravega.client.stream.impl;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.SegmentReaderSnapshot;
+import io.pravega.client.stream.SegmentReaderSnapshotInternal;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import lombok.Builder;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.SneakyThrows;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-@EqualsAndHashCode(callSuper = true)
-public class SegmentReaderSnapshotImpl extends SegmentReaderSnapshotInternal {
+@Getter
+public class SegmentReaderSnapshotImpl implements SegmentReaderSnapshotInternal {
     private static final SegmentReaderSnapshotImpl.SegmentReaderSnapshotImplSerializer
             SERIALIZER = new SegmentReaderSnapshotImpl.SegmentReaderSnapshotImplSerializer();
     private final Segment segment;
@@ -57,21 +58,6 @@ public class SegmentReaderSnapshotImpl extends SegmentReaderSnapshotInternal {
     @Override
     public String getSegmentId() {
         return segment.getScopedName();
-    }
-
-    @Override
-    Segment getSegment() {
-        return segment;
-    }
-
-    @Override
-    long getPosition() {
-        return position;
-    }
-
-    @Override
-    boolean isEndOfSegment() {
-        return isEndOfSegment;
     }
 
     @SneakyThrows(IOException.class)

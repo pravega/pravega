@@ -16,8 +16,6 @@
 
 package io.pravega.client.stream;
 
-import io.pravega.client.stream.impl.SegmentReaderSnapshotInternal;
-
 import java.nio.ByteBuffer;
 
 /**
@@ -34,7 +32,7 @@ public interface SegmentReaderSnapshot {
      */
     ByteBuffer toBytes();
 
-    //TODO : To implement SorceSplit interface, i think we need this method. Else this can be removed.
+    //TODO : To implement SourceSplit interface, i think we need this method. Else this can be removed.
     /**
      * Get the assigned segment name.
      *
