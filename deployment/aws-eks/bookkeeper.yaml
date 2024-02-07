@@ -101,7 +101,7 @@ spec:
 
   # Pass the JVM options to Bookkeeper
   jvmOptions:
-    memoryOpts: ["-Xms4g", "-XX:MaxDirectMemorySize=8g"]
+    memoryOpts: ["-Xms4g", "-XX:MaxDirectMemorySize=8g", "-XX:+ExitOnOutOfMemoryError", "-XX:+CrashOnOutOfMemoryError"]
     gcOpts: ["-XX:MaxGCPauseMillis=20"]
     #gcLoggingOpts: ["-Xlog:gc*,safepoint::time,level,tags:filecount=5,filesize=64m"]
     extraOpts: ["-XX:+IgnoreUnrecognizedVMOptions"]
