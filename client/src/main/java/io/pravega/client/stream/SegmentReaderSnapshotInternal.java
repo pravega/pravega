@@ -49,7 +49,7 @@ public interface SegmentReaderSnapshotInternal extends SegmentReaderSnapshot {
     boolean isEndOfSegment();
 
     /**
-     * Deserializes the segment reader snapshot from its serialized from obtained from calling {@link #toBytes()}.
+     * Deserializes the segment reader snapshot from its serialized form obtained from calling {@link #toBytes()}.
      *
      * @param serializedSnapshot A serialized segment reader snapshot.
      * @return The segment reader snapshot object.
