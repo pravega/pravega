@@ -65,6 +65,11 @@ public class OrdererTest {
         public boolean isSegmentReady() {
             return canReadWithoutBlocking;
         }
+
+        @Override
+        public boolean isEndOfSegment() {
+            return false;
+        }
     }
 
     @Test
