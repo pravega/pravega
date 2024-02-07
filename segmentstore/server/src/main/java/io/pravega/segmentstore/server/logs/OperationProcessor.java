@@ -179,11 +179,18 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     @SneakyThrows
     private <T> Void handleProcessItems(T items, Consumer<T> callback, Throwable ex, String processorName) {
+        if (!isRunning()) {
+            //Last iteration
+            if (items != null) {
+                callback.accept(items);
+            }
+            return null;
+        }
         ex = Exceptions.unwrap(ex);
         // Check if there is an exception from taking elements from commitQueue. If we get a TimeoutException, it is
         // expected, so do nothing. If any other exception comes form the commitQueue, then re-throw.
         if (ex != null) {
-            if (ex instanceof TimeoutException /* || isShutdownException(ex) */) {
+            if (ex instanceof TimeoutException) {
                 return null;
             } else {
                 log.warn("{}: Unexpected exception in OperationProcessor while processing items for {}, rethrowing.", this.traceObjectId, processorName, ex);
