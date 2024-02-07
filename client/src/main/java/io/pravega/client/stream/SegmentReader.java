@@ -44,7 +44,7 @@ public interface SegmentReader<T> extends AutoCloseable {
 
     /**
      * Gets the current snapshot of segment reader. It will provide information about segment reader's position,
-     * segment and if reader reads all the events in segment of not.
+     * segment itself and whether the reader has processed all events within the segment.
      *
      * @return The snapshot of segment reader.
      */

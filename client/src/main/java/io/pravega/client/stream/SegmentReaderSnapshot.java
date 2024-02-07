@@ -32,7 +32,6 @@ public interface SegmentReaderSnapshot {
      */
     ByteBuffer toBytes();
 
-    //TODO : To implement SourceSplit interface, i think we need this method. Else this can be removed.
     /**
      * Get the assigned segment name.
      *
@@ -41,7 +40,7 @@ public interface SegmentReaderSnapshot {
     String getSegmentId();
 
     /**
-     * Deserializes the segment reader snapshot from its serialized from obtained from calling {@link #toBytes()}.
+     * Deserializes the segment reader snapshot from its serialized form obtained from calling {@link #toBytes()}.
      *
      * @param serializedSnapshot A serialized segment reader snapshot.
      * @return The SegmentReaderSnapshot object.
