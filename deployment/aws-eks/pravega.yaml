@@ -1,0 +1,260 @@
+#
+# Copyright Pravega Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+apiVersion: "pravega.pravega.io/v1beta1"
+kind: "PravegaCluster"
+metadata:
+  name: "pravega"
+  labels:
+    app.kubernetes.io/name: "pravega-cluster"
+spec:
+  version: 0.13.0
+  zookeeperUri: zookeeper-client:2181
+  bookkeeperUri: bookkeeper-bookie-headless:3181
+
+  # Client can communicate with Pravega in a more secure way using TLS.
+  # To enable this feature, you will first need to create secrets for Controller and Segment Store so as to make the relevant, 
+  # sensible files available to the backend pods.
+  # See https://github.com/pravega/pravega-operator/blob/master/doc/tls.md
+
+  # tls:
+  #   static:
+  #     controllerSecret: "controller-pki"
+  #     segmentStoreSecret: "segmentstore-pki"
+
+
+  # Pravega supports pluggable authentication and authorization
+  # See https://github.com/pravega/pravega-operator/blob/master/doc/auth.md
+
+  authentication:
+    enabled: false
+    # ## passwordAuthSecret is ignored if authentication is disabled
+    # passwordAuthSecret:
+    #  ##segmentStoreToken is ignored if authentication is disabled
+    # segmentStoreTokenSecret:
+    #  ##controllerTokenSecret is ignored if authentication is disabled
+    # controllerTokenSecret:
+
+  # By default, a Pravega cluster uses ClusterIP services which are only accessible
+  # from within Kubernetes. However, when creating the Pravega cluster resource, you can opt to enable external access
+  # See https://github.com/pravega/pravega-operator/blob/master/doc/external-access.md
+
+  # externalAccess:
+  #   enabled:
+  #   type:
+  #   domainName:
+
+  pravega:
+    image:
+      repository: pravega/pravega
+      pullPolicy: IfNotPresent
+    controllerReplicas: 1
+    # maxUnavailableControllerReplicas:
+    # controllerSvcNameSuffix:
+    # controllerSecurityContext:
+    # controllerPodAffinity:
+    # controllerExtServiceType:
+    # controllerSvcAnnotations:
+    controllerjvmOptions: ["-Xms512m", "-XX:+ExitOnOutOfMemoryError", "-XX:+CrashOnOutOfMemoryError",
+                           "-XX:+HeapDumpOnOutOfMemoryError", "-XX:HeapDumpPath=/tmp/dumpfile/heap",
+                           "-XX:MaxRAMPercentage=50.0", "-XX:+UseContainerSupport", "-XX:+PrintExtendedThreadInfo"]
+
+    # controllerPodLabels:
+    # controllerPodAnnotations:
+    # controllerInitContainers:
+
+    # controllerProbes:
+    #   readinessProbe:
+    #     initialDelaySeconds: 20
+    #     periodSeconds: 10
+    #     failureThreshold: 3
+    #     successThreshold: 3
+    #     timeoutSeconds: 60
+    #   livenessProbe:
+    #     initialDelaySeconds: 60
+    #     periodSeconds: 15
+    #     failureThreshold: 4
+    #     successThreshold: 1
+    #     timeoutSeconds: 5
+
+    controllerResources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+    segmentStoreReplicas: 1
+    # maxUnavailableSegmentStoreReplicas:
+    # segmentStoreEnvVars:
+    # segmentStoreSecurityContext:
+    # segmentStorePodAffinity:
+    # segmentStoreExtServiceType:
+    # segmentStoreSvcAnnotations:
+    # segmentStoreLoadBalancerIP:
+    # segmentStoreExternalTrafficPolicy:
+
+    # segmentStoreSecret:
+    #   secret:
+    #   mountPath:
+    segmentStoreResources:
+      requests:
+        memory: "32Gi"
+        cpu: "3000m"
+      limits:
+        memory: "32Gi"
+        cpu: "4000m"
+
+    segmentStoreJVMOptions: ["-Xms4g", "-Xmx4g", "-XX:MaxDirectMemorySize=26g", "-XX:+ExitOnOutOfMemoryError",
+                             "-XX:+CrashOnOutOfMemoryError", "-XX:+HeapDumpOnOutOfMemoryError", "-XX:HeapDumpPath=/tmp/dumpfile/heap",
+                             "-XX:+UseContainerSupport", "-XX:+PrintExtendedThreadInfo"]
+
+    # segmentStorePodLabels:
+    # segmentStorePodAnnotations:
+    # segmentStoreStsNameSuffix:
+    # segmentStoreHeadlessSvcNameSuffix:
+    # segmentStoreInitContainers:
+
+    # segmentStoreProbes:
+    #   readinessProbe:
+    #     initialDelaySeconds: 10
+    #     periodSeconds: 10
+    #     failureThreshold: 30
+    #     successThreshold: 1
+    #     timeoutSeconds: 5
+    #   livenessProbe:
+    #     initialDelaySeconds: 300
+    #     periodSeconds: 15
+    #     failureThreshold: 4
+    #     successThreshold: 1
+    #     timeoutSeconds: 5
+
+    # To enable auth handlers in Pravega controller, refer https://github.com/pravega/pravega-operator/blob/master/doc/auth-handlers.md
+
+    # authImplementations:
+    #   mountPath:
+    #   authHandlers:
+    #   - image:
+    #     source:
+
+    # Pravega supports passing influxdb credentials as secret.
+    # It is the recommended approach rather than passing username/password as part of Pravega options.
+    # See https://github.com/pravega/pravega-operator/blob/master/doc/influxdb-auth.md
+
+    # influxDBSecret:
+    #   secret:
+    #   mountPath:
+
+    # DebugLogging indicates whether or not debug level logging is enabled.
+    # Defaults to false
+    debugLogging: false
+
+    longtermStorage:
+      #filesystem:
+      #  persistentVolumeClaim:
+      #    claimName: pravega-tier2
+
+      # ecs:
+      #   configUri: http://10.247.10.52:9020?namespace=pravega
+      #   bucket: "shared"
+      #   prefix: "example"
+      #   credentials: ecs-credentials
+
+      # hdfs:
+      #   uri: hdfs://10.240.10.52:8020/
+      #   root: /example
+      #   replicationFactor: 3
+
+      custom:
+        options:
+          pravegaservice.storage.layout: "CHUNKED_STORAGE"
+          pravegaservice.storage.impl.name: "S3"
+          s3.bucket: "pravega-tier2"
+          s3.prefix: "/"
+          s3.connect.config.region: "us-east-1"
+          s3.connect.config.uri.override: "false"
+          s3.connect.config.access.key: "YOUR_AWS_ACCESS_KEY_ID"
+          s3.connect.config.secret.key: "YOUR_AWS_SECRET_ACCESS_KEY"
+        env:
+          TIER2_STORAGE: "S3"
+          AWS_ACCESS_KEY_ID: "YOUR_AWS_ACCESS_KEY_ID"
+          AWS_SECRET_ACCESS_KEY: "YOUR_AWS_SECRET_ACCESS_KEY"
+
+    # See https://github.com/pravega/pravega/blob/3f5b65084ae17e74c8ef8e6a40e78e61fa98737b/config/config.properties
+    # for available configuration properties
+    options:
+      bookkeeper.ensemble.size: "1"
+      bookkeeper.write.quorum.size: "1"
+      bookkeeper.ack.quorum.size: "1"
+      bookkeeper.write.timeout.milliseconds: "60000"
+      bookkeeper.write.outstanding.bytes.max: "33554432"
+      bookkeeper.ledger.path: "/pravega/pravega-cluster/bookkeeper/ledgers"
+      pravegaservice.cache.size.max: "23622320128"
+      pravegaservice.cache.time.seconds.max: "600"
+      pravegaservice.service.listener.port: "12345"
+      writer.flush.threshold.bytes: "67108864"
+      writer.flush.size.bytes.max: "67108864"
+      writer.rollover.size.bytes.max: "1073741824"
+      pravegaservice.container.count: "8"
+      controller.container.count: "8"
+      controller.retention.bucket.count: "4"
+      controller.service.asyncTaskPool.size: "20"
+      controller.retention.thread.count: "4"
+      log.level: "INFO"
+      # emptyDirVolumeMounts: "heap-dump=/tmp/dumpfile/heap,logs=/opt/pravega/logs"
+      # hostPathVolumeMounts: "foo=/tmp/foo,bar=/tmp/bar"
+      # configMapVolumeMounts: "prvg-logback:logback.xml=/opt/pravega/conf/logback.xml"
+
+      ## The following parameters are only useful if you are going to deploy metrics in this cluster.
+      metrics.dynamicCache.size: "100000"
+      metrics.statistics.enable: "true"
+      metrics.influxDB.reporter.enable: "true"
+      metrics.output.frequency.seconds: "10"
+      metrics.influxDB.connect.uri: "http://influxdb-service:8086"
+      controller.metrics.dynamicCache.size: "100000"
+      controller.metrics.statistics.enable: "true"
+      controller.metrics.influxDB.reporter.enable: "true"
+      controller.metrics.output.frequency.seconds: "10"
+      controller.metrics.influxDB.connect.uri: "http://influxdb-service:8086"
+
+      # Security configurations for Pravega
+      # See https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md
+
+      # Once the secrets names for controller and segment store is passed in the `tls` block,
+      # TLS configuration parameters can be passed as options shown below.
+      # controller.security.tls.enable: "true"
+      # controller.security.tls.server.certificate.location: "/etc/secret-volume/controller01.pem"
+      # controller.security.tls.server.privateKey.location: "/etc/secret-volume/controller01.key.pem"
+      # controller.security.tls.server.keyStore.location: "/etc/secret-volume/controller01.jks"
+      # controller.security.tls.server.keyStore.pwd.location: "/etc/secret-volume/password"
+      # pravegaservice.security.tls.enable: "true"
+      # pravegaservice.security.tls.server.certificate.location: "/etc/secret-volume/segmentStore01.pem"
+      # pravegaservice.security.tls.server.privateKey.location: "/etc/secret-volume/segmentStore01.key.pem"
+
+      # NOTE: The mount dir for tls secrets is /etc/secret-volume
+
+      # Once the secret names for controller and segment store is passed in the `authentication` block,
+      # Auth Configuration parameters can be passed as options shown below.
+      # controller.security.auth.enable: "true"
+      # controller.security.pwdAuthHandler.accountsDb.location: "/etc/auth-passwd-volume/userdata.txt"
+      # controller.security.auth.delegationToken.signingKey.basis: "secret"
+      # autoScale.controller.connect.security.auth.enable: "true"
+      # autoScale.security.auth.token.signingKey.basis: "secret"
+      # pravega.client.auth.token: "YWRtaW46MTExMV9hYWFh"
+      # pravega.client.auth.method: "Basic"
+
+      # NOTE: The mount dir for auth secrets is /etc/auth-passwd-volume.
