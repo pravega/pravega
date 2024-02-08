@@ -1,0 +1,107 @@
+#
+# Copyright Pravega Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+apiVersion: "bookkeeper.pravega.io/v1alpha1"
+kind: "BookkeeperCluster"
+metadata:
+  name: "bookkeeper"
+spec:
+  version: 0.13.0
+  zookeeperUri: zookeeper-client:2181
+
+  image:
+    imageSpec:
+      repository: pravega/bookkeeper
+      pullPolicy: IfNotPresent
+
+  replicas: 3
+
+  #affinity:
+  #  podAntiAffinity:
+  #    requiredDuringSchedulingIgnoredDuringExecution:
+  #      - labelSelector:
+  #          matchExpressions:
+  #            - key: "app"
+  #              operator: In
+  #              values:
+  #                - bookkeeper-cluster
+  #        topologyKey: "kubernetes.io/hostname"
+
+  #envVars: bookkeeper-configmap
+
+  resources:
+    requests:
+      memory: "14Gi"
+      cpu: "2000m"
+    limits:
+      memory: "14Gi"
+      cpu: "2000m"
+
+  storage:
+    ledgerVolumeClaimTemplate:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "bookie-ledger"
+      resources:
+        requests:
+          storage: 1500Gi
+
+    journalVolumeClaimTemplate:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "bookie-journal"
+      resources:
+        requests:
+          storage: 1500Gi
+
+    indexVolumeClaimTemplate:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "standard"
+      resources:
+        requests:
+          storage: 10Gi
+
+  # Turns on automatic recovery
+  # see https://bookkeeper.apache.org/docs/latest/admin/autorecovery/
+  autoRecovery: true
+
+  # To enable bookkeeper metrics feature, take codahale for example here.
+  # See http://bookkeeper.apache.org/docs/4.7.0/admin/metrics/ for more metrics provider
+  # See http://bookkeeper.apache.org/docs/4.7.0/reference/config/#statistics for metrics provider configuration details
+  options:
+    useHostNameAsBookieID: "true"
+    # We need an agressive data compaction policy in Bookkeeper, given that we may have IO heavy workloads that may fill up the disks.
+    # For more information on these parameters, please see https://github.com/pravega/pravega/issues/4008.
+    minorCompactionThreshold: "0.4"
+    minorCompactionInterval: "1800"
+    majorCompactionThreshold: "0.8"
+    majorCompactionInterval: "43200"
+    isForceGCAllowWhenNoSpace: "true"
+    # Use multiple journal and ledger directories to try exploiting more parallelism at the drive level.
+    journalDirectories: "/home/journal/" #"/bk/journal/j0,/bk/journal/j1,/bk/journal/j2,/bk/journal/j3"
+    ledgerDirectories: "/home/ledger/" #"/bk/ledgers/l0,/bk/ledgers/l1,/bk/ledgers/l2,/bk/ledgers/l3"
+    # We have validated that this simpler ledger type prevents Bookie restarts due to heap OOM compared to the default SortedLedgerStorage.
+    # As we do not read from Bookkeeper (only during container recovery), this ledger type looks more efficient given our requirements.
+    ledgerStorageClass: "org.apache.bookkeeper.bookie.InterleavedLedgerStorage"
+    enableStatistics: "true"
+    statsProviderClass: "org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider"
+    # Default is 60
+    codahaleStatsOutputFrequencySeconds: "10"
+
+  # Pass the JVM options to Bookkeeper
+  jvmOptions:
+    memoryOpts: ["-Xms4g", "-XX:MaxDirectMemorySize=8g", "-XX:+ExitOnOutOfMemoryError", "-XX:+CrashOnOutOfMemoryError"]
+    gcOpts: ["-XX:MaxGCPauseMillis=20"]
+    #gcLoggingOpts: ["-Xlog:gc*,safepoint::time,level,tags:filecount=5,filesize=64m"]
+    extraOpts: ["-XX:+IgnoreUnrecognizedVMOptions"]
