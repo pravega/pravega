@@ -60,6 +60,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class EventStreamWriterTest extends LeakDetectorTestSuite {
     @Test
@@ -72,6 +74,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         MockSegmentIoStreams outputStream = new MockSegmentIoStreams(segment, null);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outputStream);
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory,
@@ -79,6 +82,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         writer.writeEvent("Foo");
         writer.writeEvent("Bar");
         writer.close();
+        verify(controller, times(1)).removeWriter("id", stream);
         try {
             writer.writeEvent("fail");
             fail();
@@ -97,6 +101,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         MockSegmentIoStreams outputStream = new MockSegmentIoStreams(segment, null);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outputStream);
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory,
@@ -132,6 +137,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         SegmentOutputStream outputStream = Mockito.mock(SegmentOutputStream.class);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outputStream);
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory,
@@ -315,6 +321,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(getSegmentsFuture(segment1))
                .thenReturn(getSegmentsFuture(segment2));
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService(), null);
@@ -359,6 +366,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                 .thenReturn(getSegmentsFuture(segment1))
                 .thenReturn(empty);
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService(), null);
@@ -415,6 +423,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                 .thenReturn(getSegmentsFuture(segment1))
                 .thenReturn(getSegmentsFuture(segment2));
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService(), null);
@@ -459,7 +468,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
             outputStream1.callBackForSealed = i.getArgument(1);
             return outputStream1;
         });
-
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         val empty = CompletableFuture.completedFuture(new StreamSegments(new TreeMap<>()));
         Mockito.when(controller.getCurrentSegments(scope, streamName))
@@ -500,7 +509,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
             outputStream1.callBackForSealed = i.getArgument(1);
             return outputStream1;
         });
-
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         val empty = CompletableFuture.completedFuture(new StreamSegments(new TreeMap<>()));
         Mockito.when(controller.getCurrentSegments(scope, streamName))
@@ -534,6 +543,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Controller controller = Mockito.mock(Controller.class);
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outputStream);
 
         JavaSerializer<String> serializer = new JavaSerializer<>();
@@ -571,6 +581,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
             outputStream2.callBackForSealed = i.getArgument(1);
             return outputStream2;
         });
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
@@ -619,7 +630,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
             return outputStream1;
         });
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
-
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         // Start of test
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
@@ -658,6 +669,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
                     outputStream.callBackForSealed = i.getArgument(1);
                     return outputStream;
                 });
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
@@ -697,6 +709,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
                     outputStream.callBackForSealed = i.getArgument(1);
                     return outputStream;
                 });
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
@@ -738,6 +751,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                 .thenReturn(getSegmentsFuture(segment1));
         Mockito.when(controller.getSuccessors(segment1)).thenReturn(getReplacement(segment1, segment2));
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any(), any(), any()))
                 .thenAnswer(i -> {
                     outputStream.callBackForSealed = i.getArgument(1);
@@ -789,6 +803,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
                     outputStream.callBackForSealed = i.getArgument(1);
                     return outputStream;
                 });
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
@@ -834,6 +849,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
                     outputStream1.callBackForSealed = i.getArgument(1);
                     return outputStream1;
                 });
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
@@ -889,6 +905,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
                     outputStream3.callBackForSealed = i.getArgument(1);
                     return outputStream3;
                 });
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
@@ -929,7 +946,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment1));
         
         Mockito.when(mockOutputStream.getLastObservedWriteOffset()).thenReturn(1111L);
-        
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
@@ -953,7 +970,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any(), any(), any())).thenReturn(mockOutputStream);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment1));
-
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
@@ -974,7 +991,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any(), any(), any())).thenReturn(mockOutputStream);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment1));
-        
+        Mockito.when(controller.removeWriter("id", stream)).thenReturn(CompletableFuture.completedFuture(null));
         Mockito.when(mockOutputStream.getLastObservedWriteOffset()).thenReturn(1111L);
         
         CollectingExecutor executor = new CollectingExecutor();

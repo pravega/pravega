@@ -359,6 +359,8 @@ public final class EventStreamWriterImpl<Type> implements EventStreamWriter<Type
             }
         }
         ExecutorServiceHelpers.shutdown(retransmitPool);
+        controller.removeWriter(writerId, stream)
+                .thenAccept(r -> log.trace("Writer {} has been shut down", writerId));
     }
 
     @Override
