@@ -28,6 +28,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.SegmentReader;
+import io.pravega.client.stream.SegmentReaderSnapshotInternal;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -159,8 +160,8 @@ public class SegmentReaderTest {
 
     @Test(timeout = 50000)
     public void testSegmentReadOnWithMultipleSegments() throws ExecutionException, InterruptedException {
-        String scope = "testSegmentReaderScope";
-        String stream = "testSegmentReaderStream";
+        String scope = "testMultiSegmentReaderScope";
+        String stream = "testMultiSegmentReaderStream";
         int noOfEvents = 100;
 
         createStream(scope, stream, 3);
@@ -231,22 +232,35 @@ public class SegmentReaderTest {
 
     private void readEventFromSegmentReaders(final List<SegmentReader<String>> segmentReaderList, final int expectedEventCount) {
         long timeout = 1000;
-        AtomicInteger readEventCount = new AtomicInteger(0);
+        AtomicInteger totalReadEventCount = new AtomicInteger(0);
         segmentReaderList.forEach(reader -> {
             log.info("Starting reading the events.");
+            int segmentReadEventCount = 0;
             while (true) {
                 try {
+                    verifySegmentReaderSnapshot(reader, segmentReadEventCount * 30L, false);
                     assertEquals(DATA_OF_SIZE_30, reader.read(timeout));
-                    readEventCount.getAndIncrement();
+                    totalReadEventCount.getAndIncrement();
+                    segmentReadEventCount++;
                 } catch (EndOfSegmentException e) {
+                    verifySegmentReaderSnapshot(reader, segmentReadEventCount * 30L, true);
                     break;
                 } catch (TruncatedDataException e) {
                     log.warn("Truncated data found.", e);
+                    segmentReadEventCount = segmentReadEventCount + 2;
                 }
             }
         });
         log.info("Reading of events is successful.");
-        assertEquals(expectedEventCount, readEventCount.get());
+        assertEquals(expectedEventCount, totalReadEventCount.get());
+    }
+
+    private void verifySegmentReaderSnapshot(SegmentReader<String> segmentReader, long expectedOffset, boolean isFinished) {
+        SegmentReaderSnapshotInternal snapshotInternal = (SegmentReaderSnapshotInternal) segmentReader.getSnapshot();
+        assertEquals(expectedOffset, snapshotInternal.getPosition());
+        if (isFinished) {
+            assertTrue(snapshotInternal.isEndOfSegment());
+        }
     }
 
 }
