@@ -146,16 +146,16 @@ final class ExecutorServiceFactory {
     /**
      * Creates a new ScheduledExecutorService that will use daemon threads with specified priority and names.
      *
-     * @param size           The number of threads in the threadpool
+     * @param config         The configuration for the thread pool
      * @param poolName       The name of the pool (this will be printed in logs)
      * @param threadPriority The priority to be assigned to the threads
      * @return A new executor service.
      */
-    ScheduledExecutorService newScheduledThreadPool(int size, String poolName, int threadPriority) {
+    ScheduledExecutorService newScheduledThreadPool(ThreadPoolExecutorConfig config, String poolName, int threadPriority) {
         ThreadFactory threadFactory = getThreadFactory(poolName, threadPriority);
 
         // Caller runs only occurs after shutdown, as queue size is unbounded.
-        ThreadPoolScheduledExecutorService result = this.createScheduledExecutor.apply(size, threadFactory);
+        ThreadPoolScheduledExecutorService result = this.createScheduledExecutor.apply(config, threadFactory);
         // ThreadPoolScheduledExecutorService implies:
         // setContinueExistingPeriodicTasksAfterShutdownPolicy(false),
         // setExecuteExistingDelayedTasksAfterShutdownPolicy(false),
@@ -207,8 +207,8 @@ final class ExecutorServiceFactory {
     private class LeakDetectorScheduledExecutorService extends ThreadPoolScheduledExecutorService {
         private final Exception stackTraceEx;
 
-        LeakDetectorScheduledExecutorService(int corePoolSize, ThreadFactory threadFactory) {
-            super(corePoolSize, threadFactory);
+        LeakDetectorScheduledExecutorService(ThreadPoolExecutorConfig config, ThreadFactory threadFactory) {
+            super(config, threadFactory);
             this.stackTraceEx = new Exception();
         }
 
@@ -286,7 +286,7 @@ final class ExecutorServiceFactory {
 
     @FunctionalInterface
     private interface CreateScheduledExecutor {
-        ThreadPoolScheduledExecutorService apply(int size, ThreadFactory factory);
+        ThreadPoolScheduledExecutorService apply(ThreadPoolExecutorConfig config, ThreadFactory factory);
     }
 
     @FunctionalInterface

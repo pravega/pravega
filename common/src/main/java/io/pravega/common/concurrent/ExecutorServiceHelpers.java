@@ -76,13 +76,25 @@ public final class ExecutorServiceHelpers {
     /**
      * Creates a new ScheduledExecutorService that will use daemon threads with specified priority and names.
      *
-     * @param size The number of threads in the threadpool
+     * @param size The number of threads in the thread pool
      * @param poolName The name of the pool (this will be printed in logs)
      * @param threadPriority The priority to be assigned to the threads
      * @return A new executor service.
      */
     public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName, int threadPriority) {
-        return FACTORY.newScheduledThreadPool(size, poolName, threadPriority);
+        return FACTORY.newScheduledThreadPool(new ThreadPoolExecutorConfig(size, size), poolName, threadPriority);
+    }
+
+    /**
+     * Creates a new ScheduledExecutorService that will use daemon threads with specified priority and names.
+     *
+     * @param config The configuration for the thread pool
+     * @param poolName The name of the pool (this will be printed in logs)
+     * @param threadPriority The priority to be assigned to the threads
+     * @return A new executor service.
+     */
+    public static ScheduledExecutorService newScheduledThreadPool(ThreadPoolExecutorConfig config, String poolName, int threadPriority) {
+        return FACTORY.newScheduledThreadPool(config, poolName, threadPriority);
     }
 
     /**

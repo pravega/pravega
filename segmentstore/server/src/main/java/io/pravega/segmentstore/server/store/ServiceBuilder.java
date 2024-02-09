@@ -18,6 +18,7 @@ package io.pravega.segmentstore.server.store;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.ThreadPoolExecutorConfig;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -56,6 +57,10 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
@@ -63,9 +68,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helps create StreamSegmentStore Instances.
@@ -133,9 +135,14 @@ public class ServiceBuilder implements AutoCloseable {
 
         // Setup Thread Pools.
         String instancePrefix = getInstanceIdPrefix(serviceConfig);
-        this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), instancePrefix + "core", Thread.NORM_PRIORITY);
-        this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), instancePrefix + "storage-io", Thread.NORM_PRIORITY);
-        this.lowPriorityExecutor = executorBuilder.apply(serviceConfig.getLowPriorityThreadPoolSize(),
+        ThreadPoolExecutorConfig config = new ThreadPoolExecutorConfig(serviceConfig.getCoreThreadPoolSize(), serviceConfig.getCoreThreadPoolSize());
+        this.coreExecutor = executorBuilder.apply(config, instancePrefix + "core", Thread.NORM_PRIORITY);
+        this.storageExecutor = executorBuilder.apply(ThreadPoolExecutorConfig.builder()
+                .corePoolSize(serviceConfig.getStorageThreadPoolSize())
+                .maxPoolSize(serviceConfig.getStorageThreadPoolSize())
+                .keepAliveTime(serviceConfig.getKeepAliveTime())
+                .build(), instancePrefix + "storage-io", Thread.NORM_PRIORITY);
+        this.lowPriorityExecutor = executorBuilder.apply(new ThreadPoolExecutorConfig(serviceConfig.getLowPriorityThreadPoolSize(), serviceConfig.getLowPriorityThreadPoolSize()),
                 instancePrefix + "low-priority-cleanup", Thread.MIN_PRIORITY);
         this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor, this.storageExecutor);
 
@@ -406,7 +413,7 @@ public class ServiceBuilder implements AutoCloseable {
     @FunctionalInterface
     @VisibleForTesting
     public interface ExecutorBuilder {
-        ScheduledExecutorService apply(int threadPoolSize, String name, Integer threadPriority);
+        ScheduledExecutorService apply(ThreadPoolExecutorConfig config, String name, Integer threadPriority);
     }
 
     //endregion

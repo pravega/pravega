@@ -18,6 +18,10 @@ package io.pravega.common.concurrent;
 
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.test.common.AssertExtensions;
+import org.junit.Test;
+
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -25,9 +29,10 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import org.junit.Test;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -40,7 +45,7 @@ import static org.junit.Assert.assertTrue;
 public class ThreadPoolScheduledExecutorServiceTest {
 
     private static ThreadPoolScheduledExecutorService createPool(int threads) {
-        return new ThreadPoolScheduledExecutorService(threads,
+        return new ThreadPoolScheduledExecutorService(new ThreadPoolExecutorConfig(threads, threads),
                 ExecutorServiceHelpers.getThreadFactory("ThreadPoolScheduledExecutorServiceTest"));
     }   
     
@@ -308,5 +313,56 @@ public class ThreadPoolScheduledExecutorServiceTest {
         assertTrue(f30.compareTo(f30) == 0);
         pool.shutdown();
         assertTrue(pool.awaitTermination(1, SECONDS));
+    }
+
+    @Test
+    public void testElasticThreadPool() {
+        ThreadPoolScheduledExecutorService service = new ThreadPoolScheduledExecutorService(ThreadPoolExecutorConfig.builder()
+                .corePoolSize(10)
+                .maxPoolSize(10)
+                .keepAliveTime(50)
+                .timeUnit(MILLISECONDS)
+                .allowCoreThreadTimeOut(true)
+                .build(), new CustomThreadFactory());
+
+        for ( int i = 0; i < 10; i++) {
+            service.execute(new WorkerThread());
+        }
+
+        ThreadPoolExecutor executor = service.getRunner();
+        assertTrue(executor.getPoolSize() > 1);
+
+        sleep(1000);
+
+        assertEquals(0, executor.getPoolSize());
+        for ( int i = 0; i < 10; i++) {
+            service.execute(new WorkerThread());
+        }
+
+        assertTrue(executor.getPoolSize() > 1);
+        executor.shutdown();
+    }
+
+    static class WorkerThread implements Runnable {
+        @Override
+        public void run() {
+            sleep(500);
+        }
+    }
+
+    static class CustomThreadFactory implements  ThreadFactory {
+
+        @Override
+        public Thread newThread(Runnable r) {
+            return new Thread(r);
+        }
+    }
+
+    private static void sleep(long millis) {
+        LocalDateTime localDateTime = LocalDateTime.now().plus(millis, ChronoUnit.MILLIS);
+        LocalDateTime newLocalDateTime = LocalDateTime.now();
+        while (newLocalDateTime.isBefore(localDateTime)) {
+            newLocalDateTime = LocalDateTime.now();
+        }
     }
 }
