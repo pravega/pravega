@@ -21,6 +21,7 @@ import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
+import org.apache.commons.text.StringEscapeUtils;
 
 /**
  * Configuration for the Azure Storage component.
@@ -67,7 +68,7 @@ public class AzureStorageConfig {
 
     private AzureStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.endpoint = Preconditions.checkNotNull(properties.get(ENDPOINT));
-        this.connectionString = Preconditions.checkNotNull(properties.get(CONNECTION_STRING));
+        this.connectionString = StringEscapeUtils.unescapeJava(Preconditions.checkNotNull(properties.get(CONNECTION_STRING)));
         this.containerName = Preconditions.checkNotNull(properties.get(CONTAINER));
         String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
