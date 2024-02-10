@@ -18,6 +18,7 @@ package io.pravega.controller.task;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.index.HostIndex;
@@ -109,7 +110,7 @@ public class EventHelper implements AutoCloseable {
      * @param <T> The Type of the future's result.
      * @return CompletableFuture<T> returned by Supplier or Exception.
      */
-    public <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, Supplier<CompletableFuture<T>> futureSupplier) {
+    public <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, FutureSupplier<T> futureSupplier) {
         String id = UUID.randomUUID().toString();
         // We first add index and then call the metadata update.
         //  While trying to perform a metadata update, upon getting a connection exception or a write conflict exception
@@ -119,7 +120,7 @@ public class EventHelper implements AutoCloseable {
         // will be discarded. We will throw the exception that we received from running futureSupplier or return the
         // successful value
         return addRequestToIndex(this.hostId, id, event)
-                .thenCompose(v -> Futures.handleCompose(futureSupplier.get(),
+                .thenCompose(v -> Futures.handleCompose(futureSupplier.getFuture(),
                         (r, e) -> {
                             if (e == null || (Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException ||
                                     Exceptions.unwrap(e) instanceof StoreException.WriteConflictException)) {
