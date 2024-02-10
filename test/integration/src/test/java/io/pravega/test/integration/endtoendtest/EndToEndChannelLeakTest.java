@@ -191,7 +191,7 @@ public class EndToEndChannelLeakTest {
     @Test(timeout = 30000)
     public void testDetectChannelLeakMultiReaderPooled() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         //Set the max number connections to verify channel creation behaviour
         final ClientConfig clientConfig = ClientConfig.builder().maxConnectionsPerSegmentStore(5).build();
