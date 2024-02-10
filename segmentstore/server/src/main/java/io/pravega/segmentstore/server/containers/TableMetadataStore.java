@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
@@ -49,11 +50,10 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * {@link MetadataStore} implementation that stores all Segment Information as {@link TableEntry} instances in a dedicated
@@ -192,7 +192,7 @@ class TableMetadataStore extends MetadataStore {
     }
 
     private <T> CompletableFuture<T> applyToSegment(String segmentName, BiFunction<TableEntry, Duration, CompletableFuture<T>> ifExists,
-                                                    Supplier<CompletableFuture<T>> ifNotExists, Duration timeout) {
+                                                    FutureSupplier<T> ifNotExists, Duration timeout) {
         ensureInitialized();
         ArrayView key = getTableKey(segmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -202,7 +202,7 @@ class TableMetadataStore extends MetadataStore {
                     assert existingData.size() == 1 : "Expecting only one result";
                     if (existingData.get(0) == null) {
                         // We don't know anything about this Segment.
-                        return ifNotExists.get();
+                        return ifNotExists.getFuture();
                     }
 
                     // We have an entry.

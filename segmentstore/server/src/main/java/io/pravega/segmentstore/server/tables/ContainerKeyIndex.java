@@ -22,6 +22,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AsyncSemaphore;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.util.BufferView;
@@ -166,14 +167,14 @@ class ContainerKeyIndex implements AutoCloseable {
      * <li>{@link TableSegmentNotEmptyException} If the Segment is not empty.
      * </ul>
      */
-    <T> CompletableFuture<T> executeIfEmpty(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> action, TimeoutTimer timer) {
+    <T> CompletableFuture<T> executeIfEmpty(DirectSegmentAccess segment, FutureSupplier<T> action, TimeoutTimer timer) {
         return this.segmentTracker.waitIfNeeded(segment, ignored -> this.conditionalUpdateProcessor.addWithFilter(
                 conditionKey -> conditionKey.getKey() == segment.getSegmentId(),
                 () -> isTableSegmentEmpty(segment, timer)
                         .thenCompose(isEmpty -> {
                             if (isEmpty) {
                                 // Segment is empty.
-                                return action.get();
+                                return action.getFuture();
                             } else {
                                 // Segment is not empty.
                                 return Futures.failedFuture(new TableSegmentNotEmptyException(segment.getInfo().getName()));
@@ -388,7 +389,7 @@ class ContainerKeyIndex implements AutoCloseable {
     CompletableFuture<List<Long>> update(DirectSegmentAccess segment, TableKeyBatch batch, Supplier<CompletableFuture<Long>> persist, TimeoutTimer timer) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
-        Supplier<CompletableFuture<List<Long>>> update;
+        FutureSupplier<List<Long>> update;
         if (batch.isConditional()) {
             // Conditional update.
             // Collect all Cache Keys for the Update Items that have a condition on them; we need this on order to
@@ -902,7 +903,7 @@ class ContainerKeyIndex implements AutoCloseable {
          * @return A CompletableFuture that will be completed when the task is done. If executing immediately, this is the
          * result of toExecute, otherwise it will be a different Future which will be completed when toExecute completes.
          */
-        <T> CompletableFuture<T> throttleIfNeeded(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> toExecute, int updateSize) {
+        <T> CompletableFuture<T> throttleIfNeeded(DirectSegmentAccess segment, FutureSupplier<T> toExecute, int updateSize) {
             // Give a different amount of credits depending on whether the Segment is system-critical or not.
             long totalCredits = isSystemCriticalSegment.test(segment) ? config.getSystemCriticalMaxUnindexedLength() : config.getMaxUnindexedLength();
             AsyncSemaphore throttler;

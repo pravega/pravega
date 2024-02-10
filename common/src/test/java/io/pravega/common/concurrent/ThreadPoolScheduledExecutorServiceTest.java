@@ -18,9 +18,11 @@ package io.pravega.common.concurrent;
 
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.test.common.AssertExtensions;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
@@ -36,6 +38,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class ThreadPoolScheduledExecutorServiceTest {
 
@@ -163,7 +166,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
         AtomicInteger count = new AtomicInteger(0);
         ReusableLatch latch = new ReusableLatch(false);
         AtomicReference<Exception> error = new AtomicReference<>();
-        pool.submit(() -> {
+        Future<?> future = pool.submit(() -> {
             count.incrementAndGet();
             try {
                 latch.await();
@@ -183,6 +186,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
         assertNull(error.get());
         assertTrue(pool.isTerminated());
         assertEquals(2, count.get());
+        assertNull(future.get(1, SECONDS));
     }
     
     @Test(timeout = 10000)
@@ -191,7 +195,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
         AtomicInteger count = new AtomicInteger(0);
         ReusableLatch latch = new ReusableLatch(false);
         AtomicReference<Exception> error = new AtomicReference<>();
-        pool.submit(() -> {
+        Future<?> future = pool.submit(() -> {
             count.incrementAndGet();
             try {
                 latch.await();
@@ -214,6 +218,7 @@ public class ThreadPoolScheduledExecutorServiceTest {
         assertNotNull(error.get());
         assertEquals(InterruptedException.class, error.get().getClass());
         assertEquals(1, count.get());
+        assertNull(future.get(1, SECONDS));
     }
     
     @Test(timeout = 10000)
@@ -247,6 +252,21 @@ public class ThreadPoolScheduledExecutorServiceTest {
         assertTrue(pool.getQueue().isEmpty());
         assertTrue(pool.shutdownNow().isEmpty());
         assertTrue(pool.awaitTermination(1, SECONDS));
+    }
+    
+    @Test(timeout = 10000)
+    public void testShutdownCancelsDelayed() throws Exception {
+        ThreadPoolScheduledExecutorService pool = createPool(1);
+        CompletableFuture<Void> future = Futures.delayedFuture(Duration.ofSeconds(5), pool);
+        CompletableFuture<Void> body = new CompletableFuture<>();        
+        CompletableFuture<Void> loop = Futures.loop(() -> true, () -> {
+            return body;
+        }, pool);
+        pool.shutdown();
+        body.complete(null);
+        assertEquals(true, future.isCancelled());
+        assertThrows(CompletionException.class, () -> loop.join());
+        
     }
 
     @Test(timeout = 10000)

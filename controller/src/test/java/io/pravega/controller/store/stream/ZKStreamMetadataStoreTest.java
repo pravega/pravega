@@ -50,6 +50,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -504,7 +505,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         }
 
         @Override
-        public void close() {
+        public void close() throws TimeoutException {
             map.clear();
             super.close();
         }
