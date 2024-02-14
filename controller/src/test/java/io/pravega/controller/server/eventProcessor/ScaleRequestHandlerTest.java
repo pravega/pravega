@@ -1051,5 +1051,10 @@ public abstract class ScaleRequestHandlerTest {
         public void noteTime(long timestamp) {
             
         }
+
+        @Override
+        public void removeWriter() {
+
+        }
     }
 }

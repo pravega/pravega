@@ -70,4 +70,9 @@ public class ControllerEventTableWriterMock implements EventStreamWriter<Control
     public void noteTime(long timestamp) {
         
     }
+
+    @Override
+    public void removeWriter() {
+
+    }
 }
