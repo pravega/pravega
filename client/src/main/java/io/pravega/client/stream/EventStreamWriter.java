@@ -117,6 +117,13 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
     void noteTime(long timestamp);
 
     /**
+     * This is to notify the controller that the specified writer is shutting down gracefully and no longer
+     * needs to be considered for calculating entries for the marks segment.
+     *
+     */
+    void removeWriter();
+
+    /**
      * Returns the configuration that this writer was create with.
      *
      * @return Writer configuration

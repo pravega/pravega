@@ -952,9 +952,10 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService(), null);
         writer.noteTime(123);
-        
+        writer.removeWriter();
         ImmutableMap<Segment, Long> expectedOffsets = ImmutableMap.of(segment1, 1111L);
         Mockito.verify(controller).noteTimestampFromWriter(eq("id"), eq(stream), eq(123L), eq(new WriterPosition(expectedOffsets)));
+        Mockito.verify(controller).removeWriter(eq("id"), eq(stream));
     }
     
     @Test

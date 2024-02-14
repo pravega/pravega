@@ -383,4 +383,10 @@ public final class EventStreamWriterImpl<Type> implements EventStreamWriter<Type
         WriterPosition position = new WriterPosition(offsets);
         controller.noteTimestampFromWriter(writerId, stream, timestamp, position);
     }
+
+    @Override
+    public void removeWriter() {
+        controller.removeWriter(writerId, stream).
+                thenAccept(r -> log.trace("Writer: {} has been shut down", writerId));
+    }
 }
