@@ -94,7 +94,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Metadata store containing all storage data.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore, AbstractTaskQueueManager)} ()}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore)}.
      */
     @Getter
     private final ChunkMetadataStore metadataStore;
@@ -125,7 +125,6 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Id of the current Container.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore, AbstractTaskQueueManager)}.
      */
     @Getter
     private final int containerId;
@@ -773,15 +772,17 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      *      it will contain the cause of the failure.
      */
     CompletableFuture<Void> updateStorageStats() {
-        return chunkStorage.getUsedSpace()
-                .thenAcceptAsync(used -> {
-                    storageUsed.set(used);
-                    boolean isFull = used >= config.getMaxSafeStorageSize();
+        return chunkStorage.getStorageCapacityStats()
+                .thenAcceptAsync(storageCapacityInfo -> {
+                    storageUsed.set(storageCapacityInfo.getUsedSpace());
+                    boolean isFull = storageCapacityInfo.getUsedSpace() >= config.getMaxSafeStorageSize()
+                            || storageCapacityInfo.getUsedPercentage() >= config.getMaxSafeStoragePercent();
                     if (isFull) {
                         if (!isStorageFull.get()) {
                             log.warn("{} STORAGE FULL. ENTERING READ ONLY MODE. Any non-critical writes will be rejected.", logPrefix);
                         }
-                        log.warn("{} STORAGE FULL - used={} total={}.", logPrefix, used, config.getMaxSafeStorageSize());
+                        log.warn("{} STORAGE FULL - storageCapacityInfo={} safe maxSize={} maxPercentage={}.", logPrefix, storageCapacityInfo,
+                                config.getMaxSafeStorageSize(), config.getMaxSafeStoragePercent());
                     } else {
                         if (isStorageFull.get()) {
                             log.info("{} STORAGE AVAILABLE. LEAVING READ ONLY MODE. Restoring normal writes", logPrefix);

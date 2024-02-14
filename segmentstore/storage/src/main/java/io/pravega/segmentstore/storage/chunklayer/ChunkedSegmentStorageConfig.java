@@ -69,6 +69,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Boolean> SELF_CHECK_SNAPSHOT_INTEGRITY = Property.named("self.check.integrity.snapshot", false);
 
     public static final Property<Long> MAX_SAFE_SIZE = Property.named("safe.size.bytes.max", Long.MAX_VALUE);
+    public static final Property<Integer> MAX_SAFE_PERCENT = Property.named("safe.size.percent.max", 90);
     public static final Property<Boolean> ENABLE_SAFE_SIZE_CHECK = Property.named("safe.size.check.enable", true);
     public static final Property<Integer> SAFE_SIZE_CHECK_FREQUENCY = Property.named("safe.size.check.frequency.seconds", 60);
 
@@ -109,6 +110,7 @@ public class ChunkedSegmentStorageConfig {
             .selfCheckForDataEnabled(false)
             .selfCheckForMetadataEnabled(false)
             .maxSafeStorageSize(Long.MAX_VALUE)
+            .maxSafeStoragePercent(90)
             .safeStorageSizeCheckEnabled(true)
             .safeStorageSizeCheckFrequencyInSeconds(60)
             .relocateOnTruncateEnabled(true)
@@ -315,6 +317,13 @@ public class ChunkedSegmentStorageConfig {
     final private long maxSafeStorageSize;
 
     /**
+     * Maximum storage usage percentage below which operations are considered safe.
+     * Above this value any non-critical writes are not allowed.
+     */
+    @Getter
+    final private int maxSafeStoragePercent;
+
+    /**
      * When enabled, SLTS will periodically check storage usage stats.
      */
     @Getter
@@ -361,6 +370,7 @@ public class ChunkedSegmentStorageConfig {
         this.maxEntriesInTxnBuffer = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_BUFFER);
         this.maxEntriesInCache = properties.getPositiveInt(MAX_METADATA_ENTRIES_IN_CACHE);
         this.maxSafeStorageSize = properties.getPositiveLong(MAX_SAFE_SIZE);
+        this.maxSafeStoragePercent = properties.getPositiveInt(MAX_SAFE_PERCENT);
         this.safeStorageSizeCheckEnabled = properties.getBoolean(ENABLE_SAFE_SIZE_CHECK);
         this.safeStorageSizeCheckFrequencyInSeconds = properties.getPositiveInt(SAFE_SIZE_CHECK_FREQUENCY);
         this.relocateOnTruncateEnabled = properties.getBoolean(RELOCATE_ON_TRUNCATE_ENABLED);

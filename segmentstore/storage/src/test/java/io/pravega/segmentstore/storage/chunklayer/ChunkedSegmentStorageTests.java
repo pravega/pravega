@@ -3170,10 +3170,43 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testFullStorage() throws Exception {
+    public void testFullStorageWithSize() throws Exception {
+        long maxSize = 900;
+        int maxPercent = 100;
+        val statsBefore = StorageCapacityStats.builder()
+                .usedSpace(900)
+                .totalSpace(1000)
+                .build();
+        val statsAfter = StorageCapacityStats.builder()
+                .usedSpace(50)
+                .totalSpace(1000)
+                .build();
+
+        testFullStorage(maxSize, maxPercent, statsBefore, statsAfter);
+    }
+
+    @Test
+    public void testFullStorageWithPercent() throws Exception {
+        long maxSize = Long.MAX_VALUE;
+        int maxPercent = 90;
+        val statsBefore = StorageCapacityStats.builder()
+                .usedSpace(100)
+                .totalSpace(100)
+                .build();
+
+        val statsAfter = StorageCapacityStats.builder()
+                .usedSpace(50)
+                .totalSpace(100)
+                .build();
+
+        testFullStorage(maxSize, maxPercent, statsBefore, statsAfter);
+    }
+
+    private void testFullStorage(long maxSize, int maxPercent, StorageCapacityStats statsBefore, StorageCapacityStats statsAfter) throws Exception {
         @Cleanup
         TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .maxSafeStorageSize(1000)
+                .maxSafeStorageSize(maxSize)
+                .maxSafeStoragePercent(maxPercent)
                 .build());
 
         Assert.assertFalse(testContext.chunkedSegmentStorage.isSafeMode());
@@ -3184,7 +3217,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         testContext.chunkedSegmentStorage.create("_system/something", TIMEOUT).get();
 
         // Simulate storage full.
-        ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setUsedSizeToReturn(1000);
+        ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setStorageCapacityStatsToReturn(statsBefore);
         testContext.chunkedSegmentStorage.updateStorageStats().join();
 
         Assert.assertTrue(testContext.chunkedSegmentStorage.isSafeMode());
@@ -3209,7 +3242,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof StorageFullException);
 
         // Remove storage full
-        ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setUsedSizeToReturn(50);
+        ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setStorageCapacityStatsToReturn(statsAfter);
         testContext.chunkedSegmentStorage.updateStorageStats().join();
         Assert.assertFalse(testContext.chunkedSegmentStorage.isSafeMode());
 
