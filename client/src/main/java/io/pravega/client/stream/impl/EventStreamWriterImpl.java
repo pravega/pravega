@@ -360,7 +360,7 @@ public final class EventStreamWriterImpl<Type> implements EventStreamWriter<Type
         }
         ExecutorServiceHelpers.shutdown(retransmitPool);
         controller.removeWriter(writerId, stream)
-                .thenAccept(r -> log.trace("Writer {} has been shut down", writerId));
+                .thenAccept(r -> log.info("Writer {} has been marked idle", writerId));
     }
 
     @Override
@@ -385,8 +385,8 @@ public final class EventStreamWriterImpl<Type> implements EventStreamWriter<Type
     }
 
     @Override
-    public void removeWriter() {
+    public void markIdle() {
         controller.removeWriter(writerId, stream).
-                thenAccept(r -> log.trace("Writer: {} has been shut down", writerId));
+                thenAccept(r -> log.info("Writer: {} has been marked idle", writerId));
     }
 }

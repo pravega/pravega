@@ -259,7 +259,7 @@ public abstract class TableMetadataTasksTest {
         }
 
         @Override
-        public void removeWriter() {
+        public void markIdle() {
 
         }
     }

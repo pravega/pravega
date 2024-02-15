@@ -3265,7 +3265,7 @@ public abstract class StreamMetadataTasksTest {
         }
 
         @Override
-        public void removeWriter() {
+        public void markIdle() {
 
         }
     }

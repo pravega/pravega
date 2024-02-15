@@ -819,7 +819,7 @@ public class StreamTransactionMetadataTasksTest {
         }
 
         @Override
-        public void removeWriter() {
+        public void markIdle() {
 
         }
     }

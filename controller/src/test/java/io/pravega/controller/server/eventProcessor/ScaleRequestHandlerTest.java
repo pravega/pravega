@@ -1053,7 +1053,7 @@ public abstract class ScaleRequestHandlerTest {
         }
 
         @Override
-        public void removeWriter() {
+        public void markIdle() {
 
         }
     }

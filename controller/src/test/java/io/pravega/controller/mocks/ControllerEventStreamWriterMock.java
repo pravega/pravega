@@ -73,7 +73,7 @@ public class ControllerEventStreamWriterMock implements EventStreamWriter<Contro
     }
 
     @Override
-    public void removeWriter() {
+    public void markIdle() {
 
     }
 }

@@ -72,7 +72,7 @@ public class ControllerEventTableWriterMock implements EventStreamWriter<Control
     }
 
     @Override
-    public void removeWriter() {
+    public void markIdle() {
 
     }
 }

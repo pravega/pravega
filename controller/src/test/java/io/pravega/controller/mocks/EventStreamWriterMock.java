@@ -79,7 +79,7 @@ public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
     }
 
     @Override
-    public void removeWriter() {
+    public void markIdle() {
 
     }
 }

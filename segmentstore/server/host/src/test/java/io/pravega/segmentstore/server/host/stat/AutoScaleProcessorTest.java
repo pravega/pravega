@@ -358,7 +358,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
             }
 
             @Override
-            public void removeWriter() {
+            public void markIdle() {
 
             }
         };
