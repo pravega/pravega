@@ -356,6 +356,7 @@ jobs:
           -x segmentstore:server:test
           --parallel ${{env.GRADLE_OPTS}}
       - name: Tar Reports
+        if: always()
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
         if: always()

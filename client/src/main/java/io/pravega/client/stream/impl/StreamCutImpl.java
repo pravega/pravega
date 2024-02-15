@@ -18,8 +18,11 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -28,11 +31,13 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ToStringUtils;
 import io.pravega.shared.NameUtils;
+
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,6 +46,7 @@ import java.util.stream.IntStream;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import static io.pravega.common.util.ToStringUtils.compressToBase64;
@@ -232,4 +238,72 @@ public final class StreamCutImpl extends StreamCutInternal {
         }
     }
 
+    @Override
+    public int compareTo(@NonNull StreamCut o) {
+        // Unbounded is greater than everything
+        if (o == StreamCut.UNBOUNDED) {
+            return -1;
+        }
+
+        Preconditions.checkArgument(stream.getScope().compareTo(o.asImpl().getStream().getScope()) == 0,
+                "StreamCuts must be in the same Scope.");
+        Preconditions.checkArgument(stream.getStreamName().compareTo(o.asImpl().getStream().getStreamName()) == 0,
+                "StreamCuts must be for the same Stream.");
+
+        final Map<Segment, Long> otherPositions = o.asImpl().getPositions();
+
+        List<Segment> matchingSegments = positions.keySet()
+                .stream()
+                .filter(otherPositions::containsKey)
+                .collect(Collectors.toList());
+
+        boolean hasPositive = false, hasNegative = false;
+        for (Segment s : matchingSegments) {
+            if (positions.get(s) < otherPositions.get(s)) {
+                hasNegative = true;
+            }
+            if (positions.get(s) > otherPositions.get(s)) {
+                hasPositive = true;
+            }
+        }
+
+        Set<Segment> ourSegments = new HashSet<>(positions.keySet());
+        Set<Segment> theirSegments = new HashSet<>(otherPositions.keySet());
+
+        ourSegments.removeAll(otherPositions.keySet());
+        theirSegments.removeAll(positions.keySet());
+
+        // if one side is non-empty, the other side must be non-empty
+        if ((ourSegments.isEmpty() && !theirSegments.isEmpty()) || (!ourSegments.isEmpty() && theirSegments.isEmpty())) {
+            // invalid comparison, even if StreamCuts are named the same, if they are unmatched for cross-join
+            // then they can be considered to be different streams, and we can't compare StreamCuts from
+            // different streams. If one side is empty when the other is not, it trivially violates Pravega's
+            // successor-predecessor rules (scaling events)
+            throw new RuntimeException("StreamCuts containing unmatched segment IDs cannot be compared - Considered to " +
+                    "be different streams");
+        }
+
+        Set<List<Segment>> products = Sets.cartesianProduct(ourSegments, theirSegments);
+
+        for (List<Segment> product : products) {
+            if (product.get(0).getSegmentId() < product.get(1).getSegmentId()) {
+                hasNegative = true;
+            }
+            if (product.get(0).getSegmentId() > product.get(1).getSegmentId()) {
+                hasPositive = true;
+            }
+        }
+
+        if (hasPositive && hasNegative) {
+            throw new RuntimeException("Overlapping StreamCuts");
+        }
+        if (hasPositive && !hasNegative) {
+            return +1;
+        }
+        if (hasNegative && !hasPositive) {
+            return -1;
+        }
+
+        return 0;
+    }
 }
