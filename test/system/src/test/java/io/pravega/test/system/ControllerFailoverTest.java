@@ -30,14 +30,6 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import java.net.URI;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -49,6 +41,15 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+
+import java.net.URI;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
 
 /**
  * Controller fail over system test.
@@ -128,7 +129,6 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         createStream(controller1, scope, stream, ScalingPolicy.fixed(initialSegments));
         log.info("Stream {}/{} created successfully", scope, stream);
 
-        long txnCreationTimestamp = System.nanoTime();
         StreamImpl stream1 = new StreamImpl(scope, stream);
 
         // Initiate scale operation. It will block until ongoing transaction is complete.
@@ -172,6 +172,89 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         newRangesToCreate.put(0.5, 1.0);
 
         controller2.scaleStream(stream1, segmentsToSeal, newRangesToCreate, executorService).getFuture().join();
+
+        log.info("Checking whether scale operation succeeded by fetching current segments");
+        StreamSegments streamSegments = controller2.getCurrentSegments(scope, stream).join();
+        log.info("Current segment count= {}", streamSegments.getSegments().size());
+        Assert.assertEquals(2, streamSegments.getSegments().size());
+    }
+
+    @Test
+    public void sweepOverTest() throws InterruptedException {
+        String scope = "testSweepOverScope" + RandomStringUtils.randomAlphabetic(5);
+        String stream = "testSweepOverStream" + RandomStringUtils.randomAlphabetic(5);
+        int loopLimit = 50;
+        int initialSegments = 1;
+        List<Long> segmentsToSeal = Collections.singletonList(0L);
+        Map<Double, Double> newRangesToCreate = new HashMap<>();
+        newRangesToCreate.put(0.0, 1.0);
+
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
+        // Connect with controller instance
+        final ControllerImpl controller = new ControllerImpl(
+                ControllerImplConfig.builder()
+                        .clientConfig(clientConfig)
+                        .build(), executorService);
+
+        // Create scope, stream, and a transaction with high timeout value.
+        controller.createScope(scope).join();
+        log.info("Scope {} created successfully", scope);
+
+        createStream(controller, scope, stream, ScalingPolicy.fixed(initialSegments));
+        log.info("Stream {}/{} created successfully", scope, stream);
+
+        StreamImpl stream1 = new StreamImpl(scope, stream);
+
+        for (int i = 0; i < loopLimit; i++) {
+            controller.startScaleInternal(stream1, segmentsToSeal, newRangesToCreate, "scaleStream", 0L).join();
+        }
+        controller.startScaleInternal(stream1, segmentsToSeal, newRangesToCreate, "scaleStream", 0L).join();
+
+        controller.checkScaleStatus(stream1, 11).thenCompose(status -> {
+            if (!status) {
+                // Now stop the controller instance executing scale operation.
+                try {
+                    Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
+                    log.info("Successfully stopped one instance of controller service");
+                } catch (ExecutionException e) {
+                    log.info("Error while scaling down controller instance to 0 " + e.getMessage());
+                }
+
+                // restart controller service
+                try {
+                    Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
+                    log.info("Successfully started one instance of controller service");
+                } catch (ExecutionException e) {
+                    log.info("Error while scaling up controller instance to 1 " + e.getMessage());
+                }
+            } else {
+                log.info("Scale operation finished before controller restart");
+            }
+            return null;
+        });
+
+        List<URI> controllerUris = controllerService.getServiceDetails();
+        // Fetch all the RPC endpoints and construct the client URIs.
+        final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority)
+                .collect(Collectors.toList());
+
+        controllerURIDirect = URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURIDirect);
+
+        ClientConfig clientConf = Utils.buildClientConfig(controllerURIDirect);
+        // Connect to another controller instance.
+        @Cleanup
+        final Controller controller2 = new ControllerImpl(
+                ControllerImplConfig.builder()
+                        .clientConfig(clientConf)
+                        .build(), executorService);
+
+        // Note: if scale does not complete within desired time, test will timeout.
+        boolean scaleStatus = controller2.checkScaleStatus(stream1, 11).join();
+        while (!scaleStatus) {
+            scaleStatus = controller2.checkScaleStatus(stream1, 11).join();
+            Thread.sleep(30000);
+        }
 
         log.info("Checking whether scale operation succeeded by fetching current segments");
         StreamSegments streamSegments = controller2.getCurrentSegments(scope, stream).join();
