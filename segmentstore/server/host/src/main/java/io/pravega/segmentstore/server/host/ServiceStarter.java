@@ -280,7 +280,7 @@ public final class ServiceStarter {
                                                                    .getVMOption("MaxDirectMemorySize").getValue());
         maxDirectMemorySize = (maxDirectMemorySize == 0) ? xmx : maxDirectMemorySize;
         long cacheSize = config.getConfig(ServiceConfig::builder).getCachePolicy().getMaxSize();
-        log.info("MaxDirectMemorySize is {}, TotalMem is {}, Cache size is {} and Netty DM is {}", maxDirectMemorySize, totalMem, cacheSize, nettyDirectMem);
+        log.info("Total memory is {}, MaxDirectMemorySize is {}, Cache size is {} and Netty DM is {}", totalMem, maxDirectMemorySize, cacheSize, nettyDirectMem);
         //run checks
         validateConfig(cacheSize, xmx, maxDirectMemorySize, totalMem);
     }
