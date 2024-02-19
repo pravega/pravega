@@ -31,6 +31,7 @@ public class HDFSStorageConfig {
 
     public static final Property<String> URL = Property.named("connect.uri", "localhost:9000", "hdfsUrl");
     public static final Property<String> ROOT = Property.named("root", "", "hdfsRoot");
+    public static final Property<String> IMPLEMENTATION = Property.named("impl","","hdfsImpl");
     public static final Property<Integer> REPLICATION = Property.named("replication.factor", 3, "replication");
     public static final Property<Integer> BLOCK_SIZE = Property.named("block.size", 1024 * 1024, "blockSize");
     public static final Property<Boolean> REPLACE_DATANODES_ON_FAILURE = Property.named("replaceDataNodesOnFailure.enable", true, "replaceDataNodesOnFailure");
@@ -39,6 +40,12 @@ public class HDFSStorageConfig {
     //endregion
 
     //region Members
+
+    /**
+     * The HDFS implementation to be utilized.
+     */
+    @Getter
+    private final String hdfsImpl;
 
     /**
      * HDFS host URL. This is generally in host:port format
@@ -83,6 +90,7 @@ public class HDFSStorageConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private HDFSStorageConfig(TypedProperties properties) throws ConfigurationException {
+        this.hdfsImpl = properties.get(IMPLEMENTATION);
         this.hdfsHostURL = properties.get(URL);
         this.hdfsRoot = properties.get(ROOT);
         this.replication = (short) properties.getInt(REPLICATION);
