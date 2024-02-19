@@ -300,7 +300,6 @@ public class HDFSChunkStorage extends BaseChunkStorage {
         conf.set("fs.default.name", this.config.getHdfsHostURL());
         conf.set("fs.default.fs", this.config.getHdfsHostURL());
         conf.set("fs.hdfs.impl", this.config.getHdfsImpl());
-//        conf.set("fs.hdfs.impl", org.apache.hadoop.hdfs.DistributedFileSystem.class.getName());
 
         // We do not want FileSystem to cache clients/instances based on target URI.
         // This allows us to close instances without affecting other clients/instances. This should not affect performance.
@@ -312,6 +311,7 @@ public class HDFSChunkStorage extends BaseChunkStorage {
 
         this.fileSystem = openFileSystem(conf);
         log.info("Initialized (HDFSHost = '{}'", this.config.getHdfsHostURL());
+        log.info("Initialized (HDFS Implementation = '{}'", this.config.getHdfsImpl());
     }
 
     protected FileSystem openFileSystem(Configuration conf) throws IOException {
