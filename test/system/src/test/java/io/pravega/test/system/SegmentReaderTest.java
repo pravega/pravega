@@ -121,10 +121,10 @@ public class SegmentReaderTest extends AbstractReadWriteTest {
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         @Cleanup
-        SegmentReaderManager<Integer> segmentReaderManager = SegmentReaderManager.create(clientConfig, new JavaSerializer<>());
+        SegmentReaderManager<String> segmentReaderManager = SegmentReaderManager.create(clientConfig, new JavaSerializer<>());
         log.info("Invoking segmentReader test with Controller URI: {}", controllerURI);
 
-        List<SegmentReader<Integer>> segmentReaderList = segmentReaderManager.getSegmentReaders(stream, null).join();
+        List<SegmentReader<String>> segmentReaderList = segmentReaderManager.getSegmentReaders(stream, null).join();
 
         log.info("Writing events to stream {}.", stream);
         // Write events to the Stream.
@@ -143,13 +143,13 @@ public class SegmentReaderTest extends AbstractReadWriteTest {
 
     // Start utils region
 
-    private int readFromSegmentReaders(List<SegmentReader<Integer>> segmentReaders) {
+    private int readFromSegmentReaders(List<SegmentReader<String>> segmentReaders) {
         return segmentReaders.parallelStream()
                 .map(reader -> CompletableFuture.supplyAsync(() -> readEvents(reader))).collect(Collectors.toList())
                 .stream().map(CompletableFuture::join).mapToInt(Integer::intValue).sum();
     }
 
-    private int readEvents(SegmentReader<Integer> segmentReader) {
+    private int readEvents(SegmentReader<String> segmentReader) {
         int eventRead = 0;
 
         while (true) {
