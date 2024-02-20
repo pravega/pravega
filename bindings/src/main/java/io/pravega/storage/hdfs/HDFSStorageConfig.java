@@ -31,7 +31,7 @@ public class HDFSStorageConfig {
 
     public static final Property<String> URL = Property.named("connect.uri", "localhost:9000", "hdfsUrl");
     public static final Property<String> ROOT = Property.named("root", "", "hdfsRoot");
-    public static final Property<String> IMPLEMENTATION = Property.named("fs.impl",org.apache.hadoop.hdfs.DistributedFileSystem.class.getName(),"hdfsImpl");
+    public static final Property<String> IMPLEMENTATION = Property.named("fs.impl", org.apache.hadoop.hdfs.DistributedFileSystem.class.getName(), "hdfsImpl");
     public static final Property<Integer> REPLICATION = Property.named("replication.factor", 3, "replication");
     public static final Property<Integer> BLOCK_SIZE = Property.named("block.size", 1024 * 1024, "blockSize");
     public static final Property<Boolean> REPLACE_DATANODES_ON_FAILURE = Property.named("replaceDataNodesOnFailure.enable", true, "replaceDataNodesOnFailure");
