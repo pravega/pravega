@@ -172,6 +172,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
      */
     @Override
     public void close() throws Exception {
+        System.out.println("Inside closing of Pravega emulator Prajna");
         inProcPravegaCluster.close();
     }
 
@@ -181,6 +182,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
      */
     public void start() throws Exception {
         log.info("\n{}", inProcPravegaCluster.print());
+        System.out.println("Inside the start function of Pravega Emulator Prajna");
         inProcPravegaCluster.start();
     }
 

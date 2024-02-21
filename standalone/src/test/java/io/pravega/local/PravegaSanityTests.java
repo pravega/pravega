@@ -54,11 +54,15 @@ public class PravegaSanityTests {
      */
     public static void testWriteAndReadAnEvent(String scope, String stream, String message, ClientConfig clientConfig) {
         int numSegments = 1;
+        System.out.println("Inside testreadand write test Prajna");
         @Cleanup
+
         StreamManager streamManager = StreamManager.create(clientConfig);
         assertNotNull(streamManager);
+        System.out.println("Stream manager created and The scope creation test check Prajna");
         boolean isScopeCreated = streamManager.createScope(scope);
         assertTrue("Failed to create scope", isScopeCreated);
+
         boolean isStreamCreated = streamManager.createStream(scope, stream, StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(numSegments))
                 .build());
@@ -66,7 +70,7 @@ public class PravegaSanityTests {
         log.info("write an event");
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
-
+        System.out.println(" Prajna Creating writer");
         // Write an event to the stream.
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(stream,
@@ -74,6 +78,7 @@ public class PravegaSanityTests {
                 EventWriterConfig.builder().build());
         writer.writeEvent(message);
         writer.flush();
+        log.debug(" Prajna Done writing message '{}' to stream '{} / {}'", message, scope, stream);
         log.debug("Done writing message '{}' to stream '{} / {}'", message, scope, stream);
 
         // Now, read the event from the stream.
@@ -86,13 +91,14 @@ public class PravegaSanityTests {
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
         readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig);
-
+        log.debug("Reader group created Prajna");
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(
                 "readerId", readerGroup,
                 new JavaSerializer<String>(), ReaderConfig.builder().initialAllocationDelay(0).build());
         // Keeping the read timeout large so that there is ample time for reading the event even in
         // case of abnormal delays in test environments.
+        log.debug("Reader created Prajna");
         String readMessage = reader.readNextEvent(10000).getEvent();
         log.info("Done reading event [{}]", readMessage);
 

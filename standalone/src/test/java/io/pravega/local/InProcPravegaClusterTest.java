@@ -43,9 +43,13 @@ public class InProcPravegaClusterTest {
      */
     @Test(timeout = 50000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
+        System.out.println("Inside test");
         PravegaEmulatorResource emulator = PravegaEmulatorResource.builder().build();
+        System.out.println("Before emulator start");
         emulator.before();
+        System.out.println("Emulator started");
         try {
+            System.out.println("Inside try Prajna");
             testWriteAndReadAnEvent("TestScope", "TestStream", msg, emulator.getClientConfig());
         } finally {
             emulator.after();

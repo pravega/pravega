@@ -119,7 +119,9 @@ public class PravegaEmulatorResource extends ExternalResource {
 
     @Override
     protected void before() throws Exception {
+
         pravega.start();
+        System.out.println("Pravega has started");
         waitUntilHealthy();
     }
 
@@ -153,6 +155,7 @@ public class PravegaEmulatorResource extends ExternalResource {
      * Wait until Pravega standalone is up and running.
      */
     private void waitUntilHealthy() {
+        System.out.println("Inside wait until healthy");
         ClientConfig clientConfig = getClientConfig();
         ControllerImplConfig controllerConfig = ControllerImplConfig.builder()
                 .clientConfig(clientConfig)
@@ -167,6 +170,7 @@ public class PravegaEmulatorResource extends ExternalResource {
         // Try creating a scope. This will retry based on the provided retry configuration.
         // If all the retries fail a RetriesExhaustedException will be thrown failing the tests.
         try {
+            System.out.println("Inside try of scope creation in healthy status Prajna");
             boolean isScopeCreated = streamManager.createScope("healthCheck-scope");
             log.debug("Health check scope creation is successful {}", isScopeCreated);
         } catch (Exception e) {

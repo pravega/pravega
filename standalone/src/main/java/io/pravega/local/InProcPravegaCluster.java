@@ -65,7 +65,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.api.ExistsBuilder;
+import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.zookeeper.data.Stat;
 
 @Slf4j
 @Builder
@@ -241,7 +244,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private void cleanUpZK() {
         String[] pathsTobeCleaned = {"/pravega", "/hostIndex", "/store", "/taskIndex"};
-
+        System.out.println("Inside zookeeper cleanup Prajna");
         RetryPolicy rp = new ExponentialBackoffRetry(1000, 3);
         CuratorFrameworkFactory.Builder builder = CuratorFrameworkFactory.builder()
                 .connectString(zkUrl)
@@ -249,6 +252,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .sessionTimeoutMs(5000)
                 .retryPolicy(rp);
         if (secureZK) {
+            System.out.println("Inside secure Zk test Prajna");
             ZKTLSUtils.setSecureZKClientProperties(jksTrustFile, "1111_aaaa");
         }
 
@@ -257,8 +261,17 @@ public class InProcPravegaCluster implements AutoCloseable {
         zclient.start();
         for (String path : pathsTobeCleaned) {
             try {
+                ExistsBuilder State = zclient.checkExists();
+                System.out.println("Checking if the zclient exists Prajna"+State.toString());
+                Stat Pathzk = State.forPath(path);
+                System.out.println("Pathzk Prajna :"+Pathzk);
+                System.out.println("The length of the pathzk Prajna :"+Pathzk.getDataLength());
+                CuratorFrameworkState state2 = zclient.getState();
+                state2.name();
+                System.out.println("Getting state of Curator framework Prajna:"+state2.name());
                 zclient.delete().guaranteed().deletingChildrenIfNeeded()
                         .forPath(path);
+                System.out.println("Deleted zkclient Prajna");
             } catch (Exception e) {
                 log.warn("Not able to delete path {} . Exception {}", path, e.getMessage());
             }
