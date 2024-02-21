@@ -358,8 +358,8 @@ public final class EventStreamWriterImpl<Type> implements EventStreamWriter<Type
                 }
             }
         }
-        ExecutorServiceHelpers.shutdown(retransmitPool);
         markIdle();
+        ExecutorServiceHelpers.shutdown(retransmitPool);
     }
 
     @Override
