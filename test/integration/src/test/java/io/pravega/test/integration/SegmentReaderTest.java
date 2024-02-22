@@ -250,6 +250,11 @@ public class SegmentReaderTest {
                     segmentReadEventCount = segmentReadEventCount + 2;
                 }
             }
+            try {
+                reader.close();
+            } catch (Exception e) {
+                log.error("Unable to close segment reader due to ", e);
+            }
         });
         log.info("Reading of events is successful.");
         assertEquals(expectedEventCount, totalReadEventCount.get());
