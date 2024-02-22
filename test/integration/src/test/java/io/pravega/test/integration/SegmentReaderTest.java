@@ -272,4 +272,9 @@ public class SegmentReaderTest extends LeakDetectorTestSuite {
         }
     }
 
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
+
 }
