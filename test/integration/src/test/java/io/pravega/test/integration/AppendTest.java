@@ -18,7 +18,6 @@ package io.pravega.test.integration;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 
-import static io.netty.util.ReferenceCountUtil.release;
 import static io.netty.util.ReferenceCountUtil.releaseLater;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
