@@ -134,7 +134,7 @@ public class SegmentReaderTest extends ThreadPooledTestSuite {
 
     //endregion
 
-   // @Test(timeout = 50000)
+    // @Test(timeout = 50000)
     public void testSegmentReadOnSealedStream() throws ExecutionException, InterruptedException {
         String scope = "testSegmentReaderScope";
         String stream = "testSegmentReaderStream";
@@ -156,7 +156,7 @@ public class SegmentReaderTest extends ThreadPooledTestSuite {
         closeSegmentReader(segmentReaderList);
     }
 
-   // @Test(timeout = 50000)
+    // @Test(timeout = 50000)
     public void testSegmentReadOnWithMultipleSegments() throws ExecutionException, InterruptedException {
         String scope = "testMultiSegmentReaderScope";
         String stream = "testMultiSegmentReaderStream";
@@ -178,7 +178,7 @@ public class SegmentReaderTest extends ThreadPooledTestSuite {
         closeSegmentReader(segmentReaderList);
     }
 
-   // @Test(timeout = 50000)
+    // @Test(timeout = 50000)
     public void testSegmentReadWithTruncatedStream() throws ExecutionException, InterruptedException {
         String scope = "testSegmentReaderWithTruncatedScope";
         String stream = "testSegmentReaderWithTruncatedStream";
