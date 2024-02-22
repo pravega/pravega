@@ -18,7 +18,6 @@ package io.pravega.test.integration;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 
-import static io.netty.util.ReferenceCountUtil.releaseLater;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.client.ClientConfig;
@@ -150,7 +149,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     @Test(timeout = 10000)
     public void sendReceivingAppend() throws Exception {
         String segment = "sendReceivingAppend";
-        ByteBuf data = releaseLater(Unpooled.wrappedBuffer("Hello world\n".getBytes()));
+        ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
 
         @Cleanup
@@ -175,7 +174,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     @Test(timeout = 10000)
     public void sendLargeAppend() throws Exception {
         String segment = "sendLargeAppend";
-        ByteBuf data = releaseLater(Unpooled.wrappedBuffer(new byte[Serializer.MAX_EVENT_SIZE]));
+        ByteBuf data = Unpooled.wrappedBuffer(new byte[Serializer.MAX_EVENT_SIZE]);
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
 
         @Cleanup
@@ -200,7 +199,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     @Test(timeout = 10000)
     public void testMultipleAppends() throws Exception {
         String segment = "testMultipleAppends";
-        ByteBuf data = releaseLater(Unpooled.wrappedBuffer("Hello world\n".getBytes()));
+        ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
         EmbeddedChannel channel = createChannel(store);
@@ -416,7 +415,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     public void testMultipleIndexAppends() throws Exception {
         String segment = "testMultipleIndexAppends/testStream/0";
         String indexSegment = getIndexSegmentName(segment);
-        ByteBuf data = releaseLater(Unpooled.wrappedBuffer("Hello world\n".getBytes()));
+        ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
 
         @Cleanup
@@ -442,7 +441,6 @@ public class AppendTest extends LeakDetectorTestSuite {
         // Read the Actual data from main Segment. Will be helpful in asserting the indexdata
         WireCommands.SegmentRead result = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(segment, 0, 20, "", 1L));
         ByteBuf resultAfterOneAppend = result.getData();
-        releaseLater(resultAfterOneAppend);
         // As only one append is done on Main segment we should have Event_count on index segment as 1
         assertEventCountAttributeforSegment(indexSegment, store, 1);
 
@@ -456,14 +454,12 @@ public class AppendTest extends LeakDetectorTestSuite {
         // Read the Actual data from main Segment. Will be helpfull in asserting the indexdata
         WireCommands.SegmentRead resultMain = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(segment, 0, 100, "", 1L));
         ByteBuf resultAfterTwoAppend = resultMain.getData();
-        releaseLater(resultAfterTwoAppend);
         assertEquals(2 * resultAfterOneAppend.readableBytes(), resultAfterTwoAppend.readableBytes());
 
         // Read IndexSegment from 0 Offset.
         int readOffset = 0;
         WireCommands.SegmentRead resultIndexSegment1 = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(indexSegment, readOffset, 40, "", 1L));
         ByteBuf actual1 = Unpooled.buffer(100);
-        releaseLater(actual1);
         actual1.writeBytes(resultIndexSegment1.getData());
         IndexEntry indexEntry1 = IndexEntry.fromBytes(BufferView.wrap(actual1.array()));
         assertEquals(1, indexEntry1.getEventCount());
@@ -473,7 +469,6 @@ public class AppendTest extends LeakDetectorTestSuite {
         readOffset += indexEntry1.toBytes().getLength();
         WireCommands.SegmentRead resultIndexSegment2 = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(indexSegment, readOffset, 32, "", 1L));
         ByteBuf actual2 = Unpooled.buffer(32);
-        releaseLater(actual2);
         actual2.writeBytes(resultIndexSegment2.getData());
         IndexEntry indexEntry2 = IndexEntry.fromBytes(BufferView.wrap(actual2.array()));
 
