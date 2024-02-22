@@ -361,6 +361,9 @@ jobs:
           -x shared:metrics:test
           -x cli:admin:test
           -x cli:user:test
+          -x segmentstore:contracts:test
+          -x shared:basic-authplugin:test
+          -x shared:rest:test
           --parallel ${{env.GRADLE_OPTS}}
       - name: Tar Reports
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
