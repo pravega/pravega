@@ -130,7 +130,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     @AfterClass
     public static void teardown() {
         SERVICE_BUILDER.close();
-        EXECUTOR.shutdown();
+        EXECUTOR.shutdownNow();
     }
 
     @Test(timeout = 10000)
@@ -260,7 +260,7 @@ public class AppendTest extends LeakDetectorTestSuite {
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
-        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(EXECUTOR, store);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
         lsh.setRequestProcessor(AppendProcessor.defaultBuilder(indexAppendProcessor)
                                                .store(store)
                                                .connection(new TrackedConnection(lsh))
