@@ -34,7 +34,6 @@ import io.pravega.test.common.InlineExecutor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
@@ -46,7 +45,6 @@ import org.mockito.stubbing.Answer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -291,39 +289,6 @@ public class SegmentMetadataClientTest {
         order.verify(cf).getProcessor(eq(endpoint));
         order.verifyNoMoreInteractions();
         assertEquals(123, length);
-    }
-    
-    @Test(timeout = 10000)
-    public void testShutdownDuringReconnect() throws Exception {
-        Segment segment = new Segment("scope", "testRetry", 4);
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
-        @Cleanup
-        MockConnectionFactoryImpl cf = Mockito.spy(new MockConnectionFactoryImpl());
-        @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
-        @Cleanup
-        ClientConnection connection = mock(ClientConnection.class);
-        cf.provideConnection(endpoint, connection);
-        @Cleanup
-        SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
-        client.getConnection();
-        final List<Long> requestIds = new ArrayList<>();
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                WireCommands.GetStreamSegmentInfo request = invocation.getArgument(0);
-                requestIds.add(request.getRequestId());
-                ReplyProcessor processor = cf.getProcessor(endpoint);
-                if (requestIds.size() == 1) {
-                    processor.connectionDropped();
-                } else {
-                    cf.close();
-                    processor.connectionDropped();
-                }
-                return null;
-            }
-        }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
-        assertThrows(CompletionException.class, () -> client.fetchCurrentSegmentLength().join());
     }
     
     @Test(timeout = 10000)

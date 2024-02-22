@@ -160,7 +160,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
     }
 
     private static boolean isUnused(Connection connection) {
-        return connection.getFlowCount() == 0;
+        return Futures.isSuccessful(connection.getFlowHandler()) && connection.getFlowCount() == 0;
     }
 
     /**
@@ -207,6 +207,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
         log.info("Shutting down connection pool");
         if (closed.compareAndSet(false, true)) {
             metricNotifier.close();
+            connectionFactory.close();
             synchronized (lock) {
                 for (List<Connection> connections : connectionMap.values()) {
                     for (Connection connection : connections) {
@@ -215,7 +216,6 @@ public class ConnectionPoolImpl implements ConnectionPool {
                 }
                 connectionMap.clear();
             }
-            connectionFactory.close();
         }
     }
 

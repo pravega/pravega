@@ -51,8 +51,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -453,9 +451,9 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
-    public void close() throws TimeoutException {
+    public void close() {
         completedTxnGC.stopAsync();
-        completedTxnGC.awaitTerminated(5, TimeUnit.SECONDS);
+        completedTxnGC.awaitTerminated();
     }
 
     // region Reader Group

@@ -99,8 +99,8 @@ public class ReaderGroupManagerImplTest {
 
     @After
     public void shutDown() {
-        controller.close();
         synchronizer.close();
+        controller.close();
         clientFactory.close();
     }
 

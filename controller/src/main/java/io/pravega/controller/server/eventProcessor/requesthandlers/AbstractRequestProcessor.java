@@ -17,7 +17,6 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.util.Retry;
@@ -29,20 +28,22 @@ import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.CreateReaderGroupEvent;
-import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
 import io.pravega.shared.controller.event.DeleteScopeEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
+import io.pravega.shared.controller.event.StreamRequestProcessor;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
-import io.pravega.shared.controller.event.StreamRequestProcessor;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
-import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.CreateReaderGroupEvent;
+import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
+import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
-import lombok.extern.slf4j.Slf4j;
+import java.util.function.Supplier;
 
 import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.withRetries;
 
@@ -207,7 +208,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
         }, returnOnException);
     }
 
-    private CompletableFuture<Void> retryIndefinitelyThenComplete(FutureSupplier<Void> futureSupplier, 
+    private CompletableFuture<Void> retryIndefinitelyThenComplete(Supplier<CompletableFuture<Void>> futureSupplier, 
                                                                   CompletableFuture<Void> toComplete,
                                                                   Throwable e) {
         String failureMessage = String.format("Error writing event back into stream from processor %s", getProcessorName());

@@ -217,7 +217,7 @@ public class UtilsWrapper {
     public CompletableFuture<List<ExtendedChunkInfo>> getExtendedChunkInfoList(String streamSegmentName, boolean checkStorage) {
         Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
         val infoList = new Vector<ExtendedChunkInfo>();
-        return chunkedSegmentStorage.executeSerialized(() -> ChunkedSegmentStorage.tryWith(
+        return chunkedSegmentStorage.executeSerialized(() -> chunkedSegmentStorage.tryWith(
                 chunkedSegmentStorage.getMetadataStore().beginTransaction(true, streamSegmentName),
                 txn ->  txn.get(streamSegmentName)
                             .thenComposeAsync(storageMetadata -> {

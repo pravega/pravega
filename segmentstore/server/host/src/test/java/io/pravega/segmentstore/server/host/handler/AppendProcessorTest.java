@@ -833,7 +833,7 @@ public class AppendProcessorTest {
         verify(mockedRecorder, never()).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 5000)
     public void testAppendFailChannelClose() throws Exception {
         String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();

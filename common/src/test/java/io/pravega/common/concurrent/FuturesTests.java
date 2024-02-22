@@ -19,7 +19,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
-import io.pravega.test.common.ThreadPooledTestSuite;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,8 +37,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -699,7 +702,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
 
     @Test
     public void testTimeout() {
-        FutureSupplier<Integer> supplier = CompletableFuture::new;
+        Supplier<CompletableFuture<Integer>> supplier = CompletableFuture::new;
         CompletableFuture<Integer> f1 = Futures.futureWithTimeout(supplier, Duration.ofMillis(10), "", executorService());
         AssertExtensions.assertFutureThrows("Future should have timedout. ", f1, e -> Exceptions.unwrap(e) instanceof TimeoutException);
     }

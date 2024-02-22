@@ -217,9 +217,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 connectionSetupCompleted = result;
                 connection = newConnection;
                 exception = null;
-                if (closed) {
-                    connection.close();
-                }
             }
             return result;
         }

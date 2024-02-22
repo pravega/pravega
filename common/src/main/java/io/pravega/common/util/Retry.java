@@ -17,7 +17,6 @@ package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import java.time.Duration;
 import java.time.Instant;
@@ -28,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import lombok.Getter;
 import lombok.With;
 import lombok.extern.slf4j.Slf4j;
@@ -250,7 +250,7 @@ public final class Retry {
                     executorService);
         }
         
-        public <ReturnT> CompletableFuture<ReturnT> runAsync(final FutureSupplier<ReturnT> r,
+        public <ReturnT> CompletableFuture<ReturnT> runAsync(final Supplier<CompletableFuture<ReturnT>> r,
                                                              final ScheduledExecutorService executorService) {
             Preconditions.checkNotNull(r);
             CompletableFuture<ReturnT> result = new CompletableFuture<>();
@@ -279,10 +279,7 @@ public final class Retry {
 
                                 return null;
                             }),
-                executorService).exceptionally(ex -> {
-                    result.completeExceptionally(ex);
-                    return null;
-                });
+                    executorService);
             return result;
         }
 

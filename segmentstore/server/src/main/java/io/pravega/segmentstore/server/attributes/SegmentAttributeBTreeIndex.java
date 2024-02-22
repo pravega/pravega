@@ -20,7 +20,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
@@ -64,6 +63,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AllArgsConstructor;
@@ -71,8 +71,8 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Attribute Index for a single Segment, backed by a B+Tree Index implementation.
@@ -410,7 +410,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
      * @param <T>     Return type.
      * @return A CompletableFuture that will be completed with the result (or failure cause) of the given task toRun.
      */
-    private <T> CompletableFuture<T> createAttributeSegmentIfNecessary(FutureSupplier<T> toRun, Duration timeout) {
+    private <T> CompletableFuture<T> createAttributeSegmentIfNecessary(Supplier<CompletableFuture<T>> toRun, Duration timeout) {
         if (this.handle.get() == null) {
             String attributeSegmentName = NameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
             return Futures
@@ -423,11 +423,11 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
                             })
                     .thenComposeAsync(handle -> {
                         this.handle.set(handle);
-                        return toRun.getFuture();
+                        return toRun.get();
                     }, this.executor);
         } else {
             // Attribute Segment already exists.
-            return toRun.getFuture();
+            return toRun.get();
         }
     }
 

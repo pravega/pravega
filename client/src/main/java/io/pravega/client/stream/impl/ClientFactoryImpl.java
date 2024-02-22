@@ -275,9 +275,9 @@ public final class ClientFactoryImpl extends AbstractClientFactoryImpl implement
     @Override
     public void close() {
         // wait for default timeout duration before forcibly terminating the watermarkReader threads.
-        controller.close();
-        connectionPool.close();
         ExecutorServiceHelpers.shutdown(watermarkReaderThreads);
+        connectionPool.close();
+        controller.close();
     }
 
     private int getThreadPoolSize() {

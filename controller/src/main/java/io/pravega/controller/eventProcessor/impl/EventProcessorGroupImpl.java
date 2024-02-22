@@ -390,8 +390,8 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
     
     @Override
     public void close() {
-        this.writer.close();
         this.stopAsync();
+        this.writer.close();
     }
 
     @Override

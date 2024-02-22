@@ -30,7 +30,6 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
-import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -1763,7 +1762,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     @VisibleForTesting
-    <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, FutureSupplier<T> futureSupplier) {
+    <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, Supplier<CompletableFuture<T>> futureSupplier) {
         return eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(event, futureSupplier));
     }
 

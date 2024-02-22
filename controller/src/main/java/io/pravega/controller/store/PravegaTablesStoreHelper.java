@@ -24,7 +24,6 @@ import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
@@ -747,11 +746,11 @@ public class PravegaTablesStoreHelper {
                 toReturn);
     }
 
-    private <T> FutureSupplier<T> exceptionalCallback(FutureSupplier<T> future,
+    private <T> Supplier<CompletableFuture<T>> exceptionalCallback(Supplier<CompletableFuture<T>> future,
                                                                    Supplier<String> errorMessageSupplier,
                                                                    boolean throwOriginalOnCFE,
                                                                    long requestId) {
-        return () -> CompletableFuture.completedFuture(null).thenComposeAsync(v -> future.getFuture(), executor).exceptionally(t -> {
+        return () -> CompletableFuture.completedFuture(null).thenComposeAsync(v -> future.get(), executor).exceptionally(t -> {
             String errorMessage = errorMessageSupplier.get();
             Throwable cause = Exceptions.unwrap(t);
             Throwable toThrow;
@@ -808,12 +807,12 @@ public class PravegaTablesStoreHelper {
      * talk to segment store. Both these are translated to ConnectionErrors and are retried. All other exceptions
      * are thrown back
      */
-    private <T> CompletableFuture<T> withRetries(FutureSupplier<T> futureSupplier, Supplier<String> errorMessage,
+    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, Supplier<String> errorMessage,
                                                  long requestId) {
         return withRetries(futureSupplier, errorMessage, false, requestId);
     }
 
-    private <T> CompletableFuture<T> withRetries(FutureSupplier<T> futureSupplier, Supplier<String> errorMessage,
+    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, Supplier<String> errorMessage,
                                          boolean throwOriginalOnCfe, long requestId) {
         return RetryHelper.withRetriesAsync(exceptionalCallback(futureSupplier, errorMessage, throwOriginalOnCfe, requestId),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException, numOfRetries, executor)

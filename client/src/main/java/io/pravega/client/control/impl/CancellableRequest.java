@@ -15,14 +15,15 @@
  */
 package io.pravega.client.control.impl;
 
-import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
+
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class CancellableRequest<T> {
     private final AtomicBoolean done;
@@ -49,14 +50,14 @@ public class CancellableRequest<T> {
         });
     }
 
-    public void start(FutureSupplier<T> supplier, Predicate<T> termination, ScheduledExecutorService executor) {
+    public void start(Supplier<CompletableFuture<T>> supplier, Predicate<T> termination, ScheduledExecutorService executor) {
         futureRef.updateAndGet(previous -> {
             if (previous != null) {
                 throw new IllegalStateException("Request already started");
             }
 
             return Futures.loop(() -> !done.get() && !cancelled.get(),
-                    () -> Futures.delayedFuture(() -> supplier.getFuture().thenAccept(r -> {
+                    () -> Futures.delayedFuture(() -> supplier.get().thenAccept(r -> {
                         result.set(r);
                         done.set(termination.test(r));
                     }), 1000, executor), executor)

@@ -262,15 +262,11 @@ public class LocalServiceStarter {
         }
 
         public void shutDownSegmentStoreRunner() {
-            if (this.segmentStoreRunner != null) {                
-                this.segmentStoreRunner.close();
-            }
+            this.segmentStoreRunner.close();
         }
 
         public void shutDownBookKeeperRunner() throws Exception {
-            if (this.bookKeeperRunner != null) {     
-                this.bookKeeperRunner.close();
-            }
+            this.bookKeeperRunner.close();
         }
 
         @Override

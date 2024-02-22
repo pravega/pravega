@@ -19,13 +19,17 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.TagRecord;
+import lombok.val;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.LoggerFactory;
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -39,12 +43,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import lombok.val;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-import org.slf4j.LoggerFactory;
 
 import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_UUID_FUNCTION;
 import static io.pravega.controller.store.PravegaTablesStoreHelper.UUID_TO_BYTES_FUNCTION;
@@ -500,11 +501,10 @@ public class PravegaTablesScope implements Scope {
                 .thenCompose(kvtablesInScopeTable -> readAll(limit, continuationToken, kvtablesInScopeTable, context));
     }
 
-    private <T> CompletableFuture<T> withCreateTableIfAbsent(FutureSupplier<T> futureSupplier, String tableName,
+    private <T> CompletableFuture<T> withCreateTableIfAbsent(Supplier<CompletableFuture<T>> futureSupplier, String tableName,
                                                              OperationContext context) {
-        return Futures.exceptionallyComposeExpecting(
-            futureSupplier.getFuture(), DATA_NOT_FOUND_PREDICATE,
-            () -> storeHelper.createTable(tableName, context.getRequestId()).thenCompose(v -> futureSupplier.getFuture()));
+        return Futures.exceptionallyComposeExpecting(futureSupplier.get(),
+                                                     DATA_NOT_FOUND_PREDICATE, () -> storeHelper.createTable(tableName, context.getRequestId()).thenCompose(v -> futureSupplier.get()));
     }
 
     private CompletableFuture<Pair<List<String>, String>> readAll(int limit, String continuationToken, String tableName,

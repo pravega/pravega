@@ -15,13 +15,14 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.concurrent.FutureSupplier;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import org.junit.Before;
-import org.junit.Test;
+import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -205,7 +206,7 @@ public class ResourcePoolTest {
     // resource instantiation test
     
     private static class MyResourcePool extends ResourcePool<MyResource> {
-        MyResourcePool(FutureSupplier<MyResource> tSupplier, Consumer<MyResource> tDestroyer, Listener myListener) {
+        MyResourcePool(Supplier<CompletableFuture<MyResource>> tSupplier, Consumer<MyResource> tDestroyer, Listener myListener) {
             super(tSupplier, tDestroyer, 2, 1, myListener);
         }
     }

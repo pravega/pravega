@@ -81,12 +81,12 @@ public class KeyValueTableManagerImpl implements KeyValueTableManager {
     @Override
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
-            if (this.controller != null) {
-                this.controller.close();
-            }
-            
             if (this.connectionFactory != null) {
                 this.connectionFactory.close();
+            }
+
+            if (this.controller != null) {
+                this.controller.close();
             }
         }
     }

@@ -425,7 +425,7 @@ public class LargeEventWriterTest {
         assertTrue(failed.getAndSet(false));
         assertTrue(succeeded.getAndSet(false));
     }
-
+    
     @Test(timeout = 15000)
     public void testEventStreamWriter() throws ConnectionFailedException, SegmentSealedException {
         String scope = "scope";

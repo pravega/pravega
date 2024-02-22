@@ -73,8 +73,8 @@ public class ByteStreamWriterTest {
 
     @After
     public void teardown() {
-        controller.close();
         clientFactory.close();
+        controller.close();
         connectionFactory.close();
     }
 
