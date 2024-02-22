@@ -18,6 +18,7 @@ package io.pravega.test.integration;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.SegmentReaderManager;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
@@ -234,11 +235,8 @@ public class SegmentReaderTest extends LeakDetectorTestSuite {
     }
 
     private void writeEventsIntoStream(int numberOfEvents, String scope, String stream) {
-        Controller controller = controllerWrapper.getController();
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, serializer,
                 EventWriterConfig.builder().build());
