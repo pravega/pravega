@@ -271,12 +271,6 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     }
 
     @Override
-    @Synchronized
-    public boolean isEndOfSegment() {
-        return buffer.dataAvailable() == 0 && receivedEndOfSegment;
-    }
-
-    @Override
     public Segment getSegmentId() {
         return asyncInput.getSegmentId();
     }

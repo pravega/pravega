@@ -25,8 +25,6 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.SegmentReader;
-import io.pravega.client.stream.SegmentReaderSnapshot;
-import io.pravega.client.stream.SegmentReaderSnapshotInternal;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
@@ -35,14 +33,13 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 
 /**
- * Test case for SegmentReader.
+ * Test case for
  */
 public class SegmentReaderTest {
 
@@ -81,53 +78,18 @@ public class SegmentReaderTest {
         sendData("3", outputStream);
         SegmentReader<String> segmentReader = new SegmentReaderImpl<>(factory, segment, stringSerializer, 0,
                 ClientConfig.builder().build(), controller, factory);
-
-        checkSnapshot(segment, 0, false, segmentReader.getSnapshot());
-
         String event = segmentReader.read(timeout);
         assertEquals("1", event);
-
-        checkSnapshot(segment, 16, false, segmentReader.getSnapshot());
-
         event = segmentReader.read(timeout);
         assertEquals("2", event);
-
-        checkSnapshot(segment, 32, false, segmentReader.getSnapshot());
-
         event = segmentReader.read(timeout);
         assertEquals("3", event);
 
         assertThrows("Read event", EndOfSegmentException.class, () -> segmentReader.read(timeout));
 
-        checkSnapshot(segment, 48, true, segmentReader.getSnapshot());
-
     }
 
     private void sendData(String data, SegmentOutputStream outputStream) {
         outputStream.write(PendingEvent.withHeader("routingKey", stringSerializer.serialize(data), new CompletableFuture<>()));
-    }
-
-    private void checkSnapshot(Segment expectedSegment, long expectedPosition, boolean expectedIsEndOfSegment,
-                               SegmentReaderSnapshot segmentReaderSnapshot) {
-        SegmentReaderSnapshotInternal snapshotInternal = (SegmentReaderSnapshotInternal) segmentReaderSnapshot;
-        assertEquals(expectedSegment, snapshotInternal.getSegment());
-        assertEquals(expectedIsEndOfSegment, snapshotInternal.isEndOfSegment());
-        assertEquals(expectedPosition, snapshotInternal.getPosition());
-    }
-
-    @Test(timeout = 2000)
-    public void testSerializer() {
-        SegmentReaderSnapshotImpl snapshot = new SegmentReaderSnapshotImpl(new Segment("scope",
-                "stream", 0L), 0L, false);
-        ByteBuffer byteBuffer = snapshot.toBytes();
-
-        SegmentReaderSnapshot readerSnapshot = SegmentReaderSnapshot.fromBytes(byteBuffer);
-        SegmentReaderSnapshotInternal segmentReaderSnapshotInternal = (SegmentReaderSnapshotInternal) readerSnapshot;
-
-        assertEquals(snapshot.getSegment(), segmentReaderSnapshotInternal.getSegment());
-        assertEquals(snapshot.getSegmentId(), segmentReaderSnapshotInternal.getSegmentId());
-        assertEquals(snapshot.getPosition(), segmentReaderSnapshotInternal.getPosition());
-        assertEquals(snapshot.isEndOfSegment(), segmentReaderSnapshotInternal.isEndOfSegment());
-        assertEquals(byteBuffer, readerSnapshot.toBytes());
     }
 }

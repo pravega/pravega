@@ -28,7 +28,6 @@ import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.SegmentReader;
-import io.pravega.client.stream.SegmentReaderSnapshot;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.common.concurrent.Futures;
@@ -76,11 +75,6 @@ public class SegmentReaderImpl<T> implements SegmentReader<T> {
     @Override
     public CompletableFuture<Void> isAvailable() {
         return Futures.toVoid(input.fillBuffer());
-    }
-
-    @Override
-    public SegmentReaderSnapshot getSnapshot() {
-        return new SegmentReaderSnapshotImpl(segment, input.getOffset(), input.isEndOfSegment());
     }
 
     private void handleSegmentTruncated()  {

@@ -264,11 +264,6 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public boolean isEndOfSegment() {
-        return readOffset >= writeOffset;
-    }
-
-    @Override
     public CompletableFuture<Void> sealSegment() {
         //Nothing to do
         return CompletableFuture.completedFuture(null);

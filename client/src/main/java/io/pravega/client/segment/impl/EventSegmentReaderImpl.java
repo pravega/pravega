@@ -153,11 +153,6 @@ class EventSegmentReaderImpl implements EventSegmentReader {
     }
 
     @Override
-    public boolean isEndOfSegment() {
-        return in.isEndOfSegment();
-    }
-
-    @Override
     public Segment getSegmentId() {
         return in.getSegmentId();
     }
