@@ -157,6 +157,7 @@ public class SegmentReaderTest extends LeakDetectorTestSuite {
         assertTrue("isSealed", isSealed);
 
         readEventFromSegmentReaders(segmentReaderList, noOfEvents);
+        closeSegmentReader(segmentReaderList);
     }
 
     @Test(timeout = 50000)
@@ -178,6 +179,7 @@ public class SegmentReaderTest extends LeakDetectorTestSuite {
         assertTrue("isSealed", isSealed);
 
         readEventFromSegmentReaders(segmentReaderList, noOfEvents);
+        closeSegmentReader(segmentReaderList);
     }
 
     @Test(timeout = 50000)
@@ -208,6 +210,18 @@ public class SegmentReaderTest extends LeakDetectorTestSuite {
 
         //As two events got truncated, expected event count will be totalEvent - 2.
         readEventFromSegmentReaders(segmentReaderList, noOfEvents - 2);
+
+        closeSegmentReader(segmentReaderList);
+    }
+
+    private void closeSegmentReader(List<SegmentReader<String>> segmentReaderList) {
+        segmentReaderList.forEach(reader -> {
+            try {
+                reader.close();
+            } catch (Exception e) {
+                log.error("Unable to close segment reader due to ", e);
+            }
+        });
     }
 
     private void createStream(String scope, String stream, int numOfSegments) {
@@ -250,11 +264,6 @@ public class SegmentReaderTest extends LeakDetectorTestSuite {
                     log.warn("Truncated data found.", e);
                     segmentReadEventCount = segmentReadEventCount + 2;
                 }
-            }
-            try {
-                reader.close();
-            } catch (Exception e) {
-                log.error("Unable to close segment reader due to ", e);
             }
         });
         log.info("Reading of events is successful.");
