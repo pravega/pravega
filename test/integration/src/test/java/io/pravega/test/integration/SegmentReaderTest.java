@@ -44,6 +44,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -65,7 +66,7 @@ import static org.junit.Assert.assertTrue;
  * Integration test for Segment Reader.
  */
 @Slf4j
-public class SegmentReaderTest {
+public class SegmentReaderTest extends ThreadPooledTestSuite {
     private static final String DATA_OF_SIZE_30 = "data of size 30"; // data length = 22 bytes , header = 8 bytes
 
     protected final int controllerPort = TestUtils.getAvailableListenPort();
@@ -266,6 +267,11 @@ public class SegmentReaderTest {
         if (isFinished) {
             assertTrue(snapshotInternal.isEndOfSegment());
         }
+    }
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
     }
 
 }
