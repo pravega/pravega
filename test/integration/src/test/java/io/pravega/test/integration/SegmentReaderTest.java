@@ -42,6 +42,7 @@ import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -66,7 +67,7 @@ import static org.junit.Assert.assertTrue;
  * Integration test for Segment Reader.
  */
 @Slf4j
-public class SegmentReaderTest extends ThreadPooledTestSuite {
+public class SegmentReaderTest extends LeakDetectorTestSuite {
     private static final String DATA_OF_SIZE_30 = "data of size 30"; // data length = 22 bytes , header = 8 bytes
 
     protected final int controllerPort = TestUtils.getAvailableListenPort();
@@ -267,11 +268,6 @@ public class SegmentReaderTest extends ThreadPooledTestSuite {
         if (isFinished) {
             assertTrue(snapshotInternal.isEndOfSegment());
         }
-    }
-
-    @Override
-    protected int getThreadPoolSize() {
-        return 1;
     }
 
 }
