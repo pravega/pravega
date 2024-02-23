@@ -121,7 +121,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     private final Duration timeout = Duration.ofMinutes(1);
     private EmbeddedChannel channel;
     private IndexAppendProcessor indexAppendProcessor;
-    private Consumer<Segment> segmentSealedCallback = segment -> { };
+    private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     @Before
     public void setup() throws Exception {
@@ -432,7 +432,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         ByteBuf resultAfterOneAppend = result.getData();
 
         // As only one append is done on Main segment we should have Event_count on index segment as 1
-        assertEventCountAttributeforSegment(indexSegment, store, 1);
+        assertEventCountAttributeForSegment(indexSegment, store, 1);
 
         //Append 2 on main segment
         DataAppended ack2 = (DataAppended) sendRequest(channel,
@@ -468,12 +468,12 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertEquals(resultAfterTwoAppend.readableBytes(), indexEntry2.getOffset());
 
         // Two appends are done on Main segment we should have Event_count on index segment as 2
-        assertEventCountAttributeforSegment(indexSegment, store, 2);
+        assertEventCountAttributeForSegment(indexSegment, store, 2);
     }
 
-    private void assertEventCountAttributeforSegment(String segment, StreamSegmentStore store, long expectedEventCount) throws Exception {
+    private void assertEventCountAttributeForSegment(String segment, StreamSegmentStore store, long expectedEventCount) throws Exception {
         // Assert Index Segment attribute values.
-        AssertExtensions.assertEventuallyEquals(Long.valueOf(expectedEventCount), () -> {
+        AssertExtensions.assertEventuallyEquals(expectedEventCount, () -> {
             val si = store.getStreamSegmentInfo(segment, timeout).join();
             val segmentType = SegmentType.fromAttributes(si.getAttributes());
             assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem() || segmentType.isTableSegment());
