@@ -30,8 +30,7 @@ import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 @Slf4j
 @RunWith(SerializedClassRunner.class)
 public class InProcPravegaClusterTest {
-    @ClassRule
-    public static final PravegaEmulatorResource EMULATOR = PravegaEmulatorResource.builder().build();
+
     final String msg = "Test message on the plaintext channel";
 
     /**
@@ -45,6 +44,12 @@ public class InProcPravegaClusterTest {
      */
     @Test(timeout = 100000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
-        testWriteAndReadAnEvent("TestScope", "TestStream", msg, EMULATOR.getClientConfig());
-    }   
+        PravegaEmulatorResource emulator = PravegaEmulatorResource.builder().build();
+        emulator.before();
+        try {
+            testWriteAndReadAnEvent("TestScope", "TestStream", msg, emulator.getClientConfig());
+        } finally {
+            emulator.after();
+        }
+    }
 }
