@@ -163,7 +163,9 @@ public class ReadTest extends LeakDetectorTestSuite {
         // fill segment store with 10 entries; the total data size is 100 bytes.
         fillStoreForSegment(segmentName, data, entries, segmentStore);
         @Cleanup
-        EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), segmentStore);
+        @Cleanup
+        EmbeddedChannel channel = AppendTest.createChannel(segmentStore, indexAppendProcessor);
 
         ByteBuf actual = Unpooled.buffer(entries * data.length);
         while (actual.writerIndex() < actual.capacity()) {

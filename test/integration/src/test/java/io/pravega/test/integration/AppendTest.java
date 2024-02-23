@@ -135,7 +135,9 @@ public class AppendTest extends LeakDetectorTestSuite {
         String segment = "testSetupOnNonExistentSegment";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
-        EmbeddedChannel channel = createChannel(store);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store, indexAppendProcessor);
 
         UUID uuid = UUID.randomUUID();
         NoSuchSegment setup = (NoSuchSegment) sendRequest(channel, new SetupAppend(1, uuid, segment, ""));
@@ -148,9 +150,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         String segment = "sendReceivingAppend";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
-
         @Cleanup
-        EmbeddedChannel channel = createChannel(store);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store, indexAppendProcessor);
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
@@ -173,9 +176,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         String segment = "sendLargeAppend";
         ByteBuf data = Unpooled.wrappedBuffer(new byte[Serializer.MAX_EVENT_SIZE]);
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
-
         @Cleanup
-        EmbeddedChannel channel = createChannel(store);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store, indexAppendProcessor);
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
@@ -199,7 +203,9 @@ public class AppendTest extends LeakDetectorTestSuite {
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
-        EmbeddedChannel channel = createChannel(store);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store, indexAppendProcessor);
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
@@ -249,7 +255,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         return (Reply) decoded;
     }
 
-    static EmbeddedChannel createChannel(StreamSegmentStore store) {
+    static EmbeddedChannel createChannel(StreamSegmentStore store, IndexAppendProcessor indexAppendProcessor) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
                 new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
@@ -257,8 +263,7 @@ public class AppendTest extends LeakDetectorTestSuite {
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
-        @Cleanup
-        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+
         lsh.setRequestProcessor(AppendProcessor.defaultBuilder(indexAppendProcessor)
                                                .store(store)
                                                .connection(new TrackedConnection(lsh))
@@ -423,9 +428,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         String indexSegment = getIndexSegmentName(segment);
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
-
         @Cleanup
-        EmbeddedChannel channel = createChannel(store);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store, indexAppendProcessor);
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
