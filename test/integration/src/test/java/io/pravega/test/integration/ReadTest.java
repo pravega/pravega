@@ -18,6 +18,7 @@ package io.pravega.test.integration;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
@@ -61,11 +62,20 @@ import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.handler.AppendProcessor;
 import io.pravega.segmentstore.server.host.handler.IndexAppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor;
+import io.pravega.segmentstore.server.host.handler.ServerConnectionInboundHandler;
+import io.pravega.segmentstore.server.host.handler.TrackedConnection;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.metrics.MetricNotifier;
+import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
+import io.pravega.shared.protocol.netty.CommandDecoder;
+import io.pravega.shared.protocol.netty.CommandEncoder;
+import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
@@ -95,10 +105,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class ReadTest extends LeakDetectorTestSuite {
@@ -165,7 +177,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         @Cleanup
         IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), segmentStore);
         @Cleanup
-        EmbeddedChannel channel = AppendTest.createChannel(segmentStore, indexAppendProcessor);
+        EmbeddedChannel channel = createChannel(segmentStore, indexAppendProcessor);
 
         ByteBuf actual = Unpooled.buffer(entries * data.length);
         while (actual.writerIndex() < actual.capacity()) {
@@ -198,6 +210,24 @@ public class ReadTest extends LeakDetectorTestSuite {
         // Release the ByteBuf and ensure it is deallocated.
         assertTrue(actual.release());
         assertTrue(expected.release());
+    }
+
+    private EmbeddedChannel createChannel(StreamSegmentStore store, IndexAppendProcessor indexAppendProcessor) {
+        ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
+        EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
+                new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
+                new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
+                new CommandDecoder(),
+                new AppendDecoder(),
+                lsh);
+
+        lsh.setRequestProcessor(AppendProcessor.defaultBuilder(indexAppendProcessor)
+                .store(store)
+                .connection(new TrackedConnection(lsh))
+                .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh,
+                        indexAppendProcessor))
+                .build());
+        return channel;
     }
 
     @Test(timeout = 10000)
