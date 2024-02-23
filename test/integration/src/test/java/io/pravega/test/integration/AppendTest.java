@@ -278,8 +278,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor(), new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
+                SERVICE_BUILDER.getLowPriorityExecutor(), indexAppendProcessor);
         server.startListening();
 
         @Cleanup
@@ -312,8 +314,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor(), new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
+                SERVICE_BUILDER.getLowPriorityExecutor(), indexAppendProcessor);
         server.startListening();
 
         @Cleanup
@@ -344,8 +348,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor(), new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
+                SERVICE_BUILDER.getLowPriorityExecutor(), indexAppendProcessor);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
@@ -374,8 +380,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         @Cleanup("shutdown")
         InlineExecutor tokenExpiryExecutor = new InlineExecutor();
         @Cleanup
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, tokenExpiryExecutor,
-                new IndexAppendProcessor(tokenExpiryExecutor, store));
+                indexAppendProcessor);
         server.startListening();
         ClientConfig config = ClientConfig.builder().build();
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(config);
@@ -500,8 +508,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, SERVICE_BUILDER.getLowPriorityExecutor(),
-                new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
+                indexAppendProcessor);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
