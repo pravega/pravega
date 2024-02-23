@@ -17,7 +17,6 @@ package io.pravega.local;
 
 import io.pravega.test.common.SerializedClassRunner;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
