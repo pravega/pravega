@@ -235,7 +235,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(getIndexSegmentName(segment), Duration.ofMinutes(1)).join());
     }
 
-    static Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
+    private Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
         channel.writeInbound(request);
         log.info("Request {} sent to Segment store", request);
         Object encodedReply = channel.readOutbound();

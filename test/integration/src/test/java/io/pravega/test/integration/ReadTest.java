@@ -76,6 +76,9 @@ import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import io.pravega.shared.protocol.netty.Reply;
+import io.pravega.shared.protocol.netty.Request;
+import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
@@ -108,6 +111,7 @@ import org.junit.rules.Timeout;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -181,7 +185,7 @@ public class ReadTest extends LeakDetectorTestSuite {
 
         ByteBuf actual = Unpooled.buffer(entries * data.length);
         while (actual.writerIndex() < actual.capacity()) {
-            SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.writerIndex(), 10000, "", 1L));
+            SegmentRead result = (SegmentRead) sendRequest(channel, new ReadSegment(segmentName, actual.writerIndex(), 10000, "", 1L));
             assertEquals(segmentName, result.getSegment());
             assertEquals(result.getOffset(), actual.writerIndex());
             assertFalse(result.isEndOfSegment());
@@ -210,6 +214,25 @@ public class ReadTest extends LeakDetectorTestSuite {
         // Release the ByteBuf and ensure it is deallocated.
         assertTrue(actual.release());
         assertTrue(expected.release());
+    }
+
+    private Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
+        channel.writeInbound(request);
+        log.info("Request {} sent to Segment store", request);
+        Object encodedReply = channel.readOutbound();
+        for (int i = 0; encodedReply == null && i < 500; i++) {
+            channel.runPendingTasks();
+            Thread.sleep(10);
+            encodedReply = channel.readOutbound();
+        }
+        if (encodedReply == null) {
+            log.error("Error while try waiting for a response from Segment Store");
+            throw new IllegalStateException("No reply to request: " + request);
+        }
+        WireCommand decoded = CommandDecoder.parseCommand((ByteBuf) encodedReply);
+        ((ByteBuf) encodedReply).release();
+        assertNotNull(decoded);
+        return (Reply) decoded;
     }
 
     private EmbeddedChannel createChannel(StreamSegmentStore store, IndexAppendProcessor indexAppendProcessor) {
