@@ -108,16 +108,6 @@ public class SegmentReaderTest extends LeakDetectorTestSuite {
         createSegmentReaderAndReadEvents(scope, stream, numOfSegments, noOfEvents-2, streamCut);
     }
 
-    private void closeSegmentReader(final List<SegmentReader<String>> segmentReaderList) {
-        segmentReaderList.forEach(reader -> {
-            try {
-                reader.close();
-            } catch (Exception e) {
-                log.error("Unable to close segment reader due to ", e);
-            }
-        });
-    }
-
     private void createStream(final String scope, final String stream, final int numOfSegments) {
         log.info("Creating stream {}/{} with number of segments {}.", scope, stream, numOfSegments);
         StreamConfiguration config = StreamConfiguration.builder()
@@ -209,7 +199,14 @@ public class SegmentReaderTest extends LeakDetectorTestSuite {
         });
         log.info("Reading of events is successful.");
         assertEquals(expectedNumOfEvents, totalReadEventCount.get());
-        closeSegmentReader(segmentReaderList);
+
+        segmentReaderList.forEach(reader -> {
+            try {
+                reader.close();
+            } catch (Exception e) {
+                log.error("Unable to close segment reader due to ", e);
+            }
+        });
     }
 
 }
