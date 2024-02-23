@@ -488,6 +488,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         }
 
         if (this.zkService != null) {
+            cleanUpZK();
             this.zkService.close();
             this.zkService = null;
         }
