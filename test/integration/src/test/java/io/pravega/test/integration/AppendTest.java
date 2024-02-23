@@ -118,7 +118,6 @@ public class AppendTest extends LeakDetectorTestSuite {
                                                                               .include(WriterConfig.builder().with(WriterConfig.MAX_ROLLOVER_SIZE, 10485760L))
                                                                               .build());
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final InlineExecutor EXECUTOR = new InlineExecutor();
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     @BeforeClass
@@ -129,7 +128,6 @@ public class AppendTest extends LeakDetectorTestSuite {
     @AfterClass
     public static void teardown() {
         SERVICE_BUILDER.close();
-        EXECUTOR.shutdown();
     }
 
     @Test(timeout = 10000)
@@ -259,7 +257,8 @@ public class AppendTest extends LeakDetectorTestSuite {
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
-        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(EXECUTOR, store);
+        @Cleanup
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
         lsh.setRequestProcessor(AppendProcessor.defaultBuilder(indexAppendProcessor)
                                                .store(store)
                                                .connection(new TrackedConnection(lsh))
