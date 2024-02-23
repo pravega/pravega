@@ -119,7 +119,6 @@ public class AppendTest extends LeakDetectorTestSuite {
                                                                               .include(WriterConfig.builder().with(WriterConfig.MAX_ROLLOVER_SIZE, 10485760L))
                                                                               .build());
     private final Duration timeout = Duration.ofMinutes(1);
-    private EmbeddedChannel channel;
     private IndexAppendProcessor indexAppendProcessor;
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
@@ -128,26 +127,12 @@ public class AppendTest extends LeakDetectorTestSuite {
     @Before
     public void setup() throws Exception {
         serviceBuilder.initialize();
-        ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
-        channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
-                new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
-                new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
-                new CommandDecoder(),
-                new AppendDecoder(),
-                lsh);
         store = serviceBuilder.createStreamSegmentService();
         indexAppendProcessor = new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store);
-        lsh.setRequestProcessor(AppendProcessor.defaultBuilder(indexAppendProcessor)
-                .store(store)
-                .connection(new TrackedConnection(lsh))
-                .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh,
-                        indexAppendProcessor))
-                .build());
     }
 
     @After
     public void teardown() {
-        channel.close();
         indexAppendProcessor.close();
         serviceBuilder.close();
     }
@@ -156,6 +141,8 @@ public class AppendTest extends LeakDetectorTestSuite {
     public void testSetupOnNonExistentSegment() throws Exception {
         String segment = "testSetupOnNonExistentSegment";
         UUID uuid = UUID.randomUUID();
+        @Cleanup
+        EmbeddedChannel channel = createChannel();
         NoSuchSegment setup = (NoSuchSegment) sendRequest(channel, new SetupAppend(1, uuid, segment, ""));
         assertEquals(segment, setup.getSegment());
     }
@@ -164,6 +151,9 @@ public class AppendTest extends LeakDetectorTestSuite {
     public void sendReceivingAppend() throws Exception {
         String segment = "sendReceivingAppend";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
+
+        @Cleanup
+        EmbeddedChannel channel = createChannel();
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
@@ -186,6 +176,9 @@ public class AppendTest extends LeakDetectorTestSuite {
         String segment = "sendLargeAppend";
         ByteBuf data = Unpooled.wrappedBuffer(new byte[Serializer.MAX_EVENT_SIZE]);
 
+        @Cleanup
+        EmbeddedChannel channel = createChannel();
+
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
 
@@ -206,6 +199,9 @@ public class AppendTest extends LeakDetectorTestSuite {
     public void testMultipleAppends() throws Exception {
         String segment = "testMultipleAppends";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
+
+        @Cleanup
+        EmbeddedChannel channel = createChannel();
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
@@ -253,6 +249,23 @@ public class AppendTest extends LeakDetectorTestSuite {
         ((ByteBuf) encodedReply).release();
         assertNotNull(decoded);
         return (Reply) decoded;
+    }
+
+    private EmbeddedChannel createChannel() {
+        ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
+        EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
+                new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
+                new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
+                new CommandDecoder(),
+                new AppendDecoder(),
+                lsh);
+        lsh.setRequestProcessor(AppendProcessor.defaultBuilder(indexAppendProcessor)
+                                               .store(store)
+                                               .connection(new TrackedConnection(lsh))
+                                               .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh,
+                                                       indexAppendProcessor))
+                                               .build());
+        return channel;
     }
 
     @Test(timeout = 10000)
@@ -401,6 +414,9 @@ public class AppendTest extends LeakDetectorTestSuite {
         String segment = "testMultipleIndexAppends/testStream/0";
         String indexSegment = getIndexSegmentName(segment);
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
+
+        @Cleanup
+        EmbeddedChannel channel = createChannel();
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
