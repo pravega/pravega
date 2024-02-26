@@ -32,7 +32,7 @@ public class HDFSStorageConfigTest {
         builder.with(HDFSStorageConfig.URL, "localhost:8000")
             .with(HDFSStorageConfig.ROOT, "hdfsOtherRoot")
             .with(HDFSStorageConfig.IMPLEMENTATION, "org.apache.hadoop.hdfs.AlternativeDistributedFileSystem")
-            .with(HDFSStorageConfig.REPLICATION,4)
+            .with(HDFSStorageConfig.REPLICATION, 4)
             .with(HDFSStorageConfig.BLOCK_SIZE, 128 * 128)
             .with(HDFSStorageConfig.REPLACE_DATANODES_ON_FAILURE, false);
         HDFSStorageConfig config = builder.build();
