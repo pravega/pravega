@@ -154,8 +154,10 @@ public class SegmentReaderTest extends AbstractReadWriteTest {
 
         while (true) {
             try {
-                segmentReader.read(1000);
-                eventRead++;
+                String event = segmentReader.read(1000);
+                if (event != null) {
+                    eventRead++;
+                }
             } catch (EndOfSegmentException e) {
                 log.info("Segment reader {} processed all the events.", segmentReader);
                 break;
