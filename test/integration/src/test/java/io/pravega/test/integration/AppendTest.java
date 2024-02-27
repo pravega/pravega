@@ -114,25 +114,29 @@ import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class AppendTest extends LeakDetectorTestSuite {
+    private static final Duration TIMEOUT = Duration.ofMinutes(1);
+
     private final ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.builder()
-                                                                              .include(ServiceConfig.builder().with(ServiceConfig.CONTAINER_COUNT, 1))
-                                                                              .include(WriterConfig.builder().with(WriterConfig.MAX_ROLLOVER_SIZE, 10485760L))
-                                                                              .build());
-    private final Duration timeout = Duration.ofMinutes(1);
-    private IndexAppendProcessor indexAppendProcessor;
+            .include(ServiceConfig.builder().with(ServiceConfig.CONTAINER_COUNT, 1))
+            .include(WriterConfig.builder().with(WriterConfig.MAX_ROLLOVER_SIZE, 10485760L))
+            .build());
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
+    private IndexAppendProcessor indexAppendProcessor;
     private StreamSegmentStore store;
+    private EmbeddedChannel channel;
 
     @Before
     public void setup() throws Exception {
         serviceBuilder.initialize();
         store = serviceBuilder.createStreamSegmentService();
         indexAppendProcessor = new IndexAppendProcessor(serviceBuilder.getLowPriorityExecutor(), store);
+        channel = createChannel(store, indexAppendProcessor);
     }
 
     @After
     public void teardown() {
+        channel.close();
         indexAppendProcessor.close();
         serviceBuilder.close();
     }
@@ -140,10 +144,10 @@ public class AppendTest extends LeakDetectorTestSuite {
     @Test(timeout = 10000)
     public void testSetupOnNonExistentSegment() throws Exception {
         String segment = "testSetupOnNonExistentSegment";
+
         UUID uuid = UUID.randomUUID();
-        @Cleanup
-        EmbeddedChannel channel = createChannel();
         NoSuchSegment setup = (NoSuchSegment) sendRequest(channel, new SetupAppend(1, uuid, segment, ""));
+
         assertEquals(segment, setup.getSegment());
     }
 
@@ -151,9 +155,6 @@ public class AppendTest extends LeakDetectorTestSuite {
     public void sendReceivingAppend() throws Exception {
         String segment = "sendReceivingAppend";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
-
-        @Cleanup
-        EmbeddedChannel channel = createChannel();
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
@@ -176,9 +177,6 @@ public class AppendTest extends LeakDetectorTestSuite {
         String segment = "sendLargeAppend";
         ByteBuf data = Unpooled.wrappedBuffer(new byte[Serializer.MAX_EVENT_SIZE]);
 
-        @Cleanup
-        EmbeddedChannel channel = createChannel();
-
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
 
@@ -199,9 +197,6 @@ public class AppendTest extends LeakDetectorTestSuite {
     public void testMultipleAppends() throws Exception {
         String segment = "testMultipleAppends";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
-
-        @Cleanup
-        EmbeddedChannel channel = createChannel();
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
@@ -232,7 +227,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertThrows(StreamSegmentNotExistsException.class, () -> store.getStreamSegmentInfo(getIndexSegmentName(segment), Duration.ofMinutes(1)).join());
     }
 
-    private Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
+    static Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
         channel.writeInbound(request);
         log.info("Request {} sent to Segment store", request);
         Object encodedReply = channel.readOutbound();
@@ -251,7 +246,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         return (Reply) decoded;
     }
 
-    private EmbeddedChannel createChannel() {
+    static EmbeddedChannel createChannel(StreamSegmentStore store, IndexAppendProcessor indexAppendProcessor) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
                 new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
@@ -276,7 +271,6 @@ public class AppendTest extends LeakDetectorTestSuite {
         String scope = "scope";
         String stream = "appendThroughSegmentClient";
         TableStore tableStore = serviceBuilder.createTableStoreService();
-
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
                 serviceBuilder.getLowPriorityExecutor(), indexAppendProcessor);
@@ -310,7 +304,6 @@ public class AppendTest extends LeakDetectorTestSuite {
         String scope = "scope";
         String stream = "appendThroughConditionalClient";
         TableStore tableStore = serviceBuilder.createTableStoreService();
-
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
                 serviceBuilder.getLowPriorityExecutor(), indexAppendProcessor);
@@ -342,7 +335,6 @@ public class AppendTest extends LeakDetectorTestSuite {
         int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         TableStore tableStore = serviceBuilder.createTableStoreService();
-
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
                 serviceBuilder.getLowPriorityExecutor(), indexAppendProcessor);
@@ -372,7 +364,6 @@ public class AppendTest extends LeakDetectorTestSuite {
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup("shutdown")
         InlineExecutor tokenExpiryExecutor = new InlineExecutor();
-
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, tokenExpiryExecutor,
                 indexAppendProcessor);
@@ -415,9 +406,6 @@ public class AppendTest extends LeakDetectorTestSuite {
         String indexSegment = getIndexSegmentName(segment);
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
 
-        @Cleanup
-        EmbeddedChannel channel = createChannel();
-
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
 
@@ -440,7 +428,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         ByteBuf resultAfterOneAppend = result.getData();
 
         // As only one append is done on Main segment we should have Event_count on index segment as 1
-        assertEventCountAttributeForSegment(indexSegment, 1);
+        assertEventCountAttributeforSegment(indexSegment, store, 1);
 
         //Append 2 on main segment
         DataAppended ack2 = (DataAppended) sendRequest(channel,
@@ -476,13 +464,13 @@ public class AppendTest extends LeakDetectorTestSuite {
         assertEquals(resultAfterTwoAppend.readableBytes(), indexEntry2.getOffset());
 
         // Two appends are done on Main segment we should have Event_count on index segment as 2
-        assertEventCountAttributeForSegment(indexSegment, 2);
+        assertEventCountAttributeforSegment(indexSegment, store, 2);
     }
 
-    private void assertEventCountAttributeForSegment(String segment, long expectedEventCount) throws Exception {
+    private void assertEventCountAttributeforSegment(String segment, StreamSegmentStore store, long expectedEventCount) throws Exception {
         // Assert Index Segment attribute values.
-        AssertExtensions.assertEventuallyEquals(expectedEventCount, () -> {
-            val si = store.getStreamSegmentInfo(segment, timeout).join();
+        AssertExtensions.assertEventuallyEquals(Long.valueOf(expectedEventCount), () -> {
+            val si = store.getStreamSegmentInfo(segment, TIMEOUT).join();
             val segmentType = SegmentType.fromAttributes(si.getAttributes());
             assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem() || segmentType.isTableSegment());
             assertEquals(SegmentType.STREAM_SEGMENT, segmentType);
@@ -497,7 +485,6 @@ public class AppendTest extends LeakDetectorTestSuite {
         int port = TestUtils.getAvailableListenPort();
         byte[] testPayload = new byte[1000];
         TableStore tableStore = serviceBuilder.createTableStoreService();
-
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
                 indexAppendProcessor);
