@@ -118,7 +118,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     private StreamSegmentStore store;
     private IndexAppendProcessor indexAppendProcessor;
     private EmbeddedChannel channel;
-    private final Duration TIMEOUT = Duration.ofMinutes(1);
+    private final Duration timeout = Duration.ofMinutes(1);
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     @Before
@@ -475,7 +475,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     private void assertEventCountAttributeforSegment(String segment, StreamSegmentStore store, long expectedEventCount) throws Exception {
         // Assert Index Segment attribute values.
         AssertExtensions.assertEventuallyEquals(Long.valueOf(expectedEventCount), () -> {
-            val si = store.getStreamSegmentInfo(segment, TIMEOUT).join();
+            val si = store.getStreamSegmentInfo(segment, timeout).join();
             val segmentType = SegmentType.fromAttributes(si.getAttributes());
             assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem() || segmentType.isTableSegment());
             assertEquals(SegmentType.STREAM_SEGMENT, segmentType);
