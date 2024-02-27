@@ -43,6 +43,10 @@ public class StreamConfiguration implements Serializable {
        Maximum length of each Tag is 256 characters.
      */
     private static final int MAX_TAG_LENGTH = 256;
+    /*
+        Default timeout value for timestampAggregationTimeout
+     */
+    private static final long DEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT = 60000L;
 
     /**
      * API to return scaling policy.
@@ -113,8 +117,18 @@ public class StreamConfiguration implements Serializable {
 
         public StreamConfiguration build() {
             Set<String> tagSet = validateTags(this.tags);
+            validateTimestampAggregationTimeout(this.timestampAggregationTimeout);
             Preconditions.checkArgument(this.rolloverSizeBytes >= 0, String.format("Segment rollover size bytes cannot be less than 0, actual is %s", this.rolloverSizeBytes));
             return new StreamConfiguration(this.scalingPolicy, this.retentionPolicy, this.timestampAggregationTimeout, tagSet, this.rolloverSizeBytes);
+        }
+
+        private void validateTimestampAggregationTimeout(long timestampAggregationTimeout) {
+            if (timestampAggregationTimeout == 0) {
+                // timestampAggregationTimeout is not set, setting it to default value.
+                this.timestampAggregationTimeout = DEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT;
+            } else {
+                Preconditions.checkArgument(timestampAggregationTimeout > 0L, "TimestampAggregationTimeout should be greater than 0");
+            }
         }
 
         private Set<String> validateTags(List<String> tags) {
@@ -145,5 +159,13 @@ public class StreamConfiguration implements Serializable {
      */
     public static boolean isTagOnlyChange(StreamConfiguration cfg1, StreamConfiguration cfg2) {
         return cfg1.equals(cfg2) && !cfg1.tags.equals(cfg2.tags);
+    }
+
+    /**
+     * Default value for timestampaggregationtimeout
+     * @return Default value for timestampaggregationtimeout
+     */
+    public static long getDefaultTimestampAggregationTimeout() {
+        return DEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT;
     }
 }
