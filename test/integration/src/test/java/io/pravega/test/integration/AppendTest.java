@@ -84,13 +84,6 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.UUID;
@@ -101,6 +94,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import lombok.Cleanup;
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import static io.pravega.shared.NameUtils.getIndexSegmentName;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
@@ -119,6 +118,7 @@ public class AppendTest extends LeakDetectorTestSuite {
                                                                               .include(WriterConfig.builder().with(WriterConfig.MAX_ROLLOVER_SIZE, 10485760L))
                                                                               .build());
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
+    private static final InlineExecutor EXECUTOR = new InlineExecutor();
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     @BeforeClass
@@ -129,6 +129,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     @AfterClass
     public static void teardown() {
         SERVICE_BUILDER.close();
+        EXECUTOR.shutdown();
     }
 
     @Test(timeout = 10000)
@@ -250,7 +251,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         return (Reply) decoded;
     }
 
-    static EmbeddedChannel createChannel(StreamSegmentStore store, IndexAppendProcessor indexAppendProcessor) {
+    static EmbeddedChannel createChannel(StreamSegmentStore store) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
                 new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
@@ -258,6 +259,7 @@ public class AppendTest extends LeakDetectorTestSuite {
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(EXECUTOR, store);
         lsh.setRequestProcessor(AppendProcessor.defaultBuilder(indexAppendProcessor)
                                                .store(store)
                                                .connection(new TrackedConnection(lsh))
@@ -265,12 +267,6 @@ public class AppendTest extends LeakDetectorTestSuite {
                                                        indexAppendProcessor))
                                                .build());
         return channel;
-    }
-
-    static EmbeddedChannel createChannel(StreamSegmentStore store) {
-        @Cleanup
-        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
-        return createChannel(store, indexAppendProcessor);
     }
 
     @Test(timeout = 10000)

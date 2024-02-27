@@ -72,14 +72,6 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.NoOpScheduledExecutor;
 import io.pravega.test.common.TestUtils;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
-
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -95,6 +87,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -116,7 +115,7 @@ public class ReadTest extends LeakDetectorTestSuite {
     }
 
     @AfterClass
-    public static void tearDown() {
+    public static void teardown() {
         SERVICE_BUILDER.close();
     }
 
@@ -164,9 +163,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         // fill segment store with 10 entries; the total data size is 100 bytes.
         fillStoreForSegment(segmentName, data, entries, segmentStore);
         @Cleanup
-        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), segmentStore);
-        @Cleanup
-        EmbeddedChannel channel = AppendTest.createChannel(segmentStore, indexAppendProcessor);
+        EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
 
         ByteBuf actual = Unpooled.buffer(entries * data.length);
         while (actual.writerIndex() < actual.capacity()) {
