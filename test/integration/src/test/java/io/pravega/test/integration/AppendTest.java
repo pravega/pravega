@@ -118,7 +118,6 @@ public class AppendTest extends LeakDetectorTestSuite {
                                                                               .include(WriterConfig.builder().with(WriterConfig.MAX_ROLLOVER_SIZE, 10485760L))
                                                                               .build());
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final InlineExecutor EXECUTOR = new InlineExecutor();
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     @BeforeClass
@@ -129,7 +128,6 @@ public class AppendTest extends LeakDetectorTestSuite {
     @AfterClass
     public static void teardown() {
         SERVICE_BUILDER.close();
-        EXECUTOR.shutdown();
     }
 
     @Test(timeout = 10000)
@@ -137,7 +135,9 @@ public class AppendTest extends LeakDetectorTestSuite {
         String segment = "testSetupOnNonExistentSegment";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
-        EmbeddedChannel channel = createChannel(store);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store, indexAppendProcessor);
 
         UUID uuid = UUID.randomUUID();
         NoSuchSegment setup = (NoSuchSegment) sendRequest(channel, new SetupAppend(1, uuid, segment, ""));
@@ -150,9 +150,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         String segment = "sendReceivingAppend";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
-
         @Cleanup
-        EmbeddedChannel channel = createChannel(store);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store, indexAppendProcessor);
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
@@ -177,7 +178,9 @@ public class AppendTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
 
         @Cleanup
-        EmbeddedChannel channel = createChannel(store);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store, indexAppendProcessor);
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
@@ -201,7 +204,9 @@ public class AppendTest extends LeakDetectorTestSuite {
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
-        EmbeddedChannel channel = createChannel(store);
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store, indexAppendProcessor);
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
@@ -251,7 +256,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         return (Reply) decoded;
     }
 
-    static EmbeddedChannel createChannel(StreamSegmentStore store) {
+    static EmbeddedChannel createChannel(StreamSegmentStore store, IndexAppendProcessor indexAppendProcessor) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
                 new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
@@ -259,7 +264,6 @@ public class AppendTest extends LeakDetectorTestSuite {
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
-        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(EXECUTOR, store);
         lsh.setRequestProcessor(AppendProcessor.defaultBuilder(indexAppendProcessor)
                                                .store(store)
                                                .connection(new TrackedConnection(lsh))
@@ -279,8 +283,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor(), new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
+                SERVICE_BUILDER.getLowPriorityExecutor(), indexAppendProcessor);
         server.startListening();
 
         @Cleanup
@@ -313,8 +319,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor(), new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
+                SERVICE_BUILDER.getLowPriorityExecutor(), indexAppendProcessor);
         server.startListening();
 
         @Cleanup
@@ -345,8 +353,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor(), new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
+                SERVICE_BUILDER.getLowPriorityExecutor(), indexAppendProcessor);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
@@ -416,9 +426,11 @@ public class AppendTest extends LeakDetectorTestSuite {
         String indexSegment = getIndexSegmentName(segment);
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        @Cleanup
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
 
         @Cleanup
-        EmbeddedChannel channel = createChannel(store);
+        EmbeddedChannel channel = createChannel(store, indexAppendProcessor);
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, "", 1024L));
         assertEquals(segment, created.getSegment());
@@ -501,8 +513,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
+        IndexAppendProcessor indexAppendProcessor = new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store);
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, SERVICE_BUILDER.getLowPriorityExecutor(),
-                new IndexAppendProcessor(SERVICE_BUILDER.getLowPriorityExecutor(), store));
+                indexAppendProcessor);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
