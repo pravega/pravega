@@ -162,7 +162,7 @@ public class StreamConfiguration implements Serializable {
     }
 
     /**
-     * Default value for timestampaggregationtimeout
+     * Default value for timestampaggregationtimeout.
      * @return Default value for timestampaggregationtimeout
      */
     public static long getDefaultTimestampAggregationTimeout() {
