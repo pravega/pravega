@@ -238,7 +238,7 @@ public class ModelHelperTest {
         assertEquals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS, policy.getScaleType());
         assertEquals(10, policy.getMinNumSegments());
         assertNull(config.getRetentionPolicy());
-        assertEquals(0, config.getTimestampAggregationTimeout());
+        assertEquals(60000, config.getTimestampAggregationTimeout());
         assertEquals(Collections.emptySet(), config.getTags());
     }
     

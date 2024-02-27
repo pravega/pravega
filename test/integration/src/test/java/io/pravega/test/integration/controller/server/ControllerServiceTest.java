@@ -118,14 +118,22 @@ public class ControllerServiceTest {
         controller.createScope(scope).join();
         System.out.println("scope created");
         // Create Stream with tags t1, t2
-        StreamConfiguration strCfg = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).tag("t1").tag("t2").build();
+        StreamConfiguration strCfg = StreamConfiguration.builder()
+                                    .scalingPolicy(ScalingPolicy.fixed(1))
+                                    .tag("t1").tag("t2")
+                                    .timestampAggregationTimeout(20000L)
+                                    .build();
         controller.createStream(scope, stream, strCfg).join();
-        assertEquals(Set.of("t1", "t2"), controller.getStreamConfiguration(scope, stream).join().getTags());
+        StreamConfiguration streamConfiguration = controller.getStreamConfiguration(scope, stream).join();
+        assertEquals(Set.of("t1", "t2"), streamConfiguration.getTags());
+        assertEquals(20000L, streamConfiguration.getTimestampAggregationTimeout());
         // Update stream to have tags t2, t3
-        StreamConfiguration strCfgNew = strCfg.toBuilder().clearTags().tags(Set.of("t2", "t3")).build();
+        StreamConfiguration strCfgNew = strCfg.toBuilder().clearTags().tags(Set.of("t2", "t3")).timestampAggregationTimeout(10000L).build();
         controller.updateStream(scope, stream, strCfgNew).join();
+        StreamConfiguration streamConfiguration1 = controller.getStreamConfiguration(scope, stream).join();
         // Check if the stream tags are infact t2, t3
-        assertEquals(Set.of("t2", "t3"), controller.getStreamConfiguration(scope, stream).join().getTags());
+        assertEquals(Set.of("t2", "t3"), streamConfiguration1.getTags());
+        assertEquals(10000L, streamConfiguration1.getTimestampAggregationTimeout());
 
         // List Streams with tag t2. only one stream should be listed
         assertEquals(Collections.singletonList(stream), listStreamsForTag(scope, controller, "t2"));

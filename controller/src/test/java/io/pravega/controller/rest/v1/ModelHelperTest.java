@@ -264,7 +264,7 @@ public class ModelHelperTest {
         Assert.assertEquals(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS, streamProperty.getScalingPolicy().getType());
         Assert.assertEquals((Integer) 1, streamProperty.getScalingPolicy().getMinSegments());
         Assert.assertNull(streamProperty.getRetentionPolicy());
-        Assert.assertEquals((long) streamProperty.getTimestampAggregationTimeout(), 0L);
+        Assert.assertEquals((long) streamProperty.getTimestampAggregationTimeout(), 60000L);
         Assert.assertEquals((long) streamProperty.getRolloverSizeBytes(), 0L);
 
         streamConfig = StreamConfiguration.builder()
