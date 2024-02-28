@@ -476,6 +476,7 @@ project('segmentstore:storage:impl') {
         compile project(':shared:metrics')
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
+        compile group: 'org.apache.bookkeeper', name: 'circe-checksum', version: bookKeeperVersion, withoutLogger
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -1156,6 +1157,8 @@ project('test:system') {
         environment "helmRepository", System.getProperty("helmRepository", "https://charts.pravega.io")
         environment "helmHookImageName", System.getProperty("helmHookImageName", "lachlanevenson/k8s-kubectl")
         environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
+        environment "securityEnabled", System.getProperty("securityEnabled", "false")
+        environment "tlsCertCNName", System.getProperty("tlsCertCNName", "localhost")
         environment "skipServiceInstallation", System.getProperty("skipServiceInstallation", "false")
         environment "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
 
@@ -1226,7 +1229,7 @@ project('test:system') {
         // target versions wrt Upgrade for all operators & clusters
         systemProperty "controllerLabel", System.getProperty("controllerLabel", "pravega-controller");
         systemProperty "segmentstoreLabel", System.getProperty("segmentstoreLabel", "pravega-segmentstore");
-        systemProperty "tlsSecretName", System.getProperty("tlsSecretName", "selfsigned-cert-tls");
+        systemProperty "tlsSecretName", System.getProperty("tlsSecretName", "controller-tls");
         systemProperty "bookkeeperLabel", System.getProperty("bookkeeperLabel", "bookie");
         systemProperty "pravegaID", System.getProperty("pravegaID", "pravega");
         systemProperty "bookkeeperID", System.getProperty("bookkeeperID", "pravega-bk");
@@ -1257,6 +1260,7 @@ project('test:system') {
 
         systemProperty "securityEnabled", System.getProperty("securityEnabled", "false")
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
+        systemProperty "tlsCertCNName", System.getProperty("tlsCertCNName", "localhost")
         systemProperty "log.level", System.getProperty("log.level", "DEBUG")
 
         if (System.getProperty("configFile") != null) {

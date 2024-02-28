@@ -23,6 +23,9 @@ import io.pravega.client.connection.impl.Flow;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+import java.time.Duration;
+import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -37,6 +40,7 @@ import static org.junit.Assert.assertNull;
 @RequiredArgsConstructor
 public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionPool {
     Map<PravegaNodeUri, ClientConnection> connections = new HashMap<>();
+    Map<PravegaNodeUri, Hello> hellos = new HashMap<>();
     Map<PravegaNodeUri, ReplyProcessor> processors = new HashMap<>();
     private ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "testClientInternal");
     private boolean ownsExecutor = true;
@@ -54,6 +58,7 @@ public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionP
         Preconditions.checkState(connection != null, "Unexpected Endpoint");
         ReplyProcessor previous = processors.put(location, rp);
         assertNull("Mock connection factory does not support multiple concurrent connections to the same location", previous);
+        rp.process(hellos.get(location));
         return CompletableFuture.completedFuture(new DelegateClientConnection(location, connection));
     }
 
@@ -64,7 +69,13 @@ public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionP
 
     @Synchronized
     public void provideConnection(PravegaNodeUri location, ClientConnection c) {
+        provideConnection(location, c, new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
+    }
+    
+    @Synchronized
+    public void provideConnection(PravegaNodeUri location, ClientConnection c, Hello hello) {
         connections.put(location, c);
+        hellos.put(location, hello);
         processors.remove(location);
     }
 
@@ -78,7 +89,7 @@ public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionP
         if (this.ownsExecutor) {
             // Only shut down the executor if it was the one we created. Do not shut down externally-provided executors
             // as that may break any tests that close this factory instance before the test completion.
-            ExecutorServiceHelpers.shutdown(executor);
+            ExecutorServiceHelpers.shutdown(Duration.ZERO, executor);
         }
     }
 

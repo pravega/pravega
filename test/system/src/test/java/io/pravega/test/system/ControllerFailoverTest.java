@@ -91,7 +91,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         // Fetch all the RPC endpoints and construct the client URIs.
         final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
-        controllerURIDirect = URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris));
+        controllerURIDirect = Utils.getControllerURI(uris);
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerUris.get(0));

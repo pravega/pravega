@@ -256,15 +256,21 @@ public class LocalServiceStarter {
         }
 
         public void shutDownControllerRunner() throws Exception {
-            this.controllerRunner.close();
+            if (this.controllerRunner != null) {
+                this.controllerRunner.close();
+            }
         }
 
         public void shutDownSegmentStoreRunner() {
-            this.segmentStoreRunner.close();
+            if (this.segmentStoreRunner != null) {                
+                this.segmentStoreRunner.close();
+            }
         }
 
         public void shutDownBookKeeperRunner() throws Exception {
-            this.bookKeeperRunner.close();
+            if (this.bookKeeperRunner != null) {     
+                this.bookKeeperRunner.close();
+            }
         }
 
         @Override
