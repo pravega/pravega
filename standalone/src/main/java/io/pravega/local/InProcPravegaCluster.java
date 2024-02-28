@@ -17,17 +17,15 @@ package io.pravega.local;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import io.pravega.common.security.TLSProtocolVersion;
-import io.pravega.shared.security.auth.DefaultCredentials;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
+import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.common.security.ZKTLSUtils;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.ControllerServiceMain;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
-import io.pravega.shared.rest.RESTServerConfig;
-import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClientConfig;
@@ -46,17 +44,21 @@ import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.rest.RESTServerConfig;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.shared.security.auth.Credentials;
-
+import io.pravega.shared.security.auth.DefaultCredentials;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.Builder;
 import lombok.Cleanup;
 import lombok.Synchronized;
@@ -65,6 +67,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.api.BackgroundCallback;
+import org.apache.curator.framework.api.CuratorEvent;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
 @Slf4j
@@ -241,6 +245,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private void cleanUpZK() {
         String[] pathsTobeCleaned = {"/pravega", "/hostIndex", "/store", "/taskIndex"};
+        List<CompletableFuture<String>> futures = new ArrayList<>();
 
         RetryPolicy rp = new ExponentialBackoffRetry(1000, 3);
         CuratorFrameworkFactory.Builder builder = CuratorFrameworkFactory.builder()
@@ -255,14 +260,22 @@ public class InProcPravegaCluster implements AutoCloseable {
         @Cleanup
         CuratorFramework zclient = builder.build();
         zclient.start();
+
         for (String path : pathsTobeCleaned) {
+            CompletableFuture<String> future = new CompletableFuture<String>();
+            futures.add(future);
             try {
-                zclient.delete().guaranteed().deletingChildrenIfNeeded()
-                        .forPath(path);
+                zclient.delete().idempotent().deletingChildrenIfNeeded().inBackground(new BackgroundCallback() {
+                    @Override
+                    public void processResult(CuratorFramework client, CuratorEvent event) throws Exception {
+                        future.complete(path);
+                    }
+                }).forPath(path);
             } catch (Exception e) {
                 log.warn("Not able to delete path {} . Exception {}", path, e.getMessage());
             }
         }
+        Futures.allOf(futures).join();
         zclient.close();
     }
 

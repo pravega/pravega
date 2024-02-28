@@ -17,6 +17,8 @@ package io.pravega.local;
 
 import io.pravega.test.common.SerializedClassRunner;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -31,9 +33,19 @@ import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 @RunWith(SerializedClassRunner.class)
 public class InProcPravegaClusterTest {
 
-    @ClassRule
-    public static final PravegaEmulatorResource EMULATOR = PravegaEmulatorResource.builder().build();
     final String msg = "Test message on the plaintext channel";
+    PravegaEmulatorResource emulator;
+    
+    @Before
+    public void setUp() throws Exception {
+        emulator = PravegaEmulatorResource.builder().build();
+        emulator.before();
+    }
+    
+    @After
+    public void tearDown() {
+        emulator.after();
+    }
 
     /**
      * Compares reads and writes to verify that an in-process Pravega cluster responds properly with
@@ -46,6 +58,6 @@ public class InProcPravegaClusterTest {
      */
     @Test(timeout = 50000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
-        testWriteAndReadAnEvent("TestScope", "TestStream", msg, EMULATOR.getClientConfig());
+        testWriteAndReadAnEvent("TestScope", "TestStream", msg, emulator.getClientConfig());
     }
 }
