@@ -358,6 +358,7 @@ public final class EventStreamWriterImpl<Type> implements EventStreamWriter<Type
                 }
             }
         }
+        markIdle();
         ExecutorServiceHelpers.shutdown(retransmitPool);
     }
 
@@ -380,5 +381,11 @@ public final class EventStreamWriterImpl<Type> implements EventStreamWriter<Type
                                                                        e -> e.getValue().getLastObservedWriteOffset()));
         WriterPosition position = new WriterPosition(offsets);
         controller.noteTimestampFromWriter(writerId, stream, timestamp, position);
+    }
+
+    @Override
+    public void markIdle() {
+        controller.removeWriter(writerId, stream).
+                thenAccept(r -> log.info("Writer: {} has been marked idle", writerId));
     }
 }

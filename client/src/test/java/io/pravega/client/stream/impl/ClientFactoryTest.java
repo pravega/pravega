@@ -41,6 +41,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -95,7 +96,8 @@ public class ClientFactoryTest {
         when(controllerClient.getCurrentSegments(scope, stream))
                 .thenReturn(CompletableFuture.completedFuture(currentSegments));
         when(outFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outStream);
-
+        when(controllerClient.removeWriter(anyString(), any()))
+                .thenReturn(CompletableFuture.completedFuture(null));
         EventWriterConfig writerConfig = EventWriterConfig.builder().build();
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<String>(), writerConfig);

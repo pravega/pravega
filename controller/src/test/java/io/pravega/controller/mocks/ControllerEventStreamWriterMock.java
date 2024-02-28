@@ -71,4 +71,9 @@ public class ControllerEventStreamWriterMock implements EventStreamWriter<Contro
     public void noteTime(long timestamp) {
         
     }
+
+    @Override
+    public void markIdle() {
+
+    }
 }
