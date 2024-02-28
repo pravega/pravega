@@ -530,4 +530,8 @@ public class AppendTest extends LeakDetectorTestSuite {
         return timer.getElapsedMillis();
     }
 
+    @Override
+    protected int getThreadPoolSize() {
+        return 3;
+    }
 }
