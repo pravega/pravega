@@ -117,6 +117,17 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
     void noteTime(long timestamp);
 
     /**
+     * This api is to mark the writer as idle.
+     * This means that this writer won't be considered for the noteTime based aggregation above.
+     * Calling this api marks this writer inactive irrespective of {@link StreamConfiguration#getTimestampAggregationTimeout()}
+     * It doesn't mean that this writer won't be able to continue working,
+     * in fact a writer might call noteTime again after calling this method
+     * which would reintroduce it as an active writer for the purposes of timestamp calculation.
+     *
+     */
+    void markIdle();
+
+    /**
      * Returns the configuration that this writer was create with.
      *
      * @return Writer configuration
