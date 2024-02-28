@@ -45,7 +45,6 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -65,6 +64,7 @@ import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
@@ -430,7 +430,6 @@ public class AppendTest extends LeakDetectorTestSuite {
 
         // Read the Actual data from main Segment. Will be helpful in asserting the indexdata
         WireCommands.SegmentRead result = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(segment, 0, 20, "", 1L));
-        ByteBuf resultAfterOneAppend = result.getData();
 
         // As only one append is done on Main segment we should have Event_count on index segment as 1
         assertEventCountAttributeforSegment(indexSegment, store, 1);
@@ -444,32 +443,31 @@ public class AppendTest extends LeakDetectorTestSuite {
 
         // Read the Actual data from main Segment. Will be helpfull in asserting the indexdata
         WireCommands.SegmentRead resultMain = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(segment, 0, 100, "", 1L));
-        ByteBuf resultAfterTwoAppend = resultMain.getData();
-        assertEquals(2 * resultAfterOneAppend.readableBytes(), resultAfterTwoAppend.readableBytes());
+        assertEquals(2 * result.getData().readableBytes(), resultMain.getData().readableBytes());
 
         // Read IndexSegment from 0 Offset.
         int readOffset = 0;
         WireCommands.SegmentRead resultIndexSegment1 = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(indexSegment, readOffset, 40, "", 1L));
-        ByteBuf actual1 = Unpooled.buffer(100);
-        actual1.writeBytes(resultIndexSegment1.getData());
-        IndexEntry indexEntry1 = IndexEntry.fromBytes(BufferView.wrap(actual1.array()));
+        IndexEntry indexEntry1 = IndexEntry.fromBytes(new ByteBufWrapper(resultIndexSegment1.getData()));
         assertEquals(1, indexEntry1.getEventCount());
-        assertEquals(resultAfterOneAppend.readableBytes(), indexEntry1.getOffset());
+        assertEquals(result.getData().readableBytes(), indexEntry1.getOffset());
+        result.release();
+        resultIndexSegment1.release();
 
         // Read IndexSegment from next Offset this will give second append info
         readOffset += indexEntry1.toBytes().getLength();
         WireCommands.SegmentRead resultIndexSegment2 = (WireCommands.SegmentRead) sendRequest(channel, new WireCommands.ReadSegment(indexSegment, readOffset, 32, "", 1L));
-        ByteBuf actual2 = Unpooled.buffer(32);
-        actual2.writeBytes(resultIndexSegment2.getData());
-        IndexEntry indexEntry2 = IndexEntry.fromBytes(BufferView.wrap(actual2.array()));
+        IndexEntry indexEntry2 = IndexEntry.fromBytes(new ByteBufWrapper(resultIndexSegment2.getData()));
 
         // check the getSegment info and chck the attribute EVENt_COUNT
 
         assertEquals(2, indexEntry2.getEventCount());
-        assertEquals(resultAfterTwoAppend.readableBytes(), indexEntry2.getOffset());
-
+        assertEquals(resultMain.getData().readableBytes(), indexEntry2.getOffset());
+        resultIndexSegment2.release();
         // Two appends are done on Main segment we should have Event_count on index segment as 2
         assertEventCountAttributeforSegment(indexSegment, store, 2);
+
+        resultMain.release();
     }
 
     private void assertEventCountAttributeforSegment(String segment, StreamSegmentStore store, long expectedEventCount) throws Exception {
