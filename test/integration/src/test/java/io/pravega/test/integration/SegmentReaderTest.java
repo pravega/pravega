@@ -34,8 +34,8 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.TruncatedDataException;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -58,8 +58,8 @@ public class SegmentReaderTest extends LeakDetectorTestSuite {
 
     @ClassRule
     public static final PravegaResource PRAVEGA = new PravegaResource();
-    private static final String DATA_OF_SIZE_30 = "data of size 30"; // data length = 22 bytes , header = 8 bytes
-    private final JavaSerializer<String> serializer = new JavaSerializer<>();
+    private static final String DATA_OF_SIZE_30 = "this is data of size30"; // data length = 22 bytes , header = 8 bytes
+    private final UTF8StringSerializer serializer = new UTF8StringSerializer();
 
     @Test(timeout = 50000)
     public void testSegmentReadOnSealedStream() {
