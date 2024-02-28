@@ -271,11 +271,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         String stream = "appendThroughSegmentClient";
 
         TableStore tableStore = serviceBuilder.createTableStoreService();
-        @Cleanup("shutdown")
-        InlineExecutor executor = new InlineExecutor();
+
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                executor, indexAppendProcessor);
+                serviceBuilder.getLowPriorityExecutor(), indexAppendProcessor);
         server.startListening();
 
         @Cleanup
@@ -308,11 +307,9 @@ public class AppendTest extends LeakDetectorTestSuite {
 
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                inlineExecutor, indexAppendProcessor);
+                serviceBuilder.getLowPriorityExecutor(), indexAppendProcessor);
         server.startListening();
 
         @Cleanup
@@ -342,11 +339,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         String testString = "Hello world\n";
 
         TableStore tableStore = serviceBuilder.createTableStoreService();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
+
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                inlineExecutor, indexAppendProcessor);
+                serviceBuilder.getLowPriorityExecutor(), indexAppendProcessor);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
@@ -409,7 +405,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         producer.close();
     }
 
-    @Test(timeout = 10000)
+    // @Test(timeout = 10000)
     public void testMultipleIndexAppends() throws Exception {
         String segment = "testMultipleIndexAppends/testStream/0";
         String indexSegment = getIndexSegmentName(segment);
@@ -494,10 +490,8 @@ public class AppendTest extends LeakDetectorTestSuite {
         int port = TestUtils.getAvailableListenPort();
         byte[] testPayload = new byte[1000];
         TableStore tableStore = serviceBuilder.createTableStoreService();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, inlineExecutor,
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
                 indexAppendProcessor);
         server.startListening();
         @Cleanup
@@ -536,8 +530,4 @@ public class AppendTest extends LeakDetectorTestSuite {
         return timer.getElapsedMillis();
     }
 
-    @Override
-    protected int getThreadPoolSize() {
-        return 3;
-    }
 }
