@@ -356,6 +356,11 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
             public void noteTime(long timestamp) {
 
             }
+
+            @Override
+            public void markIdle() {
+
+            }
         };
     }
 

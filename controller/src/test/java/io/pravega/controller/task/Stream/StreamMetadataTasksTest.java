@@ -3263,5 +3263,10 @@ public abstract class StreamMetadataTasksTest {
         public void noteTime(long timestamp) {
             
         }
+
+        @Override
+        public void markIdle() {
+
+        }
     }
 }

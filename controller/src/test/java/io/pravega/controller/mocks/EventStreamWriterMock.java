@@ -77,4 +77,9 @@ public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
     public void noteTime(long timestamp) {
         throw new NotImplementedException("noteTime");
     }
+
+    @Override
+    public void markIdle() {
+
+    }
 }

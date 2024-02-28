@@ -257,5 +257,10 @@ public abstract class TableMetadataTasksTest {
         public void noteTime(long timestamp) {
 
         }
+
+        @Override
+        public void markIdle() {
+
+        }
     }
 }
