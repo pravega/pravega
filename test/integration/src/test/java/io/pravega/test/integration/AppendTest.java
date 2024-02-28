@@ -271,10 +271,11 @@ public class AppendTest extends LeakDetectorTestSuite {
         String stream = "appendThroughSegmentClient";
 
         TableStore tableStore = serviceBuilder.createTableStoreService();
-
+        @Cleanup("shutdown")
+        InlineExecutor executor = new InlineExecutor();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor(), indexAppendProcessor);
+                executor, indexAppendProcessor);
         server.startListening();
 
         @Cleanup
@@ -307,9 +308,11 @@ public class AppendTest extends LeakDetectorTestSuite {
 
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
+        @Cleanup("shutdown")
+        InlineExecutor inlineExecutor = new InlineExecutor();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor(), indexAppendProcessor);
+                inlineExecutor, indexAppendProcessor);
         server.startListening();
 
         @Cleanup
@@ -339,10 +342,11 @@ public class AppendTest extends LeakDetectorTestSuite {
         String testString = "Hello world\n";
 
         TableStore tableStore = serviceBuilder.createTableStoreService();
-
+        @Cleanup("shutdown")
+        InlineExecutor inlineExecutor = new InlineExecutor();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor(), indexAppendProcessor);
+                inlineExecutor, indexAppendProcessor);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
@@ -490,8 +494,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         int port = TestUtils.getAvailableListenPort();
         byte[] testPayload = new byte[1000];
         TableStore tableStore = serviceBuilder.createTableStoreService();
+        @Cleanup("shutdown")
+        InlineExecutor inlineExecutor = new InlineExecutor();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, serviceBuilder.getLowPriorityExecutor(),
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, inlineExecutor,
                 indexAppendProcessor);
         server.startListening();
         @Cleanup
