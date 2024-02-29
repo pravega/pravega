@@ -37,7 +37,7 @@ public class InProcPravegaClusterTest {
     
     @Before
     public void setUp() throws Exception {
-        emulator = PravegaEmulatorResource.builder().build();
+        emulator = PravegaEmulatorResource.builder().tlsEnabled(true).build();
         emulator.before();
     }
     
