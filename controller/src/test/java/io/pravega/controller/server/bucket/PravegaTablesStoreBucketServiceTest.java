@@ -117,10 +117,8 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         //add new controller instance in pravgea cluster.
         Host controller1 = new Host(UUID.randomUUID().toString(), 9090, null);
         addEntryToZkCluster(controller1);
-        System.out.println("!!!!!!!!!!!!");
         assertEventuallyEquals(2, () -> retentionService.getBucketServices().size(), 3000);
         assertEventuallyEquals(2, () -> watermarkingService.getBucketServices().size(), 3000);
-        System.out.println("!!!!!!!!!!!!");
         List<Integer> retentionBuckets = IntStream.range(0, 3).filter(x ->
                 !retentionService.getBucketServices().keySet().contains(x)).boxed().collect(Collectors.toList());
         List<Integer> watermarkBuckets = IntStream.range(0, 3).filter(x ->
@@ -128,13 +126,11 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
 
         assertTrue(retentionService.takeBucketOwnership(retentionBuckets.get(0), controller1.getHostId(), executor).join());
         assertTrue(watermarkingService.takeBucketOwnership(watermarkBuckets.get(0), controller1.getHostId(), executor).join());
-        System.out.println("@@@@@@@@@@@@@@@@@");
         //add new controller instance in pravgea cluster.
         Host controller2 = new Host(UUID.randomUUID().toString(), 9090, null);
         addEntryToZkCluster(controller2);
         assertEventuallyEquals(1, () -> retentionService.getBucketServices().size(), 3000);
         assertEventuallyEquals(1, () -> watermarkingService.getBucketServices().size(), 3000);
-        System.out.println("####################");
 
         //remove controller instances from pravega cluster.
         removeControllerFromZkCluster(controller1, cluster);
@@ -151,7 +147,6 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         //controller1 release bucket 0 now. So it will start it.
         assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 3000);
         assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 3000);
-        System.out.println("Test finished@@@@@@@@@@@@@@@");
     }
 
     @Test(timeout = 30000)
