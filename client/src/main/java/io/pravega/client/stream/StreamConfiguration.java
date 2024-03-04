@@ -22,9 +22,11 @@ import java.util.List;
 import java.util.Set;
 
 import com.google.common.base.Preconditions;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.Singular;
 
 /**
@@ -46,6 +48,7 @@ public class StreamConfiguration implements Serializable {
     /*
         Default timeout value for timestampAggregationTimeout
      */
+    @Getter(AccessLevel.PUBLIC)
     private static final long DEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT = 60000L;
 
     /**
@@ -76,6 +79,8 @@ public class StreamConfiguration implements Serializable {
      * If no writer have noted time within the timestampAggregationTimeout, readers that call 
      * {@link EventStreamReader#getCurrentTimeWindow(Stream)}
      * will receive a `null` when they are at the corresponding position in the stream.
+     *
+     * Passing 0 or not setting this field is considered to be as {@link StreamConfiguration#getDEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT()}
      *
      * @param timestampAggregationTimeout The duration after the last call to {@link EventStreamWriter#noteTime(long)}
      *                                    until which the writer would be considered active.
@@ -125,7 +130,7 @@ public class StreamConfiguration implements Serializable {
         private void validateTimestampAggregationTimeout(long timestampAggregationTimeout) {
             if (timestampAggregationTimeout == 0) {
                 // timestampAggregationTimeout is not set, setting it to default value.
-                this.timestampAggregationTimeout = getDefaultTimestampAggregationTimeout();
+                this.timestampAggregationTimeout = getDEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT();
             } else {
                 Preconditions.checkArgument(timestampAggregationTimeout > 0L, "TimestampAggregationTimeout should be greater than 0");
             }
@@ -159,13 +164,5 @@ public class StreamConfiguration implements Serializable {
      */
     public static boolean isTagOnlyChange(StreamConfiguration cfg1, StreamConfiguration cfg2) {
         return cfg1.equals(cfg2) && !cfg1.tags.equals(cfg2.tags);
-    }
-
-    /**
-     * Default value for timestampaggregationtimeout.
-     * @return Default value for timestampaggregationtimeout
-     */
-    public static long getDefaultTimestampAggregationTimeout() {
-        return DEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT;
     }
 }

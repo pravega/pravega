@@ -38,7 +38,7 @@ public class StreamConfigurationTest {
         assertEquals(ScalingPolicy.fixed(1), streamConfig.getScalingPolicy() );
         assertEquals(0, streamConfig.getTags().size());
         assertEquals(0L, streamConfig.getRolloverSizeBytes());
-        assertEquals(StreamConfiguration.getDefaultTimestampAggregationTimeout(), streamConfig.getTimestampAggregationTimeout());
+        assertEquals(StreamConfiguration.getDEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT(), streamConfig.getTimestampAggregationTimeout());
     }
 
     @Test

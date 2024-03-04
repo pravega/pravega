@@ -188,7 +188,7 @@ public class PeriodicWatermarking implements AutoCloseable {
         List<Entry<String, WriterMark>> activeWriters = new ArrayList<>();
         List<Entry<String, WriterMark>> inactiveWriters = new ArrayList<>();
         AtomicBoolean allActiveAreParticipating = new AtomicBoolean(true);
-        long timestampAggregationTimeout = config.getTimestampAggregationTimeout() == 0 ? StreamConfiguration.getDefaultTimestampAggregationTimeout() :
+        long timestampAggregationTimeout = config.getTimestampAggregationTimeout() == 0 ? StreamConfiguration.getDEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT() :
                 config.getTimestampAggregationTimeout();
         writers.entrySet().forEach(x -> {
             if (watermarkClient.isWriterActive(x, timestampAggregationTimeout)) {
