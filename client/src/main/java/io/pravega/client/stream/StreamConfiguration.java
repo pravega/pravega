@@ -128,11 +128,10 @@ public class StreamConfiguration implements Serializable {
         }
 
         private void validateTimestampAggregationTimeout(long timestampAggregationTimeout) {
+            Preconditions.checkArgument(timestampAggregationTimeout >= 0L, "TimestampAggregationTimeout should be greater than or equal to 0");
             if (timestampAggregationTimeout == 0) {
                 // timestampAggregationTimeout is not set, setting it to default value.
                 this.timestampAggregationTimeout = getDEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT();
-            } else {
-                Preconditions.checkArgument(timestampAggregationTimeout > 0L, "TimestampAggregationTimeout should be greater than 0");
             }
         }
 
