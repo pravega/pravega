@@ -92,6 +92,8 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         }
         if (secureZK) {
             ZKTLSUtils.setSecureZKServerProperties(this.keyStore, this.keyStorePasswordPath, this.trustStore, this.keyStorePasswordPath);
+        } else {
+            ZKTLSUtils.unsetSecureZKServerProperties();
         }
     }
 
