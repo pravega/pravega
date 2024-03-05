@@ -27,7 +27,7 @@ ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerURI).
 SegmentReaderManager<String> segmentReaderManager = SegmentReaderManager.create(clientConfig, serializer);
 List<SegmentReader<String>> segmentReaderList = segmentReaderManager.getSegmentReaders(Stream.of(scope, stream), StreamCut.UNBOUNDED).join();
 ```
-Once user are done with SegmentReaderManager, closes this segment reader manager. No further methods may be called after close.
+Once done with `SegmentReaderManager`, user needs to close this segment reader manager. No further methods may be called after close.
 ```java
 segmentReaderManager.close();
 ```
@@ -62,7 +62,7 @@ while (true) {
     }
 }
 ```
-Once user are done with SegmentReader, closes this segment reader. No further methods may be called after close.
+Once done with `SegmentReader`, user needs to close this segment reader. No further methods may be called after close.
 ```java
 segmentReader.close();
 ```
