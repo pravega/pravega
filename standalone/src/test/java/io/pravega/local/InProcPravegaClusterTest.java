@@ -40,7 +40,7 @@ public class InProcPravegaClusterTest {
      */
     @Test(timeout = 50000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
-        //adding comment to retrigger the test
+        //adding comment to retrigger the test again in GA.
         PravegaEmulatorResource emulator = PravegaEmulatorResource.builder().build();
         emulator.before();
         try {
