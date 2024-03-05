@@ -499,6 +499,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 Callbacks.invokeSafely(controller::close, ex -> log.error("Unable to shut down Controller.", ex));
             }
         }
+        ZKTLSUtils.unsetSecureZKClientProperties();
 
         if (this.zkService != null) {
             this.zkService.close();
