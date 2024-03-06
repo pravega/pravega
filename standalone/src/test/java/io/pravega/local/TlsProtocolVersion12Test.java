@@ -15,14 +15,11 @@
  */
 package io.pravega.local;
 
-import io.pravega.test.common.SerializedClassRunner;
 import org.junit.ClassRule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 
-@RunWith(SerializedClassRunner.class)
 public class TlsProtocolVersion12Test {
 
     @ClassRule
