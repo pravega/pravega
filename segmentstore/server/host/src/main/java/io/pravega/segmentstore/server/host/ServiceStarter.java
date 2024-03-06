@@ -275,14 +275,14 @@ public final class ServiceStarter {
     static void validateConfig(ServiceBuilderConfig config) {
         long xmx = Runtime.getRuntime().maxMemory();
         long nettyDirectMem = PlatformDependent.maxDirectMemory(); //Dio.netty.maxDirectMemory
+        long totalMem = ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getTotalPhysicalMemorySize(); 
         long maxDirectMemorySize = Long.parseLong(ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
                                                                    .getVMOption("MaxDirectMemorySize").getValue());
         maxDirectMemorySize = (maxDirectMemorySize == 0) ? xmx : maxDirectMemorySize;
         long cacheSize = config.getConfig(ServiceConfig::builder).getCachePolicy().getMaxSize();
-        log.info("MaxDirectMemorySize is {}, Cache size is {} and Netty DM is {}", maxDirectMemorySize, cacheSize, nettyDirectMem);
+        log.info("Total memory is {}, MaxDirectMemorySize is {}, Cache size is {} and Netty DM is {}", totalMem, maxDirectMemorySize, cacheSize, nettyDirectMem);
         //run checks
-        validateConfig(cacheSize, xmx, maxDirectMemorySize, ((com.sun.management.OperatingSystemMXBean) ManagementFactory
-                .getOperatingSystemMXBean()).getTotalPhysicalMemorySize());
+        validateConfig(cacheSize, xmx, maxDirectMemorySize, totalMem);
     }
 
     @VisibleForTesting
