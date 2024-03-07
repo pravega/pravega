@@ -63,7 +63,8 @@ nav:
     - 'StateSynchronizer': 'state-synchronizer-design.md'
     - 'Controller Service': 'controller-service.md'
     - 'Segment Store Service': 'segment-store-service.md'
-    - 'Segment Containers': 'segment-containers.md' 
+    - 'Segment Containers': 'segment-containers.md'
+    - 'Segment Reader': 'segment-reader.md'
   - Developing Applications:
     - 'Controller REST API': 'rest/restapis.md'
     - 'Client APIs': 'javadoc.md'
