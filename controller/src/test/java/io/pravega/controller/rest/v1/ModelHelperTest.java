@@ -52,7 +52,7 @@ public class ModelHelperTest {
         Assert.assertEquals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS, streamConfig.getScalingPolicy().getScaleType());
         Assert.assertEquals(2, streamConfig.getScalingPolicy().getMinNumSegments());
         Assert.assertNull(streamConfig.getRetentionPolicy());
-        Assert.assertEquals(streamConfig.getTimestampAggregationTimeout(), 0);
+        Assert.assertEquals(streamConfig.getTimestampAggregationTimeout(), 60000);
         Assert.assertEquals(streamConfig.getRolloverSizeBytes(), 0);
 
         // Stream with Fixed Scaling Policy and no Retention Policy and positive rolloverSize
@@ -264,7 +264,7 @@ public class ModelHelperTest {
         Assert.assertEquals(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS, streamProperty.getScalingPolicy().getType());
         Assert.assertEquals((Integer) 1, streamProperty.getScalingPolicy().getMinSegments());
         Assert.assertNull(streamProperty.getRetentionPolicy());
-        Assert.assertEquals((long) streamProperty.getTimestampAggregationTimeout(), 0L);
+        Assert.assertEquals((long) streamProperty.getTimestampAggregationTimeout(), 60000L);
         Assert.assertEquals((long) streamProperty.getRolloverSizeBytes(), 0L);
 
         streamConfig = StreamConfiguration.builder()

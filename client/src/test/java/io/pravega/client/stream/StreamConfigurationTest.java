@@ -38,6 +38,7 @@ public class StreamConfigurationTest {
         assertEquals(ScalingPolicy.fixed(1), streamConfig.getScalingPolicy() );
         assertEquals(0, streamConfig.getTags().size());
         assertEquals(0L, streamConfig.getRolloverSizeBytes());
+        assertEquals(StreamConfiguration.getDEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT(), streamConfig.getTimestampAggregationTimeout());
     }
 
     @Test
@@ -69,6 +70,8 @@ public class StreamConfigurationTest {
         assertThrows(IllegalArgumentException.class, () -> StreamConfiguration.builder().tags(tags).build());
         // Invalid rollover size
         assertThrows(IllegalArgumentException.class, () -> StreamConfiguration.builder().rolloverSizeBytes(-1024).build());
+        //Invalid timestampaggregationtimeout
+        assertThrows(IllegalArgumentException.class, () -> StreamConfiguration.builder().timestampAggregationTimeout(-10L).build());
     }
 
     @Test

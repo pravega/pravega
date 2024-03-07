@@ -406,6 +406,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
                                                                          .scalingPolicy(ScalingPolicy.fixed(numSegments))
+                                                                         .timestampAggregationTimeout(5000L)
                                                                          .build());
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);

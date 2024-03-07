@@ -22,9 +22,11 @@ import java.util.List;
 import java.util.Set;
 
 import com.google.common.base.Preconditions;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.Singular;
 
 /**
@@ -43,6 +45,11 @@ public class StreamConfiguration implements Serializable {
        Maximum length of each Tag is 256 characters.
      */
     private static final int MAX_TAG_LENGTH = 256;
+    /*
+        Default timeout value for timestampAggregationTimeout
+     */
+    @Getter(AccessLevel.PUBLIC)
+    private static final long DEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT = 60000L;
 
     /**
      * API to return scaling policy.
@@ -72,6 +79,8 @@ public class StreamConfiguration implements Serializable {
      * If no writer have noted time within the timestampAggregationTimeout, readers that call 
      * {@link EventStreamReader#getCurrentTimeWindow(Stream)}
      * will receive a `null` when they are at the corresponding position in the stream.
+     *
+     * Passing 0 or not setting this field is considered to be as {@link StreamConfiguration#getDEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT()}
      *
      * @param timestampAggregationTimeout The duration after the last call to {@link EventStreamWriter#noteTime(long)}
      *                                    until which the writer would be considered active.
@@ -113,8 +122,17 @@ public class StreamConfiguration implements Serializable {
 
         public StreamConfiguration build() {
             Set<String> tagSet = validateTags(this.tags);
+            validateTimestampAggregationTimeout(this.timestampAggregationTimeout);
             Preconditions.checkArgument(this.rolloverSizeBytes >= 0, String.format("Segment rollover size bytes cannot be less than 0, actual is %s", this.rolloverSizeBytes));
             return new StreamConfiguration(this.scalingPolicy, this.retentionPolicy, this.timestampAggregationTimeout, tagSet, this.rolloverSizeBytes);
+        }
+
+        private void validateTimestampAggregationTimeout(long timestampAggregationTimeout) {
+            Preconditions.checkArgument(timestampAggregationTimeout >= 0L, "TimestampAggregationTimeout should be greater than or equal to 0");
+            if (timestampAggregationTimeout == 0) {
+                // timestampAggregationTimeout is not set, setting it to default value.
+                this.timestampAggregationTimeout = getDEFAULT_TIMESTAMP_AGGREGATION_TIMEOUT();
+            }
         }
 
         private Set<String> validateTags(List<String> tags) {

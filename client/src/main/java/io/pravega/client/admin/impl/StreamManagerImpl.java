@@ -128,6 +128,7 @@ public class StreamManagerImpl implements StreamManager {
         return  Futures.getThrowingException(controller.createStream(scopeName, streamName, StreamConfiguration.builder()
                         .scalingPolicy(config.getScalingPolicy())
                         .retentionPolicy(config.getRetentionPolicy())
+                        .timestampAggregationTimeout(config.getTimestampAggregationTimeout())
                         .tags(config.getTags())
                         .build()));
     }
@@ -141,6 +142,7 @@ public class StreamManagerImpl implements StreamManager {
                                                                     StreamConfiguration.builder()
                                                                                        .scalingPolicy(config.getScalingPolicy())
                                                                                        .retentionPolicy(config.getRetentionPolicy())
+                                                                                       .timestampAggregationTimeout(config.getTimestampAggregationTimeout())
                                                                                        .tags(config.getTags())
                                                                                        .build()));
     }
