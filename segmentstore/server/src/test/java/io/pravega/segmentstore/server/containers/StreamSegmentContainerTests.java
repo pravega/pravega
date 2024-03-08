@@ -116,6 +116,19 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import lombok.Cleanup;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import lombok.SneakyThrows;
+import lombok.val;
+import org.apache.commons.io.FileUtils;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -157,16 +170,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import lombok.Cleanup;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.Setter;
-import lombok.SneakyThrows;
-import lombok.val;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static org.junit.Assert.assertEquals;
@@ -271,6 +274,16 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
+
+    private File baseDir;
+
+
+    @After
+    public void tearDown() throws Exception {
+        if (this.baseDir != null && baseDir.exists()) {
+            FileUtils.deleteDirectory(this.baseDir);
+        }
+    }
 
     @Override
     protected int getThreadPoolSize() {
@@ -2161,7 +2174,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     () -> container.read("foo", 0, 1, TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
 
-            container.stopAsync().awaitTerminated();
+            try {
+                container.stopAsync().awaitTerminated();
+            } catch (IllegalStateException e) {
+                //Permitted.
+            }
         }
 
         // Start in "Offline" mode and verify we can resume a normal startup.
@@ -3029,7 +3046,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    @Test (timeout = 120000)
+
+    @Test (timeout = 10000)
     public void testFlushToStorageForEpochFileAlreadyExists() throws Exception {
         final String segmentName = "segment512";
         final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
@@ -3044,32 +3062,47 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
         FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
-        try (val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+
+        val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
-                context.getDefaultExtensions(), executorService())) {
-            container1.startAsync().awaitRunning();
+                context.getDefaultExtensions(), executorService());
 
-            // Create segment and make one append to it.
-            container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            // Test 1: Exercise epoch already exists flow in flushtostorage
-            container1.flushToStorage(TIMEOUT).join();
-            container1.flushToStorage(TIMEOUT).join();
-            // Test 1 ends
+        // Create epoch file
+        container1.saveEpochInfo(CONTAINER_ID, 1, 1, TIMEOUT).join();
+        // Cover epoch file already exists. Should not throw exception
+        container1.saveEpochInfo(CONTAINER_ID, 1, 1, TIMEOUT).join();
+    }
 
-            // Test 2: Exercise saved epoch is higher than contaier epoch
-            container1.metadata.setContainerEpochAfterRecovery(5);
-            container1.flushToStorage(TIMEOUT).join();
-            container1.metadata.setContainerEpochAfterRecovery(3);
-            AssertExtensions.assertSuppliedFutureThrows("", () -> container1.flushToStorage(TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
-            //Test 2 ends
-            container1.stopAsync().awaitTerminated();
-        }
+    @Test (timeout = 10000)
+    public void testFlushToStorageSavedEpochGreaterThanContainerEpoch() throws Exception {
+        final String segmentName = "segment512";
+        final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
+
+        final TestContainerConfig containerConfig = new TestContainerConfig();
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+
+        @Cleanup
+        TestContext context = createContext(containerConfig);
+        val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+
+        val watchableOperationLogFactory = new WatchableOperationLogFactory(localDurableLogFactory, durableLog::set);
+        FileSystemSimpleStorageFactory storageFactory = createFileSystemStorageFactory();
+
+        val container1 = new StreamSegmentContainer(CONTAINER_ID, containerConfig, watchableOperationLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                context.getDefaultExtensions(), executorService());
+
+        // Create epoch file
+        container1.saveEpochInfo(CONTAINER_ID, 5, 1, TIMEOUT).join();
+
+        // Set epoch to 3 this time. Covers saved epoch greater then container epoch.
+        AssertExtensions.assertSuppliedFutureThrows("", () -> container1.saveEpochInfo(CONTAINER_ID, 3, 1, TIMEOUT), ex -> Exceptions.unwrap(ex) instanceof IllegalContainerStateException );
     }
 
     @SneakyThrows
     private FileSystemSimpleStorageFactory createFileSystemStorageFactory() {
-        File baseDir = Files.createTempDirectory("TestStorage").toFile().getAbsoluteFile();
+        baseDir = Files.createTempDirectory("TestStorage").toFile().getAbsoluteFile();
         FileSystemStorageConfig adapterConfig = FileSystemStorageConfig.builder()
                 .with(FileSystemStorageConfig.ROOT, baseDir.getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)

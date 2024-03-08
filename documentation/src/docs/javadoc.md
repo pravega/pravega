@@ -22,12 +22,14 @@ We believe that providing developers rich APIs over the same storage system this
 the need to deploy one storage service per use-case. At the moment, the Pravega Client API provides the 
 following abstractions:
 
-## Event Stream Client
-_[Event Stream Client](https://github.com/pravega/pravega/tree/master/client/src/main/java/io/pravega/client/stream)_
-provides a Java library that implements a convenient API for Writer and Reader streaming applications to use. The 
-client library encapsulates the [Wire Protocol](wire-protocol.md) that is used to convey requests and responses 
-between Pravega clients and the Pravega service. Note that the Event Stream Client can manage events directly on Streams
-or via [Transactions](pravega-concepts.md/#transactions) to achieve exactly-once semantics.
+## Event Stream Writer/Reader
+[Event Stream Writer](https://www.pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/EventStreamWriter.html)
+and  [Event Stream Reader](https://www.pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/EventStreamReader.html)
+provide a Java library that implements a convenient API for Writer and Reader streaming applications, respectively.
+The client libraries encapsulate the [Wire Protocol](https://github.com/amit-kumar59/pravega/blob/Issue-8163-pravega-broken-urls/documentation/src/docs/wire-protocol.md)
+that is used to convey requests and responses between Pravega clients and the Pravega service.
+Note that for writing events using [Transactions](https://github.com/amit-kumar59/pravega/blob/Issue-8163-pravega-broken-urls/documentation/src/docs/pravega-concepts.md/#transactions)
+to achieve exactly-once semantics, Pravega offers the [Transactional Event Stream Writer](https://www.pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/TransactionalEventStreamWriter.html).
 
 ## Batch Client
 _[Batch Client](https://cncf.pravega.io/docs/latest/javadoc/clients/io/pravega/client/BatchClientFactory.html)_, instead of processing a stream as data comes in, 
@@ -40,13 +42,13 @@ The Batch Client allows:
 - generating a streamCut that is a bounded distance from another streamCut.
 
 ## Byte Client
-_[Byte Client](https://github.com/pravega/pravega/wiki/PDP-30-ByteStream-API)_ is a byte-oriented API providing a way 
+_[Byte Client](https://www.pravega.io/docs/latest/javadoc/clients/io/pravega/client/ByteStreamClientFactory.html)_ is a byte-oriented API providing a way 
 to write data to Pravega without writing events. It presents an interface of a InputStream and an OutputStream. Data 
 written in this way is not framed or interpreted by Pravega. So there are no length headers or event boundaries. As 
 such byte offsets into the stream are meaningful and directly exposed.
 
 ## KV Tables Client
-_[KV Tables Client](https://github.com/pravega/pravega/wiki/PDP-39-Key-Value-Tables)_: Real-world analytical 
+_[KV Tables Client](https://www.pravega.io/docs/latest/javadoc/clients/io/pravega/client/tables/package-summary.html)_: Real-world analytical 
 pipelines are seldom made up of just Stream Processing. Many applications 
 require storing and retrieving state, and some applications even need to store results in some sort of database 
 (whether structured or not). Such applications require complex deployments involving multiple different types of 
@@ -60,11 +62,11 @@ maintain disparate storage systems - both KVTs and Streams share the same underl
 Pravega Segments.
 
 ## State Synchronizer Client
-_[State Synchronizer Client](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/state/StateSynchronizer.java)_:
+_[State Synchronizer Client](https://www.pravega.io/docs/latest/javadoc/clients/io/pravega/client/state/StateSynchronizer.html)_:
 In many situations, a distributed application may need to share information across multiple processes that may
 update it (e.g., configuration file). In this scenario, keep the data consistent under concurrent updates is key.
 The State Synchronizer Client just solves this problem: it provides a means to have state that is synchronized between 
 many processes.
 
 ## Javadoc
-For full details on the available APIs, please check out the [Pravega Client Javadoc](clients/index.html).
+For full details on the available APIs, please check out the [Pravega Client Javadoc](https://www.pravega.io/docs/latest/javadoc/clients/).

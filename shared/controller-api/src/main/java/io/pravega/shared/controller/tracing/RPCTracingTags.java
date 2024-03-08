@@ -65,4 +65,5 @@ public final class RPCTracingTags {
     public static final String GET_CURRENT_SEGMENTS_KEY_VALUE_TABLE = "getCurrentSegmentsKeyValueTable";
     public static final String GET_SEGMENTS_BETWEEN_STREAM_CUTS = "getSegmentsBetweenStreamCuts";
     public static final String IS_STREAMCUT_VALID = "isStreamCutValid";
+    public static final String GET_CONTROLLER_TO_BUCKET_MAPPING = "getControllerToBucketMapping";
 }

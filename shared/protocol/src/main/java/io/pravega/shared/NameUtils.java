@@ -87,6 +87,11 @@ public final class NameUtils {
     public static final String DELETED_STREAMS_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "deletedStreams");
 
     /**
+     * The table name for the Int96 counter table.
+     */
+    public static final String TRANSACTION_ID_COUNTER_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "counter");
+
+    /**
      * Size of the prefix or suffix included with the user stream name.
      */
     public static final int MAX_PREFIX_OR_SUFFIX_SIZE = 5;

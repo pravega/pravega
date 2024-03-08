@@ -31,10 +31,6 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutException;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -46,6 +42,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.SneakyThrows;
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_NUM_CHUNKS_ADDED;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_NUM_CHUNKS_ADDED;
@@ -107,46 +106,45 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length);
 
         val streamSegmentName = handle.getSegmentName();
-        return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(false, handle.getSegmentName()),
-                txn -> {
-                    didSegmentLayoutChange = false;
+        return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(false, handle.getSegmentName()), 
+            txn -> {
+                didSegmentLayoutChange = false;
 
-                    // Retrieve metadata.
-                    return txn.get(streamSegmentName)
-                            .thenComposeAsync(storageMetadata -> {
-                                segmentMetadata = (SegmentMetadata) storageMetadata;
-                                // Validate preconditions.
-                                checkState();
+                // Retrieve metadata.
+                return txn.get(streamSegmentName)
+                        .thenComposeAsync(storageMetadata -> {
+                    segmentMetadata = (SegmentMetadata) storageMetadata;
+                    // Validate preconditions.
+                    checkState();
 
-                                isSystemSegment = chunkedSegmentStorage.isStorageSystemSegment(segmentMetadata);
+                    isSystemSegment = chunkedSegmentStorage.isStorageSystemSegment(segmentMetadata);
 
-                                // Check if this is a first write after ownership changed.
-                                isFirstWriteAfterFailover = segmentMetadata.isOwnershipChanged();
+                    // Check if this is a first write after ownership changed.
+                    isFirstWriteAfterFailover = segmentMetadata.isOwnershipChanged();
 
-                                lastChunkMetadata.set(null);
-                                chunkHandle = null;
-                                bytesRemaining.set(length);
-                                currentOffset.set(offset);
+                    lastChunkMetadata.set(null);
+                    chunkHandle = null;
+                    bytesRemaining.set(length);
+                    currentOffset.set(offset);
 
-                                // Get the last chunk segmentMetadata for the segment.
+                    // Get the last chunk segmentMetadata for the segment.
 
-                                return getLastChunk(txn)
-                                        .thenComposeAsync(v ->
-                                                        writeData(txn)
-                                                                .thenComposeAsync(vv ->
-                                                                                commit(txn)
-                                                                                        .thenApplyAsync(vvvv ->
-                                                                                                postCommit(), chunkedSegmentStorage.getExecutor())
-                                                                                        .exceptionally(this::handleException),
-                                                                        chunkedSegmentStorage.getExecutor())
-                                                                .thenRunAsync(this::logEnd, chunkedSegmentStorage.getExecutor()),
-                                                chunkedSegmentStorage.getExecutor());
-                            }, chunkedSegmentStorage.getExecutor());
-                }, chunkedSegmentStorage.getExecutor())
-                .exceptionally(ex -> (Void) handleException(ex));
+                    return getLastChunk(txn).thenComposeAsync(
+                        v -> writeData(txn).thenComposeAsync(
+                            vv -> commit(txn).thenApplyAsync(vvvv -> postCommit(), chunkedSegmentStorage.getExecutor())
+                                             .exceptionally(e -> {
+                                                 throw handleException(e);
+                                             }),
+                            chunkedSegmentStorage.getExecutor())
+                                           .thenRunAsync(this::logEnd, chunkedSegmentStorage.getExecutor()),
+                        chunkedSegmentStorage.getExecutor());
+                }, chunkedSegmentStorage.getExecutor());
+            }, chunkedSegmentStorage.getExecutor()).exceptionally(ex -> {
+                throw handleException(ex);
+            });
     }
 
-    private Object handleException(Throwable e) {
+    private RuntimeException handleException(Throwable e) {
         log.debug("{} write - exception op={}, segment={}, offset={}, length={}.",
                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length);
         val ex = Exceptions.unwrap(e);

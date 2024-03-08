@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -249,13 +250,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      */
     private CompletableFuture<Void> initializeStorage() throws Exception {
         long containerEpoch = this.metadata.getContainerEpoch();
+        long backedUpOperationSeq = 0;
         if (shouldRecoverFromStorage().get()) {
             // If we are recovering from storage, the durableLog will be
             // initialized with 0 epoch. So override the durableLog with backed up epoch.
-            containerEpoch = readContainerEpoch().get();
+            EpochInfo info = readContainerEpoch().get();
+            // Increment epoch for restore just like container restart.
+            containerEpoch = info.getEpoch() + 1;
+            backedUpOperationSeq = info.getOperationSequenceNumber();
             this.durableLog.overrideEpoch(containerEpoch);
-            this.metadata.setContainerEpochAfterRecovery(containerEpoch);
-            log.info("{}: Recovered container epoch {} has been set in the DurableDataLog", this.traceObjectId, containerEpoch);
+            this.metadata.setContainerEpochAfterRestore(containerEpoch);
+            this.metadata.setOperationSequenceNumberAfterRestore(backedUpOperationSeq);
+            log.info("{}: Recovered container epoch {} has been set in the DurableDataLog", this.traceObjectId, info);
         }
         log.info("{}: Initializing storage with epoch {}", this.traceObjectId, containerEpoch);
         this.storage.initialize(containerEpoch);
@@ -288,15 +294,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         if (this.closed.compareAndSet(false, true)) {
             this.metadataStore.close();
             this.extensions.values().forEach(SegmentContainerExtension::close);
-            Futures.await(Services.stopAsync(this, this.executor));
             this.metadataCleaner.close();
             this.writer.close();
-            this.durableLog.close();
             this.readIndex.close();
             this.attributeIndex.close();
+            this.durableLog.close();
             this.storage.close();
             this.metrics.close();
             this.containerEventProcessor.close();
+            Futures.await(Services.stopAsync(this, this.executor));
             log.info("{}: Closed.", this.traceObjectId);
         }
     }
@@ -330,26 +336,24 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Void> startWhenDurableLogOnline() {
-        CompletableFuture<Void> isReady;
         CompletableFuture<Void> delayedStart;
-        if (this.durableLog.isOffline()) {
+        boolean delayStart = this.durableLog.isOffline();
+        if (delayStart) {
             // Attach a listener to the DurableLog's awaitOnline() Future and initiate the services' startup when that
             // completes successfully.
             log.info("{}: DurableLog is OFFLINE. Not starting secondary services yet.", this.traceObjectId);
             notifyStarted();
-            isReady = CompletableFuture.completedFuture(null);
             delayedStart = this.durableLog.awaitOnline()
                     .thenComposeAsync(v -> initializeSecondaryServices(), this.executor);
         } else {
             // DurableLog is already online. Immediately initialize secondary services. In this particular case, it needs
             // to be done synchronously since we need to initialize Storage before notifying that we are fully started.
-            isReady = initializeSecondaryServices().thenRun(() -> notifyStarted());
-            delayedStart = isReady;
+            delayedStart = initializeSecondaryServices();
         }
 
         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
         // are not required for accepting new operations and can still start in the background.
-        delayedStart.thenComposeAsync( v -> this.adjustLengthsPostRecovery(), this.executor)
+        return delayedStart.thenComposeAsync( v -> this.adjustLengthsPostRecovery(), this.executor)
                 .thenComposeAsync(v -> {
                     val chunkedSegmentStorage = ChunkedSegmentStorage.getReference(this.storage);
                     if (null != chunkedSegmentStorage) {
@@ -366,17 +370,19 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     if (ex == null) {
                         // Successful start.
                         log.info("{}: Started.", this.traceObjectId);
+                        if (!delayStart) {
+                            notifyStarted();
+                        }
                     } else if (Services.isTerminating(state())) {
                         // If the delayed start fails, immediately shut down the Segment Container with the appropriate
                         // exception. However if we are already shut down (or in the process of), it is sufficient to
                         // log the secondary service exception and move on.
                         log.warn("{}: Ignoring delayed start error due to Segment Container shutting down.", this.traceObjectId, ex);
+                        notifyFailed(ex);
                     } else {
                         doStop(ex);
                     }
                 });
-
-        return isReady;
     }
 
     /**
@@ -875,17 +881,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         log.info("{}: Starting flush to storage for container ID: {}", this.traceObjectId, containerId);
         val flusher = new LogFlusher(containerId, this.durableLog, this.writer, this.metadataCleaner, this.executor);
         return flusher.flushToStorage(timeout)
-                .thenComposeAsync( v -> saveEpochInfo(containerId, this.metadata.getContainerEpoch(), timeout), this.executor)
+                .thenComposeAsync( v -> saveEpochInfo(containerId, this.metadata.getContainerEpoch(), this.metadata.getOperationSequenceNumber(), timeout), this.executor)
                 .thenAcceptAsync(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
     }
 
-    private CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, Duration timeout) {
+    @VisibleForTesting
+    protected CompletableFuture<Void> saveEpochInfo(int containerId, long containerEpoch, long operationSequenceNumber, Duration timeout) {
         if (!(storage instanceof ChunkedSegmentStorage)) {
             return CompletableFuture.completedFuture(null);
         }
         val chunkedSegmentStorage = (ChunkedSegmentStorage) storage;
         val chunk = NameUtils.getContainerEpochFileName(containerId);
-        val epochInfo = new EpochInfo(containerEpoch);
+        val epochInfo = new EpochInfo(containerEpoch, operationSequenceNumber);
         val isDone = new AtomicBoolean(false);
         val attempts = new AtomicInteger();
         try {
@@ -897,11 +904,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                 if (exists) {
                                     return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength())
                                             .thenComposeAsync(savedEpoch -> {
-                                                if (savedEpoch.getEpoch() > epochInfo.getEpoch()) {
+                                                if (savedEpoch.getEpoch() > epochInfo.getEpoch() ||
+                                                        savedEpoch.getOperationSequenceNumber() > epochInfo.getOperationSequenceNumber()) {
                                                     return CompletableFuture.failedFuture(
                                                         new IllegalContainerStateException(String.format(
                                                             "Unexpected epoch. Expected = {} actual = {}",
-                                                            epochInfo.getEpoch(), savedEpoch.getEpoch())));
+                                                            epochInfo, savedEpoch)));
                                                 } else {
                                                     return chunkedSegmentStorage.getChunkStorage().delete(ChunkHandle.writeHandle(chunk));
                                                 }
@@ -910,19 +918,21 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                                     return CompletableFuture.completedFuture(null);
                                 }
                             }, this.executor)
-                            .thenComposeAsync(v -> chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(),
-                                    new ByteArrayInputStream(epochBytes.array(), 0, epochBytes.getLength())), executor)
+                            .thenComposeAsync(v -> {
+                                    return chunkedSegmentStorage.getChunkStorage().createWithContent(chunk, epochBytes.getLength(),
+                                    new ByteArrayInputStream(epochBytes.array(), 0, epochBytes.getLength())); }, executor)
                             .thenComposeAsync( v -> {
-                                log.debug("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo);
+                                log.info("{}: Epoch info saved to epochInfoFile. File {}. info = {}", this.traceObjectId, chunk, epochInfo);
                                 return readEpochInfo(chunk, chunkedSegmentStorage, epochBytes.getLength()); }, executor)
                             .thenApplyAsync( readBackInfo -> {
-                                if (readBackInfo.getEpoch() > epochInfo.getEpoch()) {
+                                if (readBackInfo.getEpoch() > epochInfo.getEpoch() || readBackInfo.getOperationSequenceNumber() >
+                                        epochInfo.getOperationSequenceNumber()) {
                                     throw new CompletionException(
-                                            new IllegalContainerStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo.getEpoch(), readBackInfo.getEpoch())));
+                                            new IllegalContainerStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
                                 }
                                 if (!epochInfo.equals(readBackInfo)) {
                                     throw new CompletionException(
-                                            new IllegalStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo.getEpoch(), readBackInfo.getEpoch())));
+                                            new IllegalStateException(String.format("Unexpected epochInfo. Expected = {} actual = {}", epochInfo, readBackInfo)));
                                 }
                                 return null;
                             }, executor)
@@ -971,7 +981,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * Container startup in case of recovery mode uses this saved epoch information
      * @return epoch read from storage.
      */
-    private CompletableFuture<Long> readContainerEpoch() {
+    private CompletableFuture<EpochInfo> readContainerEpoch() {
         log.info(" {}: Reading container epoch from storage", this.traceObjectId);
         val containerEpochFileName = NameUtils.getContainerEpochFileName(this.getId());
         UtilsWrapper wrapper = new UtilsWrapper((ChunkedSegmentStorage) this.storage, BUFFER_SIZE, this.config.getMetadataStoreInitTimeout());
@@ -984,8 +994,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
-                    log.info("{}: Read container epoch {} from storage", this.traceObjectId, containerEpoch.getEpoch());
-                    return CompletableFuture.completedFuture(containerEpoch.getEpoch() + 1);
+                    log.info("{}: Read container epoch {} from storage", this.traceObjectId, containerEpoch);
+                    return CompletableFuture.completedFuture(containerEpoch);
                 }, this.executor)
                 .handleAsync( (epoch, ex) -> {
                    if ( ex != null ) {
@@ -1208,7 +1218,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private void ensureRunning() {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        if (state() != State.RUNNING) {
+        if (state() != State.RUNNING && state() != State.STARTING) {
             throw new IllegalContainerStateException(this.getId(), state(), State.RUNNING);
         } else if (isOffline()) {
             throw new ContainerOfflineException(getId());
