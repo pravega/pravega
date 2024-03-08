@@ -20,6 +20,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
 import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
+import io.pravega.segmentstore.storage.chunklayer.StorageCapacityStats;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import lombok.Getter;
 
@@ -151,9 +152,9 @@ public class SlowChunkStorage implements ChunkStorage {
     }
 
     @Override
-    public CompletableFuture<Long> getUsedSpace() {
+    public CompletableFuture<StorageCapacityStats> getStorageCapacityStats() {
         return Futures.delayedFuture(durationSupplier.get(), executorService)
-                .thenComposeAsync(v -> inner.getUsedSpace(), executorService);
+                .thenComposeAsync(v -> inner.getStorageCapacityStats(), executorService);
     }
 
     @Override

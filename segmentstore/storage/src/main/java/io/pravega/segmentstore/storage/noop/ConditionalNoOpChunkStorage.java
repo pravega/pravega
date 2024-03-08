@@ -19,6 +19,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
 import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
+import io.pravega.segmentstore.storage.chunklayer.StorageCapacityStats;
 import lombok.Getter;
 
 import java.io.InputStream;
@@ -128,8 +129,8 @@ public class ConditionalNoOpChunkStorage implements ChunkStorage {
     }
 
     @Override
-    public CompletableFuture<Long> getUsedSpace() {
-        return inner.getUsedSpace();
+    public CompletableFuture<StorageCapacityStats> getStorageCapacityStats() {
+        return inner.getStorageCapacityStats();
     }
 
     @Override

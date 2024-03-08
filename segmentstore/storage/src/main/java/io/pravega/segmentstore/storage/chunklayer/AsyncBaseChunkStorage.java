@@ -516,17 +516,17 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      *
      * @return Return the total size of storage used in bytes. 0 should be returned if not supported.
      * If the operation failed, it will contain the cause of the failure.
-     * @throws CompletionException           If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     *                                       {@link ChunkStorageException} In case of I/O related exceptions.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                             {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    final public CompletableFuture<Long> getUsedSpace() {
+    final public CompletableFuture<StorageCapacityStats> getStorageCapacityStats() {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         val traceId = LoggerHelpers.traceEnter(log, "getUsedSpace");
 
         // Call concrete implementation.
         val opContext = new OperationContext();
-        val returnFuture = doGetUsedSpaceAsync(opContext);
+        val returnFuture = doGetStorageCapacityStatsAsync(opContext);
         if (log.isTraceEnabled()) {
             returnFuture.thenAcceptAsync(v -> LoggerHelpers.traceLeave(log, "getUsedSpace", traceId), executor);
         }
@@ -714,13 +714,13 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * Get used space in bytes.
      *
      * @param opContext Context for the given operation.
-     * @return A CompletableFuture that, when completed, will return the total size of storage used in bytes.
+     * @return A CompletableFuture that, when completed, will return the storage capacity stats.
      *         0 will be returned if not supported.
      * If the operation failed, it will contain the cause of the failure.
      * @throws CompletionException           If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      *                                       {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Long> doGetUsedSpaceAsync(OperationContext opContext);
+    abstract protected CompletableFuture<StorageCapacityStats> doGetStorageCapacityStatsAsync(OperationContext opContext);
 
     /**
      * Validate chunk name.

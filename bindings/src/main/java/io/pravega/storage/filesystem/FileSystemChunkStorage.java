@@ -26,6 +26,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageFullException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
+import io.pravega.segmentstore.storage.chunklayer.StorageCapacityStats;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -296,9 +297,9 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected long doGetUsedSpace(OperationContext opContext) throws ChunkStorageException  {
+    protected StorageCapacityStats doGetStorageCapacityStats(OperationContext opContext) throws ChunkStorageException  {
         try {
-            return fileSystem.getUsedSpace(Paths.get(config.getRoot()));
+            return fileSystem.getCapacityStats(Paths.get(config.getRoot()));
         } catch (Exception e) {
             throw convertException("", "doGetUsedSpace", e);
         }

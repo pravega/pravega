@@ -79,7 +79,7 @@ public class HDFSChunkStorageMockTest extends ThreadPooledTestSuite {
         storage.initialize();
         doThrow(new IOException("Intentional")).when(mockFs).getUsed();
         AssertExtensions.assertFutureThrows("should throw ChunkStorageFull exception",
-                storage.getUsedSpace(),
+                storage.getStorageCapacityStats(),
                 ex -> ex instanceof ChunkStorageException);
     }
 
