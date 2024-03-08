@@ -127,6 +127,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
         }
 
         val delay = new AtomicReference<>(this.throttlerCalculator.getThrottlingDelay());
+
         if (!delay.get().isMaximum()) {
             // We are not delaying the maximum amount. We only need to do this once.
             val existingDelay = this.currentDelay.get();
