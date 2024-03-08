@@ -100,20 +100,19 @@ public class ConcurrentEventProcessorTest {
                 result.completeExceptionally(new RuntimeException("max concurrent not honoured"));
             }
             return CompletableFuture.runAsync(() -> {
-                        switch (testEvent.getNumber()) {
-                            case 3:
-                                Futures.getAndHandleExceptions(latch, RuntimeException::new);
-                                if (checkpoint.get() > 2) {
-                                    result.completeExceptionally(new RuntimeException("3 still running yet checkpoint moved ahead"));
-                                }
-                                break;
-                            default:
-                                break;
-                        }
-                        map.put(testEvent.getNumber(), true);
-                        runningcount.decrementAndGet();
+                switch (testEvent.getNumber()) {
+                case 3:
+                    Futures.getAndHandleExceptions(latch, RuntimeException::new);
+                    if (checkpoint.get() > 2) {
+                        result.completeExceptionally(new RuntimeException("3 still running yet checkpoint moved ahead"));
                     }
-            );
+                    break;
+                default:
+                    break;
+                }
+                map.put(testEvent.getNumber(), true);
+                runningcount.decrementAndGet();
+            }, executor);
         }
     }
 
@@ -132,7 +131,7 @@ public class ConcurrentEventProcessorTest {
         latch = new CompletableFuture<>();
         result = new CompletableFuture<>();
         runningcount = new AtomicInteger(0);
-        executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(3, "test");
     }
 
     @After
@@ -173,7 +172,7 @@ public class ConcurrentEventProcessorTest {
                 map.put(i, false);
                 processor.process(new TestEvent(i), new TestPosition(i));
             }
-        });
+        }, executor);
         result.get();
         assertTrue(Futures.await(result));
         processor.afterStop();

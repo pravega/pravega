@@ -251,7 +251,7 @@ public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
             StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(j)).build();
             final String stream = "stream" + j;
             log.info("updating the stream tag scope {}/{}", stream, scope);
-            futures.add(CompletableFuture.runAsync(() -> streamManager.updateStream(scope, stream, config.toBuilder().clearTags().tags(tagSet2).build())));
+            futures.add(CompletableFuture.runAsync(() -> streamManager.updateStream(scope, stream, config.toBuilder().clearTags().tags(tagSet2).build()), executor));
         }
         assertEquals(TEST_MAX_STREAMS, futures.size());
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();

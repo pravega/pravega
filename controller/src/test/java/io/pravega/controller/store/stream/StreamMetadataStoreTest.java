@@ -586,7 +586,7 @@ public abstract class StreamMetadataStoreTest {
             // wait until we create epoch transition outside of this method
             updateEpochTransitionCalled.complete(null);
             latch.join();
-        }).thenCompose(v -> streamObj.updateEpochTransitionNode(x.getArgument(0), x.getArgument(1))))
+        }, executor).thenCompose(v -> streamObj.updateEpochTransitionNode(x.getArgument(0), x.getArgument(1))))
                 .when(streamObjSpied).updateEpochTransitionNode(any(), any());
 
         doAnswer(x -> streamObj.getEpochTransitionNode(x.getArgument(0))).when(streamObjSpied).getEpochTransitionNode(any());
@@ -652,7 +652,7 @@ public abstract class StreamMetadataStoreTest {
                 updateEpochTransitionCalled.complete(null);
                 latch.join();
             }
-        }).thenCompose(v -> streamObj.updateEpochTransitionNode(x.getArgument(0), x.getArgument(1))))
+        }, executor).thenCompose(v -> streamObj.updateEpochTransitionNode(x.getArgument(0), x.getArgument(1))))
                 .when(streamObjSpied).updateEpochTransitionNode(any(), any());
 
         StreamOperationContext context = new StreamOperationContext(((AbstractStreamMetadataStore) store).getScope(scope, null), streamObjSpied, 0L);

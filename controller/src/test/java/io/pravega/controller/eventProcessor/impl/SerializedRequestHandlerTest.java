@@ -363,7 +363,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
                 event.complete();
                 Futures.await(requestHandler.process(event, () -> false));
             }
-        });
+        }, executorService());
     }
 
     private String getKeyForStream(String scope, String stream) {

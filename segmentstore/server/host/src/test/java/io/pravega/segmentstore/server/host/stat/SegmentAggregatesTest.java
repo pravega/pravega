@@ -15,10 +15,13 @@
  */
 package io.pravega.segmentstore.server.host.stat;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.Cleanup;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -165,11 +168,13 @@ public class SegmentAggregatesTest {
 
     @Test
     public void parallel() throws ExecutionException, InterruptedException {
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "SegmentAggregatesTest");
         setClock(0L);
         SegmentAggregates aggregates = new TestSegmentAggregatesEvents(100);
-        CompletableFuture.allOf(CompletableFuture.runAsync(() -> write(aggregates, 100)),
-                CompletableFuture.runAsync(() -> write(aggregates, 100)),
-                CompletableFuture.runAsync(() -> write(aggregates, 100))).get();
+        CompletableFuture.allOf(CompletableFuture.runAsync(() -> write(aggregates, 100), executor),
+                CompletableFuture.runAsync(() -> write(aggregates, 100), executor),
+                CompletableFuture.runAsync(() -> write(aggregates, 100), executor)).get();
         setClock(Duration.ofSeconds(5).toMillis() + 1);
         aggregates.update(0, 0);
         // 300 events in 5.001 seconds
@@ -182,11 +187,13 @@ public class SegmentAggregatesTest {
 
     @Test
     public void parallelTx() throws ExecutionException, InterruptedException {
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "SegmentAggregatesTest");
         setClock(Duration.ofSeconds(10).toMillis());
         SegmentAggregates aggregates = new TestSegmentAggregatesEvents(100);
-        CompletableFuture.allOf(CompletableFuture.runAsync(() -> writeTx(aggregates, 100, 0)),
-                CompletableFuture.runAsync(() -> writeTx(aggregates, 100, 0)),
-                CompletableFuture.runAsync(() -> writeTx(aggregates, 100, 0))).get();
+        CompletableFuture.allOf(CompletableFuture.runAsync(() -> writeTx(aggregates, 100, 0), executor),
+                CompletableFuture.runAsync(() -> writeTx(aggregates, 100, 0), executor),
+                CompletableFuture.runAsync(() -> writeTx(aggregates, 100, 0), executor)).get();
 
         setClock(Duration.ofSeconds(15).toMillis() + 1);
         aggregates.update(0, 0);

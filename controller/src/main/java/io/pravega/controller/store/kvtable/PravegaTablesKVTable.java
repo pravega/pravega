@@ -84,7 +84,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
             // if cache contains the scope id then we load the kvtid. if not found, we load the scopeid first. 
             return storeHelper.loadFromTableHandleStaleTableName(metadataTableNameSupplier, getName(),
                     BYTES_TO_UUID_FUNCTION, context)
-                              .thenComposeAsync(data -> {
+                              .thenCompose(data -> {
                                   idRef.compareAndSet(null, data.getObject().toString());
                                   return getId(context);
                               });

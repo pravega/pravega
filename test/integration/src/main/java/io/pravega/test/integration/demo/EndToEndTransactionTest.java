@@ -19,12 +19,12 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.controller.util.Config;
@@ -34,9 +34,6 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestingServerStarter;
-
-import java.util.concurrent.CompletableFuture;
-
 import io.pravega.test.integration.utils.ControllerWrapper;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -119,16 +116,7 @@ public class EndToEndTransactionTest {
             Thread.sleep(500);
         }
 
-        CompletableFuture<Object> commit = CompletableFuture.supplyAsync(() -> {
-            try {
-                transaction.commit();
-            } catch (Exception e) {
-                log.warn("Error committing transaction", e);
-            }
-            return null;
-        });
-
-        commit.join();
+        transaction.commit();
 
         Transaction.Status txnStatus = transaction.checkStatus();
         assertTrue(txnStatus == Transaction.Status.COMMITTING || txnStatus == Transaction.Status.COMMITTED);
@@ -153,16 +141,7 @@ public class EndToEndTransactionTest {
             Thread.sleep(500);
         }
 
-        CompletableFuture<Object> drop = CompletableFuture.supplyAsync(() -> {
-            try {
-                transaction2.abort();
-            } catch (Exception e) {
-                log.warn("Error aborting transaction", e);
-            }
-            return null;
-        });
-
-        drop.join();
+        transaction2.abort();
 
         Transaction.Status txn2Status = transaction2.checkStatus();
         assertTrue(txn2Status == Transaction.Status.ABORTING || txn2Status == Transaction.Status.ABORTED);

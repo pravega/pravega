@@ -132,7 +132,7 @@ public class OffsetTruncationTest extends AbstractReadWriteTest {
         writeEvents(clientFactory, STREAM, totalEvents);
 
         // Instantiate readers to consume from Stream up to truncatedEvents.
-        List<CompletableFuture<Integer>> futures = readEventFutures(clientFactory, READER_GROUP, PARALLELISM, truncatedEvents);
+        List<CompletableFuture<Integer>> futures = readEventFutures(clientFactory, READER_GROUP, PARALLELISM, truncatedEvents, executor);
         Futures.allOf(futures).join();
         // Ensure that we have read all the events required before initiating the checkpoint.
         assertEquals("Number of events read is not the expected one.", (Integer) truncatedEvents,
@@ -148,7 +148,7 @@ public class OffsetTruncationTest extends AbstractReadWriteTest {
         // Just after the truncation, read events from the offset defined in truncate call onwards.
         final String newGroupName = READER_GROUP + "new";
         groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
-        futures = readEventFutures(clientFactory, newGroupName, PARALLELISM);
+        futures = readEventFutures(clientFactory, newGroupName, PARALLELISM, executor);
         Futures.allOf(futures).join();
         assertEquals("Expected read events: ", totalEvents - truncatedEvents,
                 (int) futures.stream().map(CompletableFuture::join).reduce(Integer::sum).get());

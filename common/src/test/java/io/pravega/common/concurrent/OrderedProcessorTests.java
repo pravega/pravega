@@ -138,7 +138,7 @@ public class OrderedProcessorTests extends ThreadPooledTestSuite {
 
             CompletableFuture<Integer> result = new CompletableFuture<>();
             processFuture.thenComposeAsync(v -> Futures.delayedFuture(delaySupplier.get(), executorService()), executorService())
-                         .whenCompleteAsync((r, ex) -> result.complete(TRANSFORMER.apply(i)));
+                         .whenComplete((r, ex) -> result.complete(TRANSFORMER.apply(i)));
             return result;
         };
 

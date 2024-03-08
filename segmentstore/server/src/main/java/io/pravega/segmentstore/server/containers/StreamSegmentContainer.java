@@ -882,7 +882,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         val flusher = new LogFlusher(containerId, this.durableLog, this.writer, this.metadataCleaner, this.executor);
         return flusher.flushToStorage(timeout)
                 .thenComposeAsync( v -> saveEpochInfo(containerId, this.metadata.getContainerEpoch(), this.metadata.getOperationSequenceNumber(), timeout), this.executor)
-                .thenAcceptAsync(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
+                .thenAccept(x -> log.info("{}: Completed flush to storage for container ID: {}", this.traceObjectId, containerId));
     }
 
     @VisibleForTesting

@@ -500,9 +500,8 @@ public class StreamMetaDataTests {
         response.close();
 
         // Get a non-existent stream
-        when(mockControllerService.getStream(eq(scope1), eq(stream2), anyLong())).thenReturn(CompletableFuture.supplyAsync(() -> {
-            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, stream2);
-        }));
+        when(mockControllerService.getStream(eq(scope1), eq(stream2), anyLong())).thenReturn(
+            CompletableFuture.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, stream2)));
         response = addAuthHeaders(client.target(resourceURI2).request()).buildGet().invoke();
         assertEquals("Get Stream Config Status", 404, response.getStatus());
         response.close();
@@ -644,9 +643,8 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test to get non-existent scope
-        when(mockControllerService.getScope(eq("scope2"), anyLong())).thenReturn(CompletableFuture.supplyAsync(() -> {
-            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope2");
-        }));
+        when(mockControllerService.getScope(eq("scope2"), anyLong())).thenReturn(
+            CompletableFuture.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope2")));
         response = addAuthHeaders(client.target(resourceURI2).request()).buildGet().invoke();
         assertEquals("Get non existent scope", 404, response.getStatus());
         response.close();

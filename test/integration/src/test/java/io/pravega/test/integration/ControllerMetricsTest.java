@@ -27,6 +27,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -47,6 +48,7 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.utils.ControllerWrapper;
 import java.net.URI;
 import java.time.Duration;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -166,7 +168,8 @@ public class ControllerMetricsTest extends ThreadPooledTestSuite {
         final int parallelism = 4;
         final int eventsWritten = 10;
         int iterations = 3;
-
+        @Cleanup("shutdown")
+        ScheduledExecutorService readerPool = ExecutorServiceHelpers.newScheduledThreadPool(parallelism, "ReaderPool");
         // At this point, we have at least 6 internal streams.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(parallelism)).build();
@@ -203,7 +206,7 @@ public class ControllerMetricsTest extends ThreadPooledTestSuite {
 
                 // Read and write some events.
                 writeEvents(clientFactory, iterationStreamName, eventsWritten);
-                Futures.allOf(readEvents(clientFactory, iterationReaderGroupName, parallelism));
+                Futures.allOf(readEvents(clientFactory, iterationReaderGroupName, parallelism, readerPool));
 
                 // Get a StreamCut for truncating the Stream.
                 StreamCut streamCut = readerGroup.generateStreamCuts(executorService()).join().get(Stream.of(scope, iterationStreamName));

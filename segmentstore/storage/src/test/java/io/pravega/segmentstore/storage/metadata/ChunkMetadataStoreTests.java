@@ -974,7 +974,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             val futures = new ArrayList<CompletableFuture<Void>>();
             for (int i = 0; i < 10000; i++) {
                 final int k = i;
-                futures.add(CompletableFuture.runAsync(() -> simpleScenarioForKey("Key" + k)));
+                futures.add(CompletableFuture.runAsync(() -> simpleScenarioForKey("Key" + k), executorService()));
             }
             Futures.allOf(futures);
         }
@@ -988,8 +988,8 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             val futures = new ArrayList<CompletableFuture<Void>>();
             for (int i = 0; i < 10000; i++) {
                 final int k = i;
-                futures.add(CompletableFuture.runAsync(() -> simpleScenarioForKey("Key" + k)));
-                futures.add(CompletableFuture.runAsync(() -> metadataStore.evictAllEligibleEntriesFromBuffer()));
+                futures.add(CompletableFuture.runAsync(() -> simpleScenarioForKey("Key" + k), executorService()));
+                futures.add(CompletableFuture.runAsync(() -> metadataStore.evictAllEligibleEntriesFromBuffer(), executorService()));
             }
             Futures.allOf(futures);
         }
@@ -1100,7 +1100,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                 readKey(KEY2, VALUE2);
                 readKey(KEY4, VALUE4);
                 evictAll(testMetadataStore);
-            }));
+            }, executorService()));
         }
         Futures.allOf(futures);
 
@@ -1115,7 +1115,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                 testMetadataStore.evictFromCache();
                 // Invoke eviction, this will move data from buffer to the Guava cache.
                 testMetadataStore.evictAllEligibleEntriesFromBuffer();
-            }));
+            }, executorService()));
         }
         Futures.allOf(futures2);
 
@@ -1127,7 +1127,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                 readKey(KEY1, VALUE1);
                 readKey(KEY2, VALUE2);
                 readKey(KEY4, VALUE4);
-            }));
+            }, executorService()));
         }
         Futures.allOf(futures3);
     }

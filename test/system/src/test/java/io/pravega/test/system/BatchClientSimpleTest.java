@@ -141,7 +141,7 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
         writeEvents(clientFactory, STREAM, totalEvents);
 
         // Instantiate readers to consume from Stream up to truncatedEvents.
-        List<CompletableFuture<Integer>> futures = readEventFutures(clientFactory, READER_GROUP, RG_PARALLELISM, offsetEvents);
+        List<CompletableFuture<Integer>> futures = readEventFutures(clientFactory, READER_GROUP, RG_PARALLELISM, offsetEvents, executor);
         Futures.allOf(futures).join();
 
         // Create a stream cut on the specified offset position.
@@ -194,8 +194,8 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
     private int readFromRanges(List<SegmentRange> ranges, BatchClientFactory batchClient) {
         List<CompletableFuture<Integer>> eventCounts = ranges
                 .parallelStream()
-                .map(range -> CompletableFuture.supplyAsync(() -> batchClient.readSegment(range, new JavaSerializer<>()))
-                                               .thenApplyAsync(segmentIterator -> {
+                .map(range -> CompletableFuture.supplyAsync(() -> batchClient.readSegment(range, new JavaSerializer<>()), executor)
+                                               .thenApply(segmentIterator -> {
                                                    log.debug("Thread " + Thread.currentThread().getId() + " reading events.");
                                                    int numEvents = Lists.newArrayList(segmentIterator).size();
                                                    segmentIterator.close();

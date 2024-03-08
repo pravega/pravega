@@ -85,7 +85,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
 
         return CompletableFuture.runAsync(() -> {
             startTest(containerName, className, methodName);
-        }).thenCompose(v2 -> waitForJobCompletion())
+        }, executorService).thenCompose(v2 -> waitForJobCompletion())
                 .<Void>thenApply(v1 -> {
                     try {
                         if (Exceptions.handleInterruptedCall(() -> client.inspectContainer(id.get()).state().exitCode() != 0)) {

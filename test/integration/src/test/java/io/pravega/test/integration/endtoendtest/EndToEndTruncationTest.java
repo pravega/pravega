@@ -51,6 +51,7 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.test.common.AssertExtensions;
@@ -63,6 +64,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.Cleanup;
@@ -500,6 +502,8 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         final int totalEvents = 100;
         final int truncatedEvents = 25;
         StreamConfiguration streamConf = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(parallelism)).build();
+        @Cleanup("shutdown")
+        ScheduledExecutorService readerPool = ExecutorServiceHelpers.newScheduledThreadPool(parallelism, "ReaderPool");
         @Cleanup
         StreamManager streamManager = StreamManager.create(PRAVEGA.getControllerURI());
         @Cleanup
@@ -521,7 +525,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
             writeEvents(clientFactory, streamName, totalEvents);
 
             // Instantiate readers to consume from Stream up to truncatedEvents.
-            List<CompletableFuture<Integer>> futures = ReadWriteUtils.readEvents(clientFactory, readerGroupName, parallelism, truncatedEvents);
+            List<CompletableFuture<Integer>> futures = ReadWriteUtils.readEvents(clientFactory, readerGroupName, parallelism, truncatedEvents, readerPool);
             Futures.allOf(futures).join();
             int eventsReadBeforeTruncation = futures.stream().map(CompletableFuture::join).reduce(Integer::sum).get();
             // Perform truncation on stream segment
@@ -532,7 +536,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
             // Just after the truncation, trying to read the whole stream should raise a TruncatedDataException.
             final String newGroupName = readerGroupName + "new";
             groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
-            futures = readEvents(clientFactory, newGroupName, parallelism);
+            futures = readEvents(clientFactory, newGroupName, parallelism, readerPool);
             Futures.allOf(futures).join();
             assertEquals("Expected read events: ", totalEvents - eventsReadBeforeTruncation,
                     (int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get());
@@ -628,7 +632,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         // The new set of readers, should only read the events beyond truncation point (segments 1 and 2).
         final String newReaderGroupName = readerGroupName + "new";
         groupManager.createReaderGroup(newReaderGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
-        List<CompletableFuture<Integer>> futures = readEvents(clientFactory, newReaderGroupName, 1);
+        List<CompletableFuture<Integer>> futures = readEvents(clientFactory, newReaderGroupName, 1, executorService());
         Futures.allOf(futures).join();
         assertEquals((int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get(), totalEvents / 2);
     }

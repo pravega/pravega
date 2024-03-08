@@ -28,6 +28,7 @@ import io.pravega.common.util.RetriesExhaustedException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 import lombok.Cleanup;
@@ -42,7 +43,7 @@ import static java.util.stream.Collectors.toList;
 @Slf4j
 public final class ReadWriteUtils {
 
-    public static List<CompletableFuture<Integer>> readEvents(EventStreamClientFactory client, String rGroup, int numReaders, int limit) {
+    public static List<CompletableFuture<Integer>> readEvents(EventStreamClientFactory client, String rGroup, int numReaders, int limit, Executor executor) {
         List<EventStreamReader<String>> readers = new ArrayList<>();
         for (int i = 0; i < numReaders; i++) {
             readers.add(client.createReader(String.valueOf(i), rGroup, new UTF8StringSerializer(), ReaderConfig.builder().build()));
@@ -52,11 +53,11 @@ public final class ReadWriteUtils {
             int count = readEvents(r, limit, 50);
             r.close();
             return count;
-        })).collect(toList());
+        }, executor)).collect(toList());
     }
 
-    public static List<CompletableFuture<Integer>> readEvents(EventStreamClientFactory clientFactory, String readerGroup, int numReaders) {
-        return readEvents(clientFactory, readerGroup, numReaders, Integer.MAX_VALUE);
+    public static List<CompletableFuture<Integer>> readEvents(EventStreamClientFactory clientFactory, String readerGroup, int numReaders, Executor executor) {
+        return readEvents(clientFactory, readerGroup, numReaders, Integer.MAX_VALUE, executor);
     }
 
     @SneakyThrows
