@@ -449,7 +449,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .threadPoolSize(Runtime.getRuntime().availableProcessors())
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
-                .controllerClusterListenerEnabled(false)
+                .controllerClusterListenerEnabled(true)
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
@@ -485,6 +485,10 @@ public class InProcPravegaCluster implements AutoCloseable {
             for (ControllerServiceMain controller : this.controllerServers) {
                 Callbacks.invokeSafely(controller::close, ex -> log.error("Unable to shut down Controller.", ex));
             }
+        }
+
+        if (secureZK) {
+            ZKTLSUtils.unsetSecureZKClientProperties();
         }
 
         if (this.zkService != null) {
