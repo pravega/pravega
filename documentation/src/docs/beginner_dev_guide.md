@@ -157,26 +157,67 @@ With this `streamConfig`, we can create streams that feel a bit more like tradit
 URI controllerURI = URI.create("tcp://localhost:9090");
 ```
 The code to create a Pravega Stream is as follows.
-```java
-try (StreamManager streamManager = StreamManager.create(controllerURI)) {
+
+=== "Java"
+
+    ``` java
+    try (StreamManager streamManager = StreamManager.create(controllerURI)) {
         streamManager.createScope("examples");
         streamManager.createStream("examples", "helloStream", streamConfig);
-}
-```
+    }
+    ```
+
+=== "Python"
+
+    ``` python
+    import pravega_client
+
+    stream_manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
+
+    scope_result = stream_manager.create_scope("examples")
+    stream_result = stream_manager.create_stream("examples", "helloStream", 1) 
+    ```
+
 Executing the above lines should ensure we have created a Pravega scope called `examples` and a Pravega Stream called `helloStream`.
 
 ## 4.2 Create a Pravega Event Writer and write events into the stream
 
 Let's create a Pravega Event Writer using the [EventStreamClientFactory](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/EventStreamClientFactory.html).
 
-```java
-try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("examples",
-                ClientConfig.builder().controllerURI(controllerURI).build());
-     EventStreamWriter<String> writer = clientFactory.createEventWriter("helloStream",
-                new UTF8StringSerializer(), EventWriterConfig.builder().build())) {
-        writer.writeEvent("helloRoutingKey", "hello world!"); // write an event.
-}
-```
+=== "Java"
+
+    ``` java
+    try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("examples",
+        ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamWriter<String> writer = clientFactory.createEventWriter("helloStream",
+        new UTF8StringSerializer(), EventWriterConfig.builder().build())) {
+          writer.writeEvent("helloRoutingKey", "hello world!"); // write an event.
+    }
+    ```
+
+=== "Python"
+
+    ``` python
+    import pravega_client
+
+    manager=pravega_client.StreamManager("tcp://127.0.0.1:9090")
+
+    # assuming the Pravega scope and stream are already created.
+    writer=manager.create_writer("examples", "helloStream")
+
+    # write into Pravega stream without specifying the routing key.
+    writer.write_event("hello world!")
+    # write into Pravega stream by specifying the routing key.
+    writer.write_event("hello world!", "helloRoutingKey")
+
+    # convert the event object to a byte array.
+    e_bytes="eventData".encode("utf-8")
+    # write into Pravega stream without specifying the routing key.
+    writer.write_event_bytes(e_bytes)
+    # write into Pravega stream by specifying the routing key.
+    writer.write_event_bytes(e_bytes, "helloRoutingKey")
+    ```
+
 The above snippet creates an Event Writer and writes an event into the Pravega stream. Note that `writeEvent()` returns a `CompletableFuture`, which can be captured for use or will be resolved when calling `flush()` or `close()`, and, if destined for the same segment, the futures write in the order `writeEvent()` is called.
 
 When instantiating the EventStreamWriter above, we passed in a [UTF8StringSerializer](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/UTF8StringSerializer.java) instance. Pravega uses a [Serializer](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/Serializer.html) interface in its writers and readers to simplify the act of writing and reading an object's bytes to and from Streams. The [JavaSerializer](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/JavaSerializer.java) can handle any `Serializable` object.
@@ -188,28 +229,51 @@ A [ReaderGroupManager](https://pravega.io/docs/latest/javadoc/clients/io/pravega
 
 
 The below snippet creates a [ReaderGroup](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/ReaderGroup.html).
-```java
-try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope("examples", controllerURI)) {
+
+=== "Java"
+
+    ``` java
+    try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope("examples", controllerURI)) {
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
-                .stream(Stream.of("examples", "helloStream"))
-                .disableAutomaticCheckpoints()
-                .build();
+        .stream(Stream.of("examples", "helloStream"))
+        .build();
         readerGroupManager.createReaderGroup("readerGroup", readerGroupConfig);
-}
-```
+    }
+    ```
+
+=== "Python"
+
+    ``` python
+    import pravega_client
+
+    manager = pravega_client.StreamManager("tcp://127.0.0.1:9090")
+
+    # assuming the Pravega scope and stream are already created.
+    reader_group = manager.create_reader_group("readerGroup", "examples", "helloStream")
+    ```
+
 We can attach a Pravega Event Reader to this Reader Group and read the data from the Pravega Stream `helloStream`. The below snippet creates an EventReader called `reader` and reads the value from the Pravega Stream.
 
-```java
-try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("examples",
-        ClientConfig.builder().controllerURI(controllerURI).build());
-        EventStreamReader<String> reader = clientFactory.createReader("reader",
-        "readerGroup",
-        new UTF8StringSerializer(),
-        ReaderConfig.builder().build())) {
-        String event = reader.readNextEvent(5000).getEvent();
-        System.out.println(event);
-}
-```
+=== "Java"
+
+    ``` java
+    try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("examples",
+         ClientConfig.builder().controllerURI(controllerURI).build());
+         EventStreamReader<String> reader = clientFactory.createReader("reader",
+         "readerGroup", new UTF8StringSerializer(), ReaderConfig.builder().build())) {
+            String event = reader.readNextEvent(5000).getEvent();
+            System.out.println(event);
+    }
+    ```
+
+=== "Python"
+
+    ``` python
+    reader = reader_group.create_reader("reader");
+    slice = await reader.get_segment_slice_async()
+    for event in slice:
+      print(event.data())
+    ```
 
 # 5. What's next?
 This guide covered the creation of a application that writes and reads from Pravega. However, there is much more. We recommend continuing the journey by going through [Pravega-client-101](https://blog.pravega.io/2020/09/22/pravega-client-api-101/) and other samples present in the [Pravega Samples repo](https://github.com/pravega/pravega-samples).

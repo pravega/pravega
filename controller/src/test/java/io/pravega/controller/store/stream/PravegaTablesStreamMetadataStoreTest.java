@@ -62,6 +62,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -317,7 +318,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
     }
     
     @Test
-    public void testGarbageCollection() {
+    public void testGarbageCollection() throws TimeoutException {
         try (PravegaTablesStreamMetadataStore testStore = new PravegaTablesStreamMetadataStore(
                 segmentHelperMockForTables, PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, Duration.ofSeconds(100), GrpcAuthHelper.getDisabledAuthHelper())) {
             AtomicInteger currentBatch = new AtomicInteger(0);
@@ -724,7 +725,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         }
 
         @Override
-        public void close() {
+        public void close() throws TimeoutException {
             map.clear();
             super.close();
         }

@@ -226,6 +226,10 @@ public abstract class BucketManager extends AbstractService {
         synchronized (lock) {
             bucketService = buckets.get(bucketId);
         }
+        if (bucketService == null) {
+            log.info("Bucket service {} already stopped.", bucketId);
+            return CompletableFuture.completedFuture(null);
+        }
         CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
         bucketService.addListener(new Listener() {
             @Override

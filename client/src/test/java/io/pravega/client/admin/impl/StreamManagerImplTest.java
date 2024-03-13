@@ -122,8 +122,8 @@ public class StreamManagerImplTest {
 
     @After
     public void tearDown() {
-        this.streamManager.close();
         this.controller.close();
+        this.streamManager.close();
         this.connectionFactory.close();
     }
 

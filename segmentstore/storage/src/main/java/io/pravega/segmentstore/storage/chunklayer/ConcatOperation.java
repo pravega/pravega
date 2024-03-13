@@ -73,17 +73,17 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         log.debug("{} concat - started op={}, target={}, source={}, offset={}.",
                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), targetHandle.getSegmentName(), sourceSegment, offset);
 
-        return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(false, targetHandle.getSegmentName(), sourceSegment),
-                txn -> txn.get(targetHandle.getSegmentName())
-                        .thenComposeAsync(storageMetadata1 -> {
-                            targetSegmentMetadata = (SegmentMetadata) storageMetadata1;
-                            return txn.get(sourceSegment)
-                                    .thenComposeAsync(storageMetadata2 -> {
-                                        sourceSegmentMetadata = (SegmentMetadata) storageMetadata2;
-                                        return performConcat(txn);
-                                    }, chunkedSegmentStorage.getExecutor());
-                        }, chunkedSegmentStorage.getExecutor()), chunkedSegmentStorage.getExecutor())
-                .exceptionally(ex -> handleException(ex));
+        return ChunkedSegmentStorage.tryWith(
+            chunkedSegmentStorage.getMetadataStore()
+                                 .beginTransaction(false, targetHandle.getSegmentName(), sourceSegment),
+            txn -> txn.get(targetHandle.getSegmentName()).thenComposeAsync(storageMetadata1 -> {
+                targetSegmentMetadata = (SegmentMetadata) storageMetadata1;
+                return txn.get(sourceSegment).thenComposeAsync(storageMetadata2 -> {
+                    sourceSegmentMetadata = (SegmentMetadata) storageMetadata2;
+                    return performConcat(txn);
+                }, chunkedSegmentStorage.getExecutor());
+            }, chunkedSegmentStorage.getExecutor()), chunkedSegmentStorage.getExecutor())
+                                    .exceptionally(ex -> handleException(ex));
     }
 
     private CompletableFuture<Void> performConcat(MetadataTransaction txn) {

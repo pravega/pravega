@@ -112,13 +112,13 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
 
         //make zookeeper server restart, it will test connection suspended.
         zkServer.restart();
-
+        assertEventuallyEquals(3, () -> watermarkingService.getBucketServices().size(), 3000);
+        assertEventuallyEquals(3, () -> retentionService.getBucketServices().size(), 3000);
         //add new controller instance in pravgea cluster.
         Host controller1 = new Host(UUID.randomUUID().toString(), 9090, null);
         addEntryToZkCluster(controller1);
         assertEventuallyEquals(2, () -> retentionService.getBucketServices().size(), 3000);
         assertEventuallyEquals(2, () -> watermarkingService.getBucketServices().size(), 3000);
-
         List<Integer> retentionBuckets = IntStream.range(0, 3).filter(x ->
                 !retentionService.getBucketServices().keySet().contains(x)).boxed().collect(Collectors.toList());
         List<Integer> watermarkBuckets = IntStream.range(0, 3).filter(x ->
@@ -126,7 +126,6 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
 
         assertTrue(retentionService.takeBucketOwnership(retentionBuckets.get(0), controller1.getHostId(), executor).join());
         assertTrue(watermarkingService.takeBucketOwnership(watermarkBuckets.get(0), controller1.getHostId(), executor).join());
-
         //add new controller instance in pravgea cluster.
         Host controller2 = new Host(UUID.randomUUID().toString(), 9090, null);
         addEntryToZkCluster(controller2);
@@ -182,6 +181,8 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
 
     @Test(timeout = 30000)
     public void testFailureCase() throws Exception {
+        Host testController = new Host(UUID.randomUUID().toString(), 9090, null);
+
         BucketStore spyBucketStore = spy(bucketStore);
         doReturn(CompletableFuture.completedFuture(false))
                 .when((ZookeeperBucketStore) spyBucketStore)
@@ -205,7 +206,8 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
                 Duration.ofMillis(5), periodicWatermarking::watermark)
                 : bucket == 1 ? bucketService1 : bucketService;
 
-        BucketManager bucketManager = new ZooKeeperBucketManager(hostId, (ZookeeperBucketStore) spyBucketStore,
+        addEntryToZkCluster(testController);
+        BucketManager bucketManager = new ZooKeeperBucketManager(testController.getHostId(), (ZookeeperBucketStore) spyBucketStore,
                 BucketStore.ServiceType.WatermarkingService, executor, zkSupplier,
                 getBucketManagerLeader(spyBucketStore, BucketStore.ServiceType.WatermarkingService));
         bucketManager.startAsync();
@@ -215,22 +217,29 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         // Start bucket service 0.
         bucketManager.tryTakeOwnership(0).join();
         assertEquals(1, bucketManager.getBucketServices().size());
+
         // Start bucket service 1.
         bucketManager.tryTakeOwnership(1).join();
         assertEquals(2, bucketManager.getBucketServices().size());
+
         // Try to start bucket service 2, it should give exception.
         AssertExtensions.assertThrows("Unable to start bucket service.",
                 () -> bucketManager.tryTakeOwnership(2).join(), e -> e instanceof RuntimeException);
-        assertEquals(2,  bucketManager.getBucketServices().size());
+        assertEventuallyEquals(2, () -> bucketManager.getBucketServices().size(), 10000);
+
         // Try to stop bucket service 1, it should give exception.
-        bucketManager.stopBucketServices(Set.of(1), true);
+        bucketManager.stopBucketServices(Set.of(1), false);
         assertEquals(2,  bucketManager.getBucketServices().size());
         // Unable to release bucket ownership, service should continue on same controller instance.
-        bucketManager.stopBucketServices(Set.of(0), true);
+        bucketManager.stopBucketServices(Set.of(0), false);
+        assertEventuallyEquals(2, () -> bucketManager.getBucketServices().size(), 10000);
+
+        //try to stop invalid bucket id, it should not give any exception
+        bucketManager.stopBucketServices(Set.of(4), false);
         assertEventuallyEquals(2, () -> bucketManager.getBucketServices().size(), 10000);
 
         // Throw exception while releasing the ownership of bucket service.
-        CompletableFuture<Boolean> completableFuture = new CompletableFuture();
+        CompletableFuture<Boolean> completableFuture = new CompletableFuture<>();
         completableFuture.completeExceptionally(new RuntimeException("Exception while releasing ownership."));
         doReturn(completableFuture).when((ZookeeperBucketStore) spyBucketStore)
                 .releaseBucketOwnership(BucketStore.ServiceType.WatermarkingService, 0, hostId);
@@ -243,18 +252,16 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
         //bucketManager will throw exception while distributing. So it will release the leadership.
         doThrow(new RuntimeException("Distribution failed.")).when(spyBucketStore)
                                                              .getBucketCount(BucketStore.ServiceType.WatermarkingService);
-        Host controller2 = new Host(UUID.randomUUID().toString(), 9090, null);
-        addEntryToZkCluster(controller2);
-        BucketManager bucketManager2 = new ZooKeeperBucketManager(controller2.getHostId(), (ZookeeperBucketStore) bucketStore,
+        String controllerHostId = "hostId";
+        BucketManager bucketManager2 = new ZooKeeperBucketManager(controllerHostId, (ZookeeperBucketStore) bucketStore,
                 BucketStore.ServiceType.WatermarkingService, executor, zkSupplier,
                 getBucketManagerLeader(bucketStore, BucketStore.ServiceType.WatermarkingService));
         bucketManager2.startAsync();
         bucketManager2.awaitRunning();
         //bucketManager2 will become the leader.
         assertEventuallyEquals(true, () -> ((ZooKeeperBucketManager) bucketManager2).isLeader(), 10000);
-        bucketManager.stopAsync();
-        bucketManager2.stopAsync();
-        AssertExtensions.assertThrows(IllegalStateException.class, () -> bucketManager.awaitTerminated());
+        bucketManager2.stopAsync().awaitTerminated();
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> bucketManager.startAsync().awaitTerminated());
     }
 
     private BucketManagerLeader getBucketManagerLeader(BucketStore bucketStore, BucketStore.ServiceType serviceType) {

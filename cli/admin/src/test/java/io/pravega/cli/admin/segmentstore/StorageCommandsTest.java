@@ -33,16 +33,6 @@ import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.utils.LocalServiceStarter;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
-
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,8 +40,16 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 @Slf4j
 public class StorageCommandsTest extends ThreadPooledTestSuite {
@@ -64,8 +62,6 @@ public class StorageCommandsTest extends ThreadPooledTestSuite {
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
-    // Setup utility.
-    private final AtomicReference<AdminCommandState> state = new AtomicReference<>();
 
     /**
      * A directory for FILESYSTEM storage as LTS.
@@ -98,7 +94,6 @@ public class StorageCommandsTest extends ThreadPooledTestSuite {
 
     @After
     public void tearDown() {
-        state.get().close();
         if (this.factory != null) {
             this.factory.close();
         }
@@ -129,17 +124,17 @@ public class StorageCommandsTest extends ThreadPooledTestSuite {
         for (int containerId = 0; containerId < containerCount; containerId++) {
             componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
         }
-
-        state.set(new AdminCommandState());
+        @Cleanup
+        AdminCommandState state = new AdminCommandState();
         Properties pravegaProperties = new Properties();
         pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(pravegaRunner.getSegmentStoreRunner().getAdminPort()));
         pravegaProperties.setProperty("pravegaservice.container.count", "1");
         pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
         pravegaProperties.setProperty("pravegaservice.storage.layout", "CHUNKED_STORAGE");
         pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
-        state.get().getConfigBuilder().include(pravegaProperties);
+        state.getConfigBuilder().include(pravegaProperties);
 
-        String commandResult = TestUtils.executeCommand("storage list-chunks _system/containers/metadata_0 localhost", state.get());
+        String commandResult = TestUtils.executeCommand("storage list-chunks _system/containers/metadata_0 localhost", state);
         Assert.assertTrue(commandResult.contains("List of chunks for _system/containers/metadata_0"));
     }
 
@@ -172,12 +167,13 @@ public class StorageCommandsTest extends ThreadPooledTestSuite {
         Path outputDir = Files.createTempDirectory("outputDir").toAbsolutePath();
 
         //run command
-        state.set(new AdminCommandState());
+        @Cleanup
+        AdminCommandState state = new AdminCommandState();
         Assert.assertNotNull(StorageUpdateSnapshotCommand.descriptor());
         TestUtils.executeCommand("storage update-latest-journal-snapshot " + chunkDirPath.toAbsolutePath().toString() +
                 " " + sysJournal.getAbsolutePath() +
                 " " + snapshotFile.getAbsolutePath() +
-                " " + outputDir.toAbsolutePath().toString() + File.separator, state.get());
+                " " + outputDir.toAbsolutePath().toString() + File.separator, state);
 
         val outputJournal = Files.list(outputDir).collect(Collectors.toList());
         Assert.assertTrue("No journal created as part of", outputJournal.size() == 1);

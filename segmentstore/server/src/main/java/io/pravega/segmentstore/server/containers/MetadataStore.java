@@ -22,6 +22,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.FutureSupplier;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -632,9 +633,9 @@ public abstract class MetadataStore implements AutoCloseable {
      * @param <T>   Return type of Future.
      * @return A CompletableFuture with the result, or failure cause.
      */
-    private <T> CompletableFuture<T> retryWithCleanup(Supplier<CompletableFuture<T>> toTry) {
+    private <T> CompletableFuture<T> retryWithCleanup(FutureSupplier<T> toTry) {
         CompletableFuture<T> result = new CompletableFuture<>();
-        toTry.get()
+        toTry.getFuture()
              .thenAccept(result::complete)
              .exceptionally(ex -> {
                  // Check if the exception indicates the Metadata has reached capacity. In that case, force a cleanup
@@ -644,7 +645,10 @@ public abstract class MetadataStore implements AutoCloseable {
                          log.debug("{}: Forcing metadata cleanup due to capacity exceeded ({}).", this.traceObjectId,
                                  Exceptions.unwrap(ex).getMessage());
 
-                         CompletableFuture<T> f = this.connector.getMetadataCleanup().get().thenComposeAsync(v -> toTry.get(), this.executor);
+                         CompletableFuture<T> f = this.connector.getMetadataCleanup()
+                                                                .get()
+                                                                .thenComposeAsync(v -> toTry.getFuture(),
+                                                                                  this.executor);
                          f.thenAccept(result::complete);
                          Futures.exceptionListener(f, result::completeExceptionally);
                      } else {
