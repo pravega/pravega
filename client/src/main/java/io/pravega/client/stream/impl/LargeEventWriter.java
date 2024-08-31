@@ -55,7 +55,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nonnull;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
@@ -69,8 +68,8 @@ import static io.pravega.common.concurrent.Futures.getThrowingException;
  * It works by creating a Transient segment and then writing the data to the transient segment in multiple commands,
  * then merging the transient segment into the parent segment.
  * 
- * Ordinary connection failures and other transient errors are handled internally. However if the parent segment is sealed
- * this this class will throw {@link SegmentSealedException} and the caller will have to handle it.
+ * Ordinary connection failures and other transient errors are handled internally. However, if the parent segment is sealed
+ * this class will throw {@link SegmentSealedException} and the caller will have to handle it.
  */
 @RequiredArgsConstructor
 @Slf4j
@@ -145,31 +144,29 @@ public class LargeEventWriter {
             DelegationTokenProvider tokenProvider) throws TokenExpiredException, NoSuchSegmentException,
             AuthenticationException, SegmentSealedException, ConnectionFailedException {
 
+        // 1. Create Transient Segment.
+        log.info("Writing large event to segment {} with writer id {}", parentSegment, writerId);
         long requestId = client.getFlow().getNextSequenceNumber();
-        log.debug("Writing large event to segment {} with writer id {}", parentSegment, writerId);
-
         String token = getThrowingException(tokenProvider.retrieveToken());
-
         CreateTransientSegment createSegment = new CreateTransientSegment(requestId,
                 writerId,
                 parentSegment.getScopedName(),
                 token);
+        SegmentCreated created = transformReply(getThrowingException(client.sendRequest(requestId, createSegment)),
+                parentSegment.getScopedName(), SegmentCreated.class);
 
-        SegmentCreated created = transformSegmentCreated(getThrowingException(client.sendRequest(requestId, createSegment)),
-                                                         parentSegment.getScopedName());
+        // 2. Setup appends for this Transient Segment.
         requestId = client.getFlow().getNextSequenceNumber();
         SetupAppend setup = new SetupAppend(requestId, writerId, created.getSegment(), token);
-
-        AppendSetup appendSetup = transformAppendSetup(getThrowingException(client.sendRequest(requestId, setup)),
-                                                       created.getSegment());
-
+        AppendSetup appendSetup = transformReply(getThrowingException(client.sendRequest(requestId, setup)),
+                                                 created.getSegment(), AppendSetup.class);
         if (appendSetup.getLastEventNumber() != WireCommands.NULL_ATTRIBUTE_VALUE) {
             throw new IllegalStateException(
                     "Server indicates that transient segment was already written to: " + created.getSegment());
         }
 
+        // 3. Split input payload into WRITE_SIZE Appends and write them conditionally to guarantee order.
         long expectedOffset = 0;
-        val futures = new ArrayList<CompletableFuture<Reply>>();
         for (int i = 0; i < payloads.size(); i++) {
             requestId = client.getFlow().getNextSequenceNumber();
             ByteBuf payload = payloads.get(i);
@@ -179,65 +176,22 @@ public class LargeEventWriter {
                     Unpooled.wrappedBuffer(payload),
                     requestId);
             expectedOffset += payload.readableBytes();
-            val reply = client.sendRequest(requestId, request);
-            failFast(futures, created.getSegment());
-            futures.add(reply);
+            // Wait for Appends to complete. Writing in parallel Appends that are expected to be sequential does not help.
+            transformReply(getThrowingException(client.sendRequest(requestId, request)), created.getSegment(), DataAppended.class);
         }
-        for (int i = 0; i < futures.size(); i++) {
-            transformDataAppended(getThrowingException(futures.get(i)), created.getSegment());
-        }
+
+        // 4. Once the Appends are complete, we can merge the Transient Segment into the parent Segment.
         requestId = client.getFlow().getNextSequenceNumber();
-
         MergeSegments merge = new MergeSegments(requestId, parentSegment.getScopedName(), created.getSegment(), token);
-
-        transformSegmentMerged(getThrowingException(client.sendRequest(requestId, merge)), created.getSegment());
+        transformReply(getThrowingException(client.sendRequest(requestId, merge)), created.getSegment(), SegmentsMerged.class);
     }
 
-    // Trick to fail fast if any of the futures have completed.
-    private void failFast(ArrayList<CompletableFuture<Reply>> futures, String segmentId) throws TokenExpiredException,
+    private <T extends Reply> T transformReply(Reply reply, String segmentId, Class<T> clazz) throws TokenExpiredException,
             NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
-        for (CompletableFuture<Reply> future : futures) {
-            if (!future.isDone()) {
-                break;
-            } else {
-                transformDataAppended(getThrowingException(future), segmentId);
-            }
-        }
-    }
-
-    private SegmentCreated transformSegmentCreated(Reply reply, String segmentId) throws TokenExpiredException,
-            NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
-        if (reply instanceof SegmentCreated) {
-            return (SegmentCreated) reply;
+        if (clazz.isInstance(reply)) {
+            return clazz.cast(reply);
         } else {
-            throw handleUnexpectedReply(reply, "SegmentCreated", segmentId);
-        }
-    }
-
-    private AppendSetup transformAppendSetup(Reply reply, String segmentId) throws TokenExpiredException,
-            NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
-        if (reply instanceof AppendSetup) {
-            return (AppendSetup) reply;
-        } else {
-            throw handleUnexpectedReply(reply, "AppendSetup", segmentId);
-        }
-    }
-
-    private Void transformDataAppended(Reply reply, String segmentId) throws TokenExpiredException,
-            NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
-        if (reply instanceof DataAppended) {
-            return null;
-        } else {
-            throw handleUnexpectedReply(reply, "DataAppended", segmentId);
-        }
-    }
-
-    private SegmentsMerged transformSegmentMerged(Reply reply, String segmentId) throws TokenExpiredException,
-            NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
-        if (reply instanceof SegmentsMerged) {
-            return (SegmentsMerged) reply;
-        } else {
-            throw handleUnexpectedReply(reply, "MergeSegments", segmentId);
+            throw handleUnexpectedReply(reply, clazz.getSimpleName(), segmentId);
         }
     }
 
@@ -271,5 +225,4 @@ public class LargeEventWriter {
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting an " + expectation);
         }
     }
-
 }

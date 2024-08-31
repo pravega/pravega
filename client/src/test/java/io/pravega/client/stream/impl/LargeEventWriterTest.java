@@ -573,7 +573,7 @@ public class LargeEventWriterTest {
     }
 
     @Test(timeout = 5000)
-    public void testPipelining() throws NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
+    public void testAppendSerialExecution() throws NoSuchSegmentException, AuthenticationException, SegmentSealedException, ConnectionFailedException {
         Segment segment = Segment.fromScopedName("foo/bar/1");
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController("localhost", 0, connectionFactory, false);
@@ -585,8 +585,6 @@ public class LargeEventWriterTest {
         buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE - WireCommands.TYPE_PLUS_LENGTH_SIZE));
         buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE - WireCommands.TYPE_PLUS_LENGTH_SIZE));
         buffers.add(ByteBuffer.allocate(Serializer.MAX_EVENT_SIZE - WireCommands.TYPE_PLUS_LENGTH_SIZE));
-        
-        ArrayList<ConditionalBlockEnd> written = new ArrayList<>();
 
         answerRequest(connectionFactory,
                       connection,
@@ -599,29 +597,19 @@ public class LargeEventWriterTest {
                       SetupAppend.class,
                       r -> new AppendSetup(r.getRequestId(), segment.getScopedName(), r.getWriterId(), WireCommands.NULL_ATTRIBUTE_VALUE));
         
-        //If appends are not pipelined, the call to writeLargeEvents will stall waiting for the first reply.
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                ConditionalBlockEnd argument = (ConditionalBlockEnd) invocation.getArgument(0);
-                written.add(argument);
-                if (written.size() == buffers.size()) {
-                    for (ConditionalBlockEnd append : written) {
-                        connectionFactory.getProcessor(location)
-                            .process(new DataAppended(append.getRequestId(),
-                                     writerId,
-                                     append.getEventNumber(),
-                                     append.getEventNumber() - 1,
-                                     append.getExpectedOffset() + append.getData().readableBytes()));
-                    }
-                }
-                return null;
-            }
+        Mockito.doAnswer((Answer<Void>) invocation -> {
+            ConditionalBlockEnd argument = invocation.getArgument(0);
+            connectionFactory.getProcessor(location)
+                .process(new DataAppended(argument.getRequestId(),
+                         writerId,
+                         argument.getEventNumber(),
+                         argument.getEventNumber() - 1,
+                         argument.getExpectedOffset() + argument.getData().readableBytes()));
+            return null;
         }).when(connection).send(any(ConditionalBlockEnd.class));
         
-        answerRequest(connectionFactory, connection, location, MergeSegments.class, r -> {
-            return new SegmentsMerged(r.getRequestId(), r.getSource(), r.getTarget(), -1);
-        });
+        answerRequest(connectionFactory, connection, location, MergeSegments.class,
+                r -> new SegmentsMerged(r.getRequestId(), r.getSource(), r.getTarget(), -1));
 
         LargeEventWriter writer = new LargeEventWriter(writerId, controller, connectionFactory);
         EmptyTokenProviderImpl tokenProvider = new EmptyTokenProviderImpl();
