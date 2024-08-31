@@ -20,13 +20,16 @@ import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.chunklayer.AsyncBaseChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.chunklayer.ReplicatedChunkStorage;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.val;
 
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -66,10 +69,18 @@ public class ExtendedS3SimpleStorageFactory implements SimpleStorageFactory {
 
     @Override
     public ChunkStorage createChunkStorage() {
-        return new ExtendedS3ChunkStorage(createS3Client(), this.config, this.executor, true, true);
+        if (config.isReplicationEnabled()) {
+            AsyncBaseChunkStorage[] replicas = new AsyncBaseChunkStorage[2];
+            val replicaConfigs = this.config.getReplicaConfigs();
+            replicas[0] = new ExtendedS3ChunkStorage(createS3Client(replicaConfigs[0]), replicaConfigs[0], this.executor, true, true);
+            replicas[1] = new ExtendedS3ChunkStorage(createS3Client(replicaConfigs[1]), replicaConfigs[1], this.executor, true, true);
+            return new ReplicatedChunkStorage(replicas, this.executor);
+        } else {
+            return new ExtendedS3ChunkStorage(createS3Client(this.config), this.config, this.executor, true, true);
+        }
     }
 
-    private S3Client createS3Client() {
+    static private S3Client createS3Client(ExtendedS3StorageConfig config) {
         S3Config s3Config = new S3Config(config.getS3Config());
         S3JerseyClient client = new S3JerseyClient(s3Config);
         return client;

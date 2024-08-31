@@ -74,6 +74,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
 
     private final AtomicBoolean closed;
 
+    @Getter
     private final Executor executor;
 
     /**
@@ -557,7 +558,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<ChunkInfo> doGetInfoAsync(String chunkName, OperationContext opContext);
+    abstract CompletableFuture<ChunkInfo> doGetInfoAsync(String chunkName, OperationContext opContext);
 
     /**
      * Creates a new chunk.
@@ -569,7 +570,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<ChunkHandle> doCreateAsync(String chunkName, OperationContext opContext);
+    abstract CompletableFuture<ChunkHandle> doCreateAsync(String chunkName, OperationContext opContext);
 
     /**
      * Creates a new chunk with provided content.
@@ -583,7 +584,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<ChunkHandle> doCreateWithContentAsync(String chunkName, int length, InputStream data, OperationContext opContext);
+    abstract CompletableFuture<ChunkHandle> doCreateWithContentAsync(String chunkName, int length, InputStream data, OperationContext opContext);
 
     /**
      * Determines whether named chunk exists in underlying storage.
@@ -595,7 +596,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Boolean> checkExistsAsync(String chunkName, OperationContext opContext);
+    abstract CompletableFuture<Boolean> checkExistsAsync(String chunkName, OperationContext opContext);
 
     /**
      * Deletes a chunk.
@@ -608,7 +609,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Void> doDeleteAsync(ChunkHandle handle, OperationContext opContext);
+    abstract CompletableFuture<Void> doDeleteAsync(ChunkHandle handle, OperationContext opContext);
 
     /**
      * Opens chunk for Read.
@@ -620,7 +621,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<ChunkHandle> doOpenReadAsync(String chunkName, OperationContext opContext);
+    abstract CompletableFuture<ChunkHandle> doOpenReadAsync(String chunkName, OperationContext opContext);
 
     /**
      * Opens chunk for Write (or modifications).
@@ -632,7 +633,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<ChunkHandle> doOpenWriteAsync(String chunkName, OperationContext opContext);
+    abstract CompletableFuture<ChunkHandle> doOpenWriteAsync(String chunkName, OperationContext opContext);
 
     /**
      * Reads a range of bytes from the underlying chunk.
@@ -650,7 +651,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Integer> doReadAsync(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset, OperationContext opContext);
+    abstract CompletableFuture<Integer> doReadAsync(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset, OperationContext opContext);
 
     /**
      * Writes the given data to the chunk.
@@ -666,7 +667,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Integer> doWriteAsync(ChunkHandle handle, long offset, int length, InputStream data, OperationContext opContext);
+    abstract CompletableFuture<Integer> doWriteAsync(ChunkHandle handle, long offset, int length, InputStream data, OperationContext opContext);
 
     /**
      * Concatenates two or more chunks using storage native functionality. (Eg. Multipart upload.)
@@ -679,7 +680,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Integer> doConcatAsync(ConcatArgument[] chunks, OperationContext opContext);
+    abstract CompletableFuture<Integer> doConcatAsync(ConcatArgument[] chunks, OperationContext opContext);
 
     /**
      * Sets readonly attribute for the chunk.
@@ -693,7 +694,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Void> doSetReadOnlyAsync(ChunkHandle handle, boolean isReadOnly, OperationContext opContext);
+    abstract CompletableFuture<Void> doSetReadOnlyAsync(ChunkHandle handle, boolean isReadOnly, OperationContext opContext);
 
     /**
      * Truncates a given chunk.
@@ -706,7 +707,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    protected CompletableFuture<Boolean> doTruncateAsync(ChunkHandle handle, long offset, OperationContext opContext) {
+    CompletableFuture<Boolean> doTruncateAsync(ChunkHandle handle, long offset, OperationContext opContext) {
         throw new UnsupportedOperationException();
     }
 
@@ -720,7 +721,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException           If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      *                                       {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Long> doGetUsedSpaceAsync(OperationContext opContext);
+    abstract CompletableFuture<Long> doGetUsedSpaceAsync(OperationContext opContext);
 
     /**
      * Validate chunk name.

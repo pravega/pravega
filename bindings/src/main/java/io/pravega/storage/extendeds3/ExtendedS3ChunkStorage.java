@@ -36,6 +36,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageUnavailableException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
 import lombok.SneakyThrows;
@@ -45,6 +46,7 @@ import org.apache.http.HttpStatus;
 
 import java.io.InputStream;
 
+import java.net.ConnectException;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Executor;
@@ -342,6 +344,10 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             if (errorCode.equals("AccessDenied")) {
                 retValue =  new ChunkStorageException(chunkName, String.format("Access denied for chunk %s - %s.", chunkName, message), e);
             }
+        }
+
+        if ( e.getCause() instanceof ConnectException || (e.getCause() != null && e.getCause() instanceof ConnectException)) {
+            retValue =  new ChunkStorageUnavailableException(message, e);
         }
 
         if (retValue == null) {
