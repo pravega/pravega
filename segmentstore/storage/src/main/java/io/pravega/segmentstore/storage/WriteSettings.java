@@ -25,6 +25,10 @@ import lombok.Getter;
 @Getter
 public class WriteSettings {
     /**
+     * Threshold after which throttle is applied. Expressed as percentage of max value.
+     */
+    private final double throttleThreshold = 0.9; // TODO - init from config.
+    /**
      * The maximum number of bytes allowed for a single write.
      */
     private final int maxWriteLength;
