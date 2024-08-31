@@ -49,6 +49,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.CopyOnWriteHashMap;
 import io.pravega.shared.protocol.netty.WireCommands;
+
 import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
@@ -63,6 +64,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
@@ -455,10 +457,11 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
     public Type fetchEvent(EventPointer pointer) throws NoSuchEventException {
         Preconditions.checkNotNull(pointer);
         // Create SegmentInputStream
+
         @Cleanup
         EventSegmentReader inputStream = inputStreamFactory.createEventReaderForSegment(pointer.asImpl().getSegment(),
+                                                                                        pointer.asImpl().getEventStartOffset(),
                                                                                         pointer.asImpl().getEventLength());
-        inputStream.setOffset(pointer.asImpl().getEventStartOffset());
         // Read event
         try {
             ByteBuffer buffer = inputStream.read();
@@ -501,5 +504,4 @@ public final class EventStreamReaderImpl<Type> implements EventStreamReader<Type
             return tracker.getTimeWindow();
         }
     }
-
 }

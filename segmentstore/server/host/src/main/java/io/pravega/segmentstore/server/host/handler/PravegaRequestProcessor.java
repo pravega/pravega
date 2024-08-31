@@ -225,7 +225,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final String segment = readSegment.getSegment();
         final String operation = "readSegment";
 
-        if (!verifyToken(segment, readSegment.getOffset(), readSegment.getDelegationToken(), operation)) {
+        if (!verifyToken(segment, readSegment.getRequestId(), readSegment.getDelegationToken(), operation)) {
             return;
         }
 
