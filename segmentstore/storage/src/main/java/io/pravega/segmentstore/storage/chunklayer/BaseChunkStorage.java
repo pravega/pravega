@@ -176,8 +176,8 @@ public abstract class BaseChunkStorage extends AsyncBaseChunkStorage {
     }
 
     @Override
-    protected CompletableFuture<Long> doGetUsedSpaceAsync(OperationContext opContext) {
-        return execute(() -> doGetUsedSpace(opContext), opContext);
+    protected CompletableFuture<StorageCapacityStats> doGetStorageCapacityStatsAsync(OperationContext opContext) {
+        return execute(() -> doGetStorageCapacityStats(opContext), opContext);
     }
 
     /**
@@ -288,9 +288,12 @@ public abstract class BaseChunkStorage extends AsyncBaseChunkStorage {
      *
      * @param opContext Context for the given operation.
      * @return Return the total size of storage used in bytes. 0 should be returned if not supported.
-     * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
      */
-    protected long doGetUsedSpace(OperationContext opContext) throws ChunkStorageException {
-        return 0;
+    protected StorageCapacityStats doGetStorageCapacityStats(OperationContext opContext) throws ChunkStorageException {
+        return StorageCapacityStats.builder()
+                .usedSpace(0)
+                .totalSpace(Long.MAX_VALUE)
+                .build();
     }
 }

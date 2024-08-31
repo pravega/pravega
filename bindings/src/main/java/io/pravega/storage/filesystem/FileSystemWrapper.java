@@ -16,6 +16,7 @@
 package io.pravega.storage.filesystem;
 
 import com.google.common.collect.ImmutableSet;
+import io.pravega.segmentstore.storage.chunklayer.StorageCapacityStats;
 
 import java.io.File;
 import java.io.IOException;
@@ -134,9 +135,12 @@ public class FileSystemWrapper {
      * @param path File path.
      * @return Used space in bytes.
      */
-    long getUsedSpace(Path path) {
+    StorageCapacityStats getCapacityStats(Path path) {
         File file = path.toFile();
-        return file.getTotalSpace() - file.getUsableSpace();
+        return StorageCapacityStats.builder()
+                .totalSpace(file.getTotalSpace())
+                .usedSpace(file.getTotalSpace() - file.getUsableSpace())
+                .build();
     }
 
     /**
