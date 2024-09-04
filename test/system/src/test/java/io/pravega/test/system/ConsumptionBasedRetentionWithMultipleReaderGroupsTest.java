@@ -425,7 +425,7 @@ public class ConsumptionBasedRetentionWithMultipleReaderGroupsTest extends Abstr
         scaleAndUpdateControllerURI(3);
         // scale to two segment store instances.
         Futures.getAndHandleExceptions(segmentStoreService.scaleService(2), ExecutionException::new);
-        log.info("Successfully statred 2 instance of segment store service");
+        log.info("Successfully started 2 instance of segment store service");
         assertTrue("Creating scope", streamManager.createScope(scope));
         assertTrue("Creating stream", streamManager.createStream(scope, stream, STREAM_CONFIGURATION));
 
