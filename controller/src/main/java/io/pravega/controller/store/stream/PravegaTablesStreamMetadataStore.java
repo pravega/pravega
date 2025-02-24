@@ -33,13 +33,6 @@ import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
-import lombok.AccessLevel;
-import lombok.Getter;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-import org.apache.curator.framework.CuratorFramework;
-import org.slf4j.LoggerFactory;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -56,13 +49,19 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import lombok.AccessLevel;
+import lombok.Getter;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.curator.framework.CuratorFramework;
+import org.slf4j.LoggerFactory;
 
+import static io.pravega.controller.store.PravegaTablesScope.DELETING_SCOPES_TABLE;
 import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
 import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BYTES_FUNCTION;
 import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
 import static io.pravega.shared.NameUtils.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
 import static io.pravega.shared.NameUtils.DELETED_STREAMS_TABLE;
-import static io.pravega.controller.store.PravegaTablesScope.DELETING_SCOPES_TABLE;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 import static io.pravega.shared.NameUtils.TRANSACTION_ID_COUNTER_TABLE;
 
@@ -455,7 +454,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @Override
     public void close() throws TimeoutException {
         completedTxnGC.stopAsync();
-        completedTxnGC.awaitTerminated(5, TimeUnit.SECONDS);
+        completedTxnGC.awaitTerminated(10, TimeUnit.SECONDS);
     }
 
     // region Reader Group
