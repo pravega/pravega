@@ -60,10 +60,9 @@ plugins.withId('maven') {
                     }
                 }
 
-                // Sign the POM when the signing plugin is present
-                plugins.withId('signing') {
-                    if (project.hasProperty('doSigning')) {
-                        beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+                if (project.hasProperty('doSigning')) {
+                    plugins {
+                        id 'signing'
                     }
                 }
             }
