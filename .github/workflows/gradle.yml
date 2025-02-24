@@ -62,24 +62,24 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Build Information
         run: echo Building a '${{ github.event_name }}' for target '${{ github.ref }}'.
       - name: Checkout
-        uses: actions/checkout@v2
-      - uses: actions/setup-java@v2
+        uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
       - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
           key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
@@ -93,7 +93,7 @@ jobs:
       - name: Tar Reports
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ${{github.job}}-reports
           retention-days: 4
@@ -106,22 +106,22 @@ jobs:
     name: Upload Docs Snapshot
     needs: build
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/r0.') || startsWith(github.ref, 'refs/heads/r1.')) }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-      - uses: actions/setup-java@v2
+        uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
       - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
           key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
@@ -156,22 +156,22 @@ jobs:
   unit_client:
     name: Client Unit Tests
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-      - uses: actions/setup-java@v2
+        uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
       - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
           key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
@@ -184,7 +184,7 @@ jobs:
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ${{github.job}}-reports
           retention-days: 4
@@ -193,22 +193,22 @@ jobs:
   unit_controller:
     name: Controller Unit Tests
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-      - uses: actions/setup-java@v2
+        uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
       - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
           key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
@@ -221,7 +221,7 @@ jobs:
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ${{github.job}}-reports
           retention-days: 4
@@ -230,22 +230,22 @@ jobs:
   unit_segment_store:
     name: Segment Store Unit Tests
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-      - uses: actions/setup-java@v2
+        uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
       - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
           key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
@@ -263,7 +263,7 @@ jobs:
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ${{github.job}}-reports
           retention-days: 4
@@ -272,22 +272,22 @@ jobs:
   unit_storage:
     name: Storage Unit Tests
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-      - uses: actions/setup-java@v2
+        uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
       - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
           key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
@@ -304,7 +304,7 @@ jobs:
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ${{github.job}}-reports
           retention-days: 4
@@ -313,22 +313,22 @@ jobs:
   unit_other:
     name: All Other Unit Tests
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-      - uses: actions/setup-java@v2
+        uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
       - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
           key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
@@ -359,7 +359,7 @@ jobs:
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ${{github.job}}-reports
           retention-days: 4
@@ -368,22 +368,22 @@ jobs:
   integration:
     name: Integration Tests
     needs: build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-      - uses: actions/setup-java@v2
+        uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
       - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
           key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
@@ -398,44 +398,44 @@ jobs:
   build_and_test_complete:
     name: CI Complete
     needs: [build, integration, unit_other, unit_segment_store, unit_storage, unit_controller, unit_client]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Check Build Status
         run: echo Build, static analysis, unit and integration tests successful.
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 2
       - name: Download code coverage reports
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
       - name: Untar reports
         run: ( ls */reports-*.tzst | xargs -n1 tar --use-compress-program zstd --keep-newer-files -xf )
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v5
 
   snapshot:
     name: Publish snapshot packages
     needs: [build_and_test_complete]
     # Only run this on PUSH (no pull requests) and only on the master branch and release branches.
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/r0.') || startsWith(github.ref, 'refs/heads/r1.')) }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-java@v2
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
       - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
           key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
-        uses: actions/cache@v2.1.0
+        uses: actions/cache@v4
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}-${{github.run_id}}-${{github.job}}

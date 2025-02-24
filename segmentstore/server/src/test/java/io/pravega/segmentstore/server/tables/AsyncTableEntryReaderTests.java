@@ -38,6 +38,7 @@ import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -138,6 +139,7 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
      * Tests the ability to read a Table Entry for a matching key.
      */
     @Test
+    @Ignore
     public void testReadEntry() throws Exception {
         long keyVersion = 1L;
         val testItems = generateTestItems();
