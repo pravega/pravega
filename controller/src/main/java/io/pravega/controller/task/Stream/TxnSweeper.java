@@ -106,7 +106,7 @@ public class TxnSweeper implements FailoverSweeper {
         log.info("Host={}, sweeping orphaned transactions", failedHost);
         CompletableFuture<Void> delay = Futures.delayedFuture(Duration.ofMillis(2 * maxTxnTimeoutMillis), executor);
         return delay.thenComposeAsync(x -> withRetriesAsync(() -> sweepOrphanedTxnsWithoutDelay(failedHost),
-                RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
+                RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor), executor);
     }
 
     private CompletableFuture<Void> sweepOrphanedTxnsWithoutDelay(String failedHost) {

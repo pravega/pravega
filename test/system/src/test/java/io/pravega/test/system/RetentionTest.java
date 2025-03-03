@@ -34,6 +34,7 @@ import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -45,7 +46,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -112,10 +113,12 @@ public class RetentionTest extends AbstractSystemTest {
 
     @Test
     public void retentionTest() throws Exception {
-        CompletableFuture.allOf(retentionTest(STREAM_TIME, false), retentionTest(STREAM_SIZE, true));
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "RetentionTest");
+        CompletableFuture.allOf(retentionTest(STREAM_TIME, false, executor), retentionTest(STREAM_SIZE, true, executor)).join();
     }
     
-    private CompletableFuture<Void> retentionTest(String streamName, boolean sizeBased) throws Exception {
+    private CompletableFuture<Void> retentionTest(String streamName, boolean sizeBased, ScheduledExecutorService executor) throws Exception {
         return CompletableFuture.runAsync(() -> {
             final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
             @Cleanup
@@ -173,6 +176,6 @@ public class RetentionTest extends AbstractSystemTest {
             Assert.assertEquals(event, reader.readNextEvent(6000).getEvent());
 
             log.debug("The stream is already truncated.Simple retention test passed.");
-        });
+        }, executor);
     }
 }

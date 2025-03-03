@@ -561,7 +561,7 @@ public class EventProcessorTest extends ThreadPooledTestSuite {
                     Exceptions.handleInterrupted(() -> Thread.sleep(100));
                 }
             }
-        }), CompletableFuture.runAsync(() -> {
+        }, executorService()), CompletableFuture.runAsync(() -> {
             while (output2.size() < 10) {
                 Integer entry = queue2.poll();
                 if (entry != null) {
@@ -572,7 +572,7 @@ public class EventProcessorTest extends ThreadPooledTestSuite {
                     Exceptions.handleInterrupted(() -> Thread.sleep(100));
                 }
             }
-        })).join();
+        }, executorService())).join();
 
         assertTrue(queue1EntriesFound.get() > 0);
         assertTrue(queue2EntriesFound.get() > 0);

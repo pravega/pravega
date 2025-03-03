@@ -1612,7 +1612,7 @@ public class ControllerImpl implements Controller {
             }, this.executor);
             return listCompletedTxnResponse.thenApplyAsync(txnResponse -> txnResponse.getResponseList().stream().map(transactionResponse ->
                             new TransactionInfoImpl(stream, encode(transactionResponse.getTxnId()),
-                                    Transaction.Status.valueOf(transactionResponse.getStatus().name()))).collect(Collectors.toList()));
+                                    Transaction.Status.valueOf(transactionResponse.getStatus().name()))).collect(Collectors.toList()), this.executor);
         } finally {
             LoggerHelpers.traceLeave(log, LIST_COMPLETED_TRANSACTIONS, traceId);
         }

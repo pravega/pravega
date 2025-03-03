@@ -67,7 +67,7 @@ public class EndToEndAutoScaleUpTest {
             ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new SocketConnectionFactoryImpl(ClientConfig.builder().build()));
 
             @Cleanup("shutdownNow")
-            val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+            val executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
             @Cleanup
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
@@ -114,7 +114,7 @@ public class EndToEndAutoScaleUpTest {
                         break;
                     }
                 }
-            });
+            }, executor);
 
             Retry.withExpBackoff(10, 10, 100, 10000)
                     .retryingOn(NotDoneException.class)
@@ -140,7 +140,5 @@ public class EndToEndAutoScaleUpTest {
             System.err.print("Test failed with exception: " + e.getMessage());
             System.exit(-1);
         }
-
-        System.exit(0);
     }
 }

@@ -832,7 +832,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         // 3. Reload index and verify it ignores the metadata-stored root pointer (and uses the actual index).
         context.index.cleanup(null);
         val storageRead = new AtomicBoolean();
-        context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true));
+        context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true), executorService());
 
         val idx2 = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
         val actualValue = idx2.get(Collections.singleton(attribute), TIMEOUT).join();
@@ -874,7 +874,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         // 3. Reload index and verify it fails to initialize.
         context.index.cleanup(null);
         val storageRead = new AtomicBoolean();
-        context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true));
+        context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true), executorService());
 
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected index initialization/read to fail.",
@@ -933,7 +933,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         // directly from Storage.
         context.index.cleanup(null);
         val storageRead = new AtomicBoolean();
-        context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true));
+        context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true), executorService());
         val idx2 = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
         checkIndex(idx2, expectedValues);
         Assert.assertTrue("Expecting storage reads after reload.", storageRead.get());
@@ -999,7 +999,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             // Clean up the index cache and force a reload. Verify that we can read from the index.
             context.index.cleanup(null);
             val storageRead = new AtomicBoolean();
-            context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true));
+            context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true), executorService());
             val idx2 = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
             checkIndex(idx2, expectedValues);
             Assert.assertTrue("Expecting storage reads after reload.", storageRead.get());
@@ -1060,7 +1060,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         // Record every time we read from Storage.
         AtomicBoolean storageRead = new AtomicBoolean(false);
-        context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true));
+        context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true), executorService());
 
         // Populate data.
         val updateBatch = new HashMap<AttributeId, Long>();

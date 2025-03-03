@@ -919,7 +919,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 } catch (TxnFailedException e) {
                     throw new CompletionException(e);
                 }
-            });
+            }, executorService());
         }, 1000L, executorService()), executorService());
     }
 

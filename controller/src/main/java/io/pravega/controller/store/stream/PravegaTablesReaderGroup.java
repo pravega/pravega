@@ -78,7 +78,7 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
             // if cache contains the scope id then we load the readergroup id. if not found, we load the scopeid first.
             return storeHelper.loadFromTableHandleStaleTableName(readerGroupsInScopeTableNameSupplier, getName(),
                     BYTES_TO_UUID_FUNCTION, context)
-                    .thenComposeAsync(data -> {
+                    .thenCompose(data -> {
                         idRef.compareAndSet(null, data.getObject().toString());
                         return getId(context);
                     });

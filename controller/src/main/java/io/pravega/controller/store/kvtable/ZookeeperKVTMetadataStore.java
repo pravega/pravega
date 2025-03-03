@@ -153,7 +153,7 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
                                           getScopedKVTName(scopeName, streamName), ex);
                                   throw new CompletionException(ex);
                               }
-                          });
+                          }, executor);
     }
 
     @VisibleForTesting

@@ -457,7 +457,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         log.error(String.format("Error fetching current processes%s", group.toString()), e);
                         throw new CompletionException(e);
                     }
-                }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor))
+                }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor), executor)
                 .thenComposeAsync(pair -> {
                     Set<String> activeProcesses = pair.getLeft();
                     Set<String> registeredProcesses = pair.getRight();
@@ -484,7 +484,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                     }
 
                     return Futures.allOf(futureList);
-                });
+                }, executor);
     }
 
     private void initialize() {

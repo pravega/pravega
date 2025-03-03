@@ -269,7 +269,7 @@ public class RetryTests {
                     if (i.get() < 10) {
                         throw new RuntimeException("test");
                     }
-                }), pool).get();
+                }, pool), pool).get();
         assert i.get() == 10;
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> Retry.indefinitelyWithExpBackoff(0, 0, 0, e -> i.getAndIncrement()));
