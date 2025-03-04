@@ -26,7 +26,7 @@ import java.nio.ByteBuffer;
  * and is responsible for keyspace 0-0.5 then other segments covering the range 0.5-1.0 will also be
  * included.)
  */
-public interface StreamCut extends Serializable {
+public interface StreamCut extends Serializable, Comparable<StreamCut> {
 
     /**
      * This is used represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
@@ -57,6 +57,30 @@ public interface StreamCut extends Serializable {
         
         private Object readResolve() {
             return UNBOUNDED;
+        }
+
+        /**
+         * UNBOUNDED is equal to itself and greater than all other StreamCuts
+         */
+        @Override
+        public int compareTo(StreamCut o) {
+            if (o == this) {
+                return 0; // UNBOUNDED is equal to itself
+            }
+            return 1; // and greater than all other StreamCuts
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true; // UNBOUNDED is equal to itself
+            }
+            return false;
+        }
+        
+        @Override
+        public int hashCode() {
+            return super.hashCode(); //This is useless but prevents a warning
         }
     };
     
