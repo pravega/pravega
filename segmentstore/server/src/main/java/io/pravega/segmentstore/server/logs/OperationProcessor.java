@@ -120,6 +120,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 .cacheThrottler(this.cacheUtilizationProvider::getCacheUtilization, this.cacheUtilizationProvider.getCacheTargetUtilization(),
                         this.cacheUtilizationProvider.getCacheMaxUtilization(), throttlerPolicy.getMaxDelayMillis())
                 .batchingThrottler(durableDataLog::getQueueStatistics, throttlerPolicy.getMaxBatchingDelayMillis())
+                .durableDataLogOutstandingBytesThrottler(durableDataLog.getWriteSettings(), durableDataLog::getQueueStatistics, throttlerPolicy.getMaxDelayMillis())
                 .durableDataLogThrottler(durableDataLog.getWriteSettings(), durableDataLog::getQueueStatistics, throttlerPolicy.getMaxDelayMillis())
                 .operationLogThrottler(this.stateUpdater::getInMemoryOperationLogSize, throttlerPolicy.getMaxDelayMillis(),
                         throttlerPolicy.getOperationLogMaxSize(), throttlerPolicy.getOperationLogTargetSize())
