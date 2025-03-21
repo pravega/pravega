@@ -962,6 +962,7 @@ public class ControllerImpl implements Controller {
         }
     }
 
+    @VisibleForTesting
     @Override
     public CompletableFuture<Boolean> checkScaleStatus(final Stream stream, final int scaleEpoch) {
         Exceptions.checkNotClosed(closed.get(), this);
@@ -1003,7 +1004,8 @@ public class ControllerImpl implements Controller {
         });
     }
 
-    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Long> sealedSegments,
+    @VisibleForTesting
+    public CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Long> sealedSegments,
                                                                 final Map<Double, Double> newKeyRanges, String method,
                                                                 long requestId) {
         Preconditions.checkNotNull(stream, "stream");
