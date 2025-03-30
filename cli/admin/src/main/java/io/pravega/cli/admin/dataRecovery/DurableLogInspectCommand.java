@@ -214,13 +214,7 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
                     case OFFSET:
                     case LENGTH:
                     case ATTRIBUTES:
-                        op = getStringUserInput("Search operation based on: [value/range]");
-                        if (op.equals("value")) {
-                            long in = getLongUserInput("Enter valid " + conditionTpe);
-                            predicates.add(a -> a.getSequenceNumber() == in);
-                        } else {
-                            predicates.add(valueOrRangeInput(conditionTpe));
-                        }
+                        getValueOrRange(predicates, conditionTpe);
                         break;
                     default:
                         showMessage = false;
@@ -245,13 +239,38 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         return predicate;
     }
 
+    private void getValueOrRange(List<Predicate<OperationInspectInfo>> predicates, String conditionTpe) {
+        String op;
+        op = getStringUserInput("Search operation based on: [value/range]");
+        if (op.equals("value")) {
+            long in = getLongUserInput("Enter valid " + conditionTpe);
+            if (conditionTpe.equals(SEQUENCE_NUMBER)) {
+                predicates.add(a -> a.getSequenceNumber() == in);
+            }
+            if (conditionTpe.equals(SEGMENT_ID)) {
+                predicates.add(a -> a.getSegmentId() == in);
+            }
+            if (conditionTpe.equals(OFFSET)) {
+                predicates.add(a -> a.getOffset() == in);
+            }
+            if (conditionTpe.equals(LENGTH)) {
+                predicates.add(a -> a.getLength() == in);
+            }
+            if (conditionTpe.equals(ATTRIBUTES)) {
+                predicates.add(a -> a.getAttributes() == in);
+            }
+        } else {
+            predicates.add(getRangeInput(conditionTpe));
+        }
+    }
+
     /**
      * Guides the users to a set of options for creating range for selected
      * option by the user.
      *
      * @return Predicate<OperationInspectInfo>.
      */
-    private Predicate<OperationInspectInfo> valueOrRangeInput(String conditionTpe) {
+    private Predicate<OperationInspectInfo> getRangeInput(String conditionType) {
         List<Predicate<OperationInspectInfo>> predicates = new ArrayList<>();
         Predicate<OperationInspectInfo> predicate = null;
         String clause = OPERATOR_AND;
@@ -261,22 +280,22 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
                 clause = getStringUserInput("Select conditional operator: [and/or]");
             }
             final String input = getStringUserInput("Select operator : [</>/<=/>=/!=]");
-            final long in = getLongUserInput("Enter range " + conditionTpe);
+            final long in = getLongUserInput("Enter range for " + conditionType);
             switch (input) {
                 case LESS_THAN:
-                    predicates.add(a -> a.getSequenceNumber() < in);
+                    getLessThanRange(predicates, conditionType, in);
                     break;
                 case GREATER_THAN:
-                    predicates.add(a -> a.getSequenceNumber() > in);
+                    getGreaterThanRange(predicates, conditionType, in);
                     break;
                 case LESS_THAN_EQUAL_TO:
-                    predicates.add(a -> a.getSequenceNumber() <= in);
+                    getLessThanEqualRange(predicates, conditionType, in);
                     break;
                 case GREATER_THAN_EQUAL_TO:
-                    predicates.add(a -> a.getSequenceNumber() >= in);
+                    getGreaterThanEqualRange(predicates, conditionType, in);
                     break;
                 case NOT_EQUAL_TO:
-                    predicates.add(a -> a.getSequenceNumber() != in);
+                    getNotEqualRange(predicates, conditionType, in);
                     break;
                 default:
                     output("Invalid input please select valid operator : [</>/<=/>=/!=]");
@@ -289,6 +308,97 @@ public class DurableLogInspectCommand extends DurableDataLogRepairCommand {
         }
         return predicate;
     }
+
+    private void getLessThanRange(List<Predicate<OperationInspectInfo>> predicates, String conditionTpe, long in) {
+        if (conditionTpe.equals(SEQUENCE_NUMBER)) {
+            predicates.add(a -> a.getSequenceNumber() < in);
+        }
+        if (conditionTpe.equals(SEGMENT_ID)) {
+            predicates.add(a -> a.getSegmentId() < in);
+        }
+        if (conditionTpe.equals(OFFSET)) {
+            predicates.add(a -> a.getOffset() < in);
+        }
+        if (conditionTpe.equals(LENGTH)) {
+            predicates.add(a -> a.getLength() < in);
+        }
+        if (conditionTpe.equals(ATTRIBUTES)) {
+            predicates.add(a -> a.getAttributes() < in);
+        }
+    }
+
+    private void getGreaterThanRange(List<Predicate<OperationInspectInfo>> predicates, String conditionTpe, long in) {
+        if (conditionTpe.equals(SEQUENCE_NUMBER)) {
+            predicates.add(a -> a.getSequenceNumber() > in);
+        }
+        if (conditionTpe.equals(SEGMENT_ID)) {
+            predicates.add(a -> a.getSegmentId() > in);
+        }
+        if (conditionTpe.equals(OFFSET)) {
+            predicates.add(a -> a.getOffset() > in);
+        }
+        if (conditionTpe.equals(LENGTH)) {
+            predicates.add(a -> a.getLength() > in);
+        }
+        if (conditionTpe.equals(ATTRIBUTES)) {
+            predicates.add(a -> a.getAttributes() > in);
+        }
+    }
+
+    private void getLessThanEqualRange(List<Predicate<OperationInspectInfo>> predicates, String conditionTpe, long in) {
+        if (conditionTpe.equals(SEQUENCE_NUMBER)) {
+            predicates.add(a -> a.getSequenceNumber() <= in);
+        }
+        if (conditionTpe.equals(SEGMENT_ID)) {
+            predicates.add(a -> a.getSegmentId() <= in);
+        }
+        if (conditionTpe.equals(OFFSET)) {
+            predicates.add(a -> a.getOffset() <= in);
+        }
+        if (conditionTpe.equals(LENGTH)) {
+            predicates.add(a -> a.getLength() <= in);
+        }
+        if (conditionTpe.equals(ATTRIBUTES)) {
+            predicates.add(a -> a.getAttributes() <= in);
+        }
+    }
+
+    private void getGreaterThanEqualRange(List<Predicate<OperationInspectInfo>> predicates, String conditionTpe, long in) {
+        if (conditionTpe.equals(SEQUENCE_NUMBER)) {
+            predicates.add(a -> a.getSequenceNumber() >= in);
+        }
+        if (conditionTpe.equals(SEGMENT_ID)) {
+            predicates.add(a -> a.getSegmentId() >= in);
+        }
+        if (conditionTpe.equals(OFFSET)) {
+            predicates.add(a -> a.getOffset() >= in);
+        }
+        if (conditionTpe.equals(LENGTH)) {
+            predicates.add(a -> a.getLength() >= in);
+        }
+        if (conditionTpe.equals(ATTRIBUTES)) {
+            predicates.add(a -> a.getAttributes() >= in);
+        }
+    }
+
+    private void getNotEqualRange(List<Predicate<OperationInspectInfo>> predicates, String conditionTpe, long in) {
+        if (conditionTpe.equals(SEQUENCE_NUMBER)) {
+            predicates.add(a -> a.getSequenceNumber() != in);
+        }
+        if (conditionTpe.equals(SEGMENT_ID)) {
+            predicates.add(a -> a.getSegmentId() != in);
+        }
+        if (conditionTpe.equals(OFFSET)) {
+            predicates.add(a -> a.getOffset() != in);
+        }
+        if (conditionTpe.equals(LENGTH)) {
+            predicates.add(a -> a.getLength() != in);
+        }
+        if (conditionTpe.equals(ATTRIBUTES)) {
+            predicates.add(a -> a.getAttributes() != in);
+        }
+    }
+
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "durableLog-inspect", "Allows to inspect DurableLog " +
