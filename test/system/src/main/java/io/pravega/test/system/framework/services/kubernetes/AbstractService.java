@@ -15,7 +15,6 @@
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
-import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
 import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
@@ -27,6 +26,8 @@ import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
 
+import lombok.NonNull;
+import lombok.val;
 import org.apache.commons.io.IOUtils;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,7 +37,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.Exceptions.checkNotNullOrEmpty;
@@ -240,19 +240,27 @@ public abstract class AbstractService implements Service {
         return parseSystemPropertyAsMap("tier2Env");
     }
 
-    private Map<String, Object> parseSystemPropertyAsMap(String systemProperty) {
+    public static Map<String, Object> parseSystemPropertyAsMap(String systemProperty) {
         String value = System.getProperty(systemProperty);
         checkNotNullOrEmpty(value, systemProperty);
-        log.info("Parsing {} = {}", systemProperty, value);
-        Map<String, String> split = Splitter.on(',').trimResults().withKeyValueSeparator("=").split(value);
-        return split.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
-            try {
-                return Integer.parseInt(e.getValue());
-            } catch (NumberFormatException ex) {
-                // return all non integer configuration as String.
-                return e.getValue();
-            }
-        }));
+        return parseSystemPropertyAsMap(systemProperty, value);
+    }
+
+    @NonNull
+    public static Map<String, Object> parseSystemPropertyAsMap(String systemProperty, String value) {
+        // Splitting the given string of parameters at ","
+        String[] parameters = value.split(",");
+        Map<String, Object> map =  new HashMap<>();
+        for (String s: parameters) {
+            // Splits the string into config property name and the property and put them in a map as key and value respectively.
+            String[] keyVal = s.split("=", 2);
+            val key = keyVal[0];
+            String property = keyVal[1];
+            property = property.trim().replace("\"", "");
+            map.put(key, property);
+            log.info("Parsing {} = {}", key, property);
+        }
+        return map;
     }
 
     // Removal of the JVM option 'UseCGroupMemoryLimitForHeap' is required with JVM environments >= 10. This option
