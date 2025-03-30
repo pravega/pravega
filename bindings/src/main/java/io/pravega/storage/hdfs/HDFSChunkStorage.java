@@ -35,6 +35,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageFullException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
+import io.pravega.segmentstore.storage.chunklayer.StorageCapacityStats;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -280,9 +281,13 @@ public class HDFSChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected long doGetUsedSpace(OperationContext opContext) throws ChunkStorageException {
+    protected StorageCapacityStats doGetStorageCapacityStats(OperationContext opContext) throws ChunkStorageException {
         try {
-            return this.fileSystem.getUsed();
+            val rootStats = this.fileSystem.getQuotaUsage(new Path(this.config.getHdfsRoot() + Path.SEPARATOR));
+            return StorageCapacityStats.builder()
+                    .totalSpace(rootStats.getQuota())
+                    .usedSpace(rootStats.getSpaceConsumed())
+                    .build();
         } catch (IOException e) {
             throw convertException("", "doGetUsedSpace", e);
         }

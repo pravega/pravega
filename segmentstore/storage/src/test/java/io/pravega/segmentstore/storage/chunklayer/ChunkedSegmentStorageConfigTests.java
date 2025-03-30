@@ -59,6 +59,7 @@ public class ChunkedSegmentStorageConfigTests {
         props.setProperty(ChunkedSegmentStorageConfig.MAX_TRUNCATE_RELOCATION_SIZE_BYTES.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "22");
         props.setProperty(ChunkedSegmentStorageConfig.SELF_CHECK_DATA_INTEGRITY.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "true");
         props.setProperty(ChunkedSegmentStorageConfig.SELF_CHECK_METADATA_INTEGRITY.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "true");
+        props.setProperty(ChunkedSegmentStorageConfig.MAX_SAFE_PERCENT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "23");
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
@@ -90,6 +91,7 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMaxSizeForTruncateRelocationInbytes(), 22);
         Assert.assertEquals(config.isSelfCheckForDataEnabled(), true);
         Assert.assertEquals(config.isSelfCheckForMetadataEnabled(), true);
+        Assert.assertEquals(config.getMaxSafeStoragePercent(), 23);
     }
 
     @Test
@@ -130,6 +132,7 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMinPercentForTruncateRelocation(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinPercentForTruncateRelocation());
         Assert.assertEquals(config.isSelfCheckForDataEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isSelfCheckForDataEnabled());
         Assert.assertEquals(config.isSelfCheckForMetadataEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isSelfCheckForMetadataEnabled());
+        Assert.assertEquals(config.getMaxSafeStoragePercent(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxSafeStoragePercent());
     }
 
     @Test

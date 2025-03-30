@@ -480,7 +480,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         chunkedSegmentStorage.getGarbageCollector().initialize(new InMemoryTaskQueueManager()).join();
 
         Exception exceptionToThrow = new ChunkStorageException("Intentional", "Intentional");
-        doReturn(CompletableFuture.failedFuture(exceptionToThrow)).when(spyChunkStorage).doGetUsedSpaceAsync(any());
+        doReturn(CompletableFuture.failedFuture(exceptionToThrow)).when(spyChunkStorage).doGetStorageCapacityStatsAsync(any());
 
         // Should not throw an exception
         chunkedSegmentStorage.updateStorageStats().get();
@@ -508,7 +508,11 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
 
-        when(spyChunkStorage.doGetUsedSpace(any())).thenReturn(123L);
+        when(spyChunkStorage.doGetStorageCapacityStats(any())).thenReturn(
+                StorageCapacityStats.builder()
+                        .totalSpace(1000)
+                        .usedSpace(123)
+                        .build());
         chunkedSegmentStorage.updateStorageStats().get();
 
         chunkedSegmentStorage.report();

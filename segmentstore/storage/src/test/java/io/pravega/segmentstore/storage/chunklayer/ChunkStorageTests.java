@@ -867,8 +867,11 @@ public class ChunkStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testGetUsedSpace() throws Exception {
-        val used = chunkStorage.getUsedSpace().get();
-        Assert.assertTrue(used >= 0);
+        val used = chunkStorage.getStorageCapacityStats().get();
+        Assert.assertNotNull(used);
+        Assert.assertTrue(used.getTotalSpace() >= 0);
+        Assert.assertTrue(used.getUsedPercentage() >= 0);
+        Assert.assertTrue(used.getUsedSpace() >= 0);
     }
 
     /**

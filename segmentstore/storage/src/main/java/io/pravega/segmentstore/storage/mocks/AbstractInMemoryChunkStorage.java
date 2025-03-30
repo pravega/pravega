@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.storage.mocks;
 
 import io.pravega.segmentstore.storage.chunklayer.BaseChunkStorage;
+import io.pravega.segmentstore.storage.chunklayer.StorageCapacityStats;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +52,10 @@ abstract public class AbstractInMemoryChunkStorage extends BaseChunkStorage {
 
     @Getter
     @Setter
-    long usedSizeToReturn = 0;
+    StorageCapacityStats storageCapacityStatsToReturn = StorageCapacityStats.builder()
+            .usedSpace(0)
+            .totalSpace(Long.MAX_VALUE)
+            .build();
 
     public AbstractInMemoryChunkStorage(Executor executor) {
         super(executor);
@@ -88,8 +92,8 @@ abstract public class AbstractInMemoryChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected long doGetUsedSpace(OperationContext opContext) {
-        return usedSizeToReturn;
+    protected StorageCapacityStats doGetStorageCapacityStats(OperationContext opContext) {
+        return storageCapacityStatsToReturn;
     }
 
     /**
