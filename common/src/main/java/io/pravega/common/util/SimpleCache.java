@@ -100,8 +100,8 @@ public class SimpleCache<KeyT, ValueT> {
      * @param currentTime    A {@link Supplier} that will return the current time, expressed in nanoseconds.
      */
     @VisibleForTesting
-    SimpleCache(int maxSize, @NonNull Duration expirationTime, @Nullable BiConsumer<KeyT, ValueT> onExpiration,
-                @NonNull Supplier<Long> currentTime) {
+    public SimpleCache(int maxSize, @NonNull Duration expirationTime, @Nullable BiConsumer<KeyT, ValueT> onExpiration,
+                       @NonNull Supplier<Long> currentTime) {
         Preconditions.checkArgument(maxSize > 0, "maxSize must be a positive number.");
         this.expirationTimeNanos = expirationTime.toNanos();
         Preconditions.checkArgument(this.expirationTimeNanos > 0, "expirationTime must be a positive duration.");
