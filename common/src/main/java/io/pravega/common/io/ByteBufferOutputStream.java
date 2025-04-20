@@ -76,6 +76,14 @@ public class ByteBufferOutputStream extends OutputStream implements RandomAccess
 
     @Override
     public void write(byte[] b, int offset, int length) {
+        if (b == null) {
+            throw new NullPointerException();
+        }
+    
+        if (offset < 0 || length < 0 || offset + length > b.length) {
+            throw new ArrayIndexOutOfBoundsException();
+        }
+    
         ensureExtraCapacity(length);
         this.buf.put(b, offset, length);
     }
