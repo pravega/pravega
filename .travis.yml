@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 git:
-  depth: false
+  depth: 3
 language: java
 install: true
 jdk:
