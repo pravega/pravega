@@ -22,6 +22,9 @@ import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+
 /**
  * Configuration for the NFS Storage component.
  */
@@ -29,6 +32,9 @@ import lombok.extern.slf4j.Slf4j;
 public class FileSystemStorageConfig {
     //region Config Names
 
+    public static final Property<Integer> WRITE_CHANNEL_CACHE_SIZE = Property.named("write.channel.cache.size", 1024);
+    public static final Property<Integer> READ_CHANNEL_CACHE_SIZE = Property.named("read.channel.cache.size", 1024);
+    public static final Property<Integer> CHANNEL_CACHE_EXPIRATION = Property.named("channel.cache.expiration.sec", 600);
     public static final Property<String> ROOT = Property.named("root", "/fs/");
     public static final Property<Boolean> REPLACE_ENABLED = Property.named("replace.enable", false);
     public static final String COMPONENT_CODE = "filesystem";
@@ -50,6 +56,24 @@ public class FileSystemStorageConfig {
     @Getter
     private final boolean replaceEnabled;
 
+    /**
+     * Maximum number of cached read channels.
+     */
+    @Getter
+    private final int readChannelCacheSize;
+
+    /**
+     * Maximum number of cached write channels.
+     */
+    @Getter
+    private final int writeChannelCacheSize;
+
+    /**
+     * Amount of inactivity after which a cached channel is closed and removed.
+     */
+    @Getter
+    private final Duration channelCacheExpiration;
+
     //endregion
 
     //region Constructor
@@ -62,6 +86,9 @@ public class FileSystemStorageConfig {
     private FileSystemStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.root = properties.get(ROOT);
         this.replaceEnabled = properties.getBoolean(REPLACE_ENABLED);
+        this.readChannelCacheSize = properties.getPositiveInt(READ_CHANNEL_CACHE_SIZE);
+        this.writeChannelCacheSize = properties.getPositiveInt(WRITE_CHANNEL_CACHE_SIZE);
+        this.channelCacheExpiration = properties.getDuration(CHANNEL_CACHE_EXPIRATION, ChronoUnit.SECONDS);
     }
 
     /**

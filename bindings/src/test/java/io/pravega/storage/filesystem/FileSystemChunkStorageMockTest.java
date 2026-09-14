@@ -73,9 +73,6 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
     public void testWithNonRegularFile() throws Exception {
         String chunkName = "test";
 
-        FileChannel channel = mock(FileChannel.class);
-        fixChannelMock(channel);
-
         FileSystemWrapper fileSystemWrapper = mock(FileSystemWrapper.class);
         when(fileSystemWrapper.exists(any())).thenReturn(true);
         when(fileSystemWrapper.isRegularFile(any())).thenReturn(false);
@@ -98,7 +95,8 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
 
         FileSystemWrapper fileSystemWrapper = mock(FileSystemWrapper.class);
         when(fileSystemWrapper.getFileSize(any())).thenThrow(new IOException("Random"));
-        when(fileSystemWrapper.getFileChannel(any(), any())).thenThrow(new IOException("Random"));
+        when(fileSystemWrapper.getReadChannel(any())).thenThrow(new IOException("Random"));
+        when(fileSystemWrapper.getWriteChannel(any())).thenThrow(new IOException("Random"));
         when(fileSystemWrapper.setPermissions(any(), any())).thenThrow(new IOException("Random"));
         when(fileSystemWrapper.createDirectories(any())).thenThrow(new IOException("Random"));
         doThrow(new IOException("Random")).when(fileSystemWrapper).delete(any());
@@ -154,8 +152,9 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
 
     @Test
     public void testStorageFull() throws Exception {
-        val fs = spy(FileSystemWrapper.class);
+        val fs = spy(newFileSystemWrapper());
         doThrow(new IOException("No space left on device")).when(fs).getFileSize(any());
+        @Cleanup
         FileSystemChunkStorage storage = new FileSystemChunkStorage(storageConfig, fs, executorService());
         AssertExtensions.assertFutureThrows("should throw ChunkStorageFull exception",
                 storage.getInfo("test"),
@@ -164,8 +163,9 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
 
     @Test
     public void testGetUsageException() {
-        val fs = spy(FileSystemWrapper.class);
+        val fs = spy(newFileSystemWrapper());
         doThrow(new RuntimeException("Intentional")).when(fs).getUsedSpace(any());
+        @Cleanup
         FileSystemChunkStorage storage = new FileSystemChunkStorage(storageConfig, fs, executorService());
         AssertExtensions.assertFutureThrows("should throw ChunkStorageException exception",
                 storage.getUsedSpace(),
@@ -191,7 +191,9 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
         fixChannelMock(channel);
 
         FileSystemWrapper fileSystemWrapper = mock(FileSystemWrapper.class);
-        when(fileSystemWrapper.getFileChannel(any(), any())).thenReturn(channel);
+        FileSystemWrapper.FileChannelLease channelLease = mock(FileSystemWrapper.FileChannelLease.class);
+        when(channelLease.getChannel()).thenReturn(channel);
+        when(fileSystemWrapper.getReadChannel(any())).thenReturn(channelLease);
         when(fileSystemWrapper.getFileSize(any())).thenReturn(2L * bufferSize);
 
         @Cleanup
@@ -213,6 +215,11 @@ public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
         assertEquals(2, actualArgs.size());
         assertEquals(0, actualArgs.get(0).longValue());
         assertEquals(index, actualArgs.get(1).longValue());
+    }
+
+    private FileSystemWrapper newFileSystemWrapper() {
+        return new FileSystemWrapper(storageConfig.getReadChannelCacheSize(), storageConfig.getWriteChannelCacheSize(),
+                storageConfig.getChannelCacheExpiration());
     }
 
     private static void fixChannelMock(AbstractInterruptibleChannel mockFileChannel) throws Exception {

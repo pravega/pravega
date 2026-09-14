@@ -29,6 +29,7 @@ import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,7 +41,6 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -57,6 +57,7 @@ import java.util.concurrent.Executor;
 @Slf4j
 public class FileSystemChunkStorage extends BaseChunkStorage {
     public static final String NO_SPACE_LEFT_ON_DEVICE = "No space left on device";
+    private static final int CONCAT_BUFFER_SIZE = 1024 * 1024;
     //region members
 
     private final FileSystemStorageConfig config;
@@ -76,14 +77,16 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
     public FileSystemChunkStorage(FileSystemStorageConfig config, Executor executor) {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
-        this.fileSystem = new FileSystemWrapper();
+        this.fileSystem = new FileSystemWrapper(config.getReadChannelCacheSize(), config.getWriteChannelCacheSize(),
+                config.getChannelCacheExpiration());
     }
 
     /**
      * Creates a new instance of the FileSystemChunkStorage class.
      *
      * @param config The configuration to use.
-     * @param fileSystem Object that wraps file system related calls.
+     * @param fileSystem Object that wraps file system related calls. Ownership is transferred to this instance and the
+     *                   wrapper is closed when this storage is closed.
      * @param executor Executor for a async operations.
      */
     public FileSystemChunkStorage(FileSystemStorageConfig config, FileSystemWrapper fileSystem, Executor executor) {
@@ -110,6 +113,12 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
     @Override
     public boolean supportsTruncation() {
         return false;
+    }
+
+    @Override
+    public void close() {
+        fileSystem.close();
+        super.close();
     }
 
     //endregion
@@ -207,7 +216,8 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
             throw convertException(handle.getChunkName(), "doRead", e);
         }
 
-        try (FileChannel channel = fileSystem.getFileChannel(path, StandardOpenOption.READ)) {
+        try (FileSystemWrapper.FileChannelLease channelLease = fileSystem.getReadChannel(path)) {
+            FileChannel channel = channelLease.getChannel();
             int totalBytesRead = 0;
             long readOffset = fromOffset;
             do {
@@ -229,7 +239,8 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
         Path path = getFilePath(handle.getChunkName());
 
         long totalBytesWritten = 0;
-        try (FileChannel channel = fileSystem.getFileChannel(path, StandardOpenOption.WRITE)) {
+        try (FileSystemWrapper.FileChannelLease channelLease = fileSystem.getWriteChannel(path)) {
+            FileChannel channel = channelLease.getChannel();
             long fileSize = channel.size();
             if (fileSize != offset) {
                 throw new InvalidOffsetException(handle.getChunkName(), fileSize, offset, "doWrite");
@@ -240,7 +251,9 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
             ReadableByteChannel sourceChannel = Channels.newChannel(data);
             while (length > 0) {
                 long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
-                assert bytesWritten > 0 : "Unable to make any progress transferring data.";
+                if (bytesWritten <= 0) {
+                    throw new IOException("Unable to make progress while writing chunk " + handle.getChunkName() + ".");
+                }
                 offset += bytesWritten;
                 totalBytesWritten += bytesWritten;
                 length -= bytesWritten;
@@ -255,30 +268,28 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
     @Override
     public int doConcat(ConcatArgument[] chunks) throws ChunkStorageException {
         try {
-            int totalBytesConcated = 0;
+            long totalBytesConcatenated = 0;
             Path targetPath = getFilePath(chunks[0].getName());
             long offset = chunks[0].getLength();
-            try (val targetChannel = fileSystem.getFileChannel(targetPath, StandardOpenOption.WRITE)) {
+            ByteBuffer copyBuffer = ByteBuffer.allocate(CONCAT_BUFFER_SIZE);
+            try (FileSystemWrapper.FileChannelLease targetLease = fileSystem.getWriteChannel(targetPath)) {
+                FileChannel targetChannel = targetLease.getChannel();
                 for (int i = 1; i < chunks.length; i++) {
                     val source = chunks[i];
                     Preconditions.checkArgument(!chunks[0].getName().equals(source.getName()), "target and source can not be same.");
                     Path sourcePath = getFilePath(source.getName());
-                    long length = chunks[i].getLength();
+                    long length = source.getLength();
                     Preconditions.checkState(offset <= fileSystem.getFileSize(targetPath));
                     Preconditions.checkState(length <= fileSystem.getFileSize(sourcePath));
-                    try (val sourceChannel = fileSystem.getFileChannel(sourcePath, StandardOpenOption.READ)) {
-                        while (length > 0) {
-                            long bytesTransferred = targetChannel.transferFrom(sourceChannel, offset, length);
-                            offset += bytesTransferred;
-                            length -= bytesTransferred;
-                        }
-                        targetChannel.force(true);
-                        totalBytesConcated += length;
-                        offset += length;
+                    try (FileSystemWrapper.FileChannelLease sourceLease = fileSystem.getReadChannel(sourcePath)) {
+                        copyChunkData(source.getName(), sourceLease.getChannel(), targetChannel, offset, length, copyBuffer);
                     }
+                    offset += length;
+                    totalBytesConcatenated = Math.addExact(totalBytesConcatenated, length);
                 }
+                targetChannel.force(true);
             }
-            return totalBytesConcated;
+            return Math.toIntExact(totalBytesConcatenated);
         } catch (IOException e) {
             throw convertException(chunks[0].getName(), "doConcat", e);
         }
@@ -324,6 +335,32 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
 
     private Path getFilePath(String chunkName) {
         return Paths.get(config.getRoot(), chunkName);
+    }
+
+    private void copyChunkData(String sourceChunkName, FileChannel source, FileChannel target, long targetOffset,
+                               long length, ByteBuffer buffer) throws IOException {
+        long sourceOffset = 0;
+        long remaining = length;
+        while (remaining > 0) {
+            buffer.clear();
+            buffer.limit((int) Math.min(buffer.capacity(), remaining));
+            int bytesRead = source.read(buffer, sourceOffset);
+            if (bytesRead <= 0) {
+                throw new EOFException(String.format("Unable to read %d remaining bytes from source chunk %s.",
+                        remaining, sourceChunkName));
+            }
+
+            buffer.flip();
+            while (buffer.hasRemaining()) {
+                int bytesWritten = target.write(buffer, targetOffset);
+                if (bytesWritten <= 0) {
+                    throw new IOException("Unable to make progress while concatenating chunks.");
+                }
+                targetOffset += bytesWritten;
+            }
+            sourceOffset += bytesRead;
+            remaining -= bytesRead;
+        }
     }
     //endregion
 }
